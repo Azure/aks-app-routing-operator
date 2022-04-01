@@ -108,7 +108,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 	if len(chunks) < 2 {
-		return false, fmt.Errorf("invalid secret uri: %s", certURI) // TODO: publish event instead of returning error
+		return false, fmt.Errorf("invalid secret uri: %s", certURI)
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{

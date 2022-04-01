@@ -17,10 +17,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
-// TODO: Roll external dns deployment when config changes
-
-// TODO: Maybe set typemeta?
-
 func main() {
 	flag.Parse()
 	rand.Seed(time.Now().Unix())
