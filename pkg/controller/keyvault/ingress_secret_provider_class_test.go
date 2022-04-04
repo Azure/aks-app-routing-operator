@@ -13,6 +13,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -106,4 +107,100 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	// Check for idempotence
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
+}
+
+func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
+	ing := &netv1.Ingress{}
+	ing.Name = "test-ingress"
+	ing.Namespace = "default"
+	ingressClass := "webapprouting.aks.io"
+	ing.Spec.IngressClassName = &ingressClass
+	ing.Annotations = map[string]string{
+		"aks.io/tls-cert-keyvault-uri": "inv@lid URL",
+	}
+
+	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	recorder := record.NewFakeRecorder(10)
+	i := &IngressSecretProviderClassReconciler{
+		client: c,
+		config: &config.Config{
+			TenantID:    "test-tenant-id",
+			MSIClientID: "test-msi-client-id",
+		},
+		events: recorder,
+	}
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	_, err := i.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Warning InvalidInput error while processing Keyvault reference: invalid secret uri: inv@lid URL", <-recorder.Events)
+}
+
+func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
+	i := &IngressSecretProviderClassReconciler{}
+
+	ing := &netv1.Ingress{}
+	ingressClass := "webapprouting.aks.io"
+	ing.Spec.IngressClassName = &ingressClass
+
+	t.Run("missing ingress class", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Spec.IngressClassName = nil
+		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": "inv@lid URL"}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("incorrect ingress class", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		incorrect := "some-other-ingress-class"
+		ing.Spec.IngressClassName = &incorrect
+		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": "inv@lid URL"}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("nil annotations", func(t *testing.T) {
+		ing := ing.DeepCopy()
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("empty url", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": ""}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("url with control character", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": string([]byte{0x7f})}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.EqualError(t, err, "parse \"\\u007f\": net/url: invalid control character in URL")
+	})
+
+	t.Run("url with one path segment", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": "http://test.com/foo"}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
+	})
 }
