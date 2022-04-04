@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -25,7 +26,7 @@ func TestIngressControllerReconcilerEmpty(t *testing.T) {
 	require.NoError(t, i.tick(context.Background()))
 }
 
-func TestIngressControllerReconcilerHappyPath(t *testing.T) {
+func TestIngressControllerReconcilerIntegration(t *testing.T) {
 	c := fake.NewClientBuilder().Build()
 
 	obj := &corev1.Namespace{
@@ -38,6 +39,7 @@ func TestIngressControllerReconcilerHappyPath(t *testing.T) {
 		},
 	}
 
+	// Create resource
 	i := &IngressControllerReconciler{
 		client:    c,
 		resources: []client.Object{obj},
@@ -45,5 +47,14 @@ func TestIngressControllerReconcilerHappyPath(t *testing.T) {
 	}
 	require.NoError(t, i.tick(context.Background()))
 
-	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+	// Prove the resource exists
+	actual := &corev1.Namespace{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual))
+
+	// Delete resource
+	obj.DeletionTimestamp = &metav1.Time{}
+	require.NoError(t, i.tick(context.Background()))
+
+	// Prove the resource doesn't exist
+	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)))
 }

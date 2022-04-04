@@ -61,6 +61,12 @@ func (i *IngressControllerReconciler) tick(ctx context.Context) error {
 
 	for _, res := range i.resources {
 		copy := res.DeepCopyObject().(client.Object)
+		if copy.GetDeletionTimestamp() != nil {
+			if err := i.client.Delete(ctx, copy); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := util.Upsert(ctx, i.client, copy); err != nil {
 			return err
 		}

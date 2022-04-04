@@ -34,7 +34,7 @@ var (
 )
 
 func IngressControllerResources(conf *config.Config) []client.Object {
-	return []client.Object{
+	objs := []client.Object{
 		newNamespace(conf),
 		newIngressClass(conf),
 		newIngressControllerServiceAccount(conf),
@@ -43,9 +43,15 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 		newIngressControllerService(conf),
 		newIngressControllerDeployment(conf),
 		newIngressControllerHPA(conf),
-		newExternalDNSConfigMap(conf),
-		newExternalDNSDeployment(conf),
 	}
+
+	if conf.DNSZoneDomain != "" {
+		objs = append(objs,
+			newExternalDNSConfigMap(conf),
+			newExternalDNSDeployment(conf))
+	}
+
+	return objs
 }
 
 func newNamespace(conf *config.Config) *corev1.Namespace {
