@@ -57,17 +57,13 @@ func (i *IngressTLSReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		tlsRule.Hosts = append(tlsRule.Hosts, cur.Host)
 	}
 
-	if len(ing.Spec.TLS) == 0 {
-		ing.Spec.TLS = append(ing.Spec.TLS, tlsRule)
-	} else if len(ing.Spec.TLS) > 1 {
-		ing.Spec.TLS = []netv1.IngressTLS{tlsRule}
-	} else {
-		current := ing.Spec.TLS[0]
-		if reflect.DeepEqual(current.Hosts, tlsRule.Hosts) {
-			return ctrl.Result{}, nil
-		}
-		ing.Spec.TLS[0] = tlsRule
+	// If user specifies a Keyvault cert, all hosts in the ingress must use it.
+	// So we remove any TLS configurations except for the one we manage.
+	expected := []netv1.IngressTLS{tlsRule}
+	if reflect.DeepEqual(ing.Spec.TLS, expected) {
+		return ctrl.Result{}, nil
 	}
+	ing.Spec.TLS = expected
 
 	logger.Info("updating ingress TLS rules")
 	return ctrl.Result{}, i.client.Update(ctx, ing)
