@@ -57,7 +57,7 @@ func newManager(conf *config.Config) (ctrl.Manager, error) {
 	if err = keyvault.NewIngressSecretProviderClassReconciler(m, conf); err != nil {
 		return nil, err
 	}
-	if err = keyvault.NewIngressTLSReconciler(m); err != nil {
+	if err = keyvault.NewIngressTLSReconciler(m, conf); err != nil {
 		return nil, err
 	}
 	if err = keyvault.NewPlaceholderPodController(m, conf); err != nil {
