@@ -63,6 +63,9 @@ func newManager(conf *config.Config) (ctrl.Manager, error) {
 	if err = keyvault.NewPlaceholderPodController(m, conf); err != nil {
 		return nil, err
 	}
+	if err = keyvault.NewEventMirror(m, conf); err != nil {
+		return nil, err
+	}
 
 	return m, nil
 }

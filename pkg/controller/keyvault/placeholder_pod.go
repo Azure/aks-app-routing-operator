@@ -123,6 +123,7 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 				Annotations: map[string]string{
 					"aks.io/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"aks.io/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"aks.io/ingress-owner":       spc.OwnerReferences[0].Name,
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
