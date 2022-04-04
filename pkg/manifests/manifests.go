@@ -229,7 +229,7 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 					ServiceAccountName: IngressControllerName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalProbes(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:1.0.5"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:1.1.3"),
 						Args: []string{
 							"/nginx-ingress-controller",
 							"--ingress-class=" + IngressClass,
@@ -363,7 +363,7 @@ func newExternalDNSDeployment(conf *config.Config) *appsv1.Deployment {
 					ServiceAccountName: IngressControllerName,
 					Containers: []corev1.Container{*withTypicalProbes(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
 						Args: []string{
 							"--provider=azure",
 							"--source=ingress",

@@ -215,7 +215,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:1.0.5",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:1.1.3",
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.aks.io",
@@ -455,7 +455,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/external-dns:v0.11.0",
+                "image": "test-registry/oss/kubernetes/external-dns:v0.11.0.2",
                 "args": [
                   "--provider=azure",
                   "--source=ingress",
