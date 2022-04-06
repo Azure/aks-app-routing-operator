@@ -71,6 +71,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 				Annotations: map[string]string{
 					"aks.io/observed-generation": "123",
 					"aks.io/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"aks.io/ingress-owner":       ing.Name,
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{

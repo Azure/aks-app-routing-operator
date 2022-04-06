@@ -14,6 +14,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -28,6 +29,7 @@ import (
 // so that it can be used by the ingress controller.
 type IngressSecretProviderClassReconciler struct {
 	client client.Client
+	events record.EventRecorder
 	config *config.Config
 }
 
@@ -38,7 +40,11 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&IngressSecretProviderClassReconciler{client: manager.GetClient(), config: conf})
+		Complete(&IngressSecretProviderClassReconciler{
+			client: manager.GetClient(),
+			events: manager.GetEventRecorderFor("aks-app-routing-operator"),
+			config: conf,
+		})
 }
 
 func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -78,7 +84,8 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 	ok, err := i.buildSPC(ing, spc)
 	if err != nil {
-		return ctrl.Result{}, err
+		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
+		return ctrl.Result{}, nil
 	}
 	if ok {
 		logger.Info("reconciling secret provider class for ingress")
@@ -113,7 +120,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
-	if len(chunks) < 2 {
+	if len(chunks) < 3 {
 		return false, fmt.Errorf("invalid secret uri: %s", certURI)
 	}
 	secretName := chunks[2]
