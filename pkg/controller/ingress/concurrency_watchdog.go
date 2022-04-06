@@ -59,8 +59,8 @@ func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config) error {
 
 		interval:                    time.Minute,
 		minPodAge:                   time.Minute * 5,
-		minVotesBeforeEviction:      4,
-		minPercentOverAvgBeforeVote: 200,
+		minVotesBeforeEviction:      conf.ConcurrencyWatchdogVotes,
+		minPercentOverAvgBeforeVote: conf.ConcurrencyWatchdogThres,
 		voteTTL:                     time.Minute * 10,
 
 		votes: ring.New(20),
