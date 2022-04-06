@@ -32,6 +32,9 @@ type IngressSecretProviderClassReconciler struct {
 }
 
 func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config) error {
+	if conf.DisableKeyvault {
+		return nil
+	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).

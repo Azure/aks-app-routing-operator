@@ -36,6 +36,9 @@ type PlaceholderPodController struct {
 }
 
 func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config) error {
+	if conf.DisableKeyvault {
+		return nil
+	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&secv1.SecretProviderClass{}).

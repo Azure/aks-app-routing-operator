@@ -1,0 +1,377 @@
+[
+    {
+      "kind": "Namespace",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "spec": {},
+      "status": {}
+    },
+    {
+      "kind": "IngressClass",
+      "apiVersion": "networking.k8s.io/v1",
+      "metadata": {
+        "name": "webapprouting.aks.io",
+        "creationTimestamp": null
+      },
+      "spec": {
+        "controller": "k8s.io/ingress-nginx"
+      }
+    },
+    {
+      "kind": "ServiceAccount",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      }
+    },
+    {
+      "kind": "ClusterRole",
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "rules": [
+        {
+          "verbs": [
+            "get",
+            "watch",
+            "list"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "endpoints",
+            "pods",
+            "services",
+            "secrets",
+            "configmaps"
+          ]
+        },
+        {
+          "verbs": [
+            "*"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "configmaps",
+            "events"
+          ]
+        },
+        {
+          "verbs": [
+            "get",
+            "watch",
+            "list"
+          ],
+          "apiGroups": [
+            "networking.k8s.io"
+          ],
+          "resources": [
+            "ingresses"
+          ]
+        },
+        {
+          "verbs": [
+            "*"
+          ],
+          "apiGroups": [
+            "networking.k8s.io"
+          ],
+          "resources": [
+            "ingresses/status"
+          ]
+        },
+        {
+          "verbs": [
+            "list",
+            "watch",
+            "get"
+          ],
+          "apiGroups": [
+            "networking.k8s.io"
+          ],
+          "resources": [
+            "ingressclasses"
+          ]
+        },
+        {
+          "verbs": [
+            "watch",
+            "list"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "nodes"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "ClusterRoleBinding",
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "app-routing-ingress-controller",
+          "namespace": "test-namespace"
+        }
+      ],
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "app-routing-ingress-controller"
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "http",
+            "port": 80,
+            "targetPort": "http"
+          },
+          {
+            "name": "https",
+            "port": 443,
+            "targetPort": "https"
+          }
+        ],
+        "selector": {
+          "app": "app-routing-ingress-controller"
+        },
+        "type": "LoadBalancer",
+        "externalTrafficPolicy": "Local"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Deployment",
+      "apiVersion": "apps/v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "app-routing-ingress-controller"
+          }
+        },
+        "template": {
+          "metadata": {
+            "creationTimestamp": null,
+            "labels": {
+              "app": "app-routing-ingress-controller"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "controller",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:1.0.5",
+                "args": [
+                  "/nginx-ingress-controller",
+                  "--ingress-class=webapprouting.aks.io",
+                  "--annotations-prefix=approuting.aks.io",
+                  "--publish-service=$(POD_NAMESPACE)/app-routing-ingress-controller",
+                  "--http-port=8080",
+                  "--https-port=8443"
+                ],
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  },
+                  {
+                    "name": "https",
+                    "containerPort": 8443
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "POD_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.name"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "1500m",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "500m",
+                    "memory": "127Mi"
+                  }
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": 10254,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "timeoutSeconds": 1,
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "failureThreshold": 3
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": 10254,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "timeoutSeconds": 1,
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "failureThreshold": 3
+                },
+                "securityContext": {
+                  "runAsUser": 101
+                }
+              }
+            ],
+            "serviceAccountName": "app-routing-ingress-controller",
+            "affinity": {
+              "nodeAffinity": {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                  "nodeSelectorTerms": [
+                    {
+                      "matchExpressions": [
+                        {
+                          "key": "kubernetes.azure.com/cluster",
+                          "operator": "Exists"
+                        },
+                        {
+                          "key": "type",
+                          "operator": "NotIn",
+                          "values": [
+                            "virtual-kubelet"
+                          ]
+                        },
+                        {
+                          "key": "kubernetes.io/os",
+                          "operator": "In",
+                          "values": [
+                            "linux"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "preferredDuringSchedulingIgnoredDuringExecution": [
+                  {
+                    "weight": 100,
+                    "preference": {
+                      "matchExpressions": [
+                        {
+                          "key": "kubernetes.azure.com/mode",
+                          "operator": "In",
+                          "values": [
+                            "system"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "tolerations": [
+              {
+                "key": "CriticalAddonsOnly",
+                "operator": "Exists"
+              }
+            ],
+            "priorityClassName": "system-node-critical"
+          }
+        },
+        "strategy": {},
+        "revisionHistoryLimit": 2
+      },
+      "status": {}
+    },
+    {
+      "kind": "HorizontalPodAutoscaler",
+      "apiVersion": "autoscaling/v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "spec": {
+        "scaleTargetRef": {
+          "kind": "Deployment",
+          "name": "app-routing-ingress-controller",
+          "apiVersion": "apps/v1"
+        },
+        "minReplicas": 2,
+        "maxReplicas": 100,
+        "targetCPUUtilizationPercentage": 90
+      },
+      "status": {
+        "currentReplicas": 0,
+        "desiredReplicas": 0
+      }
+    }
+  ]

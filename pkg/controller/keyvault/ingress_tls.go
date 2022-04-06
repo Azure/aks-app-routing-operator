@@ -14,6 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
@@ -23,7 +24,10 @@ type IngressTLSReconciler struct {
 	client client.Client
 }
 
-func NewIngressTLSReconciler(manager ctrl.Manager) error {
+func NewIngressTLSReconciler(manager ctrl.Manager, conf *config.Config) error {
+	if conf.DisableKeyvault {
+		return nil
+	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
