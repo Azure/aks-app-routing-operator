@@ -26,7 +26,7 @@ const IngressClass = "webapprouting.aks.io"
 
 var (
 	ingressControllerName = "app-routing-ingress-controller"
-	ingressPodLabels      = map[string]string{"app": ingressControllerName}
+	IngressPodLabels      = map[string]string{"app": ingressControllerName}
 
 	externalDNSName   = "app-routing-external-dns"
 	externalDNSLabels = map[string]string{"app": externalDNSName}
@@ -180,7 +180,7 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
 			Type:                  corev1.ServiceTypeLoadBalancer,
-			Selector:              ingressPodLabels,
+			Selector:              IngressPodLabels,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
@@ -210,10 +210,10 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: ingressPodLabels},
+			Selector:             &metav1.LabelSelector{MatchLabels: IngressPodLabels},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: ingressPodLabels,
+					Labels: IngressPodLabels,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: ingressControllerName,
@@ -271,7 +271,7 @@ func newIngressControllerPDB(conf *config.Config) *policyv1.PodDisruptionBudget 
 			Labels:    topLevelLabels,
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
-			Selector:       &metav1.LabelSelector{MatchLabels: ingressPodLabels},
+			Selector:       &metav1.LabelSelector{MatchLabels: IngressPodLabels},
 			MaxUnavailable: &maxUnavailable,
 		},
 	}

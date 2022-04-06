@@ -54,6 +54,9 @@ func newManager(conf *config.Config) (ctrl.Manager, error) {
 	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf)); err != nil {
 		return nil, err
 	}
+	if err = ingress.NewConcurrencyWatchdog(m, conf); err != nil {
+		return nil, err
+	}
 	if err = keyvault.NewIngressSecretProviderClassReconciler(m, conf); err != nil {
 		return nil, err
 	}
