@@ -349,6 +349,32 @@
       "status": {}
     },
     {
+      "kind": "PodDisruptionBudget",
+      "apiVersion": "policy/v1",
+      "metadata": {
+        "name": "app-routing-ingress-controller",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "app-routing-ingress-controller"
+          }
+        },
+        "maxUnavailable": 1
+      },
+      "status": {
+        "disruptionsAllowed": 0,
+        "currentHealthy": 0,
+        "desiredHealthy": 0,
+        "expectedPods": 0
+      }
+    },
+    {
       "kind": "HorizontalPodAutoscaler",
       "apiVersion": "autoscaling/v1",
       "metadata": {

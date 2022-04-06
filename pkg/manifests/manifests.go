@@ -11,6 +11,7 @@ import (
 	autov1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,7 +26,7 @@ const IngressClass = "webapprouting.aks.io"
 
 var (
 	ingressControllerName = "app-routing-ingress-controller"
-	ingressPodLabels      = map[string]string{"app": ingressControllerName}
+	IngressPodLabels      = map[string]string{"app": ingressControllerName}
 
 	externalDNSName   = "app-routing-external-dns"
 	externalDNSLabels = map[string]string{"app": externalDNSName}
@@ -42,6 +43,7 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 		newIngressControllerClusterRoleBinding(conf),
 		newIngressControllerService(conf),
 		newIngressControllerDeployment(conf),
+		newIngressControllerPDB(conf),
 		newIngressControllerHPA(conf),
 	}
 
@@ -178,7 +180,7 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
 			Type:                  corev1.ServiceTypeLoadBalancer,
-			Selector:              ingressPodLabels,
+			Selector:              IngressPodLabels,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
@@ -208,10 +210,10 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: ingressPodLabels},
+			Selector:             &metav1.LabelSelector{MatchLabels: IngressPodLabels},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: ingressPodLabels,
+					Labels: IngressPodLabels,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: ingressControllerName,
@@ -252,6 +254,25 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 					}))},
 				}),
 			},
+		},
+	}
+}
+
+func newIngressControllerPDB(conf *config.Config) *policyv1.PodDisruptionBudget {
+	maxUnavailable := intstr.FromInt(1)
+	return &policyv1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PodDisruptionBudget",
+			APIVersion: "policy/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ingressControllerName,
+			Namespace: conf.NS,
+			Labels:    topLevelLabels,
+		},
+		Spec: policyv1.PodDisruptionBudgetSpec{
+			Selector:       &metav1.LabelSelector{MatchLabels: IngressPodLabels},
+			MaxUnavailable: &maxUnavailable,
 		},
 	}
 }
