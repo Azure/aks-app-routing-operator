@@ -98,7 +98,7 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 
 	connectionCountByPod := make([]float64, len(list.Items))
 	nReadyPods := 0
-	var avgConnectionCount float64
+	var totalConnectionCount float64
 	for i, pod := range list.Items {
 		if !podIsReady(&pod) {
 			continue
@@ -109,9 +109,9 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 			return fmt.Errorf("scraping pod %q: %w", pod.Name, err)
 		}
 		connectionCountByPod[i] = count
-		avgConnectionCount += count
+		totalConnectionCount += count
 	}
-	avgConnectionCount = avgConnectionCount / float64(len(list.Items))
+	avgConnectionCount := totalConnectionCount / float64(nReadyPods)
 
 	// Only rebalance connections when three or more replicas are ready.
 	// Otherwise we will just push the connections to the other replica.
