@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
@@ -65,9 +66,6 @@ func newManager(conf *config.Config) (ctrl.Manager, error) {
 	if err = keyvault.NewIngressSecretProviderClassReconciler(m, conf); err != nil {
 		return nil, err
 	}
-	if err = keyvault.NewIngressTLSReconciler(m, conf); err != nil {
-		return nil, err
-	}
 	if err = keyvault.NewPlaceholderPodController(m, conf); err != nil {
 		return nil, err
 	}
@@ -78,6 +76,9 @@ func newManager(conf *config.Config) (ctrl.Manager, error) {
 		return nil, err
 	}
 	if err = osm.NewIngressBackendReconciler(m, conf); err != nil {
+		return nil, err
+	}
+	if err = service.NewIngressReconciler(m); err != nil {
 		return nil, err
 	}
 
