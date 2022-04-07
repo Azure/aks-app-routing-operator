@@ -20,7 +20,7 @@ const (
 	osmMeshConfigName     = "osm-mesh-config"
 	osmNginxSAN           = "ingress-nginx.ingress.cluster.local"
 	osmClientCertValidity = "24h"
-	ClientCertName        = "osm-ingress-client-cert"
+	osmClientCertName     = "osm-ingress-client-cert"
 )
 
 // IngressCertConfigReconciler updates the Open Service Mesh configuration to generate a client cert
@@ -63,9 +63,9 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if conf.Spec.Certificate.IngressGateway == nil {
 		conf.Spec.Certificate.IngressGateway = &cfgv1alpha1.IngressGatewayCertSpec{}
 	}
-	if conf.Spec.Certificate.IngressGateway.Secret.Name != ClientCertName {
+	if conf.Spec.Certificate.IngressGateway.Secret.Name != osmClientCertName {
 		dirty = true
-		conf.Spec.Certificate.IngressGateway.Secret.Name = ClientCertName
+		conf.Spec.Certificate.IngressGateway.Secret.Name = osmClientCertName
 	}
 	if conf.Spec.Certificate.IngressGateway.Secret.Namespace != osmNamespace {
 		dirty = true
