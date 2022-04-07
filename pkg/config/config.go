@@ -24,6 +24,7 @@ func init() {
 	flag.BoolVar(&Flags.DisableKeyvault, "disable-keyvault", false, "disable the keyvault integration")
 	flag.Float64Var(&Flags.ConcurrencyWatchdogThres, "concurrency-watchdog-threshold", 200, "percentage of concurrent connections above mean required to vote for load shedding")
 	flag.IntVar(&Flags.ConcurrencyWatchdogVotes, "concurrency-watchdog-votes", 4, "number of votes required for a pod to be considered for load shedding")
+	flag.BoolVar(&Flags.DisableOSM, "disable-osm", false, "enable Open Service Mesh integration")
 }
 
 type Config struct {
@@ -34,6 +35,7 @@ type Config struct {
 	DNSZoneRG, DNSZoneSub, DNSZoneDomain, DNSRecordID string
 	ConcurrencyWatchdogThres                          float64
 	ConcurrencyWatchdogVotes                          int
+	DisableOSM                                        bool
 }
 
 func (c *Config) Validate() error {

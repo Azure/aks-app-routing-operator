@@ -215,7 +215,6 @@
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.aks.io",
-                  "--annotations-prefix=approuting.aks.io",
                   "--publish-service=$(POD_NAMESPACE)/app-routing-ingress-controller",
                   "--http-port=8080",
                   "--https-port=8443"
