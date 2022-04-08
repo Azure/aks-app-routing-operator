@@ -4,6 +4,8 @@
 package manifests
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"path"
 
@@ -28,8 +30,7 @@ var (
 	IngressControllerName = "app-routing-ingress-controller"
 	IngressPodLabels      = map[string]string{"app": IngressControllerName}
 
-	externalDNSName   = "app-routing-external-dns"
-	externalDNSLabels = map[string]string{"app": externalDNSName}
+	externalDNSName = "app-routing-external-dns"
 
 	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
@@ -48,9 +49,9 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 	}
 
 	if conf.DNSZoneDomain != "" {
-		objs = append(objs,
-			newExternalDNSConfigMap(conf),
-			newExternalDNSDeployment(conf))
+		dnsCM, dnsCMHash := newExternalDNSConfigMap(conf)
+		objs = append(objs, dnsCM,
+			newExternalDNSDeployment(conf, dnsCMHash))
 	}
 
 	return objs
@@ -310,7 +311,7 @@ func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscale
 	}
 }
 
-func newExternalDNSConfigMap(conf *config.Config) *corev1.ConfigMap {
+func newExternalDNSConfigMap(conf *config.Config) (*corev1.ConfigMap, string) {
 	js, err := json.Marshal(&map[string]interface{}{
 		"tenantId":                    conf.TenantID,
 		"subscriptionId":              conf.DNSZoneSub,
@@ -323,6 +324,7 @@ func newExternalDNSConfigMap(conf *config.Config) *corev1.ConfigMap {
 	if err != nil {
 		panic(err)
 	}
+	hash := sha256.Sum256(js)
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
@@ -336,10 +338,10 @@ func newExternalDNSConfigMap(conf *config.Config) *corev1.ConfigMap {
 		Data: map[string]string{
 			"azure.json": string(js),
 		},
-	}
+	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployment(conf *config.Config) *appsv1.Deployment {
+func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1.Deployment {
 	replicas := int32(1)
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -354,10 +356,13 @@ func newExternalDNSDeployment(conf *config.Config) *appsv1.Deployment {
 		Spec: appsv1.DeploymentSpec{
 			Replicas:             &replicas,
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: externalDNSLabels},
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDNSName}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: externalDNSLabels,
+					Labels: map[string]string{
+						"app":                externalDNSName,
+						"checksum/configmap": configMapHash,
+					},
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,

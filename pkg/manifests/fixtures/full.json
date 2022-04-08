@@ -440,7 +440,8 @@
           "metadata": {
             "creationTimestamp": null,
             "labels": {
-              "app": "app-routing-external-dns"
+              "app": "app-routing-external-dns",
+              "checksum/configmap": "fe10e8cec6d0881808267b39690c25f9544d09abcd0f630a4760726f9a8ea657"
             }
           },
           "spec": {
