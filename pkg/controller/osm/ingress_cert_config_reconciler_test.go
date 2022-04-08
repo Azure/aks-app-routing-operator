@@ -44,16 +44,29 @@ func TestIngressCertConfigReconcilerIntegration(t *testing.T) {
 	// Prove config is correct
 	actual := &cfgv1alpha1.MeshConfig{}
 	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(conf), actual))
-	assert.Equal(t, &cfgv1alpha1.IngressGatewayCertSpec{
+
+	expected := &cfgv1alpha1.IngressGatewayCertSpec{
 		ValidityDuration: "24h",
 		SubjectAltNames:  []string{"ingress-nginx.ingress.cluster.local"},
 		Secret: corev1.SecretReference{
 			Name:      "osm-ingress-client-cert",
 			Namespace: "kube-system",
 		},
-	}, actual.Spec.Certificate.IngressGateway)
+	}
+	assert.Equal(t, expected, actual.Spec.Certificate.IngressGateway)
 
 	// Cover no-op updates
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+
+	// Update the resource to incorrect values and reconcile back
+	actual.Spec.Certificate.IngressGateway.SubjectAltNames = []string{"incorrect"}
+	actual.Spec.Certificate.IngressGateway.ValidityDuration = "12h"
+	actual.Spec.Certificate.IngressGateway.Secret.Name = "foo"
+	actual.Spec.Certificate.IngressGateway.Secret.Namespace = "bar"
+	_, err = e.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(conf), actual))
+	assert.Equal(t, expected, actual.Spec.Certificate.IngressGateway)
 }

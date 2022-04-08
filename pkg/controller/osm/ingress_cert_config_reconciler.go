@@ -75,7 +75,8 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		dirty = true
 		conf.Spec.Certificate.IngressGateway.ValidityDuration = osmClientCertValidity
 	}
-	if len(conf.Spec.Certificate.IngressGateway.SubjectAltNames) < 1 || conf.Spec.Certificate.IngressGateway.SubjectAltNames[0] != osmNginxSAN {
+	if l := len(conf.Spec.Certificate.IngressGateway.SubjectAltNames); l != 1 ||
+		(l == 1 && conf.Spec.Certificate.IngressGateway.SubjectAltNames[0] != osmNginxSAN) {
 		dirty = true
 		conf.Spec.Certificate.IngressGateway.SubjectAltNames = []string{osmNginxSAN}
 	}
