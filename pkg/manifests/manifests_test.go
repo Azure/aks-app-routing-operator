@@ -34,14 +34,16 @@ var integrationTestCases = []struct {
 		},
 	},
 	{
-		Name: "no-dns",
+		Name: "optional-features-disabled",
 		Conf: &config.Config{
-			NS:          "test-namespace",
-			Registry:    "test-registry",
-			MSIClientID: "test-msi-client-id",
-			TenantID:    "test-tenant-id",
-			Cloud:       "test-cloud",
-			Location:    "test-location",
+			NS:              "test-namespace",
+			Registry:        "test-registry",
+			MSIClientID:     "test-msi-client-id",
+			TenantID:        "test-tenant-id",
+			Cloud:           "test-cloud",
+			Location:        "test-location",
+			DisableKeyvault: true,
+			DisableOSM:      true,
 		},
 	},
 }
