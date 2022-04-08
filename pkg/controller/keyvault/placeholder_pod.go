@@ -117,9 +117,9 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: labels,
 				Annotations: map[string]string{
-					"aks.io/observed-generation": strconv.FormatInt(spc.Generation, 10),
-					"aks.io/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"aks.io/ingress-owner":       ing.Name,
+					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
+					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/ingress-owner":       ing.Name,
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{

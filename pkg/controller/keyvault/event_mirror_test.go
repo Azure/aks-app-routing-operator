@@ -30,7 +30,7 @@ func TestEventMirrorHappyPath(t *testing.T) {
 	owner2 := &corev1.Pod{}
 	owner2.Name = "keyvault-owner2"
 	owner2.Namespace = owner1.Namespace
-	owner2.Annotations = map[string]string{"aks.io/ingress-owner": owner1.Name}
+	owner2.Annotations = map[string]string{"kubernetes.azure.com/ingress-owner": owner1.Name}
 
 	event := &corev1.Event{}
 	event.Name = "testevent"
@@ -81,7 +81,7 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 	owner2 := &corev1.Pod{}
 	owner2.Name = "keyvault-owner2"
 	owner2.Namespace = owner1.Namespace
-	owner2.Annotations = map[string]string{"aks.io/ingress-owner": owner1.Name}
+	owner2.Annotations = map[string]string{"kubernetes.azure.com/ingress-owner": owner1.Name}
 
 	event := &corev1.Event{}
 	event.Name = "testevent"

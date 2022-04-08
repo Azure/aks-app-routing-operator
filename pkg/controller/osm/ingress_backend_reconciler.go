@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-// IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "aks.io/use-osm-mtls=true".
+// IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "kubernetes.azure.com/use-osm-mtls=true".
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
 	client client.Client
@@ -71,7 +71,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		},
 	}
 
-	if ing.Annotations == nil || ing.Annotations["aks.io/use-osm-mtls"] == "" {
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" {
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil

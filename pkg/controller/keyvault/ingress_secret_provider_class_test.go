@@ -29,7 +29,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{
-		"aks.io/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
 	}
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
@@ -84,7 +84,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	// Remove the cert's version from the ingress
 	ing.Annotations = map[string]string{
-		"aks.io/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
 	}
 	require.NoError(t, i.client.Update(ctx, ing))
 	_, err = i.Reconcile(ctx, req)
@@ -116,7 +116,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{
-		"aks.io/tls-cert-keyvault-uri": "inv@lid URL",
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL",
 	}
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
@@ -151,7 +151,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	t.Run("missing ingress class", func(t *testing.T) {
 		ing := ing.DeepCopy()
 		ing.Spec.IngressClassName = nil
-		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": "inv@lid URL"}
+		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
@@ -162,7 +162,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		ing := ing.DeepCopy()
 		incorrect := "some-other-ingress-class"
 		ing.Spec.IngressClassName = &incorrect
-		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": "inv@lid URL"}
+		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
@@ -179,7 +179,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 	t.Run("empty url", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": ""}
+		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": ""}
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
@@ -188,7 +188,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 	t.Run("url with control character", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": string([]byte{0x7f})}
+		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": string([]byte{0x7f})}
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
@@ -197,7 +197,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 	t.Run("url with one path segment", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Annotations = map[string]string{"aks.io/tls-cert-keyvault-uri": "http://test.com/foo"}
+		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "http://test.com/foo"}
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)

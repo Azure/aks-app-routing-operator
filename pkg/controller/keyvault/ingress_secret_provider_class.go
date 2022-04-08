@@ -108,7 +108,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	certURI := ing.Annotations["aks.io/tls-cert-keyvault-uri"]
+	certURI := ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
 	if certURI == "" {
 		return false, nil
 	}

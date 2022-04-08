@@ -85,7 +85,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	// Get the owner (ingress)
 	ingress := &netv1.Ingress{}
 	ingress.Namespace = pod.Namespace
-	ingress.Name = pod.Annotations["aks.io/ingress-owner"]
+	ingress.Name = pod.Annotations["kubernetes.azure.com/ingress-owner"]
 	err = e.client.Get(ctx, client.ObjectKeyFromObject(ingress), ingress)
 	if errors.IsNotFound(err) {
 		return ctrl.Result{}, nil

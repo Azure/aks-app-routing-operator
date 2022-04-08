@@ -24,9 +24,9 @@ import (
 // If those integrations aren't enabled, it won't work correctly.
 //
 // Annotations:
-// - aks.io/ingress-host: host of the ingress resource
-// - aks.io/tls-cert-keyvault-uri: URI of the Keyvault certificate to present
-// - aks.io/service-account-name: name of the service account used by upstream pods (defaults to "default")
+// - kubernetes.azure.com/ingress-host: host of the ingress resource
+// - kubernetes.azure.com/tls-cert-keyvault-uri: URI of the Keyvault certificate to present
+// - kubernetes.azure.com/service-account-name: name of the service account used by upstream pods (defaults to "default")
 //
 // This functionality allows easy adoption of good ingress practices while providing an exit strategy.
 // Users can remove the annotations and take ownership of the generated resources at any time.
@@ -58,14 +58,14 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	logger = logger.WithValues("name", svc.Name, "namespace", svc.Namespace, "generation", svc.Generation)
 
-	if svc.Annotations == nil || svc.Annotations["aks.io/ingress-host"] == "" || svc.Annotations["aks.io/tls-cert-keyvault-uri"] == "" || len(svc.Spec.Ports) == 0 {
+	if svc.Annotations == nil || svc.Annotations["kubernetes.azure.com/ingress-host"] == "" || svc.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] == "" || len(svc.Spec.Ports) == 0 {
 		// Give users a migration path away from managed ingress, etc. resources by not cleaning them up if annotations are removed.
 		// Users can remove the annotations, remove the owner references from managed resources, and take ownership of them.
 		return ctrl.Result{}, nil
 	}
 
 	serviceAccount := "default"
-	if sa := svc.Annotations["aks.io/service-account-name"]; sa != "" {
+	if sa := svc.Annotations["kubernetes.azure.com/service-account-name"]; sa != "" {
 		serviceAccount = sa
 	}
 
@@ -86,8 +86,8 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				UID:        svc.UID,
 			}},
 			Annotations: map[string]string{
-				"aks.io/tls-cert-keyvault-uri":                      svc.Annotations["aks.io/tls-cert-keyvault-uri"],
-				"aks.io/use-osm-mtls":                               "true",
+				"kubernetes.azure.com/tls-cert-keyvault-uri":        svc.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"],
+				"kubernetes.azure.com/use-osm-mtls":                 "true",
 				"nginx.ingress.kubernetes.io/backend-protocol":      "HTTPS",
 				"nginx.ingress.kubernetes.io/configuration-snippet": fmt.Sprintf("\nproxy_ssl_name \"%s.%s.cluster.local\";", serviceAccount, svc.Namespace),
 				"nginx.ingress.kubernetes.io/proxy-ssl-secret":      "kube-system/osm-ingress-client-cert",
@@ -97,7 +97,7 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Spec: netv1.IngressSpec{
 			IngressClassName: util.StringPtr(manifests.IngressClass),
 			Rules: []netv1.IngressRule{{
-				Host: svc.Annotations["aks.io/ingress-host"],
+				Host: svc.Annotations["kubernetes.azure.com/ingress-host"],
 				IngressRuleValue: netv1.IngressRuleValue{
 					HTTP: &netv1.HTTPIngressRuleValue{
 						Paths: []netv1.HTTPIngressPath{{
@@ -114,7 +114,7 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				},
 			}},
 			TLS: []netv1.IngressTLS{{
-				Hosts:      []string{svc.Annotations["aks.io/ingress-host"]},
+				Hosts:      []string{svc.Annotations["kubernetes.azure.com/ingress-host"]},
 				SecretName: fmt.Sprintf("keyvault-%s", svc.Name),
 			}},
 		},

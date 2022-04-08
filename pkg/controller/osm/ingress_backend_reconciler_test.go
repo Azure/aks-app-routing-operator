@@ -27,7 +27,7 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
 			Namespace:   "test-ns",
-			Annotations: map[string]string{"aks.io/use-osm-mtls": "true"},
+			Annotations: map[string]string{"kubernetes.azure.com/use-osm-mtls": "true"},
 		},
 		Spec: netv1.IngressSpec{
 			Rules: []netv1.IngressRule{{}, {
