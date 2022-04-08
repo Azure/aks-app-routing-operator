@@ -93,6 +93,21 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		return ctrl.Result{}, err
 	}
 
+	// Publish to the service also if ingress is owned by a service
+	if len(ingress.OwnerReferences) > 0 && ingress.OwnerReferences[0].Kind == "Service" {
+		svc := &corev1.Service{}
+		svc.Namespace = pod.Namespace
+		svc.Name = ingress.OwnerReferences[0].Name
+		err = e.client.Get(ctx, client.ObjectKeyFromObject(svc), svc)
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		e.events.Event(svc, "Warning", "FailedMount", event.Message)
+	}
+
 	e.events.Event(ingress, "Warning", "FailedMount", event.Message)
 	return ctrl.Result{}, nil
 }

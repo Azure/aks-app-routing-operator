@@ -26,6 +26,7 @@ func Upsert(ctx context.Context, c client.Client, res client.Object) error {
 	return err
 }
 
-func Int32Ptr(i int32) *int32 { return &i }
-func Int64Ptr(i int64) *int64 { return &i }
-func BoolPtr(b bool) *bool    { return &b }
+func Int32Ptr(i int32) *int32      { return &i }
+func Int64Ptr(i int64) *int64      { return &i }
+func BoolPtr(b bool) *bool         { return &b }
+func StringPtr(str string) *string { return &str }
