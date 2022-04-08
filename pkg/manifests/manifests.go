@@ -361,7 +361,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"app":                externalDNSName,
-						"checksum/configmap": configMapHash,
+						"checksum/configmap": configMapHash[:16],
 					},
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
