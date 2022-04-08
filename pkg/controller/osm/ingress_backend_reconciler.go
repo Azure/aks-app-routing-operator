@@ -62,12 +62,11 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			Name:      ing.Name,
 			Namespace: ing.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         ing.APIVersion,
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               ing.Kind,
-				Name:               ing.Name,
-				UID:                ing.UID,
+				APIVersion: ing.APIVersion,
+				Controller: util.BoolPtr(true),
+				Kind:       ing.Kind,
+				Name:       ing.Name,
+				UID:        ing.UID,
 			}},
 		},
 	}

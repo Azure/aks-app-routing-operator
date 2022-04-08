@@ -71,12 +71,11 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         spc.APIVersion,
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               spc.Kind,
-				Name:               spc.Name,
-				UID:                spc.UID,
+				APIVersion: spc.APIVersion,
+				Controller: util.BoolPtr(true),
+				Kind:       spc.Kind,
+				Name:       spc.Name,
+				UID:        spc.UID,
 			}},
 		},
 	}

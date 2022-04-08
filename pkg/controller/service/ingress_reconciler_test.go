@@ -67,12 +67,11 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			Namespace:       svc.Namespace,
 			ResourceVersion: "1",
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         "v1",
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               "Service",
-				Name:               svc.Name,
-				UID:                svc.UID,
+				APIVersion: "v1",
+				Controller: util.BoolPtr(true),
+				Kind:       "Service",
+				Name:       svc.Name,
+				UID:        svc.UID,
 			}},
 			Annotations: map[string]string{
 				"aks.io/tls-cert-keyvault-uri":                      "test-cert-uri",

@@ -79,12 +79,11 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			Name:      svc.Name,
 			Namespace: svc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         svc.APIVersion,
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               svc.Kind,
-				Name:               svc.Name,
-				UID:                svc.UID,
+				APIVersion: svc.APIVersion,
+				Controller: util.BoolPtr(true),
+				Kind:       svc.Kind,
+				Name:       svc.Name,
+				UID:        svc.UID,
 			}},
 			Annotations: map[string]string{
 				"aks.io/tls-cert-keyvault-uri":                      svc.Annotations["aks.io/tls-cert-keyvault-uri"],

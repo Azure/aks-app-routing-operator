@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rps-client
+  labels:
+    app: rps-client
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: rps-client
+  template:
+    metadata:
+      labels:
+        app: rps-client
+    spec:
+      containers:
+      - name: client
+        image: golang:1.18
+        env:
+          - name: INGRESS_HOST
+            value: foo.test.ingress.dev
+        command:
+        - /bin/sh
+        - -c
+        - |
+          mkdir client && cd client && go mod init client
+          cat > main.go <<EOF
+            package main
+            
+            import (
+            	"context"
+            	"crypto/tls"
+            	"io/ioutil"
+            	"log"
+            	"net"
+            	"net/http"
+            	"os"
+            	"time"
+            )
+            
+            func main() {
+            	rps := 500
+            	tokens := make(chan struct{}, rps)
+            	for i := 0; i < rps; i++ {
+            		tokens <- struct{}{}
+            	}
+            	go func() {
+            		timer := time.NewTicker(time.Second / time.Duration(rps))
+            		for range timer.C {
+            			tokens <- struct{}{}
+            		}
+            	}()
+            
+            	signals := make(chan struct{})
+            	for i := 0; i < rps; i++ {
+            		go func() {
+            			for range signals {
+            				probe()
+            			}
+            		}()
+            	}
+            
+            	go func() {
+            		for range tokens {
+            			select {
+            			case signals <- struct{}{}:
+            			default:
+            				log.Printf("worker was not available to send request")
+            			}
+            		}
+            	}()
+            
+            	<-context.Background().Done()
+            }
+            
+            var dialer = &net.Dialer{}
+            var client = &http.Client{
+            	Timeout: time.Second * 3,
+            	Transport: &http.Transport{
+            		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+            			return dialer.DialContext(ctx, network, "app-routing-ingress-controller.app-routing-system:443")
+            		},
+            		TLSClientConfig: &tls.Config{
+            			InsecureSkipVerify: true,
+            		},
+            	},
+            }
+            
+            func probe() {
+            	req, err := http.NewRequest("GET", "https://"+os.Getenv("INGRESS_HOST"), nil)
+            	if err != nil {
+            		panic(err)
+            	}
+            
+            	resp, err := client.Do(req)
+            	if err != nil {
+            		log.Printf("error: %s", err)
+            		return
+            	}
+            	defer resp.Body.Close()
+            
+            	if resp.StatusCode == 200 {
+            		return
+            	}
+            
+            	raw, err := ioutil.ReadAll(resp.Body)
+            	if err != nil {
+            		log.Printf("read error: %s", err)
+            		return
+            	}
+            	log.Printf("response: %s", raw)
+            }
+          EOF
+          go run main.go
