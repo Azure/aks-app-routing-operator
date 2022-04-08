@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 // EventMirror copies events published to pod resources by the Keyvault CSI driver into ingress events.
@@ -94,10 +95,10 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	// Publish to the service also if ingress is owned by a service
-	if len(ingress.OwnerReferences) > 0 && ingress.OwnerReferences[0].Kind == "Service" {
+	if name := util.FindOwnerKind(ingress.OwnerReferences, "Service"); name != "" {
 		svc := &corev1.Service{}
 		svc.Namespace = pod.Namespace
-		svc.Name = ingress.OwnerReferences[0].Name
+		svc.Name = name
 		err = e.client.Get(ctx, client.ObjectKeyFromObject(svc), svc)
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil

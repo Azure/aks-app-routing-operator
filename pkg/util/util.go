@@ -8,6 +8,7 @@ import (
 	"flag"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -30,3 +31,12 @@ func Int32Ptr(i int32) *int32      { return &i }
 func Int64Ptr(i int64) *int64      { return &i }
 func BoolPtr(b bool) *bool         { return &b }
 func StringPtr(str string) *string { return &str }
+
+func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
+	for _, cur := range owners {
+		if cur.Kind == kind {
+			return cur.Name
+		}
+	}
+	return ""
+}
