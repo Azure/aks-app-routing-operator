@@ -228,7 +228,7 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,
-					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalProbes(10254, &corev1.Container{
+					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:1.1.3"),
 						Args: []string{
@@ -366,7 +366,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,
-					Containers: []corev1.Container{*withTypicalProbes(7979, &corev1.Container{
+					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
 						Args: []string{
@@ -391,7 +391,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 								corev1.ResourceMemory: resource.MustParse("250Mi"),
 							},
 						},
-					})},
+					}))},
 					Volumes: []corev1.Volume{{
 						Name: "azure-config",
 						VolumeSource: corev1.VolumeSource{
@@ -428,10 +428,10 @@ func withPodRefEnvVars(contain *corev1.Container) *corev1.Container {
 	return copy
 }
 
-func withTypicalProbes(port int, contain *corev1.Container) *corev1.Container {
+func withTypicalReadinessProbe(port int, contain *corev1.Container) *corev1.Container {
 	copy := contain.DeepCopy()
 
-	copy.LivenessProbe = &corev1.Probe{
+	copy.ReadinessProbe = &corev1.Probe{
 		FailureThreshold:    3,
 		InitialDelaySeconds: 10,
 		PeriodSeconds:       5,
@@ -445,8 +445,13 @@ func withTypicalProbes(port int, contain *corev1.Container) *corev1.Container {
 			},
 		},
 	}
-	copy.ReadinessProbe = copy.LivenessProbe.DeepCopy()
 
+	return copy
+}
+
+func withLivenessProbeMatchingReadiness(contain *corev1.Container) *corev1.Container {
+	copy := contain.DeepCopy()
+	copy.LivenessProbe = copy.ReadinessProbe.DeepCopy()
 	return copy
 }
 
