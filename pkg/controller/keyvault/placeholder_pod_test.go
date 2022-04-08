@@ -30,7 +30,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	ing := &netv1.Ingress{}
 	ing.Name = "test-ing"
 	ing.Namespace = "default"
-	ingressClass := "webapprouting.aks.io"
+	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 
 	spc := &secv1.SecretProviderClass{}

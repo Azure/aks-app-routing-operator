@@ -26,7 +26,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ing := &netv1.Ingress{}
 	ing.Name = "test-ingress"
 	ing.Namespace = "default"
-	ingressClass := "webapprouting.aks.io"
+	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{
 		"aks.io/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
@@ -113,7 +113,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	ing := &netv1.Ingress{}
 	ing.Name = "test-ingress"
 	ing.Namespace = "default"
-	ingressClass := "webapprouting.aks.io"
+	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 	ing.Annotations = map[string]string{
 		"aks.io/tls-cert-keyvault-uri": "inv@lid URL",
@@ -145,7 +145,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	i := &IngressSecretProviderClassReconciler{}
 
 	ing := &netv1.Ingress{}
-	ingressClass := "webapprouting.aks.io"
+	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 
 	t.Run("missing ingress class", func(t *testing.T) {

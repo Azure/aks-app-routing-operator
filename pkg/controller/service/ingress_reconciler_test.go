@@ -83,7 +83,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr("webapprouting.aks.io"),
+			IngressClassName: util.StringPtr("webapprouting.kubernetes.azure.com"),
 			Rules: []netv1.IngressRule{{
 				Host: "test-host",
 				IngressRuleValue: netv1.IngressRuleValue{

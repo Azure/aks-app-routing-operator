@@ -24,13 +24,13 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const IngressClass = "webapprouting.aks.io"
+const IngressClass = "webapprouting.kubernetes.azure.com"
 
 var (
-	IngressControllerName = "app-routing-ingress-controller"
+	IngressControllerName = "nginx"
 	IngressPodLabels      = map[string]string{"app": IngressControllerName}
 
-	externalDNSName = "app-routing-external-dns"
+	externalDNSName = "external-dns"
 
 	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
