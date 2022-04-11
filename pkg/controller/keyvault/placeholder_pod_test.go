@@ -30,7 +30,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	ing := &netv1.Ingress{}
 	ing.Name = "test-ing"
 	ing.Namespace = "default"
-	ingressClass := "webapprouting.aks.io"
+	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 
 	spc := &secv1.SecretProviderClass{}
@@ -69,9 +69,9 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{"app": spc.Name},
 				Annotations: map[string]string{
-					"aks.io/observed-generation": "123",
-					"aks.io/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"aks.io/ingress-owner":       ing.Name,
+					"kubernetes.azure.com/observed-generation": "123",
+					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/ingress-owner":       ing.Name,
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
@@ -112,7 +112,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	// Update the secret class generation
 	spc.Generation = 234
-	expected.Template.Annotations["aks.io/observed-generation"] = "234"
+	expected.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
 	require.NoError(t, c.Update(ctx, spc))
 
 	_, err = p.Reconcile(ctx, req)

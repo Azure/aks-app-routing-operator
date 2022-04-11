@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -71,29 +70,26 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         spc.APIVersion,
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               spc.Kind,
-				Name:               spc.Name,
-				UID:                spc.UID,
+				APIVersion: spc.APIVersion,
+				Controller: util.BoolPtr(true),
+				Kind:       spc.Kind,
+				Name:       spc.Name,
+				UID:        spc.UID,
 			}},
 		},
 	}
 
 	// Don't manage placeholder pod for secret provider classes that aren't owned by ingresses that use our ingress class
-	var ing *netv1.Ingress
-	for _, ref := range spc.OwnerReferences {
-		if ref.Kind != "Ingress" {
-			continue
-		}
-		ing = &netv1.Ingress{}
-		if err := p.client.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: ref.Name}, ing); err != nil {
+
+	ing := &netv1.Ingress{}
+	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
+	ing.Namespace = req.Namespace
+	if ing.Name != "" {
+		if err := p.client.Get(ctx, client.ObjectKeyFromObject(ing), ing); err != nil {
 			return ctrl.Result{}, err
 		}
-		break
 	}
-	if ing.Spec.IngressClassName == nil || *ing.Spec.IngressClassName != manifests.IngressClass {
+	if ing.Name == "" || ing.Spec.IngressClassName == nil || *ing.Spec.IngressClassName != manifests.IngressClass {
 		if err := p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -103,7 +99,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	logger.Info("reconciling placeholder deployment for secret provider class")
 
 	// Manage a deployment resource
-	p.buildDeployment(dep, spc)
+	p.buildDeployment(dep, spc, ing)
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -111,7 +107,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, nil
 }
 
-func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass) {
+func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
 	labels := map[string]string{"app": spc.Name}
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
@@ -121,9 +117,9 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: labels,
 				Annotations: map[string]string{
-					"aks.io/observed-generation": strconv.FormatInt(spc.Generation, 10),
-					"aks.io/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"aks.io/ingress-owner":       spc.OwnerReferences[0].Name,
+					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
+					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/ingress-owner":       ing.Name,
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{

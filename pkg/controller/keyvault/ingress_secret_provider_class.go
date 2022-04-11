@@ -73,12 +73,11 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
 			Namespace: ing.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         ing.APIVersion,
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               ing.Kind,
-				Name:               ing.Name,
-				UID:                ing.UID,
+				APIVersion: ing.APIVersion,
+				Controller: util.BoolPtr(true),
+				Kind:       ing.Kind,
+				Name:       ing.Name,
+				UID:        ing.UID,
 			}},
 		},
 	}
@@ -109,7 +108,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	certURI := ing.Annotations["aks.io/tls-cert-keyvault-uri"]
+	certURI := ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
 	if certURI == "" {
 		return false, nil
 	}

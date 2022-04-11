@@ -4,6 +4,8 @@
 package manifests
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"path"
 
@@ -22,14 +24,13 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const IngressClass = "webapprouting.aks.io"
+const IngressClass = "webapprouting.kubernetes.azure.com"
 
 var (
-	IngressControllerName = "app-routing-ingress-controller"
+	IngressControllerName = "nginx"
 	IngressPodLabels      = map[string]string{"app": IngressControllerName}
 
-	externalDNSName   = "app-routing-external-dns"
-	externalDNSLabels = map[string]string{"app": externalDNSName}
+	externalDNSName = "external-dns"
 
 	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
@@ -48,9 +49,9 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 	}
 
 	if conf.DNSZoneDomain != "" {
-		objs = append(objs,
-			newExternalDNSConfigMap(conf),
-			newExternalDNSDeployment(conf))
+		dnsCM, dnsCMHash := newExternalDNSConfigMap(conf)
+		objs = append(objs, dnsCM,
+			newExternalDNSDeployment(conf, dnsCMHash))
 	}
 
 	return objs
@@ -227,9 +228,9 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,
-					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalProbes(10254, &corev1.Container{
+					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:1.0.5"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:1.1.3"),
 						Args: []string{
 							"/nginx-ingress-controller",
 							"--ingress-class=" + IngressClass,
@@ -310,7 +311,7 @@ func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscale
 	}
 }
 
-func newExternalDNSConfigMap(conf *config.Config) *corev1.ConfigMap {
+func newExternalDNSConfigMap(conf *config.Config) (*corev1.ConfigMap, string) {
 	js, err := json.Marshal(&map[string]interface{}{
 		"tenantId":                    conf.TenantID,
 		"subscriptionId":              conf.DNSZoneSub,
@@ -323,6 +324,7 @@ func newExternalDNSConfigMap(conf *config.Config) *corev1.ConfigMap {
 	if err != nil {
 		panic(err)
 	}
+	hash := sha256.Sum256(js)
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
@@ -336,10 +338,10 @@ func newExternalDNSConfigMap(conf *config.Config) *corev1.ConfigMap {
 		Data: map[string]string{
 			"azure.json": string(js),
 		},
-	}
+	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployment(conf *config.Config) *appsv1.Deployment {
+func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1.Deployment {
 	replicas := int32(1)
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -354,16 +356,19 @@ func newExternalDNSDeployment(conf *config.Config) *appsv1.Deployment {
 		Spec: appsv1.DeploymentSpec{
 			Replicas:             &replicas,
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: externalDNSLabels},
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDNSName}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: externalDNSLabels,
+					Labels: map[string]string{
+						"app":                externalDNSName,
+						"checksum/configmap": configMapHash[:16],
+					},
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,
-					Containers: []corev1.Container{*withTypicalProbes(7979, &corev1.Container{
+					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
 						Args: []string{
 							"--provider=azure",
 							"--source=ingress",
@@ -386,7 +391,7 @@ func newExternalDNSDeployment(conf *config.Config) *appsv1.Deployment {
 								corev1.ResourceMemory: resource.MustParse("250Mi"),
 							},
 						},
-					})},
+					}))},
 					Volumes: []corev1.Volume{{
 						Name: "azure-config",
 						VolumeSource: corev1.VolumeSource{
@@ -423,10 +428,10 @@ func withPodRefEnvVars(contain *corev1.Container) *corev1.Container {
 	return copy
 }
 
-func withTypicalProbes(port int, contain *corev1.Container) *corev1.Container {
+func withTypicalReadinessProbe(port int, contain *corev1.Container) *corev1.Container {
 	copy := contain.DeepCopy()
 
-	copy.LivenessProbe = &corev1.Probe{
+	copy.ReadinessProbe = &corev1.Probe{
 		FailureThreshold:    3,
 		InitialDelaySeconds: 10,
 		PeriodSeconds:       5,
@@ -440,8 +445,13 @@ func withTypicalProbes(port int, contain *corev1.Container) *corev1.Container {
 			},
 		},
 	}
-	copy.ReadinessProbe = copy.LivenessProbe.DeepCopy()
 
+	return copy
+}
+
+func withLivenessProbeMatchingReadiness(contain *corev1.Container) *corev1.Container {
+	copy := contain.DeepCopy()
+	copy.LivenessProbe = copy.ReadinessProbe.DeepCopy()
 	return copy
 }
 

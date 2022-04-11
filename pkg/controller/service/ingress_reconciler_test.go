@@ -49,8 +49,8 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 
 	// Add required annotations and prove the expected ingress is created
 	svc.Annotations = map[string]string{
-		"aks.io/ingress-host":          "test-host",
-		"aks.io/tls-cert-keyvault-uri": "test-cert-uri",
+		"kubernetes.azure.com/ingress-host":          "test-host",
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "test-cert-uri",
 	}
 	require.NoError(t, c.Update(ctx, svc))
 	_, err = p.Reconcile(ctx, req)
@@ -67,16 +67,15 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			Namespace:       svc.Namespace,
 			ResourceVersion: "1",
 			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion:         "v1",
-				BlockOwnerDeletion: util.BoolPtr(true),
-				Controller:         util.BoolPtr(true),
-				Kind:               "Service",
-				Name:               svc.Name,
-				UID:                svc.UID,
+				APIVersion: "v1",
+				Controller: util.BoolPtr(true),
+				Kind:       "Service",
+				Name:       svc.Name,
+				UID:        svc.UID,
 			}},
 			Annotations: map[string]string{
-				"aks.io/tls-cert-keyvault-uri":                      "test-cert-uri",
-				"aks.io/use-osm-mtls":                               "true",
+				"kubernetes.azure.com/tls-cert-keyvault-uri":        "test-cert-uri",
+				"kubernetes.azure.com/use-osm-mtls":                 "true",
 				"nginx.ingress.kubernetes.io/backend-protocol":      "HTTPS",
 				"nginx.ingress.kubernetes.io/configuration-snippet": "\nproxy_ssl_name \"default.test-ns.cluster.local\";",
 				"nginx.ingress.kubernetes.io/proxy-ssl-secret":      "kube-system/osm-ingress-client-cert",
@@ -84,7 +83,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr("webapprouting.aks.io"),
+			IngressClassName: util.StringPtr("webapprouting.kubernetes.azure.com"),
 			Rules: []netv1.IngressRule{{
 				Host: "test-host",
 				IngressRuleValue: netv1.IngressRuleValue{
@@ -112,7 +111,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected, ing)
 
 	// Override the default service account name
-	svc.Annotations["aks.io/service-account-name"] = "test-sa"
+	svc.Annotations["kubernetes.azure.com/service-account-name"] = "test-sa"
 	require.NoError(t, c.Update(ctx, svc))
 	_, err = p.Reconcile(ctx, req)
 	require.NoError(t, err)
