@@ -6,6 +6,12 @@ provider "azurerm" {
   }
 }
 
+resource "random_string" "random" {
+  length  = 12
+  upper   = false
+  special = false
+}
+
 variable "example_ingress_domain" {
   default = "ingress.dev"
 }
@@ -21,7 +27,7 @@ data "azurerm_subscription" "current" {
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "aks-app-routing-dev-${substr(sha256(data.azurerm_client_config.current.client_id), 1, 8)}"
+  name     = "app-routing-dev-${substr(sha256(data.azurerm_client_config.current.client_id), 1, 8)}"
   location = "South Central US"
 }
 
@@ -60,13 +66,12 @@ data "azurerm_user_assigned_identity" "clusteridentity" {
 }
 
 resource "azurerm_key_vault" "keyvault" {
-  name                       = "dev-${substr(sha256(data.azurerm_client_config.current.client_id), 1, 12)}a"
-  location                   = azurerm_resource_group.rg.location
-  resource_group_name        = azurerm_resource_group.rg.name
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  soft_delete_retention_days = 7
-  purge_protection_enabled   = false
-  sku_name                   = "standard"
+  name                     = "dev-${random_string.random.result}a"
+  location                 = azurerm_resource_group.rg.location
+  resource_group_name      = azurerm_resource_group.rg.name
+  tenant_id                = data.azurerm_client_config.current.tenant_id
+  purge_protection_enabled = false
+  sku_name                 = "standard"
 
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
