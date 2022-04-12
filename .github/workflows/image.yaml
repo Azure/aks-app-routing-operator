@@ -1,0 +1,25 @@
+name: Build and Push to MCR
+on: [workflow_dispatch]
+
+permissions:
+      id-token: write
+      contents: read
+
+jobs: 
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: 'Azure login'
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: 'Build and push'
+        run: |
+          TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:$(git rev-parse --short HEAD)"
+          docker build -t "${TAG}" .
+
+          az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
+          docker push "${TAG}"
