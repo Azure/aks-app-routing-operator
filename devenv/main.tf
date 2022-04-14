@@ -12,6 +12,8 @@ resource "random_string" "random" {
   special = false
 }
 
+resource "time_static" "provisiontime" {}
+
 variable "example_ingress_domain" {
   default = "ingress.dev"
 }
@@ -27,8 +29,12 @@ data "azurerm_subscription" "current" {
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "app-routing-dev-${substr(sha256(data.azurerm_client_config.current.client_id), 1, 8)}"
+  name     = "app-routing-dev-${random_string.random.result}a"
   location = "South Central US"
+  tags = {
+    deletion_due_time  = time_static.provisiontime.unix + 36000, // keep resources for 10hr
+    deletion_marked_by = "gc",
+  }
 }
 
 resource "azurerm_kubernetes_cluster" "cluster" {
@@ -42,7 +48,7 @@ resource "azurerm_kubernetes_cluster" "cluster" {
   default_node_pool {
     name       = "default"
     node_count = 2
-    vm_size    = "Standard_D2_v2"
+    vm_size    = "Standard_DS2_v2"
   }
 
   identity {
