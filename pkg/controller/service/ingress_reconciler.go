@@ -27,6 +27,7 @@ import (
 // - kubernetes.azure.com/ingress-host: host of the ingress resource
 // - kubernetes.azure.com/tls-cert-keyvault-uri: URI of the Keyvault certificate to present
 // - kubernetes.azure.com/service-account-name: name of the service account used by upstream pods (defaults to "default")
+// - kubernetes.azure.com/insecure-disable-osm: don't use OSM integration. Connections between ingreses controller and app will be insecure.
 //
 // This functionality allows easy adoption of good ingress practices while providing an exit strategy.
 // Users can remove the annotations and take ownership of the generated resources at any time.
@@ -86,12 +87,7 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				UID:        svc.UID,
 			}},
 			Annotations: map[string]string{
-				"kubernetes.azure.com/tls-cert-keyvault-uri":        svc.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"],
-				"kubernetes.azure.com/use-osm-mtls":                 "true",
-				"nginx.ingress.kubernetes.io/backend-protocol":      "HTTPS",
-				"nginx.ingress.kubernetes.io/configuration-snippet": fmt.Sprintf("\nproxy_ssl_name \"%s.%s.cluster.local\";", serviceAccount, svc.Namespace),
-				"nginx.ingress.kubernetes.io/proxy-ssl-secret":      "kube-system/osm-ingress-client-cert",
-				"nginx.ingress.kubernetes.io/proxy-ssl-verify":      "on",
+				"kubernetes.azure.com/tls-cert-keyvault-uri": svc.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"],
 			},
 		},
 		Spec: netv1.IngressSpec{
@@ -118,6 +114,13 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				SecretName: fmt.Sprintf("keyvault-%s", svc.Name),
 			}},
 		},
+	}
+	if svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] == "" {
+		ing.Annotations["kubernetes.azure.com/use-osm-mtls"] = "true"
+		ing.Annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
+		ing.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = fmt.Sprintf("\nproxy_ssl_name \"%s.%s.cluster.local\";", serviceAccount, svc.Namespace)
+		ing.Annotations["nginx.ingress.kubernetes.io/proxy-ssl-secret"] = "kube-system/osm-ingress-client-cert"
+		ing.Annotations["nginx.ingress.kubernetes.io/proxy-ssl-verify"] = "on"
 	}
 
 	logger.Info("reconciling ingress for service")

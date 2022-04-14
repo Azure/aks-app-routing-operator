@@ -121,3 +121,80 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(ing), ing))
 	assert.Equal(t, expected, ing)
 }
+
+func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
+	svc := &corev1.Service{}
+	svc.UID = "test-svc-uid"
+	svc.Name = "test-service"
+	svc.Namespace = "test-ns"
+	svc.Annotations = map[string]string{
+		"kubernetes.azure.com/ingress-host":          "test-host",
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "test-cert-uri",
+		"kubernetes.azure.com/insecure-disable-osm":  "true",
+	}
+	svc.Spec.Ports = []corev1.ServicePort{{
+		Port: 123,
+	}}
+
+	c := fake.NewClientBuilder().WithObjects(svc).Build()
+	p := &IngressReconciler{client: c}
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: svc.Namespace, Name: svc.Name}}
+	_, err := p.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	pt := netv1.PathTypePrefix
+	expected := &netv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            svc.Name,
+			Namespace:       svc.Namespace,
+			ResourceVersion: "1",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "v1",
+				Controller: util.BoolPtr(true),
+				Kind:       "Service",
+				Name:       svc.Name,
+				UID:        svc.UID,
+			}},
+			Annotations: map[string]string{
+				"kubernetes.azure.com/tls-cert-keyvault-uri": "test-cert-uri",
+			},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: util.StringPtr("webapprouting.kubernetes.azure.com"),
+			Rules: []netv1.IngressRule{{
+				Host: "test-host",
+				IngressRuleValue: netv1.IngressRuleValue{
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{{
+							Path:     "/",
+							PathType: &pt,
+							Backend: netv1.IngressBackend{
+								Service: &netv1.IngressServiceBackend{
+									Name: svc.Name,
+									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].Port},
+								},
+							},
+						}},
+					},
+				},
+			}},
+			TLS: []netv1.IngressTLS{{
+				Hosts:      []string{"test-host"},
+				SecretName: "keyvault-test-service",
+			}},
+		},
+	}
+	ing := &netv1.Ingress{}
+	ing.Name = svc.Name
+	ing.Namespace = svc.Namespace
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(ing), ing))
+	assert.Equal(t, expected, ing)
+}
