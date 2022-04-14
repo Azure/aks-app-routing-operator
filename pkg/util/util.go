@@ -6,6 +6,8 @@ package util
 import (
 	"context"
 	"flag"
+	"math/rand"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,4 +41,12 @@ func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
 		}
 	}
 	return ""
+}
+
+func Jitter(base time.Duration, ratio float64) time.Duration {
+	if ratio >= 1 || ratio == 0 {
+		return base
+	}
+	jitter := (rand.Float64() * float64(base) * ratio) - (float64(base) * (ratio / 2))
+	return base + time.Duration(jitter)
 }

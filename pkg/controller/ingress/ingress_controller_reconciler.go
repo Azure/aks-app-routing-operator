@@ -5,7 +5,6 @@ package ingress
 
 import (
 	"context"
-	"math/rand"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -41,7 +40,7 @@ func (i *IngressControllerReconciler) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(jitter(interval, 0.3)):
+		case <-time.After(util.Jitter(interval, 0.3)):
 		}
 		if err := i.tick(ctx); err != nil {
 			i.logger.Error(err, "error reconciling ingress controller resources")
@@ -72,12 +71,4 @@ func (i *IngressControllerReconciler) tick(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func jitter(base time.Duration, ratio float64) time.Duration {
-	if ratio >= 1 || ratio == 0 {
-		return base
-	}
-	jitter := (rand.Float64() * float64(base) * ratio) - (float64(base) * (ratio / 2))
-	return base + time.Duration(jitter)
 }
