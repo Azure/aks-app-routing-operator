@@ -11,7 +11,7 @@ permissions:
       contents: read
 
 jobs: 
-  publish:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -25,4 +25,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
 
       - name: "Provision infrastructure"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: "make dev"
