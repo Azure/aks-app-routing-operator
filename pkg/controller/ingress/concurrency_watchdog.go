@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 // ConcurrencyWatchdog evicts ingress controller pods that have too many active connections relative to others.
@@ -75,7 +76,7 @@ func (c *ConcurrencyWatchdog) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(jitter(c.interval, 0.3)):
+		case <-time.After(util.Jitter(c.interval, 0.3)):
 		}
 		if err := c.tick(ctx); err != nil {
 			c.logger.Error(err, "error reconciling ingress controller resources")
