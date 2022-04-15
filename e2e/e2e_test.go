@@ -72,7 +72,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestBasicNginx(t *testing.T) {
+// TestBasicService is the most common user scenario - add annotations to a service, get back working
+// ingress with TLS termination and e2e encryption using OSM.
+func TestBasicService(t *testing.T) {
 	suite.StartTestCase(t).
 		WithResources(
 			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
@@ -80,7 +82,17 @@ func TestBasicNginx(t *testing.T) {
 			fixtures.NewService("server", conf.CertHostname, conf.CertID, 8080))
 }
 
-func TestBasicNginxNoOSM(t *testing.T) {
+// TestBasicServiceVersionlessCert proves that users can remove the version hash from a Keyvault cert URI.
+func TestBasicServiceVersionlessCert(t *testing.T) {
+	suite.StartTestCase(t).
+		WithResources(
+			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
+			fixtures.NewGoDeployment(t, "server"),
+			fixtures.NewService("server", conf.CertHostname, conf.CertVersionlessID, 8080))
+}
+
+// TestBasicServiceNoOSM is identical to TestBasicService but disables OSM.
+func TestBasicServiceNoOSM(t *testing.T) {
 	svc := fixtures.NewService("server", conf.CertHostname, conf.CertID, 8080)
 	svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] = "true"
 
