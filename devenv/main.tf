@@ -190,3 +190,20 @@ resource "local_file" "envscript" {
   EOF
   filename = "${path.module}/state/env.sh"
 }
+
+resource "local_file" "e2econf" {
+  content = jsonencode({
+    MSIClientID       = data.azurerm_user_assigned_identity.clusteridentity.client_id
+    TenantID          = data.azurerm_client_config.current.tenant_id
+    Location          = azurerm_resource_group.rg.location
+    DNSZoneRG         = azurerm_dns_zone.dnszone.resource_group_name
+    DNSZoneSub        = data.azurerm_subscription.current.subscription_id
+    DNSZoneDomain     = var.example_ingress_domain
+    CertHostname      = var.example_ingress_host
+    TestNamservers    = azurerm_dns_zone.dnszone.name_servers
+    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
+    CertID            = azurerm_key_vault_certificate.testcert.id
+    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
+  })
+  filename = "${path.module}/state/e2e.json"
+}
