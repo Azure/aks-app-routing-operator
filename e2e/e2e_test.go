@@ -13,7 +13,9 @@ import (
 	"testing"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
@@ -58,13 +60,23 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-
-	// Start controllers
-	manager, err := controller.NewManagerForRestConfig(config.Flags, rc)
+	suite.Client, err = client.New(rc, client.Options{})
 	if err != nil {
 		panic(err)
 	}
-	suite.Client = manager.GetClient()
+
+	controllerUsername := "aks-app-routing-operator-e2e-user"
+	if err := e2eutil.SetupRBAC(suite.Clientset, "../rbac.yaml", controllerUsername); err != nil {
+		panic(err)
+	}
+
+	// Start controllers
+	impersonateRC := rest.CopyConfig(rc)
+	impersonateRC.Impersonate.UserName = controllerUsername
+	manager, err := controller.NewManagerForRestConfig(config.Flags, impersonateRC)
+	if err != nil {
+		panic(err)
+	}
 	go manager.Start(context.Background())
 
 	// Run tests
