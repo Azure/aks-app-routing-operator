@@ -14,12 +14,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var patchType = client.Merge
+
 func Upsert(ctx context.Context, c client.Client, res client.Object) error {
 	// Use server-side apply to update resources and fall back to merge patch when
 	// using fake clients in unit tests since they don't support SSA
-	var patchType = client.Apply
-	if flag.Lookup("test.v") != nil {
-		patchType = client.Merge
+	if flag.Lookup("test.v") == nil {
+		patchType = client.Apply
 	}
 
 	err := c.Patch(ctx, res, patchType, client.FieldOwner("aks-app-routing-operator"), client.ForceOwnership)
@@ -27,6 +28,13 @@ func Upsert(ctx context.Context, c client.Client, res client.Object) error {
 		err = c.Create(ctx, res)
 	}
 	return err
+}
+
+// UseServerSideApply allows tests to require the server side apply patch strategy.
+// Useful in cases where a real client that supports it is used.
+// The default is to use Merge because SSA isn't supported by the fake client.
+func UseServerSideApply() {
+	patchType = client.Apply
 }
 
 func Int32Ptr(i int32) *int32      { return &i }
