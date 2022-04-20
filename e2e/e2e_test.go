@@ -12,6 +12,8 @@ import (
 	"os"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -110,6 +112,24 @@ func TestBasicServiceNoOSM(t *testing.T) {
 
 	svr := fixtures.NewGoDeployment(t, "server")
 	svr.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
+
+	suite.StartTestCase(t).
+		WithResources(
+			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
+			svr, svc)
+}
+
+// TestBasicServiceWithPortName is identical to TestBasicService but uses a TargetPort that references a port
+// name instead of a literal port int.
+func TestBasicServiceWithPortName(t *testing.T) {
+	svc := fixtures.NewService("server", conf.CertHostname, conf.CertID, 8080)
+	svc.Spec.Ports[0].TargetPort = intstr.FromString("testport")
+
+	svr := fixtures.NewGoDeployment(t, "server")
+	svr.Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{
+		Name:          "testport",
+		ContainerPort: 8080,
+	}}
 
 	suite.StartTestCase(t).
 		WithResources(
