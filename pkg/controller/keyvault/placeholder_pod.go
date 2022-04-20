@@ -120,6 +120,7 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
 					"kubernetes.azure.com/ingress-owner":       ing.Name,
+					"openservicemesh.io/sidecar-injection":     "disabled",
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
