@@ -19,16 +19,26 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
+func init() {
+	ctrl.SetLogger(klogr.New())
+}
+
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
-	return NewManagerForRestConfig(conf, ctrl.GetConfigOrDie())
+	rc := ctrl.GetConfigOrDie()
+	if conf.ServiceAccountTokenPath != "" {
+		rc.BearerTokenFile = conf.ServiceAccountTokenPath
+	}
+	return NewManagerForRestConfig(conf, rc)
 }
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
-	m, err := ctrl.NewManager(rc, ctrl.Options{})
+	m, err := ctrl.NewManager(rc, ctrl.Options{
+		MetricsBindAddress:     conf.MetricsAddr,
+		HealthProbeBindAddress: conf.ProbeAddr,
+	})
 	if err != nil {
 		return nil, err
 	}
-	ctrl.SetLogger(klogr.New())
 	secv1.AddToScheme(m.GetScheme())
 	cfgv1alpha1.AddToScheme(m.GetScheme())
 	policyv1alpha1.AddToScheme(m.GetScheme())
