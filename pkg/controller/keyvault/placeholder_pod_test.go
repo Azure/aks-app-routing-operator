@@ -72,6 +72,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 					"kubernetes.azure.com/observed-generation": "123",
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
 					"kubernetes.azure.com/ingress-owner":       ing.Name,
+					"openservicemesh.io/sidecar-injection":     "disabled",
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
