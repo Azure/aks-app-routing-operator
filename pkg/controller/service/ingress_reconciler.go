@@ -102,7 +102,7 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
 									Name: svc.Name,
-									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].Port},
+									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].TargetPort.IntVal},
 								},
 							},
 						}},

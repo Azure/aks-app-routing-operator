@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -28,7 +29,8 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	svc.Name = "test-service"
 	svc.Namespace = "test-ns"
 	svc.Spec.Ports = []corev1.ServicePort{{
-		Port: 123,
+		Port:       123,
+		TargetPort: intstr.FromInt(234),
 	}}
 
 	c := fake.NewClientBuilder().WithObjects(svc).Build()
@@ -94,7 +96,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
 									Name: svc.Name,
-									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].Port},
+									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].TargetPort.IntVal},
 								},
 							},
 						}},
@@ -133,7 +135,8 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 		"kubernetes.azure.com/insecure-disable-osm":  "true",
 	}
 	svc.Spec.Ports = []corev1.ServicePort{{
-		Port: 123,
+		Port:       123,
+		TargetPort: intstr.FromInt(234),
 	}}
 
 	c := fake.NewClientBuilder().WithObjects(svc).Build()
@@ -179,7 +182,7 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
 									Name: svc.Name,
-									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].Port},
+									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].TargetPort.IntVal},
 								},
 							},
 						}},

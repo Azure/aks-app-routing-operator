@@ -91,8 +91,9 @@ func NewService(app, host, keyvaultURI string, port int32) *corev1.Service {
 		},
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
-				Name: "http",
-				Port: port,
+				Name:       "http",
+				Port:       1234, // anything - we don't use this one
+				TargetPort: intstr.FromInt(int(port)),
 			}},
 			Selector: map[string]string{"app": app},
 		},
