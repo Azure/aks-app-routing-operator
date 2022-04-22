@@ -14,12 +14,8 @@ resource "random_string" "random" {
 
 resource "time_static" "provisiontime" {}
 
-variable "example_ingress_domain" {
+variable "domain" {
   default = "ingress.dev"
-}
-
-variable "example_ingress_host" {
-  default = "test.ingress.dev"
 }
 
 data "azurerm_client_config" "current" {
@@ -48,7 +44,7 @@ resource "azurerm_kubernetes_cluster" "cluster" {
   default_node_pool {
     name       = "default"
     node_count = 2
-    vm_size    = "Standard_DS2_v2"
+    vm_size    = "Standard_DS3_v2"
   }
 
   identity {
@@ -92,19 +88,20 @@ resource "azurerm_key_vault" "keyvault" {
       "Import",
     ]
   }
+}
 
-  access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = data.azurerm_user_assigned_identity.clusteridentity.principal_id
+resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
+  key_vault_id = azurerm_key_vault.keyvault.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = data.azurerm_user_assigned_identity.clusteridentity.principal_id
 
-    certificate_permissions = [
-      "Get",
-    ]
+  certificate_permissions = [
+    "Get",
+  ]
 
-    secret_permissions = [
-      "Get",
-    ]
-  }
+  secret_permissions = [
+    "Get",
+  ]
 }
 
 resource "azurerm_key_vault_certificate" "testcert" {
@@ -148,7 +145,7 @@ resource "azurerm_key_vault_certificate" "testcert" {
       ]
 
       subject_alternative_names {
-        dns_names = ["${var.example_ingress_host}"]
+        dns_names = ["*.${var.domain}"]
       }
 
       subject            = "CN=testcert"
@@ -158,7 +155,7 @@ resource "azurerm_key_vault_certificate" "testcert" {
 }
 
 resource "azurerm_dns_zone" "dnszone" {
-  name                = var.example_ingress_domain
+  name                = var.domain
   resource_group_name = azurerm_resource_group.rg.name
 }
 
@@ -185,7 +182,7 @@ resource "local_file" "envscript" {
         --location ${azurerm_resource_group.rg.location} \
         --dns-zone-resource-group ${azurerm_dns_zone.dnszone.resource_group_name} \
         --dns-zone-subscription ${data.azurerm_subscription.current.subscription_id} \
-        --dns-zone-domain ${var.example_ingress_domain}
+        --dns-zone-domain ${var.domain}
     }
   EOF
   filename = "${path.module}/state/env.sh"
@@ -198,8 +195,7 @@ resource "local_file" "e2econf" {
     Location          = azurerm_resource_group.rg.location
     DNSZoneRG         = azurerm_dns_zone.dnszone.resource_group_name
     DNSZoneSub        = data.azurerm_subscription.current.subscription_id
-    DNSZoneDomain     = var.example_ingress_domain
-    CertHostname      = var.example_ingress_host
+    DNSZoneDomain     = var.domain
     TestNamservers    = azurerm_dns_zone.dnszone.name_servers
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id

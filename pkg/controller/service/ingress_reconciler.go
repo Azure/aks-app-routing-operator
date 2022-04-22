@@ -12,7 +12,6 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -71,13 +70,6 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		serviceAccount = sa
 	}
 
-	upstreamPort := netv1.ServiceBackendPort{}
-	if svc.Spec.Ports[0].TargetPort.Type == intstr.Int {
-		upstreamPort.Number = svc.Spec.Ports[0].TargetPort.IntVal
-	} else {
-		upstreamPort.Name = svc.Spec.Ports[0].TargetPort.StrVal
-	}
-
 	pt := netv1.PathTypePrefix
 	ing := &netv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
@@ -110,7 +102,7 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
 									Name: svc.Name,
-									Port: upstreamPort,
+									Port: netv1.ServiceBackendPort{Number: svc.Spec.Ports[0].TargetPort.IntVal},
 								},
 							},
 						}},
