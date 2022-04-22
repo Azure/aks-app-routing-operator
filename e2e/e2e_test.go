@@ -12,8 +12,6 @@ import (
 	"os"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -33,7 +31,6 @@ var (
 
 type testConfig struct {
 	*config.Config
-	CertHostname              string
 	TestNamservers            []string
 	Kubeconfig                string
 	CertID, CertVersionlessID string
@@ -89,50 +86,36 @@ func TestMain(m *testing.M) {
 // TestBasicService is the most common user scenario - add annotations to a service, get back working
 // ingress with TLS termination and e2e encryption using OSM.
 func TestBasicService(t *testing.T) {
-	suite.StartTestCase(t).
-		WithResources(
-			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
-			fixtures.NewGoDeployment(t, "server"),
-			fixtures.NewService("server", conf.CertHostname, conf.CertID, 8080))
+	tc := suite.StartTestCase(t)
+	hostname := tc.Hostname(conf.DNSZoneDomain)
+	tc.WithResources(
+		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		fixtures.NewGoDeployment(t, "server"),
+		fixtures.NewService("server", hostname, conf.CertID, 8080))
 }
 
 // TestBasicServiceVersionlessCert proves that users can remove the version hash from a Keyvault cert URI.
 func TestBasicServiceVersionlessCert(t *testing.T) {
-	suite.StartTestCase(t).
-		WithResources(
-			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
-			fixtures.NewGoDeployment(t, "server"),
-			fixtures.NewService("server", conf.CertHostname, conf.CertVersionlessID, 8080))
+	tc := suite.StartTestCase(t)
+	hostname := tc.Hostname(conf.DNSZoneDomain)
+	tc.WithResources(
+		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		fixtures.NewGoDeployment(t, "server"),
+		fixtures.NewService("server", hostname, conf.CertVersionlessID, 8080))
 }
 
 // TestBasicServiceNoOSM is identical to TestBasicService but disables OSM.
 func TestBasicServiceNoOSM(t *testing.T) {
-	svc := fixtures.NewService("server", conf.CertHostname, conf.CertID, 8080)
+	tc := suite.StartTestCase(t)
+	hostname := tc.Hostname(conf.DNSZoneDomain)
+
+	svc := fixtures.NewService("server", hostname, conf.CertID, 8080)
 	svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] = "true"
 
 	svr := fixtures.NewGoDeployment(t, "server")
 	svr.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 
-	suite.StartTestCase(t).
-		WithResources(
-			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
-			svr, svc)
-}
-
-// TestBasicServiceWithPortName is identical to TestBasicService but uses a TargetPort that references a port
-// name instead of a literal port int.
-func TestBasicServiceWithPortName(t *testing.T) {
-	svc := fixtures.NewService("server", conf.CertHostname, conf.CertID, 8080)
-	svc.Spec.Ports[0].TargetPort = intstr.FromString("testport")
-
-	svr := fixtures.NewGoDeployment(t, "server")
-	svr.Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{
-		Name:          "testport",
-		ContainerPort: 8080,
-	}}
-
-	suite.StartTestCase(t).
-		WithResources(
-			fixtures.NewClientDeployment(t, conf.CertHostname, conf.TestNamservers),
-			svr, svc)
+	tc.WithResources(
+		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		svr, svc)
 }

@@ -70,6 +70,11 @@ func (c *Case) Retry(fn func() error) {
 	}
 }
 
+func (c *Case) Hostname(domain string) string {
+	c.ensureNS()
+	return strings.ToLower(c.ns) + "." + domain
+}
+
 // WithResources creates Kubernetes resources for the test case and waits for them to become ready.
 func (c *Case) WithResources(resources ...client.Object) {
 	c.ensureNS()
