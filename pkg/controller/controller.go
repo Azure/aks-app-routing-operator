@@ -4,6 +4,8 @@
 package controller
 
 import (
+	"net/http"
+
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	"k8s.io/client-go/rest"
@@ -33,8 +35,11 @@ func NewManager(conf *config.Config) (ctrl.Manager, error) {
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
 	m, err := ctrl.NewManager(rc, ctrl.Options{
-		MetricsBindAddress:     conf.MetricsAddr,
-		HealthProbeBindAddress: conf.ProbeAddr,
+		LeaderElection:          true,
+		LeaderElectionNamespace: "kube-system",
+		LeaderElectionID:        "aks-app-routing-operator-leader",
+		MetricsBindAddress:      conf.MetricsAddr,
+		HealthProbeBindAddress:  conf.ProbeAddr,
 	})
 	if err != nil {
 		return nil, err
@@ -42,6 +47,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	secv1.AddToScheme(m.GetScheme())
 	cfgv1alpha1.AddToScheme(m.GetScheme())
 	policyv1alpha1.AddToScheme(m.GetScheme())
+
+	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 
 	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf)); err != nil {
 		return nil, err
