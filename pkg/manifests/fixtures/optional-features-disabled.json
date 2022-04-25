@@ -216,6 +216,7 @@
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",
                   "--publish-service=$(POD_NAMESPACE)/nginx",
+                  "--configmap=$(POD_NAMESPACE)/nginx",
                   "--http-port=8080",
                   "--https-port=8443"
                 ],
@@ -334,6 +335,21 @@
         "revisionHistoryLimit": 2
       },
       "status": {}
+    },
+    {
+      "kind": "ConfigMap",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "nginx",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        }
+      },
+      "data": {
+        "annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'"
+      }
     },
     {
       "kind": "PodDisruptionBudget",
