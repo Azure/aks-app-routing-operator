@@ -44,6 +44,7 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 		newIngressControllerClusterRoleBinding(conf),
 		newIngressControllerService(conf),
 		newIngressControllerDeployment(conf),
+		newIngressControllerConfigmap(conf),
 		newIngressControllerPDB(conf),
 		newIngressControllerHPA(conf),
 	}
@@ -235,6 +236,7 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 							"/nginx-ingress-controller",
 							"--ingress-class=" + IngressClass,
 							"--publish-service=$(POD_NAMESPACE)/" + IngressControllerName,
+							"--configmap=$(POD_NAMESPACE)/" + IngressControllerName,
 							"--http-port=8080",
 							"--https-port=8443",
 						},
@@ -264,6 +266,25 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 					}))},
 				}),
 			},
+		},
+	}
+}
+
+func newIngressControllerConfigmap(conf *config.Config) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      IngressControllerName,
+			Namespace: conf.NS,
+			Labels:    topLevelLabels,
+		},
+		Data: map[string]string{
+			// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
+			// But we can still protect against leaked service account tokens.
+			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
 		},
 	}
 }
