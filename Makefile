@@ -1,6 +1,7 @@
 .PHONY: dev clean e2e
 
 dev:
+	terraform --version
 	cd devenv && mkdir -p state && terraform init && terraform apply -auto-approve
 
 clean:
