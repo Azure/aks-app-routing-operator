@@ -28,7 +28,5 @@ jobs:
       - name: 'Build and push'
         run: |
           TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator-${{ matrix.arch }}:sha-$(git rev-parse --short HEAD)"
-          docker buildx build --platform "${{ matrix.arch }}" --tag "${TAG}" .
-
           az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
-          docker push "${TAG}"
+          docker buildx build --platform "${{ matrix.arch }}" --tag "${TAG}" --output type=registry .
