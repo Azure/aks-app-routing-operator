@@ -8,9 +8,6 @@ permissions:
 jobs: 
   publish:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v2
 
@@ -27,6 +24,6 @@ jobs:
 
       - name: 'Build and push'
         run: |
-          TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator-${{ matrix.arch }}:sha-$(git rev-parse --short HEAD)"
+          TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:sha-$(git rev-parse --short HEAD)"
           az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
-          docker buildx build --platform "${{ matrix.arch }}" --tag "${TAG}" --output type=registry .
+          docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
