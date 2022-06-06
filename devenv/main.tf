@@ -6,6 +6,13 @@ provider "azurerm" {
   }
 }
 
+provider "kubernetes" {
+  host                   = azurerm_kubernetes_cluster.cluster.kube_config.0.host
+  client_certificate     = base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.client_certificate)
+  client_key             = base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.client_key)
+  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.cluster_ca_certificate)
+}
+
 resource "random_string" "random" {
   length  = 12
   upper   = false
@@ -40,6 +47,7 @@ resource "azurerm_kubernetes_cluster" "cluster" {
   dns_prefix                = "approutingdev"
   azure_policy_enabled      = true
   open_service_mesh_enabled = true
+  oidc_issuer_enabled       = true
 
   default_node_pool {
     name       = "default"
@@ -165,41 +173,101 @@ resource "azurerm_role_assignment" "approutingdnszone" {
   principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
 }
 
+resource "azurerm_container_registry" "acr" {
+  name                = "approutingdev${random_string.random.result}a"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  sku                 = "Basic"
+}
+
+resource "azurerm_role_assignment" "acr" {
+  principal_id                     = azurerm_kubernetes_cluster.cluster.kubelet_identity[0].object_id
+  role_definition_name             = "AcrPull"
+  scope                            = azurerm_container_registry.acr.id
+  skip_service_principal_aad_check = true
+}
+
+resource "kubernetes_deployment_v1" "operator" {
+  wait_for_rollout = false
+
+  lifecycle {
+    ignore_changes = [spec.0.template.0.spec.0.container.0.image]
+  }
+
+  metadata {
+    name = "app-routing-operator"
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        app = "app-routing-operator"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "app-routing-operator"
+        }
+      }
+
+      spec {
+        container {
+          name  = "operator"
+          image = "mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114"
+          command = [
+            "/aks-app-routing-operator",
+            "--msi", "${data.azurerm_user_assigned_identity.clusteridentity.client_id}",
+            "--tenant-id", "${data.azurerm_client_config.current.tenant_id}",
+            "--location", "${azurerm_resource_group.rg.location}",
+            "--dns-zone-resource-group", "${azurerm_dns_zone.dnszone.resource_group_name}",
+            "--dns-zone-subscription", "${data.azurerm_subscription.current.subscription_id}",
+            "--dns-zone-domain", "${var.domain}"
+          ]
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
+  metadata {
+    name = "default-admin"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "default"
+    namespace = "default"
+  }
+}
+
 resource "local_sensitive_file" "kubeconfig" {
   content  = azurerm_kubernetes_cluster.cluster.kube_config_raw
   filename = "${path.module}/state/kubeconfig"
 }
 
-resource "local_file" "envscript" {
-  content  = <<EOF
-    export KUBECONFIG="${abspath(path.module)}/state/kubeconfig"
-
-    function run() {
-      cd ${abspath("${path.module}/../")}
-      go run . \
-        --msi ${data.azurerm_user_assigned_identity.clusteridentity.client_id} \
-        --tenant-id ${data.azurerm_client_config.current.tenant_id} \
-        --location ${azurerm_resource_group.rg.location} \
-        --dns-zone-resource-group ${azurerm_dns_zone.dnszone.resource_group_name} \
-        --dns-zone-subscription ${data.azurerm_subscription.current.subscription_id} \
-        --dns-zone-domain ${var.domain}
-    }
-  EOF
-  filename = "${path.module}/state/env.sh"
-}
-
 resource "local_file" "e2econf" {
   content = jsonencode({
-    MSIClientID       = data.azurerm_user_assigned_identity.clusteridentity.client_id
-    TenantID          = data.azurerm_client_config.current.tenant_id
-    Location          = azurerm_resource_group.rg.location
-    DNSZoneRG         = azurerm_dns_zone.dnszone.resource_group_name
-    DNSZoneSub        = data.azurerm_subscription.current.subscription_id
-    DNSZoneDomain     = var.domain
     TestNamservers    = azurerm_dns_zone.dnszone.name_servers
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
+    DNSZoneDomain     = var.domain
   })
   filename = "${path.module}/state/e2e.json"
+}
+
+resource "local_file" "registryconf" {
+  content  = azurerm_container_registry.acr.login_server
+  filename = "${path.module}/state/registry.txt"
 }
