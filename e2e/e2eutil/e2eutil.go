@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -16,9 +15,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
-	applymetav1 "k8s.io/client-go/applyconfigurations/meta/v1"
-	rbacv1 "k8s.io/client-go/applyconfigurations/rbac/v1"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -168,40 +164,4 @@ func (c *Case) ensureNS() {
 			return nil
 		})
 	}()
-}
-
-// SetupRBAC creates and binds a ClusterRole manifest to a given username. Intended to be used
-// by e2e tests that need to limit their own k8s access.
-func SetupRBAC(cs kubernetes.Interface, roleManifestPath, userName string) error {
-	role := &rbacv1.ClusterRoleApplyConfiguration{}
-	rawRole, err := os.ReadFile(roleManifestPath)
-	if err != nil {
-		return err
-	}
-	if err := yaml.Unmarshal(rawRole, role); err != nil {
-		return err
-	}
-	_, err = cs.RbacV1().ClusterRoles().Apply(context.Background(), role, metav1.ApplyOptions{FieldManager: "e2e"})
-	if err != nil {
-		return err
-	}
-
-	roleBinding := &rbacv1.ClusterRoleBindingApplyConfiguration{
-		ObjectMetaApplyConfiguration: &applymetav1.ObjectMetaApplyConfiguration{
-			Name: role.Name,
-		},
-		Subjects: []rbacv1.SubjectApplyConfiguration{{
-			Kind: util.StringPtr("User"),
-			Name: util.StringPtr(userName),
-		}},
-		RoleRef: &rbacv1.RoleRefApplyConfiguration{
-			Kind:     util.StringPtr("ClusterRole"),
-			Name:     role.Name,
-			APIGroup: util.StringPtr("rbac.authorization.k8s.io"),
-		},
-	}
-	roleBinding.Kind = util.StringPtr("ClusterRoleBinding")
-	roleBinding.APIVersion = util.StringPtr("rbac.authorization.k8s.io/v1")
-	_, err = cs.RbacV1().ClusterRoleBindings().Apply(context.Background(), roleBinding, metav1.ApplyOptions{FieldManager: "e2e"})
-	return err
 }

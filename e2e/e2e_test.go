@@ -6,34 +6,30 @@
 package e2e
 
 import (
-	"context"
 	"encoding/json"
 	"io/ioutil"
 	"os"
 	"testing"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 var (
 	suite e2eutil.Suite
-	conf  = &testConfig{Config: config.Flags}
+	conf  = &testConfig{}
 )
 
 type testConfig struct {
-	*config.Config
 	TestNamservers            []string
 	Kubeconfig                string
 	CertID, CertVersionlessID string
+	DNSZoneDomain             string
 }
 
 func TestMain(m *testing.M) {
@@ -43,9 +39,6 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	if err := json.Unmarshal(rawConf, conf); err != nil {
-		panic(err)
-	}
-	if err := conf.Validate(); err != nil {
 		panic(err)
 	}
 	rc, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -64,20 +57,6 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	controllerUsername := "aks-app-routing-operator-e2e-user"
-	if err := e2eutil.SetupRBAC(suite.Clientset, "../rbac.yaml", controllerUsername); err != nil {
-		panic(err)
-	}
-
-	// Start controllers
-	impersonateRC := rest.CopyConfig(rc)
-	impersonateRC.Impersonate.UserName = controllerUsername
-	manager, err := controller.NewManagerForRestConfig(config.Flags, impersonateRC)
-	if err != nil {
-		panic(err)
-	}
-	go manager.Start(context.Background())
-
 	// Run tests
 	suite.Purge()
 	os.Exit(m.Run())
@@ -86,6 +65,7 @@ func TestMain(m *testing.M) {
 // TestBasicService is the most common user scenario - add annotations to a service, get back working
 // ingress with TLS termination and e2e encryption using OSM.
 func TestBasicService(t *testing.T) {
+	t.Parallel()
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 	tc.WithResources(
@@ -96,6 +76,7 @@ func TestBasicService(t *testing.T) {
 
 // TestBasicServiceVersionlessCert proves that users can remove the version hash from a Keyvault cert URI.
 func TestBasicServiceVersionlessCert(t *testing.T) {
+	t.Parallel()
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 	tc.WithResources(
@@ -106,6 +87,7 @@ func TestBasicServiceVersionlessCert(t *testing.T) {
 
 // TestBasicServiceNoOSM is identical to TestBasicService but disables OSM.
 func TestBasicServiceNoOSM(t *testing.T) {
+	t.Parallel()
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 
