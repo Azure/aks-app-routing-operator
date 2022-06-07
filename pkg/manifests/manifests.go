@@ -231,7 +231,7 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 					ServiceAccountName: IngressControllerName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:1.1.3"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"),
 						Args: []string{
 							"/nginx-ingress-controller",
 							"--ingress-class=" + IngressClass,
