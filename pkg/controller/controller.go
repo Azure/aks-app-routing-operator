@@ -96,6 +96,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	return m, nil
 }
 
+// checkNamespace mutates the configuration's namespace to "kube-system" if it is set to a different
+// value, and that namespace does not exist.
+//
+// This allows us to move the "app-routing-system" namespace to "kube-system" before GA'ing the feature
+// without breaking existing clusters.
 func checkNamespace(kcs kubernetes.Interface, conf *config.Config) error {
 	if conf.NS == "kube-system" {
 		return nil
@@ -111,6 +116,7 @@ func checkNamespace(kcs kubernetes.Interface, conf *config.Config) error {
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config) (*appsv1.Deployment, error) {
 	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeploy, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
+		// It's okay if we don't find the deployment - just skip setting ownership references
 		err = nil
 	}
 	if err != nil {
