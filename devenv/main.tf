@@ -195,7 +195,8 @@ resource "kubernetes_deployment_v1" "operator" {
   }
 
   metadata {
-    name = "app-routing-operator"
+    name      = "app-routing-operator"
+    namespace = "kube-system"
   }
 
   spec {
@@ -247,7 +248,7 @@ resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
   subject {
     kind      = "ServiceAccount"
     name      = "default"
-    namespace = "default"
+    namespace = "kube-system"
   }
 }
 

@@ -15,4 +15,4 @@ push:
 	az acr login -n `cat devenv/state/registry.txt`
 	docker build -t `cat devenv/state/operator-image-tag.txt` .
 	docker push `cat devenv/state/operator-image-tag.txt`
-	kubectl set image --kubeconfig devenv/state/kubeconfig deployments/app-routing-operator operator=`cat devenv/state/operator-image-tag.txt`
+	kubectl set image -n kube-system --kubeconfig devenv/state/kubeconfig deployments/app-routing-operator operator=`cat devenv/state/operator-image-tag.txt`

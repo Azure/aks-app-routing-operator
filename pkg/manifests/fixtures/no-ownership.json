@@ -7,15 +7,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {},
       "status": {}
@@ -25,15 +17,7 @@
       "apiVersion": "networking.k8s.io/v1",
       "metadata": {
         "name": "webapprouting.kubernetes.azure.com",
-        "creationTimestamp": null,
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        "creationTimestamp": null
       },
       "spec": {
         "controller": "k8s.io/ingress-nginx"
@@ -48,15 +32,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       }
     },
     {
@@ -67,15 +43,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "rules": [
         {
@@ -166,15 +134,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "subjects": [
         {
@@ -198,15 +158,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {
         "ports": [
@@ -240,15 +192,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {
         "selector": {
@@ -404,15 +348,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "data": {
         "annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'"
@@ -427,15 +363,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {
         "selector": {
@@ -461,15 +389,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {
         "scaleTargetRef": {
@@ -495,15 +415,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "data": {
         "azure.json": "{\"cloud\":\"test-cloud\",\"location\":\"test-location\",\"resourceGroup\":\"test-dns-zone-rg\",\"subscriptionId\":\"test-dns-zone-sub\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"test-msi-client-id\"}"
@@ -518,15 +430,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {
         "replicas": 1,

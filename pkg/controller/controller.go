@@ -4,10 +4,15 @@
 package controller
 
 import (
+	"context"
 	"net/http"
 
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,7 +55,20 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 
-	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf)); err != nil {
+	kcs, err := kubernetes.NewForConfig(rc) // need non-caching client since manager hasn't started yet
+	if err != nil {
+		return nil, err
+	}
+	if err := checkNamespace(kcs, conf); err != nil {
+		return nil, err
+	}
+	deploy, err := getSelfDeploy(kcs, conf)
+	if err != nil {
+		return nil, err
+	}
+	m.GetLogger().V(2).Info("using namespace: " + conf.NS)
+
+	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy)); err != nil {
 		return nil, err
 	}
 	if err = ingress.NewConcurrencyWatchdog(m, conf); err != nil {
@@ -76,4 +94,27 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	return m, nil
+}
+
+func checkNamespace(kcs kubernetes.Interface, conf *config.Config) error {
+	if conf.NS == "kube-system" {
+		return nil
+	}
+	ns, err := kcs.CoreV1().Namespaces().Get(context.Background(), conf.NS, metav1.GetOptions{})
+	if errors.IsNotFound(err) || (ns != nil && ns.DeletionTimestamp != nil) {
+		conf.NS = "kube-system"
+		return nil
+	}
+	return err
+}
+
+func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config) (*appsv1.Deployment, error) {
+	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeploy, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return deploy, nil
 }

@@ -11,7 +11,7 @@ import (
 var Flags = &Config{}
 
 func init() {
-	flag.StringVar(&Flags.NS, "namespace", "app-routing-system", "namespace for managed resources")
+	flag.StringVar(&Flags.NS, "namespace", "app-routing-system", "namespace for managed resources (deprecated: omit flag to use kube-system instead)")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
@@ -28,6 +28,7 @@ func init() {
 	flag.StringVar(&Flags.ServiceAccountTokenPath, "service-account-token-path", "", "optionally override the default token path")
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
+	flag.StringVar(&Flags.OperatorDeploy, "operator-deploy", "app-routing-operator", "name of the operator's k8s deployment")
 }
 
 type Config struct {
@@ -41,6 +42,7 @@ type Config struct {
 	ConcurrencyWatchdogThres                          float64
 	ConcurrencyWatchdogVotes                          int
 	DisableOSM                                        bool
+	OperatorDeploy                                    string
 }
 
 func (c *Config) Validate() error {
