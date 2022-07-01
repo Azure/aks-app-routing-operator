@@ -28,7 +28,7 @@ func init() {
 	flag.StringVar(&Flags.ServiceAccountTokenPath, "service-account-token-path", "", "optionally override the default token path")
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
-	flag.StringVar(&Flags.OperatorDeploy, "operator-deploy", "app-routing-operator", "name of the operator's k8s deployment")
+	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 }
 
 type Config struct {
@@ -42,7 +42,7 @@ type Config struct {
 	ConcurrencyWatchdogThres                          float64
 	ConcurrencyWatchdogVotes                          int
 	DisableOSM                                        bool
-	OperatorDeploy                                    string
+	OperatorDeployment                                string
 }
 
 func (c *Config) Validate() error {

@@ -114,7 +114,7 @@ func checkNamespace(kcs kubernetes.Interface, conf *config.Config) error {
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config) (*appsv1.Deployment, error) {
-	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeploy, metav1.GetOptions{})
+	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		// It's okay if we don't find the deployment - just skip setting ownership references
 		err = nil
