@@ -10,19 +10,57 @@ import (
 	"path"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var integrationTestCases = []struct {
-	Name string
-	Conf *config.Config
+	Name   string
+	Conf   *config.Config
+	Deploy *appsv1.Deployment
 }{
 	{
 		Name: "full",
 		Conf: &config.Config{
 			NS:            "test-namespace",
+			Registry:      "test-registry",
+			MSIClientID:   "test-msi-client-id",
+			TenantID:      "test-tenant-id",
+			Cloud:         "test-cloud",
+			Location:      "test-location",
+			DNSZoneRG:     "test-dns-zone-rg",
+			DNSZoneSub:    "test-dns-zone-sub",
+			DNSZoneDomain: "test-dns-zone-domain",
+		},
+		Deploy: &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-operator-deploy",
+				UID:  "test-operator-deploy-uid",
+			},
+		},
+	},
+	{
+		Name: "no-ownership",
+		Conf: &config.Config{
+			NS:            "test-namespace",
+			Registry:      "test-registry",
+			MSIClientID:   "test-msi-client-id",
+			TenantID:      "test-tenant-id",
+			Cloud:         "test-cloud",
+			Location:      "test-location",
+			DNSZoneRG:     "test-dns-zone-rg",
+			DNSZoneSub:    "test-dns-zone-sub",
+			DNSZoneDomain: "test-dns-zone-domain",
+		},
+	},
+	{
+		Name: "kube-system",
+		Conf: &config.Config{
+			NS:            "kube-system",
 			Registry:      "test-registry",
 			MSIClientID:   "test-msi-client-id",
 			TenantID:      "test-tenant-id",
@@ -50,7 +88,7 @@ var integrationTestCases = []struct {
 
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range integrationTestCases {
-		objs := IngressControllerResources(tc.Conf)
+		objs := IngressControllerResources(tc.Conf, tc.Deploy)
 
 		actual, err := json.MarshalIndent(&objs, "  ", "  ")
 		require.NoError(t, err)

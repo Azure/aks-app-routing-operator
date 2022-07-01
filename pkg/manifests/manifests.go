@@ -35,9 +35,15 @@ var (
 	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
 
-func IngressControllerResources(conf *config.Config) []client.Object {
-	objs := []client.Object{
-		newNamespace(conf),
+func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []client.Object {
+	objs := []client.Object{}
+
+	// Can safely assume the namespace exists if using kube-system
+	if conf.NS != "kube-system" {
+		objs = append(objs, newNamespace(conf))
+	}
+
+	objs = append(objs,
 		newIngressClass(conf),
 		newIngressControllerServiceAccount(conf),
 		newIngressControllerClusterRole(conf),
@@ -47,7 +53,7 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 		newIngressControllerConfigmap(conf),
 		newIngressControllerPDB(conf),
 		newIngressControllerHPA(conf),
-	}
+	)
 
 	if conf.DNSZoneDomain != "" {
 		dnsCM, dnsCMHash := newExternalDNSConfigMap(conf)
@@ -55,7 +61,24 @@ func IngressControllerResources(conf *config.Config) []client.Object {
 			newExternalDNSDeployment(conf, dnsCMHash))
 	}
 
+	owners := getOwnerRefs(self)
+	for _, obj := range objs {
+		obj.SetOwnerReferences(owners)
+	}
+
 	return objs
+}
+
+func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
+	if deploy == nil {
+		return nil
+	}
+	return []metav1.OwnerReference{{
+		APIVersion: "apps/v1",
+		Kind:       "Deployment",
+		Name:       deploy.Name,
+		UID:        deploy.UID,
+	}}
 }
 
 func newNamespace(conf *config.Config) *corev1.Namespace {
@@ -71,11 +94,6 @@ func newNamespace(conf *config.Config) *corev1.Namespace {
 			},
 			Annotations: map[string]string{},
 		},
-	}
-
-	if !conf.DisableOSM {
-		ns.Labels["openservicemesh.io/monitored-by"] = "osm"
-		ns.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	}
 
 	return ns
@@ -210,6 +228,10 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 }
 
 func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
+	podAnnotations := map[string]string{}
+	if !conf.DisableOSM {
+		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
+	}
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -225,7 +247,8 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 			Selector:             &metav1.LabelSelector{MatchLabels: IngressPodLabels},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: IngressPodLabels,
+					Labels:      IngressPodLabels,
+					Annotations: podAnnotations,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,
