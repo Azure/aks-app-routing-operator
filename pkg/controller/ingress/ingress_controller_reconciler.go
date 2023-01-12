@@ -19,14 +19,16 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const reconcileInterval = time.Minute * 5
+const reconcileInterval = time.Minute * 3
 
 // IngressControllerReconciler manages resources required to run the ingress controller.
+// It provisions or deletes resources based on need.
 type IngressControllerReconciler struct {
 	client                  client.Client
 	logger                  logr.Logger
 	resources               []client.Object
 	interval, retryInterval time.Duration
+	className               string
 }
 
 func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object) error {
@@ -36,20 +38,36 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 		resources:     resources,
 		interval:      reconcileInterval,
 		retryInterval: time.Second,
+		className:     manifests.IngressClass,
 	}
 
-	if err := manager.Add(icr); err != nil {
-		return err
-	}
-
+	// listens to Ingress events so resources are immediately provisioned based on need
 	if err := ctrl.NewControllerManagedBy(manager).For(&netv1.Ingress{}).Complete(icr); err != nil {
 		return err
 	}
 
-	return nil
+	// provisions resources based on need at startup and remakes if user deletes something necessary
+	return manager.Add(icr)
 }
 
 func (i *IngressControllerReconciler) Start(ctx context.Context) error {
+	interval := time.Nanosecond // run immediately when starting up
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(util.Jitter(interval, 0.3)):
+		}
+		if err := i.tick(ctx); err != nil {
+			i.logger.Error(err, "error reconciling ingress controller resources")
+			interval = i.retryInterval
+			continue
+		}
+		interval = i.interval
+	}
+}
+
+func (i *IngressControllerReconciler) tick(ctx context.Context) error {
 	start := time.Now()
 	i.logger.Info("starting to reconcile ingress controller resources")
 	defer func() {
@@ -103,7 +121,7 @@ func (i *IngressControllerReconciler) resourcesNeeded(ctx context.Context) (bool
 		}
 	}
 
-	if _, ok := set[manifests.IngressClass]; !ok {
+	if _, ok := set[i.className]; !ok {
 		return false, nil
 	}
 
@@ -124,8 +142,6 @@ func (i *IngressControllerReconciler) delete(ctx context.Context) error {
 	return result
 }
 
-// Reconcile is called when an Ingress is created, updated, or deleted and reconciles IngressController resources
-// based on whether any Ingresses would use them
 func (i *IngressControllerReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	start := time.Now()
 	logger := i.logger.WithValues("name", req.Name, "namespace", req.Namespace)
@@ -139,7 +155,7 @@ func (i *IngressControllerReconciler) Reconcile(ctx context.Context, req reconci
 	if !errors.IsNotFound(err) && err != nil { // we should ignore not found errors because it means the ingress event is deletion and was deleted
 		return ctrl.Result{}, err
 	}
-	if err == nil && *ing.Spec.IngressClassName == manifests.IngressClass && ing.GetDeletionTimestamp() != nil {
+	if err == nil && *ing.Spec.IngressClassName == i.className && ing.GetDeletionTimestamp() != nil {
 		logger.Info("upserting ingress controller resources")
 		if err := i.upsert(ctx); err != nil {
 			return ctrl.Result{}, err
