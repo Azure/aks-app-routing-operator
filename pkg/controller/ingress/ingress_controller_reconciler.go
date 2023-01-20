@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	netv1informer "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -124,9 +123,7 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 
 func (i *IngressControllerReconciler) shouldUpsert() (bool, error) {
 	objs, err := i.ingInformer.Informer().GetIndexer().ByIndex(informer.IngressClassNameIndex, i.className)
-	if k8serrors.IsNotFound(err) {
-		return false, nil
-	}
+	// ensure we don't need not found error check
 	if err != nil {
 		return false, err
 	}
