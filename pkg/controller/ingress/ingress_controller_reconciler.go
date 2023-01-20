@@ -22,7 +22,6 @@ import (
 const reconcileInterval = time.Minute * 2
 
 // IngressControllerReconciler manages resources required to run the ingress controller.
-// It provisions or deletes resources based on need.
 type IngressControllerReconciler struct {
 	client                  client.Client
 	logger                  logr.Logger
@@ -57,9 +56,7 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 			triggerProvision()
 		},
 		UpdateFunc: func(_, _ interface{}) {
-			if len(provisionCh) != cap(provisionCh) {
-				triggerProvision()
-			}
+			triggerProvision()
 		},
 	})
 
