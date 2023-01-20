@@ -5,21 +5,21 @@ package ingress
 
 import (
 	"context"
+	"errors"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
-	"github.com/hashicorp/go-multierror"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	netv1informer "k8s.io/client-go/informers/networking/v1"
+	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const reconcileInterval = time.Minute * 3
+const reconcileInterval = time.Minute * 2
 
 // IngressControllerReconciler manages resources required to run the ingress controller.
 // It provisions or deletes resources based on need.
@@ -29,33 +29,55 @@ type IngressControllerReconciler struct {
 	resources               []client.Object
 	interval, retryInterval time.Duration
 	className               string
+	ingInformer             netv1informer.IngressInformer
+	provisionCh             <-chan struct{}
 }
 
-func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object) error {
+func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object, className string, ingInformer netv1informer.IngressInformer) error {
+	provisionCh := make(chan struct{}, 1)
 	icr := &IngressControllerReconciler{
 		client:        manager.GetClient(),
 		logger:        manager.GetLogger().WithName("ingressControllerReconciler"),
 		resources:     resources,
 		interval:      reconcileInterval,
 		retryInterval: time.Second,
-		className:     manifests.IngressClass,
+		className:     className,
+		ingInformer:   ingInformer,
+		provisionCh:   provisionCh,
 	}
 
-	// listens to Ingress events so resources are immediately provisioned based on need
-	if err := ctrl.NewControllerManagedBy(manager).For(&netv1.Ingress{}).Complete(icr); err != nil {
-		return err
+	triggerProvision := func() {
+		// does this work flawlessly or do I need to wrap it as an argument?? check effective go book
+		if len(provisionCh) != cap(provisionCh) {
+			provisionCh <- struct{}{}
+		}
 	}
+	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(_ interface{}) {
+			triggerProvision()
+		},
+		UpdateFunc: func(_, _ interface{}) {
+			if len(provisionCh) != cap(provisionCh) {
+				triggerProvision()
+			}
+		},
+	})
 
-	// provisions resources based on need at startup and remakes if user deletes something necessary
 	return manager.Add(icr)
 }
 
 func (i *IngressControllerReconciler) Start(ctx context.Context) error {
+	if !cache.WaitForCacheSync(ctx.Done(), i.ingInformer.Informer().HasSynced) {
+		// should we return error here or what's the right way to retry?
+		return errors.New("failed to sync cache")
+	}
+
 	interval := time.Nanosecond // run immediately when starting up
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-i.provisionCh:
 		case <-time.After(util.Jitter(interval, 0.3)):
 		}
 		if err := i.tick(ctx); err != nil {
@@ -74,20 +96,19 @@ func (i *IngressControllerReconciler) tick(ctx context.Context) error {
 		i.logger.Info("finished reconciling ingress controller resources", "latencySec", time.Since(start).Seconds())
 	}()
 
-	needed, err := i.resourcesNeeded(ctx)
+	return i.provision(ctx)
+}
+
+func (i *IngressControllerReconciler) provision(ctx context.Context) error {
+	shouldUpsert, err := i.shouldUpsert()
 	if err != nil {
 		return err
 	}
-	if !needed {
-		i.logger.Info("deleting unneeded ingress controller resources")
-		return i.delete(ctx)
+	if !shouldUpsert {
+		return nil
 	}
 
-	i.logger.Info("upserting ingress controller resources")
-	return i.upsert(ctx)
-}
-
-func (i *IngressControllerReconciler) upsert(ctx context.Context) error {
+	i.logger.Info("upserting resources")
 	for _, res := range i.resources {
 		copy := res.DeepCopyObject().(client.Object)
 		if copy.GetDeletionTimestamp() != nil {
@@ -96,6 +117,7 @@ func (i *IngressControllerReconciler) upsert(ctx context.Context) error {
 			}
 			continue
 		}
+
 		if err := util.Upsert(ctx, i.client, copy); err != nil {
 			return err
 		}
@@ -103,81 +125,29 @@ func (i *IngressControllerReconciler) upsert(ctx context.Context) error {
 	return nil
 }
 
-func (i *IngressControllerReconciler) resourcesNeeded(ctx context.Context) (bool, error) {
-	list := &netv1.IngressList{}
-	if err := i.client.List(ctx, list); err != nil {
+func (i *IngressControllerReconciler) shouldUpsert() (bool, error) {
+	objs, err := i.ingInformer.Informer().GetIndexer().ByIndex(informer.IngressClassNameIndex, i.className)
+	if k8serrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
 		return false, err
 	}
 
-	set := make(map[string]struct{})
-	for _, i := range list.Items {
-		if i.GetDeletionTimestamp() != nil {
-			continue
+	ings := make([]*netv1.Ingress, 0, len(objs))
+	for _, obj := range objs {
+		ing, ok := obj.(*netv1.Ingress)
+		if !ok {
+			return false, errors.New("failed to convert to Ingress type")
 		}
-
-		class := i.Spec.IngressClassName
-		if class != nil {
-			set[*class] = struct{}{}
-		}
+		ings = append(ings, ing)
 	}
 
-	if _, ok := set[i.className]; !ok {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func (i *IngressControllerReconciler) delete(ctx context.Context) error {
-	var result error
-	for _, res := range i.resources {
-		copy := res.DeepCopyObject().(client.Object)
-		if err := i.client.Delete(ctx, copy); err != nil {
-			if !errors.IsNotFound(err) {
-				result = multierror.Append(result, err)
-			}
+	for _, ing := range ings {
+		if ing.GetDeletionTimestamp() == nil {
+			return true, nil
 		}
 	}
 
-	return result
-}
-
-func (i *IngressControllerReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	start := time.Now()
-	logger := i.logger.WithValues("name", req.Name, "namespace", req.Namespace)
-	logger.Info("starting to reconcile ingress controller resources from ingress event")
-	defer func() {
-		logger.Info("finished reconciling ingress controller resources from ingress event", "latencySec", time.Since(start).Seconds())
-	}()
-
-	ing := &netv1.Ingress{}
-	err := i.client.Get(ctx, req.NamespacedName, ing)
-	if !errors.IsNotFound(err) && err != nil { // we should ignore not found errors because it means the ingress event is deletion and was deleted
-		return ctrl.Result{}, err
-	}
-	if err == nil && *ing.Spec.IngressClassName == i.className && ing.GetDeletionTimestamp() != nil {
-		logger.Info("upserting ingress controller resources")
-		if err := i.upsert(ctx); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-
-	needed, err := i.resourcesNeeded(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if needed {
-		logger.Info("upserting ingress controller resources")
-		if err := i.upsert(ctx); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-	i.logger.Info("deleting unneeded ingress controller resources")
-	if err := i.delete(ctx); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return false, nil
 }
