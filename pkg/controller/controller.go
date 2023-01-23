@@ -14,12 +14,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -74,11 +72,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 	m.GetLogger().V(2).Info("using namespace: " + conf.NS)
 
-	factory := informers.NewSharedInformerFactory(kcs, informerResync) // should we use caching client here?
-	if err := m.Add(manager.RunnableFunc(func(ctx context.Context) error {
-		factory.Start(ctx.Done())
-		return nil
-	})); err != nil {
+	clientset, err := kubernetes.NewForConfig(m.GetConfig()) // this is the caching client
+	if err != nil {
+		return nil, err
+	}
+	factory, err := informer.NewFactory(m, clientset)
+	if err != nil {
 		return nil, err
 	}
 	ingressInformer, err := informer.NewIngress(factory)
@@ -86,7 +85,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy), manifests.IngressControllerName, ingressInformer); err != nil {
+	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy), manifests.IngressClass, ingressInformer); err != nil {
 		return nil, err
 	}
 	if err = ingress.NewConcurrencyWatchdog(m, conf); err != nil {

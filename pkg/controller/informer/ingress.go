@@ -42,7 +42,7 @@ func (i *ingress) ByIngressClassName(cn string) ([]*netv1.Ingress, error) {
 	return ings, nil
 }
 
-// NewIngress creates a new Ingress Informer with shared indexers
+// NewIngress constructs a new Ingress Informer with shared indexers
 func NewIngress(factory informers.SharedInformerFactory) (Ingress, error) {
 	informer := factory.Networking().V1().Ingresses()
 

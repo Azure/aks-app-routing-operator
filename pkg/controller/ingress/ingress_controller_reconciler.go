@@ -43,7 +43,6 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 	}
 
 	triggerProvision := func() {
-		// does this work flawlessly or do I need to wrap it as an argument?? check effective go book
 		if len(provisionCh) != cap(provisionCh) {
 			provisionCh <- struct{}{}
 		}
@@ -61,6 +60,7 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 }
 
 func (i *IngressControllerReconciler) Start(ctx context.Context) error {
+	i.logger.Info("waiting for cache to sync")
 	if !cache.WaitForCacheSync(ctx.Done(), i.ingInformer.Informer().HasSynced) {
 		// should we return error here or what's the right way to retry?
 		return errors.New("failed to sync cache")
@@ -121,7 +121,6 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 
 func (i *IngressControllerReconciler) shouldUpsert() (bool, error) {
 	ings, err := i.ingInformer.ByIngressClassName(i.className)
-	// ensure we don't need not found error check
 	if err != nil {
 		return false, err
 	}
