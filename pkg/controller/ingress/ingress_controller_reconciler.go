@@ -11,8 +11,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
-	netv1 "k8s.io/api/networking/v1"
-	netv1informer "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,11 +25,11 @@ type IngressControllerReconciler struct {
 	resources               []client.Object
 	interval, retryInterval time.Duration
 	className               string
-	ingInformer             netv1informer.IngressInformer
+	ingInformer             informer.Ingress
 	provisionCh             <-chan struct{}
 }
 
-func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object, className string, ingInformer netv1informer.IngressInformer) error {
+func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object, className string, ingInformer informer.Ingress) error {
 	provisionCh := make(chan struct{}, 1)
 	icr := &IngressControllerReconciler{
 		client:        manager.GetClient(),
@@ -122,19 +120,10 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 }
 
 func (i *IngressControllerReconciler) shouldUpsert() (bool, error) {
-	objs, err := i.ingInformer.Informer().GetIndexer().ByIndex(informer.IngressClassNameIndex, i.className)
+	ings, err := i.ingInformer.ByIngressClassName(i.className)
 	// ensure we don't need not found error check
 	if err != nil {
 		return false, err
-	}
-
-	ings := make([]*netv1.Ingress, 0, len(objs))
-	for _, obj := range objs {
-		ing, ok := obj.(*netv1.Ingress)
-		if !ok {
-			return false, errors.New("failed to convert to Ingress type")
-		}
-		ings = append(ings, ing)
 	}
 
 	for _, ing := range ings {
