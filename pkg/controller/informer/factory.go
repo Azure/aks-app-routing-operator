@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+// https://groups.google.com/g/kubernetes-sig-api-machinery/c/PbSCXdLDno0 discussion on resync time
 const informerResync = time.Hour * 24
 
 // NewFactory constructs a new instance of sharedInformerFactory that starts with a manager
