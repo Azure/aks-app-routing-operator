@@ -98,9 +98,6 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !shouldUpsert {
-		return nil
-	}
 
 	i.logger.Info("upserting resources")
 	for _, res := range i.resources {
@@ -112,6 +109,10 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 			continue
 		}
 
+		if !shouldUpsert {
+			continue
+		}
+
 		if err := util.Upsert(ctx, i.client, copy); err != nil {
 			return err
 		}
@@ -120,6 +121,10 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 }
 
 func (i *IngressControllerReconciler) shouldUpsert() (bool, error) {
+	if i.ingInformer == nil {
+		return false, errors.New("ingressInformer is nil")
+	}
+
 	ings, err := i.ingInformer.ByIngressClassName(i.className)
 	if err != nil {
 		return false, err

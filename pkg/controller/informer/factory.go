@@ -11,7 +11,7 @@ import (
 )
 
 // https://groups.google.com/g/kubernetes-sig-api-machinery/c/PbSCXdLDno0 discussion on resync time
-const informerResync = time.Hour * 24
+const informerResync = time.Hour * 6
 
 // NewFactory constructs a new instance of sharedInformerFactory that starts with a manager
 func NewFactory(m ctrl.Manager) (informers.SharedInformerFactory, error) {
