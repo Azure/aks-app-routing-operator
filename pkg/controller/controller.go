@@ -6,7 +6,6 @@ package controller
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
@@ -27,8 +26,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
-
-const informerResync = time.Hour * 24
 
 func init() {
 	ctrl.SetLogger(klogr.New())
