@@ -72,11 +72,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 	m.GetLogger().V(2).Info("using namespace: " + conf.NS)
 
-	clientset, err := kubernetes.NewForConfig(m.GetConfig()) // this is the caching client
-	if err != nil {
-		return nil, err
-	}
-	factory, err := informer.NewFactory(m, clientset)
+	factory, err := informer.NewFactory(m)
 	if err != nil {
 		return nil, err
 	}

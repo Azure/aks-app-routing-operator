@@ -13,8 +13,13 @@ import (
 const informerResync = time.Hour * 24
 
 // NewFactory constructs a new instance of sharedInformerFactory that starts with a manager
-func NewFactory(m ctrl.Manager, client kubernetes.Interface) (informers.SharedInformerFactory, error) {
-	factory := informers.NewSharedInformerFactory(client, informerResync)
+func NewFactory(m ctrl.Manager) (informers.SharedInformerFactory, error) {
+	clientset, err := kubernetes.NewForConfig(m.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	factory := informers.NewSharedInformerFactory(clientset, informerResync)
 
 	if err := m.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		m.GetLogger().WithName("informerFactory").Info("starting")
