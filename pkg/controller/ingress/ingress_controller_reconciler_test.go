@@ -68,7 +68,7 @@ func TestIngressControllerReconcilerIntegration(t *testing.T) {
 
 	// Prove the resource doesn't exist yet
 	actual := &corev1.Namespace{}
-	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)))
+	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)), "expected not found error")
 
 	// Add a non-consuming ingress
 	nonConsumingIng := &netv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "nonconsuming"}}
@@ -77,7 +77,7 @@ func TestIngressControllerReconcilerIntegration(t *testing.T) {
 
 	// Prove that the resource still doesn't exist yet
 	actual = &corev1.Namespace{}
-	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)))
+	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)), "expected not found error")
 
 	// Add a consuming ingress
 	ing := &netv1.Ingress{
@@ -95,5 +95,5 @@ func TestIngressControllerReconcilerIntegration(t *testing.T) {
 	require.NoError(t, i.tick(context.Background()))
 
 	// Prove the resource doesn't exist
-	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)))
+	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)), "expected not found error")
 }

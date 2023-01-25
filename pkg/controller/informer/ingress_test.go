@@ -1,6 +1,7 @@
 package informer
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -47,10 +48,10 @@ func TestIngressInformer(t *testing.T) {
 	// prove that informer by classname returns all ingresses with a class
 	ings, err := informer.ByIngressClassName(cn)
 	require.NoError(t, err)
-	require.True(t, len(ings) == ingsWithClassN)
+	require.True(t, len(ings) == ingsWithClassN, fmt.Sprintf("ingresses returned length %d when expected %d", len(ings), ingsWithClassN))
 	for _, ing := range ings {
 		key := keyFn(ing)
-		require.True(t, equality.Semantic.DeepEqual(ing, ingsWithClass[key]))
+		require.True(t, equality.Semantic.DeepEqual(ing, ingsWithClass[key]), "ingress returned does not equal expected")
 	}
 
 	// update the other ingress to the same classname
@@ -60,7 +61,8 @@ func TestIngressInformer(t *testing.T) {
 	// prove that the informer returns the updated ingress
 	ings, err = informer.ByIngressClassName(cn)
 	require.NoError(t, err)
-	require.True(t, len(ings) == ingsWithClassN+1)
+	expectedLen := ingsWithClassN + 1
+	require.True(t, len(ings) == expectedLen, fmt.Sprintf("ingresses returned length %d when expected %d", len(ings), expectedLen))
 	seen := false
 	for _, ing := range ings {
 		if equality.Semantic.DeepEqual(otherIng, ing) {
@@ -69,4 +71,14 @@ func TestIngressInformer(t *testing.T) {
 		}
 	}
 	require.True(t, seen)
+
+	// delete all ingresses
+	for _, ing := range ings {
+		informer.Informer().GetIndexer().Delete(ing)
+	}
+
+	// prove that the informer returns no ingresses
+	ings, err = informer.ByIngressClassName(cn)
+	require.NoError(t, err)
+	require.True(t, len(ings) == 0, fmt.Sprintf("ingresses returned length %d when expected %d", len(ings), 0))
 }
