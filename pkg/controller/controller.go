@@ -73,12 +73,13 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	if err != nil {
 		return nil, err
 	}
-	ingressInformer, err := informer.NewIngress(factory)
+	ingressClassInformer, err := informer.NewIngressClass(factory)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy), manifests.IngressClass, ingressInformer); err != nil {
+	// todo: CHANGE MANIFESTS.ingressclass
+	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy), manifests.IngressClass, ingressClassInformer); err != nil {
 		return nil, err
 	}
 	if err = ingress.NewConcurrencyWatchdog(m, conf); err != nil {

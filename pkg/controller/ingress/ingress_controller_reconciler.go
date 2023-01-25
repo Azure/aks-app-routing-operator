@@ -25,22 +25,22 @@ type IngressControllerReconciler struct {
 	logger                  logr.Logger
 	resources               []client.Object
 	interval, retryInterval time.Duration
-	className               string
-	ingInformer             informer.Ingress
+	controller              string
+	ingClassInformer        informer.IngressClass
 	provisionCh             <-chan struct{}
 }
 
-func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object, className string, ingInformer informer.Ingress) error {
+func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Object, controller string, ingClassInformer informer.IngressClass) error {
 	provisionCh := make(chan struct{}, 1)
 	icr := &IngressControllerReconciler{
-		client:        manager.GetClient(),
-		logger:        manager.GetLogger().WithName("ingressControllerReconciler"),
-		resources:     resources,
-		interval:      reconcileInterval,
-		retryInterval: time.Second,
-		className:     className,
-		ingInformer:   ingInformer,
-		provisionCh:   provisionCh,
+		client:           manager.GetClient(),
+		logger:           manager.GetLogger().WithName("ingressControllerReconciler"),
+		resources:        resources,
+		interval:         reconcileInterval,
+		retryInterval:    time.Second,
+		controller:       controller,
+		ingClassInformer: ingClassInformer,
+		provisionCh:      provisionCh,
 	}
 
 	triggerProvision := func() {
@@ -48,7 +48,7 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 			provisionCh <- struct{}{}
 		}
 	}
-	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ingClassInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ interface{}) {
 			triggerProvision()
 		},
@@ -62,7 +62,7 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 
 func (i *IngressControllerReconciler) Start(ctx context.Context) error {
 	i.logger.Info("waiting for cache to sync")
-	if !cache.WaitForCacheSync(ctx.Done(), i.ingInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(ctx.Done(), i.ingClassInformer.Informer().HasSynced) {
 		return errors.New("failed to sync cache")
 	}
 
@@ -121,17 +121,17 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 }
 
 func (i *IngressControllerReconciler) shouldUpsert() (bool, error) {
-	if i.ingInformer == nil {
-		return false, errors.New("ingressInformer is nil")
+	if i.ingClassInformer == nil {
+		return false, errors.New("ingressClassInformer is nil")
 	}
 
-	ings, err := i.ingInformer.ByIngressClassName(i.className)
+	ingCs, err := i.ingClassInformer.ByController(i.controller)
 	if err != nil {
 		return false, err
 	}
 
-	for _, ing := range ings {
-		if ing.GetDeletionTimestamp() == nil {
+	for _, ingC := range ingCs {
+		if ingC.GetDeletionTimestamp() == nil {
 			return true, nil
 		}
 	}
