@@ -43,7 +43,7 @@ func TestIngressInformer(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "other"},
 		Spec:       netv1.IngressSpec{IngressClassName: util.StringPtr(otherCn)},
 	}
-	informer.Informer().GetIndexer().Add(otherIng.DeepCopyObject())
+	informer.Informer().GetIndexer().Add(otherIng.DeepCopyObject()) // use a deep copy because we update later
 
 	// prove that informer by classname returns all ingresses with a class
 	ings, err := informer.ByIngressClassName(cn)
@@ -56,7 +56,7 @@ func TestIngressInformer(t *testing.T) {
 
 	// update the other ingress to the same classname
 	otherIng.Spec.IngressClassName = util.StringPtr(cn)
-	informer.Informer().GetIndexer().Update(otherIng.DeepCopyObject())
+	informer.Informer().GetIndexer().Update(otherIng)
 
 	// prove that the informer returns the updated ingress
 	ings, err = informer.ByIngressClassName(cn)

@@ -6,6 +6,7 @@ package ingress
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
@@ -103,7 +104,7 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 		copy := res.DeepCopyObject().(client.Object)
 		if copy.GetDeletionTimestamp() != nil {
 			if err := i.client.Delete(ctx, copy); err != nil {
-				return err
+				i.logger.Info(fmt.Sprintf("failed to delete unneeded resource: %s", err))
 			}
 			continue
 		}

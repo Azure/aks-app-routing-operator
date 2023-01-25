@@ -72,7 +72,7 @@ func TestIngressControllerReconcilerIntegration(t *testing.T) {
 
 	// Add a non-consuming ingress
 	nonConsumingIng := &netv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "nonconsuming"}}
-	f.Networking().V1().Ingresses().Informer().GetIndexer().Add(nonConsumingIng)
+	f.Networking().V1().Ingresses().Informer().GetIndexer().Add(nonConsumingIng.DeepCopyObject()) // use a deep copy because we update later
 	require.NoError(t, i.tick(context.Background()))
 
 	// Prove that the resource still doesn't exist yet
@@ -90,10 +90,26 @@ func TestIngressControllerReconcilerIntegration(t *testing.T) {
 	// Prove that the resource exists
 	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual))
 
+	// Delete consuming ingress
+	f.Networking().V1().Ingresses().Informer().GetIndexer().Delete(ing)
+	require.NoError(t, i.tick(context.Background()))
+
+	// Prove that the resource exists
+	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual))
+
 	// Delete resource
 	obj.DeletionTimestamp = &metav1.Time{}
 	require.NoError(t, i.tick(context.Background()))
 
 	// Prove the resource doesn't exist
 	require.True(t, errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)), "expected not found error")
+
+	// Update the non-consuming ingress to consume
+	obj.DeletionTimestamp = nil
+	nonConsumingIng.Spec.IngressClassName = util.StringPtr(ingressCn)
+	f.Networking().V1().Ingresses().Informer().GetIndexer().Update(nonConsumingIng)
+	require.NoError(t, i.tick(context.Background()))
+
+	// Prove that the resource exists
+	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual))
 }

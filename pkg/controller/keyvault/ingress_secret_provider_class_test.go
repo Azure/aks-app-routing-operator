@@ -195,7 +195,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
-		_, expectedErr := url.Parse(cc) // the exact error depends on certain operating systems
+		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
 		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
 	})
 
