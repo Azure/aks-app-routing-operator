@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"path"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,7 +31,9 @@ var (
 	IngressControllerName = "nginx"
 	IngressPodLabels      = map[string]string{"app": IngressControllerName}
 
-	externalDNSName = "external-dns"
+	externalDNSName         = "external-dns"
+	azurePrivateDNSProvider = "azure-private-dns"
+	ingressSource           = "ingress"
 
 	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
@@ -48,7 +51,7 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 		newIngressControllerServiceAccount(conf),
 		newIngressControllerClusterRole(conf),
 		newIngressControllerClusterRoleBinding(conf),
-		newIngressControllerService(conf),
+		getIngressControllerService(conf),
 		newIngressControllerDeployment(conf),
 		newIngressControllerConfigmap(conf),
 		newIngressControllerPDB(conf),
@@ -58,7 +61,7 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 	if conf.DNSZoneDomain != "" {
 		dnsCM, dnsCMHash := newExternalDNSConfigMap(conf)
 		objs = append(objs, dnsCM,
-			newExternalDNSDeployment(conf, dnsCMHash))
+			getExternalDNSDeployment(conf, dnsCMHash))
 	}
 
 	owners := getOwnerRefs(self)
@@ -67,6 +70,13 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 	}
 
 	return objs
+}
+
+func getExternalDNSDeployment(conf *config.Config, dnsCMHash string) *appsv1.Deployment {
+	if conf.DNSZonePrivate {
+		return newExternalDNSDeploymentPrivate(conf, dnsCMHash)
+	}
+	return newExternalDNSDeployment(conf, dnsCMHash)
 }
 
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
@@ -196,6 +206,13 @@ func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.Cluster
 	}
 }
 
+func getIngressControllerService(conf *config.Config) *corev1.Service {
+	if conf.DNSZoneDomain != "" && conf.DNSZonePrivate {
+		return newIngressControllerServicePrivateDNS(conf)
+	}
+	return newIngressControllerService(conf)
+}
+
 func newIngressControllerService(conf *config.Config) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -206,6 +223,42 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 			Name:      IngressControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
+		},
+		Spec: corev1.ServiceSpec{
+			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
+			Type:                  corev1.ServiceTypeLoadBalancer,
+			Selector:              IngressPodLabels,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Port:       80,
+					TargetPort: intstr.FromString("http"),
+				},
+				{
+					Name:       "https",
+					Port:       443,
+					TargetPort: intstr.FromString("https"),
+				},
+			},
+		},
+	}
+}
+
+func newIngressControllerServicePrivateDNS(conf *config.Config) *corev1.Service {
+	return &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      IngressControllerName,
+			Namespace: conf.NS,
+			Labels:    topLevelLabels,
+			Annotations: map[string]string{
+				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
+				"external-dns.alpha.kubernetes.io/hostname":               conf.DNSZoneDomain,
+				"external-dns.alpha.kubernetes.io/internal-hostname":      fmt.Sprintf("clusterip.%s", conf.DNSZoneDomain),
+			},
 		},
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
@@ -420,6 +473,74 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 							"--interval=3m0s",
 							"--txt-owner-id=" + conf.DNSRecordID,
 							"--domain-filter=" + conf.DNSZoneDomain,
+						},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "azure-config",
+							MountPath: "/etc/kubernetes",
+							ReadOnly:  true,
+						}},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("250Mi"),
+							},
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("250Mi"),
+							},
+						},
+					}))},
+					Volumes: []corev1.Volume{{
+						Name: "azure-config",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: externalDNSName,
+								},
+							},
+						},
+					}},
+				}),
+			},
+		},
+	}
+}
+
+func newExternalDNSDeploymentPrivate(conf *config.Config, configMapHash string) *appsv1.Deployment {
+	replicas := int32(1)
+	return &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      externalDNSName,
+			Namespace: conf.NS,
+			Labels:    topLevelLabels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas:             &replicas,
+			RevisionHistoryLimit: util.Int32Ptr(2),
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDNSName}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":                externalDNSName,
+						"checksum/configmap": configMapHash[:16],
+					},
+				},
+				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
+					ServiceAccountName: IngressControllerName,
+					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
+						Name:  "controller",
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
+						Args: []string{
+							fmt.Sprintf("--provider=%s", azurePrivateDNSProvider),
+							fmt.Sprintf("--source=%s", ingressSource),
+							fmt.Sprintf("--azure-subscription-id=%s", conf.DNSZoneSub),
+							fmt.Sprintf("--txt-owner-id=%s", conf.DNSRecordID),
+							fmt.Sprintf("--domain-filter=%s", conf.DNSZoneDomain),
+							"--interval=3m0s",
 						},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
