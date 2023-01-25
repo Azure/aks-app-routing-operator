@@ -9,11 +9,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const IngressClassNameIndex = "ingressClassNameIndex"
+const ingressClassNameIndex = "ingressClassNameIndex"
 
 // Ingress gives access to an informer with shared indexes
 type Ingress interface {
 	netv1informer.IngressInformer
+	// ByIngressClassName returns ingresses that share the given ingress classname
 	ByIngressClassName(cn string) ([]*netv1.Ingress, error)
 }
 
@@ -47,7 +48,7 @@ func NewIngress(factory informers.SharedInformerFactory) (Ingress, error) {
 	informer := factory.Networking().V1().Ingresses()
 
 	if err := informer.Informer().AddIndexers(cache.Indexers{
-		IngressClassNameIndex: func(obj interface{}) ([]string, error) {
+		ingressClassNameIndex: func(obj interface{}) ([]string, error) {
 			ing, ok := obj.(*netv1.Ingress)
 			if !ok {
 				return []string{}, nil
@@ -66,7 +67,7 @@ func NewIngress(factory informers.SharedInformerFactory) (Ingress, error) {
 
 	ing := &ingress{
 		IngressInformer:       informer,
-		ingressClassNameIndex: IngressClassNameIndex,
+		ingressClassNameIndex: ingressClassNameIndex,
 	}
 	return ing, nil
 }
