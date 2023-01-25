@@ -62,7 +62,6 @@ func NewIngressControllerReconciler(manager ctrl.Manager, resources []client.Obj
 func (i *IngressControllerReconciler) Start(ctx context.Context) error {
 	i.logger.Info("waiting for cache to sync")
 	if !cache.WaitForCacheSync(ctx.Done(), i.ingInformer.Informer().HasSynced) {
-		// should we return error here or what's the right way to retry?
 		return errors.New("failed to sync cache")
 	}
 
