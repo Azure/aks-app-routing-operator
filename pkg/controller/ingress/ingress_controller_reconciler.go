@@ -6,12 +6,12 @@ package ingress
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -103,8 +103,8 @@ func (i *IngressControllerReconciler) provision(ctx context.Context) error {
 	for _, res := range i.resources {
 		copy := res.DeepCopyObject().(client.Object)
 		if copy.GetDeletionTimestamp() != nil {
-			if err := i.client.Delete(ctx, copy); err != nil {
-				i.logger.Info(fmt.Sprintf("failed to delete unneeded resource: %s", err))
+			if err := i.client.Delete(ctx, copy); !k8serrors.IsNotFound(err) {
+				i.logger.Error(err, "deleting unneeded resources")
 			}
 			continue
 		}
