@@ -204,7 +204,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnecti
   name                  = "approutingdev${random_string.random.result}a"
   resource_group_name   = azurerm_resource_group.rg.name
   private_dns_zone_name = azurerm_private_dns_zone.dnszone[0].name
-  virtual_network_id    = azurerm_virtual_network.approutingprivatevnet.id
+  virtual_network_id    = azurerm_virtual_network.approutingprivatevnet[0].id
   count                 = var.private-dns ? 1 : 0
 }
 
