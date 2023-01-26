@@ -174,10 +174,10 @@ resource "azurerm_dns_zone" "dnszone" {
 }
 
 resource "azurerm_role_assignment" "approutingdnszone" {
-  scope                = azurerm_dns_zone.dnszone.id
+  scope                = azurerm_dns_zone.dnszone[0].id
   role_definition_name = "Contributor"
   principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
-  count               = var.private-dns ? 0 : 1
+  count                = var.private-dns ? 0 : 1
 }
 
 resource "azurerm_private_dns_zone" "dnszone" {
@@ -203,13 +203,13 @@ resource "azurerm_virtual_network" "approutingprivatevnet" {
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
   name                  = "approutingdev${random_string.random.result}a"
   resource_group_name   = azurerm_resource_group.rg.name
-  private_dns_zone_name = azurerm_private_dns_zone.dnszone.name
+  private_dns_zone_name = azurerm_private_dns_zone.dnszone[0].name
   virtual_network_id    = azurerm_virtual_network.approutingprivatevnet.id
-  count               = var.private-dns ? 1 : 0
+  count                 = var.private-dns ? 1 : 0
 }
 
 resource "azurerm_role_assignment" "approutingdnszoneprivate" {
-  scope                = azurerm_private_dns_zone.dnszone.id
+  scope                = azurerm_private_dns_zone.dnszone[0].id
   role_definition_name = "Contributor"
   principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
   count               = var.private-dns ? 1 : 0
@@ -266,7 +266,7 @@ resource "kubernetes_deployment_v1" "operator" {
             "--msi", "${data.azurerm_user_assigned_identity.clusteridentity.client_id}",
             "--tenant-id", "${data.azurerm_client_config.current.tenant_id}",
             "--location", "${azurerm_resource_group.rg.location}",
-            "--dns-zone-resource-group", "${azurerm_dns_zone.dnszone.resource_group_name}",
+            "--dns-zone-resource-group", "${azurerm_dns_zone.dnszone[0].resource_group_name}",
             "--dns-zone-subscription", "${data.azurerm_subscription.current.subscription_id}",
             "--dns-zone-domain", "${var.domain}"
           ]
@@ -314,7 +314,7 @@ resource "kubernetes_deployment_v1" "operator-privatedns" {
             "--msi", "${data.azurerm_user_assigned_identity.clusteridentity.client_id}",
             "--tenant-id", "${data.azurerm_client_config.current.tenant_id}",
             "--location", "${azurerm_resource_group.rg.location}",
-            "--dns-zone-resource-group", "${azurerm_dns_zone.dnszone.resource_group_name}",
+            "--dns-zone-resource-group", "${azurerm_private_dns_zone.dnszone[0].resource_group_name}",
             "--dns-zone-subscription", "${data.azurerm_subscription.current.subscription_id}",
             "--dns-zone-domain", "${var.domain}",
             "--dns-zone-private"
@@ -351,13 +351,26 @@ resource "local_sensitive_file" "kubeconfig" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    TestNamservers    = azurerm_dns_zone.dnszone.name_servers
+    TestNamservers    = azurerm_dns_zone.dnszone[0].name_servers
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
     DNSZoneDomain     = var.domain
   })
   filename = "${path.module}/state/e2e.json"
+  count = var.private-dns ? 0 : 1
+}
+
+resource "local_file" "e2econfprivatedns" {
+  content = jsonencode({
+    TestNamservers    = azurerm_virtual_network.approutingprivatevnet[0].dns_servers
+    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
+    CertID            = azurerm_key_vault_certificate.testcert.id
+    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
+    DNSZoneDomain     = var.domain
+  })
+  filename = "${path.module}/state/e2e.json"
+  count = var.private-dns ? 1 : 0
 }
 
 resource "local_file" "registryconf" {
