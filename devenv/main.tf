@@ -363,7 +363,7 @@ resource "local_file" "e2econf" {
 
 resource "local_file" "e2econfprivatedns" {
   content = jsonencode({
-    TestNamservers    = azurerm_virtual_network.approutingprivatevnet[0].dns_servers
+    TestNamservers    = [azurerm_private_dns_zone.dnszone[0].soa_record[0].host_name]
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
