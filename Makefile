@@ -4,6 +4,11 @@ dev:
 	terraform --version
 	cd devenv && mkdir -p state && terraform init && terraform apply -auto-approve
 
+dev-private-dns:
+	terraform --version
+	cd devenv && mkdir -p state && terraform init && terraform apply -auto-approve -var="private-dns=true"
+
+
 clean:
 	rm -rf devenv/state devenv/.terraform.lock.hcl devenv/.terraform devenv/terraform.tfstate devenv/terraform.tfstate.backup
 
