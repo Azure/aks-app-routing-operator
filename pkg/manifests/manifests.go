@@ -25,6 +25,7 @@ import (
 )
 
 const IngressClass = "webapprouting.kubernetes.azure.com"
+const Controller = "webapprouting.kubernetes.azure.com/nginx"
 
 var (
 	IngressControllerName = "nginx"
@@ -109,7 +110,7 @@ func newIngressClass(conf *config.Config) *netv1.IngressClass {
 			Name: IngressClass,
 		},
 		Spec: netv1.IngressClassSpec{
-			Controller: "k8s.io/ingress-nginx",
+			Controller: Controller,
 		},
 	}
 }
@@ -258,6 +259,7 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 						Args: []string{
 							"/nginx-ingress-controller",
 							"--ingress-class=" + IngressClass,
+							"--controller-class=" + Controller,
 							"--publish-service=$(POD_NAMESPACE)/" + IngressControllerName,
 							"--configmap=$(POD_NAMESPACE)/" + IngressControllerName,
 							"--http-port=8080",
