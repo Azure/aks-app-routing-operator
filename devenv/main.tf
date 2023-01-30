@@ -199,39 +199,6 @@ resource "azurerm_role_assignment" "acr" {
   skip_service_principal_aad_check = true
 }
 
-resource "local_file" "e2econf" {
-  content = jsonencode({
-    TestNamservers    = azurerm_dns_zone.dnszone[0].name_servers
-    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
-    CertID            = azurerm_key_vault_certificate.testcert.id
-    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    DNSZoneDomain     = var.domain
-  })
-  filename = "${path.module}/state/e2e.json"
-  count = var.private-dns ? 0 : 1
-}
-
-resource "local_file" "e2econfprivatedns" {
-  content = jsonencode({
-    TestNamservers    = [azurerm_private_dns_zone.dnszone[0].soa_record[0].host_name]
-    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
-    CertID            = azurerm_key_vault_certificate.testcert.id
-    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    DNSZoneDomain     = var.domain
-  })
-  filename = "${path.module}/state/e2e.json"
-  count = var.private-dns ? 1 : 0
-}
-
-resource "local_file" "registryconf" {
-  content  = azurerm_container_registry.acr.login_server
-  filename = "${path.module}/state/registry.txt"
-}
-resource "local_sensitive_file" "kubeconfig" {
-  content  = azurerm_kubernetes_cluster.cluster.kube_config_raw
-  filename = "${path.module}/state/kubeconfig"
-}
-
 // Public DNS Zone-specific resources
 
 resource "kubernetes_deployment_v1" "operator" {
@@ -300,6 +267,38 @@ resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
   }
 }
 
+resource "local_file" "e2econf" {
+  content = jsonencode({
+    TestNamservers    = azurerm_dns_zone.dnszone[0].name_servers
+    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
+    CertID            = azurerm_key_vault_certificate.testcert.id
+    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
+    DNSZoneDomain     = var.domain
+  })
+  filename = "${path.module}/state/e2e.json"
+  count = var.private-dns ? 0 : 1
+}
+
+resource "local_file" "e2econfprivatedns" {
+  content = jsonencode({
+    TestNamservers    = [azurerm_private_dns_zone.dnszone[0].soa_record[0].host_name]
+    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
+    CertID            = azurerm_key_vault_certificate.testcert.id
+    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
+    DNSZoneDomain     = var.domain
+  })
+  filename = "${path.module}/state/e2e.json"
+  count = var.private-dns ? 1 : 0
+}
+
+resource "local_file" "registryconf" {
+  content  = azurerm_container_registry.acr.login_server
+  filename = "${path.module}/state/registry.txt"
+}
+resource "local_sensitive_file" "kubeconfig" {
+  content  = azurerm_kubernetes_cluster.cluster.kube_config_raw
+  filename = "${path.module}/state/kubeconfig"
+}
 
 resource "azurerm_role_assignment" "private-dns-role-assignment" {
   scope                = azurerm_private_dns_zone.dnszone[0].id
