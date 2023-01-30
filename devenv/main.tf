@@ -312,20 +312,6 @@ resource "azurerm_private_dns_zone" "dnszone" {
   count               = var.private-dns ? 1 : 0
 }
 
-#resource "azurerm_virtual_network" "approutingprivatevnet" {
-#  name                = "approutingdev${random_string.random.result}a"
-#  location            = azurerm_resource_group.rg.location
-#  resource_group_name = azurerm_resource_group.rg.name
-#  address_space       = ["10.0.0.0/16"]
-#  dns_servers         = ["10.0.0.4", "10.0.0.5"]
-#
-#  subnet {
-#    name           = "subnet1"
-#    address_prefix = "10.0.1.0/24"
-#  }
-#  count               = var.private-dns ? 1 : 0
-#}
-
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
   name                  = "approutingdev${random_string.random.result}a"
   resource_group_name   = azurerm_resource_group.rg.name
