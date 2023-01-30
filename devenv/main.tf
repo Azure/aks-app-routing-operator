@@ -45,6 +45,36 @@ resource "azurerm_resource_group" "rg" {
   }
 }
 
+resource "azurerm_kubernetes_cluster" "cluster" {
+  name                      = "cluster"
+  location                  = azurerm_resource_group.rg.location
+  resource_group_name       = azurerm_resource_group.rg.name
+  dns_prefix                = "approutingdev"
+  azure_policy_enabled      = true
+  open_service_mesh_enabled = true
+  oidc_issuer_enabled       = true
+
+  default_node_pool {
+    name       = "default"
+    node_count = 2
+    vm_size    = "Standard_DS3_v2"
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  network_profile {
+    network_plugin = "kubenet"
+    network_policy = "calico"
+  }
+
+  key_vault_secrets_provider {
+    secret_rotation_enabled  = true
+    secret_rotation_interval = "5m"
+  }
+}
+
 data "azurerm_user_assigned_identity" "clusteridentity" {
   name                = "cluster-agentpool"
   resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
@@ -142,35 +172,31 @@ resource "azurerm_key_vault_certificate" "testcert" {
   }
 }
 
+resource "azurerm_dns_zone" "dnszone" {
+  name                = var.domain
+  resource_group_name = azurerm_resource_group.rg.name
+  count               = var.private-dns ? 0 : 1
+}
+
+resource "azurerm_role_assignment" "approutingdnszone" {
+  scope                = azurerm_dns_zone.dnszone[0].id
+  role_definition_name = "Contributor"
+  principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
+  count                = var.private-dns ? 0 : 1
+}
+
 resource "azurerm_container_registry" "acr" {
   name                = "approutingdev${random_string.random.result}a"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
 }
+
 resource "azurerm_role_assignment" "acr" {
   principal_id                     = azurerm_kubernetes_cluster.cluster.kubelet_identity[0].object_id
   role_definition_name             = "AcrPull"
   scope                            = azurerm_container_registry.acr.id
   skip_service_principal_aad_check = true
-}
-
-resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
-  metadata {
-    name = "default-admin"
-  }
-
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "ClusterRole"
-    name      = "cluster-admin"
-  }
-
-  subject {
-    kind      = "ServiceAccount"
-    name      = "default"
-    namespace = "kube-system"
-  }
 }
 
 resource "local_file" "e2econf" {
@@ -207,53 +233,6 @@ resource "local_sensitive_file" "kubeconfig" {
 }
 
 // Public DNS Zone-specific resources
-
-
-
-resource "azurerm_kubernetes_cluster" "cluster" {
-  name                      = "cluster"
-  location                  = azurerm_resource_group.rg.location
-  resource_group_name       = azurerm_resource_group.rg.name
-  dns_prefix                = "approutingdev"
-  azure_policy_enabled      = true
-  open_service_mesh_enabled = true
-  oidc_issuer_enabled       = true
-
-  default_node_pool {
-    name       = "default"
-    node_count = 2
-    vm_size    = "Standard_DS3_v2"
-  }
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  network_profile {
-    network_plugin = "kubenet"
-    network_policy = "calico"
-  }
-
-  key_vault_secrets_provider {
-    secret_rotation_enabled  = true
-    secret_rotation_interval = "5m"
-  }
-}
-
-
-
-resource "azurerm_dns_zone" "dnszone" {
-  name                = var.domain
-  resource_group_name = azurerm_resource_group.rg.name
-  count               = var.private-dns ? 0 : 1
-}
-
-resource "azurerm_role_assignment" "approutingdnszone" {
-  scope                = azurerm_dns_zone.dnszone[0].id
-  role_definition_name = "Contributor"
-  principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
-  count                = var.private-dns ? 0 : 1
-}
 
 resource "kubernetes_deployment_v1" "operator" {
   wait_for_rollout = false
@@ -303,11 +282,23 @@ resource "kubernetes_deployment_v1" "operator" {
   count = var.private-dns ? 0 : 1
 }
 
-/// SPLIT -------------------------------------------------------------------------------
-/// SPLIT -------------------------------------------------------------------------------
-/// SPLIT -------------------------------------------------------------------------------
-/// SPLIT -------------------------------------------------------------------------------
+resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
+  metadata {
+    name = "default-admin"
+  }
 
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "default"
+    namespace = "kube-system"
+  }
+}
 
 
 resource "azurerm_role_assignment" "private-dns-role-assignment" {
