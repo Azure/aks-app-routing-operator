@@ -6,11 +6,11 @@ provider "azurerm" {
   }
 }
 
-provider "kubernetes" {
-  host                   = azurerm_kubernetes_cluster.cluster.kube_config.0.host
-  client_certificate     = base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.client_certificate)
-  client_key             = base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.client_key)
-  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.cluster_ca_certificate)
+provider "kubernetes" { // TERNARY
+  host                   = var.private-dns ? azurerm_kubernetes_cluster.cluster-private-dns[0].kube_config.0.host : azurerm_kubernetes_cluster.cluster[0].kube_config.0.host
+  client_certificate     = var.private-dns ? base64decode(azurerm_kubernetes_cluster.cluster-private-dns[0].kube_config.0.client_certificate) : base64decode(azurerm_kubernetes_cluster.cluster[0].kube_config.0.client_certificate)
+  client_key             = var.private-dns ? base64decode(azurerm_kubernetes_cluster.cluster-private-dns[0].kube_config.0.client_key) : base64decode(azurerm_kubernetes_cluster.cluster[0].kube_config.0.client_key)
+  cluster_ca_certificate = var.private-dns ? base64decode(azurerm_kubernetes_cluster.cluster-private-dns[0].kube_config.0.cluster_ca_certificate): base64decode(azurerm_kubernetes_cluster.cluster[0].kube_config.0.cluster_ca_certificate)
 }
 
 resource "random_string" "random" {
@@ -45,39 +45,9 @@ resource "azurerm_resource_group" "rg" {
   }
 }
 
-resource "azurerm_kubernetes_cluster" "cluster" {
-  name                      = "cluster"
-  location                  = azurerm_resource_group.rg.location
-  resource_group_name       = azurerm_resource_group.rg.name
-  dns_prefix                = "approutingdev"
-  azure_policy_enabled      = true
-  open_service_mesh_enabled = true
-  oidc_issuer_enabled       = true
-
-  default_node_pool {
-    name       = "default"
-    node_count = 2
-    vm_size    = "Standard_DS3_v2"
-  }
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  network_profile {
-    network_plugin = "kubenet"
-    network_policy = "calico"
-  }
-
-  key_vault_secrets_provider {
-    secret_rotation_enabled  = true
-    secret_rotation_interval = "5m"
-  }
-}
-
 data "azurerm_user_assigned_identity" "clusteridentity" {
   name                = "cluster-agentpool"
-  resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
+  resource_group_name = var.private-dns ? azurerm_kubernetes_cluster.cluster-private-dns[0].node_resource_group : azurerm_kubernetes_cluster.cluster[0].node_resource_group
 }
 
 resource "azurerm_key_vault" "keyvault" {
@@ -106,7 +76,7 @@ resource "azurerm_key_vault" "keyvault" {
 resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
   key_vault_id = azurerm_key_vault.keyvault.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = data.azurerm_user_assigned_identity.clusteridentity.principal_id
+  object_id    = var.private-dns ? azurerm_user_assigned_identity.private-dns-cluster-identity[0].id : data.azurerm_user_assigned_identity.clusteridentity.principal_id
 
   certificate_permissions = [
     "Get",
@@ -167,6 +137,96 @@ resource "azurerm_key_vault_certificate" "testcert" {
   }
 }
 
+resource "azurerm_container_registry" "acr" {
+  name                = "approutingdev${random_string.random.result}a"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  sku                 = "Basic"
+}
+
+resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
+  metadata {
+    name = "default-admin"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "default"
+    namespace = "kube-system"
+  }
+}
+
+resource "local_file" "e2econf" {
+  content = jsonencode({
+    TestNamservers    = azurerm_dns_zone.dnszone[0].name_servers
+    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
+    CertID            = azurerm_key_vault_certificate.testcert.id
+    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
+    DNSZoneDomain     = var.domain
+  })
+  filename = "${path.module}/state/e2e.json"
+  count = var.private-dns ? 0 : 1
+}
+
+resource "local_file" "registryconf" {
+  content  = azurerm_container_registry.acr.login_server
+  filename = "${path.module}/state/registry.txt"
+}
+
+// Public DNS Zone-specific resources
+resource "local_sensitive_file" "kubeconfig" {
+  content  = azurerm_kubernetes_cluster.cluster[0].kube_config_raw
+  filename = "${path.module}/state/kubeconfig"
+  count = var.private-dns ? 0 : 1
+}
+
+resource "azurerm_role_assignment" "acr" {
+  principal_id                     = azurerm_kubernetes_cluster.cluster[0].kubelet_identity[0].object_id
+  role_definition_name             = "AcrPull"
+  scope                            = azurerm_container_registry.acr.id
+  skip_service_principal_aad_check = true
+  count                           = var.private-dns ? 0 : 1
+}
+
+resource "azurerm_kubernetes_cluster" "cluster" {
+  name                      = "cluster"
+  location                  = azurerm_resource_group.rg.location
+  resource_group_name       = azurerm_resource_group.rg.name
+  dns_prefix                = "approutingdev"
+  azure_policy_enabled      = true
+  open_service_mesh_enabled = true
+  oidc_issuer_enabled       = true
+
+  default_node_pool {
+    name       = "default"
+    node_count = 2
+    vm_size    = "Standard_DS3_v2"
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  network_profile {
+    network_plugin = "kubenet"
+    network_policy = "calico"
+  }
+
+  key_vault_secrets_provider {
+    secret_rotation_enabled  = true
+    secret_rotation_interval = "5m"
+  }
+  count = var.private-dns ? 0 : 1
+}
+
+
+
 resource "azurerm_dns_zone" "dnszone" {
   name                = var.domain
   resource_group_name = azurerm_resource_group.rg.name
@@ -178,55 +238,6 @@ resource "azurerm_role_assignment" "approutingdnszone" {
   role_definition_name = "Contributor"
   principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
   count                = var.private-dns ? 0 : 1
-}
-
-resource "azurerm_private_dns_zone" "dnszone" {
-  name                = var.domain
-  resource_group_name = azurerm_resource_group.rg.name
-  count               = var.private-dns ? 1 : 0
-}
-
-resource "azurerm_virtual_network" "approutingprivatevnet" {
-  name                = "approutingdev${random_string.random.result}a"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  address_space       = ["10.0.0.0/16"]
-  dns_servers         = ["10.0.0.4", "10.0.0.5"]
-
-  subnet {
-    name           = "subnet1"
-    address_prefix = "10.0.1.0/24"
-  }
-  count               = var.private-dns ? 1 : 0
-}
-
-resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
-  name                  = "approutingdev${random_string.random.result}a"
-  resource_group_name   = azurerm_resource_group.rg.name
-  private_dns_zone_name = azurerm_private_dns_zone.dnszone[0].name
-  virtual_network_id    = azurerm_virtual_network.approutingprivatevnet[0].id
-  count                 = var.private-dns ? 1 : 0
-}
-
-resource "azurerm_role_assignment" "approutingdnszoneprivate" {
-  scope                = azurerm_private_dns_zone.dnszone[0].id
-  role_definition_name = "Contributor"
-  principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
-  count               = var.private-dns ? 1 : 0
-}
-
-resource "azurerm_container_registry" "acr" {
-  name                = "approutingdev${random_string.random.result}a"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  sku                 = "Basic"
-}
-
-resource "azurerm_role_assignment" "acr" {
-  principal_id                     = azurerm_kubernetes_cluster.cluster.kubelet_identity[0].object_id
-  role_definition_name             = "AcrPull"
-  scope                            = azurerm_container_registry.acr.id
-  skip_service_principal_aad_check = true
 }
 
 resource "kubernetes_deployment_v1" "operator" {
@@ -277,6 +288,84 @@ resource "kubernetes_deployment_v1" "operator" {
   count = var.private-dns ? 0 : 1
 }
 
+/// SPLIT -------------------------------------------------------------------------------
+/// SPLIT -------------------------------------------------------------------------------
+/// SPLIT -------------------------------------------------------------------------------
+/// SPLIT -------------------------------------------------------------------------------
+
+resource "local_sensitive_file" "kubeconfig-private-dns" {
+  content  = azurerm_kubernetes_cluster.cluster-private-dns[0].kube_config_raw
+  filename = "${path.module}/state/kubeconfig"
+  count = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_role_assignment" "acr-private-dns" {
+  principal_id                     = azurerm_user_assigned_identity.private-dns-cluster-identity[0].client_id
+  role_definition_name             = "AcrPull"
+  scope                            = azurerm_container_registry.acr.id
+  skip_service_principal_aad_check = true
+  count                           = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_user_assigned_identity" "private-dns-cluster-identity" {
+  name                = "private-dns-cluster-identity"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  count               = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_role_assignment" "private-dns-role-assignment" {
+  scope                = azurerm_private_dns_zone.dnszone[0].id
+  role_definition_name = "Private DNS Zone Contributor"
+  principal_id         = azurerm_user_assigned_identity.private-dns-cluster-identity[0].principal_id
+  count               = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_private_dns_zone" "dnszone" {
+  name                = var.domain
+  resource_group_name = azurerm_resource_group.rg.name
+  count               = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_kubernetes_cluster" "cluster-private-dns" {
+  name                      = "cluster"
+  location                  = azurerm_resource_group.rg.location
+  resource_group_name       = azurerm_resource_group.rg.name
+  dns_prefix                = "approutingdev"
+  azure_policy_enabled      = true
+  open_service_mesh_enabled = true
+  oidc_issuer_enabled       = true
+  private_cluster_enabled = true
+  private_dns_zone_id       = azurerm_private_dns_zone.dnszone[0].id
+
+  default_node_pool {
+    name       = "default"
+    node_count = 2
+    vm_size    = "Standard_DS3_v2"
+  }
+
+  identity {
+    type                      = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.private-dns-cluster-identity[0].id]
+  }
+  network_profile {
+    network_plugin = "kubenet"
+    network_policy = "calico"
+  }
+
+  key_vault_secrets_provider {
+    secret_rotation_enabled  = true
+    secret_rotation_interval = "5m"
+  }
+  depends_on = [
+    azurerm_private_dns_zone.dnszone,
+    azurerm_role_assignment.private-dns-role-assignment,
+    azurerm_role_assignment.acr-private-dns
+  ]
+  count = var.private-dns ? 1 : 0
+}
+
+
 resource "kubernetes_deployment_v1" "operator-privatedns" {
   wait_for_rollout = false
 
@@ -323,42 +412,7 @@ resource "kubernetes_deployment_v1" "operator-privatedns" {
       }
     }
   }
-    count = var.private-dns ? 1 : 0
-}
-
-resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
-  metadata {
-    name = "default-admin"
-  }
-
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "ClusterRole"
-    name      = "cluster-admin"
-  }
-
-  subject {
-    kind      = "ServiceAccount"
-    name      = "default"
-    namespace = "kube-system"
-  }
-}
-
-resource "local_sensitive_file" "kubeconfig" {
-  content  = azurerm_kubernetes_cluster.cluster.kube_config_raw
-  filename = "${path.module}/state/kubeconfig"
-}
-
-resource "local_file" "e2econf" {
-  content = jsonencode({
-    TestNamservers    = azurerm_dns_zone.dnszone[0].name_servers
-    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
-    CertID            = azurerm_key_vault_certificate.testcert.id
-    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    DNSZoneDomain     = var.domain
-  })
-  filename = "${path.module}/state/e2e.json"
-  count = var.private-dns ? 0 : 1
+  count = var.private-dns ? 1 : 0
 }
 
 resource "local_file" "e2econfprivatedns" {
@@ -371,9 +425,4 @@ resource "local_file" "e2econfprivatedns" {
   })
   filename = "${path.module}/state/e2e.json"
   count = var.private-dns ? 1 : 0
-}
-
-resource "local_file" "registryconf" {
-  content  = azurerm_container_registry.acr.login_server
-  filename = "${path.module}/state/registry.txt"
 }

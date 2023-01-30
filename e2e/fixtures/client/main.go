@@ -24,11 +24,11 @@ func main() {
 			var ns string
 			if len(nameservers) > 1 {
 				ns = nameservers[rand.Intn(len(nameservers)-1)]
+				ns = ns[:len(ns)-1] // remove trailing period added for some reason by azure dns
 			} else {
 				ns = nameservers[0]
 			}
 
-			ns = ns[:len(ns)-1] // remove trailing period added for some reason by azure dns
 			return d.DialContext(ctx, "tcp", ns+":53")
 		},
 	}}
