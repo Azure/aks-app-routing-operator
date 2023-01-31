@@ -256,7 +256,7 @@ func newIngressControllerServicePrivateDNS(conf *config.Config) *corev1.Service 
 			Labels:    topLevelLabels,
 			Annotations: map[string]string{
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
-				"external-dns.alpha.kubernetes.io/hostname":               conf.DNSZoneDomain,
+				"external-dns.alpha.kubernetes.io/hostname":               fmt.Sprintf("loadbalancer.%s", conf.DNSZoneDomain),
 				"external-dns.alpha.kubernetes.io/internal-hostname":      fmt.Sprintf("clusterip.%s", conf.DNSZoneDomain),
 			},
 		},

@@ -289,7 +289,7 @@ resource "local_file" "registryconf" {
 
 resource "local_file" "e2econfprivatedns" {
   content = jsonencode({
-    TestNamservers    = [azurerm_private_dns_zone.dnszone[0].soa_record[0].host_name]
+    TestNamservers    = "loadbalancer.${var.domain}"
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
