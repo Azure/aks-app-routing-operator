@@ -1,0 +1,41 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: default-admin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-routing-operator
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-routing-operator
+  template:
+    metadata:
+      labels:
+        app: app-routing-operator
+    spec:
+      containers:
+        - name: operator
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
+          command: ["/aks-app-routing-operator"]
+          args: [
+            "--msi", $CLUSTER_CLIENT_ID,
+            "--tenant-id", $ARM_CLIENT_TENANT_ID,
+            "--location", $RG_LOCATION,
+            "--dns-zone-resource-group", $DNS_ZONE_RG,
+            "--dns-zone-subscription", $DNS_ZONE_SUBSCRIPTION,
+            "--dns-zone-domain", $DNS_ZONE_DOMAIN,
+            "--dns-zone-private"
+          ]

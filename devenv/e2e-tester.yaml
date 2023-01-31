@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: addon-tester
+  namespace: kube-system
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: tester
+          image: $IMAGE
+          command: [ "make" ]
+          args: [ "e2e" ]
+
