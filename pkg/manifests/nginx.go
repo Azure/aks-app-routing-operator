@@ -24,19 +24,16 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const IngressClass = "webapprouting.kubernetes.azure.com"
 const Controller = "webapprouting.kubernetes.azure.com/nginx"
 
 var (
-	IngressControllerName = "nginx"
-	IngressPodLabels      = map[string]string{"app": IngressControllerName}
+	NginxControllerName   = "nginx"
+	NginxIngressPodLabels = map[string]string{"app": NginxControllerName}
 
 	externalDNSName = "external-dns"
-
-	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
 
-func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []client.Object {
+func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deployment, ic *netv1.IngressClass) []client.Object {
 	objs := []client.Object{}
 
 	// Can safely assume the namespace exists if using kube-system
@@ -45,12 +42,11 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 	}
 
 	objs = append(objs,
-		newIngressClass(conf),
 		newIngressControllerServiceAccount(conf),
 		newIngressControllerClusterRole(conf),
 		newIngressControllerClusterRoleBinding(conf),
 		newIngressControllerService(conf),
-		newIngressControllerDeployment(conf),
+		newIngressControllerDeployment(conf, ic),
 		newIngressControllerConfigmap(conf),
 		newIngressControllerPDB(conf),
 		newIngressControllerHPA(conf),
@@ -70,51 +66,6 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 	return objs
 }
 
-func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
-	if deploy == nil {
-		return nil
-	}
-	return []metav1.OwnerReference{{
-		APIVersion: "apps/v1",
-		Kind:       "Deployment",
-		Name:       deploy.Name,
-		UID:        deploy.UID,
-	}}
-}
-
-func newNamespace(conf *config.Config) *corev1.Namespace {
-	ns := &corev1.Namespace{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Namespace",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: conf.NS,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "aks-app-routing-operator",
-			},
-			Annotations: map[string]string{},
-		},
-	}
-
-	return ns
-}
-
-func newIngressClass(conf *config.Config) *netv1.IngressClass {
-	return &netv1.IngressClass{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "IngressClass",
-			APIVersion: "networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: IngressClass,
-		},
-		Spec: netv1.IngressClassSpec{
-			Controller: Controller,
-		},
-	}
-}
-
 func newIngressControllerServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -122,7 +73,7 @@ func newIngressControllerServiceAccount(conf *config.Config) *corev1.ServiceAcco
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
@@ -136,7 +87,7 @@ func newIngressControllerClusterRole(conf *config.Config) *rbacv1.ClusterRole {
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   IngressControllerName,
+			Name:   NginxControllerName,
 			Labels: topLevelLabels,
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -181,17 +132,17 @@ func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.Cluster
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   IngressControllerName,
+			Name:   NginxControllerName,
 			Labels: topLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     IngressControllerName,
+			Name:     NginxControllerName,
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 		}},
 	}
@@ -204,14 +155,14 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
 			Type:                  corev1.ServiceTypeLoadBalancer,
-			Selector:              IngressPodLabels,
+			Selector:              NginxIngressPodLabels,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
@@ -228,7 +179,7 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 	}
 }
 
-func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
+func newIngressControllerDeployment(conf *config.Config, ic *netv1.IngressClass) *appsv1.Deployment {
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
 		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
@@ -239,29 +190,29 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: IngressPodLabels},
+			Selector:             &metav1.LabelSelector{MatchLabels: NginxIngressPodLabels},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      IngressPodLabels,
+					Labels:      NginxIngressPodLabels,
 					Annotations: podAnnotations,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
-					ServiceAccountName: IngressControllerName,
+					ServiceAccountName: NginxControllerName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"),
 						Args: []string{
 							"/nginx-ingress-controller",
-							"--ingress-class=" + IngressClass,
+							"--ingress-class=" + ic.Name,
 							"--controller-class=" + Controller,
-							"--publish-service=$(POD_NAMESPACE)/" + IngressControllerName,
-							"--configmap=$(POD_NAMESPACE)/" + IngressControllerName,
+							"--publish-service=$(POD_NAMESPACE)/" + NginxControllerName,
+							"--configmap=$(POD_NAMESPACE)/" + NginxControllerName,
 							"--http-port=8080",
 							"--https-port=8443",
 						},
@@ -302,7 +253,7 @@ func newIngressControllerConfigmap(conf *config.Config) *corev1.ConfigMap {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
@@ -323,12 +274,12 @@ func newIngressControllerPDB(conf *config.Config) *policyv1.PodDisruptionBudget 
 			APIVersion: "policy/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
-			Selector:       &metav1.LabelSelector{MatchLabels: IngressPodLabels},
+			Selector:       &metav1.LabelSelector{MatchLabels: NginxIngressPodLabels},
 			MaxUnavailable: &maxUnavailable,
 		},
 	}
@@ -341,7 +292,7 @@ func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscale
 			APIVersion: "autoscaling/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
+			Name:      NginxControllerName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
@@ -349,7 +300,7 @@ func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscale
 			ScaleTargetRef: autov1.CrossVersionObjectReference{
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
-				Name:       IngressControllerName,
+				Name:       NginxControllerName,
 			},
 			MinReplicas:                    util.Int32Ptr(2),
 			MaxReplicas:                    100,
@@ -412,7 +363,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 					},
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
-					ServiceAccountName: IngressControllerName,
+					ServiceAccountName: NginxControllerName,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),

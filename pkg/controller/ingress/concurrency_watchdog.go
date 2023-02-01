@@ -92,7 +92,7 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 	}()
 
 	list := &corev1.PodList{}
-	err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(manifests.IngressPodLabels))
+	err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(manifests.NginxIngressPodLabels))
 	if err != nil {
 		return err
 	}

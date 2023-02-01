@@ -87,7 +87,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		Sources: []policyv1alpha1.IngressSourceSpec{
 			{
 				Kind:      "Service",
-				Name:      manifests.IngressControllerName,
+				Name:      manifests.NginxControllerName,
 				Namespace: i.config.NS,
 			},
 			{

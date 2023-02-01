@@ -88,7 +88,7 @@ var integrationTestCases = []struct {
 
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range integrationTestCases {
-		objs := IngressControllerResources(tc.Conf, tc.Deploy)
+		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy)
 
 		actual, err := json.MarshalIndent(&objs, "  ", "  ")
 		require.NoError(t, err)

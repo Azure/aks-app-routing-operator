@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/validator"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,11 +20,9 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
 func init() {
@@ -79,16 +76,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	if err = validator.NewUniqueIngressClassControllerValidator(m, manifests.Controller, ingressClassInformer); err != nil {
-		return nil, err
-	}
-	// todo: CHANGE MANIFESTS.ingressclass
-	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy), manifests.IngressClass, ingressClassInformer); err != nil {
-		return nil, err
-	}
-	if err = ingress.NewConcurrencyWatchdog(m, conf); err != nil {
-		return nil, err
-	}
 	if err = keyvault.NewIngressSecretProviderClassReconciler(m, conf); err != nil {
 		return nil, err
 	}

@@ -248,7 +248,7 @@ func buildTestPods(n int) *corev1.PodList {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              fmt.Sprintf("pod-%d", i),
 				CreationTimestamp: metav1.NewTime(time.Now().Add(-time.Hour)),
-				Labels:            manifests.IngressPodLabels,
+				Labels:            manifests.NginxIngressPodLabels,
 			},
 			Status: corev1.PodStatus{
 				Conditions: []corev1.PodCondition{{
