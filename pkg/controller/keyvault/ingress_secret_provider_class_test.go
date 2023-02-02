@@ -192,7 +192,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
-		require.EqualError(t, err, "parse \"\\x7f\": net/url: invalid control character in URL")
+		require.EqualError(t, err, "parse \"\\u007f\": net/url: invalid control character in URL")
 	})
 
 	t.Run("url with one path segment", func(t *testing.T) {
