@@ -2,12 +2,11 @@ name: Run e2e
 on:
   workflow_dispatch:
   schedule:
-  - cron: "0 7 * * *"
+    - cron: "0 7 * * *"
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 permissions:
       id-token: write
       contents: read
@@ -20,6 +19,13 @@ jobs:
       - uses: hashicorp/setup-terraform@v2
       - uses: azure/setup-kubectl@v2.0
 
+      - name: 'Azure login'
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: "Provision infrastructure"
         env:
           ARM_USE_OIDC: "true"
@@ -27,13 +33,6 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: "make dev"
-
-      - name: 'Azure login'
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Deploy operator"
         run: "make push"
