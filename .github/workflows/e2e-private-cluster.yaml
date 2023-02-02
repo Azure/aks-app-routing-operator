@@ -1,4 +1,4 @@
-name: Run e2e
+name: Run e2e private cluster
 on:
   workflow_dispatch:
   schedule:
