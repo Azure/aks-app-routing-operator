@@ -6,7 +6,32 @@ envsubst < e2e-tester.yaml > state/e2e-tester-formatted.yaml
 
 az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl apply -f e2e-tester-formatted.yaml" --file state/e2e-tester-formatted.yaml
 
-EXIT_CODE=$(kubectl get pod busybox-term -ojson | jq .status.containerStatuses[].lastState.terminated.exitCode)
+RESULT="null"
+while [ "$RESULT" = "null" ]
+do
+  STATUS=$(az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command 'kubectl get pods --selector=app=app-routing-operator-e2e --output="jsonpath={.items[0].status.containerStatuses[?(@.name==\"tester\")].state}" -n kube-system' -o json | jq ".logs" | tr -d '\\')
+  STATUSNOQUOTES=${STATUS#"\""}
+  STATUSNOQUOTES=${STATUSNOQUOTES%"\""}
 
-# TODO TOMORROW - FIGURE OUT HOW TO GET EXIT CODE AND SEE WHAT IT IS WHEN TERMINATED - GOOD PLACE TO START:
-# az aks command invoke --resource-group app-routing-dev-e51abs1vw32ca --name cluster --command 'kubectl get pod app-routing-operator-6ff9968546-t7w57 -n kube-system --output="jsonpath={.status.containerStatuses[]}"'
+  RESULT=$(echo $STATUSNOQUOTES | jq '.terminated')
+  echo "test status is currently $STATUSNOQUOTES"
+
+  sleep 5
+
+done
+
+echo "exited loop with status $STATUSNOQUOTES"Z
+
+FINALSTATUS=$(echo $RESULT | jq ".exitCode")
+
+echo "Test finished, echoing test pod logs..."
+az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command 'kubectl logs -l app=app-routing-operator-e2e -n kube-system'
+
+if [ $FINALSTATUS != "0" ]
+then
+  echo "TEST FAILED"
+fi
+
+
+
+exit $FINALSTATUS

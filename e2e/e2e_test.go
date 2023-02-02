@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -41,12 +42,18 @@ func TestMain(m *testing.M) {
 	if err := json.Unmarshal(rawConf, conf); err != nil {
 		panic(err)
 	}
-	rc, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: conf.Kubeconfig},
-		&clientcmd.ConfigOverrides{}).ClientConfig()
+
+	// attempt to load in-cluster config first
+	rc, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err)
+		rc, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{ExplicitPath: conf.Kubeconfig},
+			&clientcmd.ConfigOverrides{}).ClientConfig()
+		if err != nil {
+			panic(err)
+		}
 	}
+
 	util.UseServerSideApply()
 	suite.Clientset, err = kubernetes.NewForConfig(rc)
 	if err != nil {
