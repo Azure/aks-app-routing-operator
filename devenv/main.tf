@@ -218,6 +218,27 @@ resource "azurerm_role_assignment" "approutingdnszone" {
   count                = var.private-dns ? 0 : 1
 }
 
+resource "azurerm_private_dns_zone" "dnszone" {
+  name                = var.domain
+  resource_group_name = azurerm_resource_group.rg.name
+  count               = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_role_assignment" "private-dns-role-assignment" {
+  scope                = azurerm_private_dns_zone.dnszone[0].id
+  role_definition_name = "Private DNS Zone Contributor"
+  principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
+  count               = var.private-dns ? 1 : 0
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
+  name                  = "approutingdev${random_string.random.result}a"
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.dnszone[0].name
+  virtual_network_id    = data.azurerm_resources.noderesourcegroup.resources[0].id
+  count                 = var.private-dns ? 1 : 0
+}
+
 resource "azurerm_container_registry" "acr" {
   name                = "approutingdev${random_string.random.result}a"
   resource_group_name = azurerm_resource_group.rg.name
@@ -341,75 +362,3 @@ resource "local_file" "private_cluster_info" {
   filename = "${path.module}/state/cluster-info.json"
   count = var.private-dns ? 1 : 0
 }
-
-resource "azurerm_role_assignment" "private-dns-role-assignment" {
-  scope                = azurerm_private_dns_zone.dnszone[0].id
-  role_definition_name = "Private DNS Zone Contributor"
-  principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
-  count               = var.private-dns ? 1 : 0
-}
-
-resource "azurerm_private_dns_zone" "dnszone" {
-  name                = var.domain
-  resource_group_name = azurerm_resource_group.rg.name
-  count               = var.private-dns ? 1 : 0
-}
-
-resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
-  name                  = "approutingdev${random_string.random.result}a"
-  resource_group_name   = azurerm_resource_group.rg.name
-  private_dns_zone_name = azurerm_private_dns_zone.dnszone[0].name
-  virtual_network_id    = data.azurerm_resources.noderesourcegroup.resources[0].id
-  count                 = var.private-dns ? 1 : 0
-}
-
-#resource "kubernetes_deployment_v1" "operator-privatedns" {
-#  wait_for_rollout = false
-#
-#  lifecycle {
-#    ignore_changes = [spec.0.template.0.spec.0.container.0.image]
-#  }
-#
-#  metadata {
-#    name      = "app-routing-operator"
-#    namespace = "kube-system"
-#  }
-#
-#  spec {
-#    replicas = 1
-#
-#    selector {
-#      match_labels = {
-#        app = "app-routing-operator"
-#      }
-#    }
-#
-#    template {
-#      metadata {
-#        labels = {
-#          app = "app-routing-operator"
-#        }
-#      }
-#
-#      spec {
-#        container {
-#          name  = "operator"
-#          image = "mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114"
-#          command = [
-#            "/aks-app-routing-operator",
-#            "--msi", "${data.azurerm_user_assigned_identity.clusteridentity.client_id}",
-#            "--tenant-id", "${data.azurerm_client_config.current.tenant_id}",
-#            "--location", "${azurerm_resource_group.rg.location}",
-#            "--dns-zone-resource-group", "${azurerm_private_dns_zone.dnszone[0].resource_group_name}",
-#            "--dns-zone-subscription", "${data.azurerm_subscription.current.subscription_id}",
-#            "--dns-zone-domain", "${var.domain}",
-#            "--dns-zone-private"
-#          ]
-#        }
-#      }
-#    }
-#  }
-#  count = var.private-dns ? 1 : 0
-#}
-
-
