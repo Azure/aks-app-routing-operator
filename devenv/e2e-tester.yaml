@@ -13,6 +13,6 @@ spec:
         - name: tester
           image: $IMAGE
           command: [ "/bin/sh" ]
-          args: [ "/go/src/github.com/Azure/aks-app-routing-operator/devenv/make_e2e.sh" ]
+          args: [ "/go/src/github.com/Azure/aks-app-routing-operator/devenv/scripts/make_e2e.sh" ]
       restartPolicy: Never
   backoffLimit: 2
