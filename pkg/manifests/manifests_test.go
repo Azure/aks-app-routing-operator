@@ -84,6 +84,21 @@ var integrationTestCases = []struct {
 			DisableOSM:      true,
 		},
 	},
+	{
+		Name: "private-dns-zone-enabled",
+		Conf: &config.Config{
+			NS:             "kube-system",
+			Registry:       "test-registry",
+			MSIClientID:    "test-msi-client-id",
+			TenantID:       "test-tenant-id",
+			Cloud:          "test-cloud",
+			Location:       "test-location",
+			DNSZoneRG:      "test-dns-zone-rg",
+			DNSZoneSub:     "test-dns-zone-sub",
+			DNSZoneDomain:  "test-dns-zone-domain",
+			DNSZonePrivate: true,
+		},
+	},
 }
 
 func TestIngressControllerResources(t *testing.T) {
