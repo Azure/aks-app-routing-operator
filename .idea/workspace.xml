@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="64b26418-79ae-44da-bc73-6f6527e3aed7" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/devenv/main.tf" beforeDir="false" afterPath="$PROJECT_DIR$/devenv/main.tf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/devenv/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/devenv/.gitignore" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
