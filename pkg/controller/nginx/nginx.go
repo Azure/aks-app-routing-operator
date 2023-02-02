@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
@@ -48,6 +49,10 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingCla
 		return err
 	}
 
+	if err := n.addIngressSecretProviderClassReconciler(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -57,6 +62,14 @@ func (n *nginx) addIngressControllerReconciler() error {
 
 func (n *nginx) addConcurrencyWatchdog() error {
 	return ingress.NewConcurrencyWatchdog(n.manager, n.conf)
+}
+
+func (n *nginx) addIngressSecretProviderClassReconciler() error {
+	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, n.consumingIcs)
+}
+
+func (n *nginx) addPlaceholderPodController() error {
+	return keyvault.NewPlaceholderPodController(n.manager, n.conf, n.consumingIcs)
 }
 
 func (n *nginx) consumingIcs() ([]*netv1.IngressClass, error) {

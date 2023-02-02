@@ -8,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -76,12 +78,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	if err = keyvault.NewIngressSecretProviderClassReconciler(m, conf); err != nil {
+	if err := nginx.New(m, conf, deploy, ingressClassInformer, manifests.Controller); err != nil {
 		return nil, err
 	}
-	if err = keyvault.NewPlaceholderPodController(m, conf); err != nil {
-		return nil, err
-	}
+
+	// todo: continue clearing these out
 	if err = keyvault.NewEventMirror(m, conf); err != nil {
 		return nil, err
 	}

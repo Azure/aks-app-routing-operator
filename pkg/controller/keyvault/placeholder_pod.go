@@ -30,18 +30,19 @@ import (
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
-	client client.Client
-	config *config.Config
+	client         client.Client
+	config         *config.Config
+	consumingIcsFn ConsumingIcsFn
 }
 
-func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config) error {
+func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, consumingIcsFn ConsumingIcsFn) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf})
+		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, consumingIcsFn: consumingIcsFn})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -79,7 +80,8 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		},
 	}
 
-	// Don't manage placeholder pod for secret provider classes that aren't owned by ingresses that use our ingress class
+	// Don't manage placeholder pod for secret provider classes that aren't owned by ingresses that use our controller
+	// TODO: what happens if they change the ingressclass?
 
 	ing := &netv1.Ingress{}
 	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
@@ -89,7 +91,17 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{}, err
 		}
 	}
-	if ing.Name == "" || ing.Spec.IngressClassName == nil || *ing.Spec.IngressClassName != manifests.IngressClass {
+	ics, err := p.consumingIcsFn()
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	consumed := false
+	for _, ic := range ics {
+		if ic.Name == *ing.Spec.IngressClassName {
+			consumed = true
+		}
+	}
+	if ing.Name == "" || ing.Spec.IngressClassName == nil || !consumed {
 		if err := p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return ctrl.Result{}, err
 		}
