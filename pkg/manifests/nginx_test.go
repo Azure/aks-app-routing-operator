@@ -24,8 +24,7 @@ const (
 )
 
 var (
-	nginxPodLabels = map[string]string{"app": nginxControllerName}
-	ic             = &netv1.IngressClass{
+	ic = &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressClass",
 			APIVersion: "networking.k8s.io/v1",
@@ -39,12 +38,16 @@ var (
 	}
 
 	integrationTestCases = []struct {
-		Name   string
-		Conf   *config.Config
-		Deploy *appsv1.Deployment
+		Name            string
+		Conf            *config.Config
+		ControllerClass string
+		ControllerName  string
+		Deploy          *appsv1.Deployment
 	}{
 		{
-			Name: "full",
+			Name:            "full",
+			ControllerClass: nginxControllerClass,
+			ControllerName:  nginxControllerName,
 			Conf: &config.Config{
 				NS:            "test-namespace",
 				Registry:      "test-registry",
@@ -64,7 +67,9 @@ var (
 			},
 		},
 		{
-			Name: "no-ownership",
+			Name:            "no-ownership",
+			ControllerName:  nginxControllerName,
+			ControllerClass: nginxControllerClass,
 			Conf: &config.Config{
 				NS:            "test-namespace",
 				Registry:      "test-registry",
@@ -78,7 +83,9 @@ var (
 			},
 		},
 		{
-			Name: "kube-system",
+			Name:            "kube-system",
+			ControllerClass: nginxControllerClass,
+			ControllerName:  nginxControllerName,
 			Conf: &config.Config{
 				NS:            "kube-system",
 				Registry:      "test-registry",
@@ -92,7 +99,9 @@ var (
 			},
 		},
 		{
-			Name: "optional-features-disabled",
+			Name:            "optional-features-disabled",
+			ControllerName:  nginxControllerName,
+			ControllerClass: nginxControllerClass,
 			Conf: &config.Config{
 				NS:              "test-namespace",
 				Registry:        "test-registry",
@@ -109,7 +118,8 @@ var (
 
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range integrationTestCases {
-		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, ic, nginxControllerClass, nginxControllerName, nginxPodLabels)
+		podLabels := map[string]string{"app": tc.ControllerName}
+		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, ic, tc.ControllerClass, tc.ControllerName, podLabels)
 
 		actual, err := json.MarshalIndent(&objs, "  ", "  ")
 		require.NoError(t, err)
