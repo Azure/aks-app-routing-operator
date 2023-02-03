@@ -25,6 +25,11 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
+const (
+	NginxControllerClass = "webapprouting.kubernetes.azure.com/nginx"
+	NginxControllerName  = "nginx"
+)
+
 func init() {
 	ctrl.SetLogger(klogr.New())
 }
@@ -76,7 +81,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	if err := nginx.New(m, conf, deploy, ingressClassInformer, "webapprouting.kubernetes.azure.com/nginx", "nginx"); err != nil {
+	if err := nginx.New(m, conf, deploy, ingressClassInformer, NginxControllerClass, NginxControllerName); err != nil {
 		return nil, err
 	}
 
