@@ -53,6 +53,10 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingCla
 		return err
 	}
 
+	if err := n.addPlaceholderPodController(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -65,11 +69,11 @@ func (n *nginx) addConcurrencyWatchdog() error {
 }
 
 func (n *nginx) addIngressSecretProviderClassReconciler() error {
-	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, n.consumingIcs)
+	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, n.isConsuming)
 }
 
 func (n *nginx) addPlaceholderPodController() error {
-	return keyvault.NewPlaceholderPodController(n.manager, n.conf, n.consumingIcs)
+	return keyvault.NewPlaceholderPodController(n.manager, n.conf, n.isConsuming)
 }
 
 func (n *nginx) consumingIcs() ([]*netv1.IngressClass, error) {
@@ -86,6 +90,21 @@ func (n *nginx) consumingIcs() ([]*netv1.IngressClass, error) {
 	}
 
 	return validIcs, nil
+}
+
+func (n *nginx) isConsuming(i *netv1.Ingress) (bool, error) {
+	consumingIcs, err := n.consumingIcs()
+	if err != nil {
+		return false, err
+	}
+
+	for _, ic := range consumingIcs {
+		if ic.Name == *i.Spec.IngressClassName {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (n *nginx) provisionFn() ingress.ProvisionFn {

@@ -30,19 +30,19 @@ import (
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
-	client         client.Client
-	config         *config.Config
-	consumingIcsFn ConsumingIcsFn
+	client        client.Client
+	config        *config.Config
+	isConsumingFn isConsumingFn
 }
 
-func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, consumingIcsFn ConsumingIcsFn) error {
+func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, isConsumingFn isConsumingFn) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, consumingIcsFn: consumingIcsFn})
+		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, isConsumingFn: isConsumingFn})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -91,17 +91,11 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{}, err
 		}
 	}
-	ics, err := p.consumingIcsFn()
+	consuming, err := p.isConsumingFn(ing)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	consumed := false
-	for _, ic := range ics {
-		if ic.Name == *ing.Spec.IngressClassName {
-			consumed = true
-		}
-	}
-	if ing.Name == "" || ing.Spec.IngressClassName == nil || !consumed {
+	if ing.Name == "" || ing.Spec.IngressClassName == nil || !consuming {
 		if err := p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return ctrl.Result{}, err
 		}

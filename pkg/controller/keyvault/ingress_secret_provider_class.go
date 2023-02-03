@@ -23,19 +23,19 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-type ConsumingIcsFn func() ([]*netv1.IngressClass, error)
+type isConsumingFn func(i *netv1.Ingress) (bool, error)
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
 type IngressSecretProviderClassReconciler struct {
-	client         client.Client
-	events         record.EventRecorder
-	config         *config.Config
-	consumingIcsFn ConsumingIcsFn
+	client        client.Client
+	events        record.EventRecorder
+	config        *config.Config
+	isConsumingFn isConsumingFn
 }
 
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, consumingIcsFn ConsumingIcsFn) error {
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, isConsumingFn isConsumingFn) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -43,10 +43,10 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
 		Complete(&IngressSecretProviderClassReconciler{
-			client:         manager.GetClient(),
-			events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
-			config:         conf,
-			consumingIcsFn: consumingIcsFn,
+			client:        manager.GetClient(),
+			events:        manager.GetEventRecorderFor("aks-app-routing-operator"),
+			config:        conf,
+			isConsumingFn: isConsumingFn,
 		})
 }
 
@@ -111,16 +111,9 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	consumingIcs, err := i.consumingIcsFn()
+	consuming, err := i.isConsumingFn(ing)
 	if err != nil {
 		return false, err
-	}
-	consuming := false
-	for _, ic := range consumingIcs {
-		if ic.Name == *ing.Spec.IngressClassName {
-			consuming = true
-			break
-		}
 	}
 	if !consuming {
 		return false, nil
