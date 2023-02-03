@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 )
 
 func init() {
@@ -90,9 +89,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 	if err = osm.NewIngressBackendReconciler(m, conf); err != nil {
-		return nil, err
-	}
-	if err = service.NewIngressReconciler(m); err != nil {
 		return nil, err
 	}
 
