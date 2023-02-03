@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -21,25 +22,29 @@ import (
 )
 
 type nginx struct {
-	manager          manager.Manager
-	ingClassInformer informer.IngressClass
-	conf             *config.Config
-	self             *appsv1.Deployment
-	controller       string
+	manager             manager.Manager
+	ingClassInformer    informer.IngressClass
+	conf                *config.Config
+	self                *appsv1.Deployment
+	controllerClass     string
+	controllerName      string
+	controllerPodLabels map[string]string
 }
 
 // New adds all resources required for Nginx to the manager
-func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, controller string) error {
+func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, controllerClass, controllerName string) error {
 	if ingClassInformer == nil {
 		return errors.New("ingressClassInformer is nil")
 	}
 
 	n := &nginx{
-		manager:          m,
-		conf:             conf,
-		self:             self,
-		ingClassInformer: ingClassInformer,
-		controller:       controller,
+		manager:             m,
+		conf:                conf,
+		self:                self,
+		ingClassInformer:    ingClassInformer,
+		controllerClass:     controllerClass,
+		controllerName:      controllerName,
+		controllerPodLabels: map[string]string{"app": controllerName},
 	}
 
 	if err := n.addIngressControllerReconciler(); err != nil {
@@ -70,7 +75,7 @@ func (n *nginx) addIngressControllerReconciler() error {
 }
 
 func (n *nginx) addConcurrencyWatchdog() error {
-	return ingress.NewConcurrencyWatchdog(n.manager, n.conf)
+	return ingress.NewConcurrencyWatchdog(n.manager, n.conf, n.controllerPodLabels)
 }
 
 func (n *nginx) addIngressSecretProviderClassReconciler() error {
@@ -82,19 +87,23 @@ func (n *nginx) addPlaceholderPodController() error {
 }
 
 func (n *nginx) addIngressReconciler() error {
-	return service.NewNginxIngressReconciler(n.manager, n.controller, "kubernetes.azure.com/nginx", map[string]string{})
+	return service.NewNginxIngressReconciler(n.manager, n.controllerClass, "kubernetes.azure.com/nginx", map[string]string{})
 
 }
 
+func (n *nginx) addIngressBackendReconciler() error {
+	return osm.NewIngressBackendReconciler(n.manager, n.conf, n.controllerName)
+}
+
 func (n *nginx) consumingIcs() ([]*netv1.IngressClass, error) {
-	ics, err := n.ingClassInformer.ByController(n.controller)
+	ics, err := n.ingClassInformer.ByController(n.controllerClass)
 	if err != nil {
 		return nil, err
 	}
 
 	validIcs := make([]*netv1.IngressClass, 0)
 	for _, ic := range ics {
-		if ic.GetDeletionTimestamp() != nil {
+		if ic.GetDeletionTimestamp() == nil {
 			validIcs = append(validIcs, ic)
 		}
 	}
@@ -127,16 +136,16 @@ func (n *nginx) provisionFn() ingress.ProvisionFn {
 		}
 
 		if len(ics) == 0 {
-			log.Info(fmt.Sprintf("no ingressClasses consuming %s controller found", n.controller))
+			log.Info(fmt.Sprintf("no ingressClasses consuming %s controller found", n.controllerClass))
 			return nil
 		}
 
 		if len(ics) > 1 {
-			return errors.New(fmt.Sprintf("multiple ingressClasses consuming %s controller found when max of one is allowed", n.controller))
+			return errors.New(fmt.Sprintf("multiple ingressClasses consuming %s controller found when max of one is allowed", n.controllerClass))
 		}
 
 		ic := ics[0]
-		resources := manifests.NginxIngressControllerResources(n.conf, n.self, ic)
+		resources := manifests.NginxIngressControllerResources(n.conf, n.self, ic, n.controllerClass, n.controllerName, n.controllerPodLabels)
 		for _, res := range resources {
 			copy := res.DeepCopyObject().(client.Object)
 			if copy.GetDeletionTimestamp() != nil {

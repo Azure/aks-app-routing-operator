@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
@@ -36,6 +35,7 @@ type ConcurrencyWatchdog struct {
 	restClient rest.Interface
 	logger     logr.Logger
 	config     *config.Config
+	podLabels  map[string]string
 
 	interval, minPodAge, voteTTL time.Duration
 	minVotesBeforeEviction       int
@@ -45,7 +45,7 @@ type ConcurrencyWatchdog struct {
 	scrapeFn func(context.Context, *corev1.Pod) (float64, error)
 }
 
-func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config) error {
+func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, podLabels map[string]string) error {
 	clientset, err := kubernetes.NewForConfig(manager.GetConfig())
 	if err != nil {
 		return err
@@ -57,6 +57,7 @@ func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config) error {
 		restClient: clientset.CoreV1().RESTClient(),
 		logger:     manager.GetLogger().WithName("ingressWatchdog"),
 		config:     conf,
+		podLabels:  podLabels,
 
 		interval:                    time.Minute,
 		minPodAge:                   time.Minute * 5,
@@ -92,7 +93,7 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 	}()
 
 	list := &corev1.PodList{}
-	err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(manifests.NginxIngressPodLabels))
+	err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(c.podLabels))
 	if err != nil {
 		return err
 	}

@@ -15,25 +15,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 // IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "kubernetes.azure.com/use-osm-mtls=true".
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
-	client client.Client
-	config *config.Config
+	client         client.Client
+	config         *config.Config
+	controllerName string
 }
 
-func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config) error {
+func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, controllerName string) error {
 	if conf.DisableOSM {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf})
+		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, controllerName: controllerName})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -87,7 +87,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		Sources: []policyv1alpha1.IngressSourceSpec{
 			{
 				Kind:      "Service",
-				Name:      manifests.NginxControllerName,
+				Name:      i.controllerName,
 				Namespace: i.config.NS,
 			},
 			{
