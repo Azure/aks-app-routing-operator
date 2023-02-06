@@ -19,35 +19,40 @@ import (
 )
 
 const (
-	nginxControllerClass = "webapprouting.kubernetes.azure.com/nginx"
-	nginxControllerName  = "nginx"
+	icName                   = "webapprouting.kubernetes.azure.com"
+	controllerClass          = "webapprouting.kubernetes.azure.com/nginx"
+	controllerName           = "nginx"
+	differentControllerClass = "different-controller-class.com"
 )
 
-var (
-	ic = &netv1.IngressClass{
+func ic(name, controller string) *netv1.IngressClass {
+	return &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressClass",
 			APIVersion: "networking.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "webapprouting.kubernetes.azure.com",
+			Name: name,
 		},
 		Spec: netv1.IngressClassSpec{
-			Controller: nginxControllerClass,
+			Controller: controller,
 		},
 	}
+}
 
+var (
 	integrationTestCases = []struct {
 		Name            string
 		Conf            *config.Config
 		ControllerClass string
 		ControllerName  string
 		Deploy          *appsv1.Deployment
+		Ic              *netv1.IngressClass
 	}{
 		{
 			Name:            "full",
-			ControllerClass: nginxControllerClass,
-			ControllerName:  nginxControllerName,
+			ControllerClass: controllerClass,
+			ControllerName:  controllerName,
 			Conf: &config.Config{
 				NS:            "test-namespace",
 				Registry:      "test-registry",
@@ -65,11 +70,12 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
+			Ic: ic(icName, controllerClass),
 		},
 		{
 			Name:            "no-ownership",
-			ControllerName:  nginxControllerName,
-			ControllerClass: nginxControllerClass,
+			ControllerName:  controllerName,
+			ControllerClass: controllerClass,
 			Conf: &config.Config{
 				NS:            "test-namespace",
 				Registry:      "test-registry",
@@ -81,11 +87,12 @@ var (
 				DNSZoneSub:    "test-dns-zone-sub",
 				DNSZoneDomain: "test-dns-zone-domain",
 			},
+			Ic: ic(icName, controllerClass),
 		},
 		{
 			Name:            "kube-system",
-			ControllerClass: nginxControllerClass,
-			ControllerName:  nginxControllerName,
+			ControllerClass: controllerClass,
+			ControllerName:  controllerName,
 			Conf: &config.Config{
 				NS:            "kube-system",
 				Registry:      "test-registry",
@@ -97,11 +104,12 @@ var (
 				DNSZoneSub:    "test-dns-zone-sub",
 				DNSZoneDomain: "test-dns-zone-domain",
 			},
+			Ic: ic(icName, controllerClass),
 		},
 		{
 			Name:            "optional-features-disabled",
-			ControllerName:  nginxControllerName,
-			ControllerClass: nginxControllerClass,
+			ControllerName:  controllerName,
+			ControllerClass: controllerClass,
 			Conf: &config.Config{
 				NS:              "test-namespace",
 				Registry:        "test-registry",
@@ -112,6 +120,53 @@ var (
 				DisableKeyvault: true,
 				DisableOSM:      true,
 			},
+			Ic: ic(icName, controllerClass),
+		},
+		{
+			Name:            "controller-class",
+			ControllerName:  controllerName,
+			ControllerClass: differentControllerClass,
+			Conf: &config.Config{
+				NS:            "test-namespace",
+				Registry:      "test-registry",
+				MSIClientID:   "test-msi-client-id",
+				TenantID:      "test-tenant-id",
+				Cloud:         "test-cloud",
+				Location:      "test-location",
+				DNSZoneRG:     "test-dns-zone-rg",
+				DNSZoneSub:    "test-dns-zone-sub",
+				DNSZoneDomain: "test-dns-zone-domain",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			Ic: ic(icName, differentControllerClass),
+		},
+		{
+			Name:            "ingress-name",
+			ControllerName:  controllerName,
+			ControllerClass: controllerClass,
+			Conf: &config.Config{
+				NS:            "test-namespace",
+				Registry:      "test-registry",
+				MSIClientID:   "test-msi-client-id",
+				TenantID:      "test-tenant-id",
+				Cloud:         "test-cloud",
+				Location:      "test-location",
+				DNSZoneRG:     "test-dns-zone-rg",
+				DNSZoneSub:    "test-dns-zone-sub",
+				DNSZoneDomain: "test-dns-zone-domain",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			Ic: ic("other.ingress.class.com", controllerClass),
 		},
 	}
 )
@@ -119,7 +174,7 @@ var (
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range integrationTestCases {
 		podLabels := map[string]string{"app": tc.ControllerName}
-		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, ic, tc.ControllerClass, tc.ControllerName, podLabels)
+		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, tc.Ic, tc.ControllerClass, tc.ControllerName, podLabels)
 
 		actual, err := json.MarshalIndent(&objs, "  ", "  ")
 		require.NoError(t, err)
