@@ -205,6 +205,7 @@
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",
                   "--controller-class=webapprouting.kubernetes.azure.com/nginx",
+                  "--election-id=webapprouting.kubernetes.azure.com/nginx",
                   "--publish-service=$(POD_NAMESPACE)/nginx",
                   "--configmap=$(POD_NAMESPACE)/nginx",
                   "--http-port=8080",

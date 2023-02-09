@@ -61,9 +61,9 @@ func NewIngressClass(factory informers.SharedInformerFactory) (IngressClass, err
 		return nil, err
 	}
 
-	ingC := &ingressClass{
+	i := &ingressClass{
 		IngressClassInformer:        informer,
 		ingressClassControllerIndex: ingressClassControllerIndex,
 	}
-	return ingC, nil
+	return i, nil
 }
