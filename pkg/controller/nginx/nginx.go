@@ -17,9 +17,13 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
+
+type ingressConfig struct {
+}
 
 type nginx struct {
 	manager             manager.Manager
@@ -28,11 +32,12 @@ type nginx struct {
 	self                *appsv1.Deployment
 	controllerClass     string
 	controllerName      string
+	icName              string
 	controllerPodLabels map[string]string
 }
 
 // New adds all resources required for Nginx to the manager
-func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, controllerClass, controllerName string) error {
+func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, controllerClass, controllerName string, icName string) error {
 	if ingClassInformer == nil {
 		return errors.New("ingressClassInformer is nil")
 	}
@@ -45,6 +50,11 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingCla
 		controllerClass:     controllerClass,
 		controllerName:      controllerName,
 		controllerPodLabels: map[string]string{"app": controllerName},
+		icName:              icName,
+	}
+
+	if err := n.addIngressClassReconciler(); err != nil {
+		return err
 	}
 
 	if err := n.addIngressControllerReconciler(); err != nil {
@@ -68,6 +78,11 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingCla
 	}
 
 	return nil
+}
+
+func (n *nginx) addIngressClassReconciler() error {
+	ic := manifests.IngressClass(n.conf, n.self, metav1.ObjectMeta{Name: n.icName}, netv1.IngressClassSpec{Controller: n.controllerClass})
+	return ingress.NewIngressClassReconciler(n.manager, []client.Object{ic})
 }
 
 func (n *nginx) addIngressControllerReconciler() error {
