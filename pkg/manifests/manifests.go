@@ -248,7 +248,7 @@ func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.Cluster
 			Labels: topLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: rbacApiVersion,
+			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     clusterRoleKind,
 			Name:     IngressControllerName,
 		},
