@@ -27,39 +27,19 @@ import (
 
 const (
 	IngressClass                = "webapprouting.kubernetes.azure.com"
-	appsV1ApiVersion            = "apps/v1"
 	deploymentKind              = "Deployment"
-	nsKind                      = "Namespace"
-	version                     = "v1"
-	ingressClassKind            = "IngressClass"
-	networkingApiVersion        = "networking.k8s.io/v1"
-	nginxIngressClassName       = "k8s.io/ingress-nginx"
 	serviceAccountKind          = "ServiceAccount"
-	clusterRoleKind             = "ClusterRole"
-	rbacApiVersion              = "rbac.authorization.k8s.io/v1"
-	clusterRoleBindingKind      = "ClusterRoleBinding"
 	serviceKind                 = "Service"
 	osmAnnotationKey            = "openservicemesh.io/sidecar-injection"
 	nginxIngressControllerImage = "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"
-	nginxCpuRequest             = "500m"
-	nginxMemoryRequest          = "127Mi"
-	nginxCpuLimit               = "1500m"
-	nginxMemoryLimit            = "512Mi"
-	hpaKind                     = "HorizontalPodAutoscaler"
-	autoscalingApiVersion       = "autoscaling/v1"
-	appKeySelector              = "app"
 	externalDnsDeploymentName   = "controller"
 	externalDnsImage            = "/oss/kubernetes/external-dns:v0.11.0.2"
-	externalDnsCpuRequest       = "100m"
-	externalDnsMemoryRequest    = "250Mi"
-	externalDnsCpuLimit         = "100m"
-	externalDnsMemoryLimit      = "250Mi"
 	externalDnsVolumeName       = "azure-config"
 )
 
 var (
 	IngressControllerName = "nginx"
-	IngressPodLabels      = map[string]string{appKeySelector: IngressControllerName}
+	IngressPodLabels      = map[string]string{"app": IngressControllerName}
 
 	externalDNSName         = "external-dns"
 	azurePrivateDNSProvider = "azure-private-dns"
@@ -140,7 +120,7 @@ func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 		return nil
 	}
 	return []metav1.OwnerReference{{
-		APIVersion: appsV1ApiVersion,
+		APIVersion: "apps/v1",
 		Kind:       deploymentKind,
 		Name:       deploy.Name,
 		UID:        deploy.UID,
@@ -150,8 +130,8 @@ func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 func newNamespace(conf *config.Config) *corev1.Namespace {
 	ns := &corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       nsKind,
-			APIVersion: version,
+			Kind:       "Namespace",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        conf.NS,
@@ -166,14 +146,14 @@ func newNamespace(conf *config.Config) *corev1.Namespace {
 func newIngressClass(conf *config.Config) *netv1.IngressClass {
 	return &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       ingressClassKind,
-			APIVersion: networkingApiVersion,
+			Kind:       "IngressClass",
+			APIVersion: "networking.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: IngressClass,
 		},
 		Spec: netv1.IngressClassSpec{
-			Controller: nginxIngressClassName,
+			Controller: "k8s.io/ingress-nginx",
 		},
 	}
 }
@@ -182,7 +162,7 @@ func newIngressControllerServiceAccount(conf *config.Config) *corev1.ServiceAcco
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       rbacv1.ServiceAccountKind,
-			APIVersion: version,
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      IngressControllerName,
@@ -195,8 +175,8 @@ func newIngressControllerServiceAccount(conf *config.Config) *corev1.ServiceAcco
 func newIngressControllerClusterRole(conf *config.Config) *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       clusterRoleKind,
-			APIVersion: rbacApiVersion,
+			Kind:       "ClusterRole",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   IngressControllerName,
@@ -240,16 +220,16 @@ func newIngressControllerClusterRole(conf *config.Config) *rbacv1.ClusterRole {
 func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       clusterRoleBindingKind,
-			APIVersion: rbacApiVersion,
+			Kind:       "ClusterRoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   IngressControllerName,
 			Labels: topLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     clusterRoleKind,
+			APIGroup: "rbac.authorization.k8s.io/v1",
+			Kind:     "ClusterRole",
 			Name:     IngressControllerName,
 		},
 		Subjects: []rbacv1.Subject{{
@@ -277,7 +257,7 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceKind,
-			APIVersion: version,
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      IngressControllerName,
@@ -313,7 +293,7 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       deploymentKind,
-			APIVersion: appsV1ApiVersion,
+			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      IngressControllerName,
@@ -349,12 +329,12 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse(nginxCpuRequest),
-								corev1.ResourceMemory: resource.MustParse(nginxMemoryRequest),
+								corev1.ResourceCPU:    resource.MustParse("500m"),
+								corev1.ResourceMemory: resource.MustParse("127Mi"),
 							},
 							Limits: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse(nginxCpuLimit),
-								corev1.ResourceMemory: resource.MustParse(nginxMemoryLimit),
+								corev1.ResourceCPU:    resource.MustParse("1500m"),
+								corev1.ResourceMemory: resource.MustParse("512Mi"),
 							},
 						},
 					}))},
@@ -401,8 +381,8 @@ func newIngressControllerPDB(conf *config.Config) *policyv1.PodDisruptionBudget 
 func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscaler {
 	return &autov1.HorizontalPodAutoscaler{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       hpaKind,
-			APIVersion: autoscalingApiVersion,
+			Kind:       "HorizontalPodAutoscaler",
+			APIVersion: "autoscaling/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      IngressControllerName,
@@ -411,7 +391,7 @@ func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscale
 		},
 		Spec: autov1.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: autov1.CrossVersionObjectReference{
-				APIVersion: appsV1ApiVersion,
+				APIVersion: "apps/v1",
 				Kind:       deploymentKind,
 				Name:       IngressControllerName,
 			},
@@ -457,7 +437,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       deploymentKind,
-			APIVersion: appsV1ApiVersion,
+			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDNSName,
@@ -467,11 +447,11 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 		Spec: appsv1.DeploymentSpec{
 			Replicas:             &replicas,
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{appKeySelector: externalDNSName}},
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDNSName}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						appKeySelector:       externalDNSName,
+						"app":                externalDNSName,
 						"checksum/configmap": configMapHash[:16],
 					},
 				},
@@ -494,12 +474,12 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 						}},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse(externalDnsCpuRequest),
-								corev1.ResourceMemory: resource.MustParse(externalDnsMemoryRequest),
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("250Mi"),
 							},
 							Limits: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse(externalDnsCpuLimit),
-								corev1.ResourceMemory: resource.MustParse(externalDnsMemoryLimit),
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("250Mi"),
 							},
 						},
 					}))},
