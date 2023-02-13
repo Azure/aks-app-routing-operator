@@ -163,7 +163,7 @@
           }
         ],
         "selector": {
-          "app": "nginx"
+          "app": "webapprouting.kubernetes.azure.com"
         },
         "type": "LoadBalancer",
         "externalTrafficPolicy": "Local"
@@ -186,14 +186,14 @@
       "spec": {
         "selector": {
           "matchLabels": {
-            "app": "nginx"
+            "app": "webapprouting.kubernetes.azure.com"
           }
         },
         "template": {
           "metadata": {
             "creationTimestamp": null,
             "labels": {
-              "app": "nginx"
+              "app": "webapprouting.kubernetes.azure.com"
             }
           },
           "spec": {
@@ -356,7 +356,7 @@
       "spec": {
         "selector": {
           "matchLabels": {
-            "app": "nginx"
+            "app": "webapprouting.kubernetes.azure.com"
           }
         },
         "maxUnavailable": 1
