@@ -80,9 +80,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		},
 	}
 
-	// Don't manage placeholder pod for secret provider classes that aren't owned by ingresses that use our controller
-	// TODO: what happens if they change the ingressclass?
-
 	ing := &netv1.Ingress{}
 	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
 	ing.Namespace = req.Namespace

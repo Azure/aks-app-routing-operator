@@ -231,7 +231,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							"/nginx-ingress-controller",
 							"--ingress-class=" + ingressConfig.IcName,
 							"--controller-class=" + ingressConfig.ControllerClass,
-							"--election-id=" + ingressConfig.ControllerClass,
+							"--election-id=" + ingressConfig.ResourceName,
 							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 							"--http-port=8080",

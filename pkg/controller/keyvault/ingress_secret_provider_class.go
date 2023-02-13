@@ -24,8 +24,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-type isConsumingFn func(i *netv1.Ingress) (bool, error)
-
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.

@@ -74,7 +74,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	var controllerName string
 	for _, ingConfig := range i.ingConfigs {
-		if ingConfig.IcName == *ing.Spec.IngressClassName {
+		if ing.Spec.IngressClassName != nil && ingConfig.IcName == *ing.Spec.IngressClassName {
 			controllerName = ingConfig.ResourceName
 		}
 	}

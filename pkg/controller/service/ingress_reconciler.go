@@ -43,7 +43,7 @@ func NewIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxIngres
 		Complete(&IngressReconciler{client: manager.GetClient(), ingConfig: ingConfig})
 }
 
-func (n *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -51,7 +51,7 @@ func (n *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logger = logger.WithName("ingressReconciler")
 
 	svc := &corev1.Service{}
-	err = n.client.Get(ctx, req.NamespacedName, svc)
+	err = i.client.Get(ctx, req.NamespacedName, svc)
 	if errors.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	}
@@ -92,7 +92,7 @@ func (n *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(n.ingConfig.IcName),
+			IngressClassName: util.StringPtr(i.ingConfig.IcName),
 			Rules: []netv1.IngressRule{{
 				Host: svc.Annotations["kubernetes.azure.com/ingress-host"],
 				IngressRuleValue: netv1.IngressRuleValue{
@@ -125,5 +125,5 @@ func (n *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	logger.Info("reconciling ingress for service")
-	return ctrl.Result{}, util.Upsert(ctx, n.client, ing)
+	return ctrl.Result{}, util.Upsert(ctx, i.client, ing)
 }

@@ -26,7 +26,7 @@ var (
 		ResourceName:    "nginx",
 		IcName:          "webapprouting.kubernetes.azure.com",
 	}
-	integrationTestCases = []struct {
+	controllerTestCases = []struct {
 		Name      string
 		Conf      *config.Config
 		Deploy    *appsv1.Deployment
@@ -98,12 +98,43 @@ var (
 			IngConfig: ingConfig,
 		},
 	}
+	classTestCases = []struct {
+		Name      string
+		Conf      *config.Config
+		Deploy    *appsv1.Deployment
+		IngConfig *NginxIngressConfig
+	}{
+		{
+			Name: "full",
+			Conf: &config.Config{NS: "test-namespace"},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: ingConfig,
+		},
+		{
+			Name:      "no-ownership",
+			Conf:      &config.Config{NS: "test-namespace"},
+			IngConfig: ingConfig,
+		},
+	}
 )
 
 func TestIngressControllerResources(t *testing.T) {
-	for _, tc := range integrationTestCases {
-		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, ingConfig)
+	for _, tc := range controllerTestCases {
+		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, tc.IngConfig)
 		fixture := path.Join("fixtures", "nginx", tc.Name) + ".json"
+		AssertFixture(t, fixture, objs)
+	}
+}
+
+func TestIngressClassResources(t *testing.T) {
+	for _, tc := range classTestCases {
+		objs := NginxIngressClass(tc.Conf, tc.Deploy, tc.IngConfig)
+		fixture := path.Join("fixtures", "nginx", tc.Name) + "-ingressclass.json"
 		AssertFixture(t, fixture, objs)
 	}
 }
