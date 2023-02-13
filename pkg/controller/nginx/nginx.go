@@ -17,40 +17,30 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-type ingressConfig struct {
-}
-
 type nginx struct {
-	manager             manager.Manager
-	ingClassInformer    informer.IngressClass
-	conf                *config.Config
-	self                *appsv1.Deployment
-	controllerClass     string
-	controllerName      string
-	icName              string
-	controllerPodLabels map[string]string
+	manager          manager.Manager
+	ingClassInformer informer.IngressClass
+	conf             *config.Config
+	self             *appsv1.Deployment
+	ingConfigs       []*manifests.NginxIngressConfig
 }
 
 // New adds all resources required for Nginx to the manager
-func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, controllerClass, controllerName string, icName string) error {
+func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, ingConfigs []*manifests.NginxIngressConfig) error {
 	if ingClassInformer == nil {
 		return errors.New("ingressClassInformer is nil")
 	}
 
 	n := &nginx{
-		manager:             m,
-		conf:                conf,
-		self:                self,
-		ingClassInformer:    ingClassInformer,
-		controllerClass:     controllerClass,
-		controllerName:      controllerName,
-		controllerPodLabels: map[string]string{"app": controllerName},
-		icName:              icName,
+		manager:          m,
+		conf:             conf,
+		self:             self,
+		ingClassInformer: ingClassInformer,
+		ingConfigs:       ingConfigs,
 	}
 
 	if err := n.addIngressClassReconciler(); err != nil {
@@ -81,8 +71,12 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingCla
 }
 
 func (n *nginx) addIngressClassReconciler() error {
-	ic := manifests.IngressClass(n.conf, n.self, metav1.ObjectMeta{Name: n.icName}, netv1.IngressClassSpec{Controller: n.controllerClass})
-	return ingress.NewIngressClassReconciler(n.manager, []client.Object{ic})
+	objs := []client.Object{}
+	for _, config := range n.ingConfigs {
+		objs = append(objs, manifests.NginxIngressClass(n.self, config))
+	}
+
+	return ingress.NewIngressClassReconciler(n.manager, objs)
 }
 
 func (n *nginx) addIngressControllerReconciler() error {
@@ -164,7 +158,7 @@ func (n *nginx) provisionFn() ingress.ProvisionFn {
 		for _, res := range resources {
 			copy := res.DeepCopyObject().(client.Object)
 			if copy.GetDeletionTimestamp() != nil {
-				if err := c.Delete(ctx, copy); !k8serrors.IsNotFound(err) {
+				if err := c.Delete(ctx, copy); err != nil && !k8serrors.IsNotFound(err) {
 					log.Error(err, "deleting unneeded resources")
 				}
 				continue

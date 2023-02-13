@@ -21,8 +21,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const externalDNSName = "external-dns"
-
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
 	controllerClass string            // controller class which is equivalent to controller field of IngressClass
@@ -69,12 +67,6 @@ func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deploymen
 		newNginxIngressControllerPDB(conf, ingressConfig),
 		newNginxIngressControllerHPA(conf, ingressConfig),
 	)
-
-	if conf.DNSZoneDomain != "" {
-		dnsCM, dnsCMHash := newExternalDNSConfigMap(conf)
-		objs = append(objs, dnsCM,
-			newExternalDNSDeployment(conf, dnsCMHash, ingressConfig.resourceName))
-	}
 
 	owners := getOwnerRefs(self)
 	for _, obj := range objs {
