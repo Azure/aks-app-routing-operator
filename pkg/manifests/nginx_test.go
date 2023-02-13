@@ -11,11 +11,14 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const genFixturesEnv = "GENERATE_FIXTURES"
 
 var (
 	ingConfig = &NginxIngressConfig{
@@ -100,20 +103,22 @@ var (
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range integrationTestCases {
 		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, ingConfig)
-
-		actual, err := json.MarshalIndent(&objs, "  ", "  ")
-		require.NoError(t, err)
-
 		fixture := path.Join("fixtures", "nginx", tc.Name) + ".json"
-		if os.Getenv("GENERATE_FIXTURES") != "" {
-			err = os.WriteFile(fixture, actual, 0644)
-			require.NoError(t, err)
-			continue
-		}
-
-		expected, err := os.ReadFile(fixture)
-		require.NoError(t, err)
-
-		assert.JSONEq(t, string(expected), string(actual))
+		AssertFixture(t, fixture, objs)
 	}
+}
+
+// AssertFixture checks the fixture path and compares it to the provided objects, failing if they are not equal
+func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
+	actual, err := json.MarshalIndent(&objs, "  ", "  ")
+	require.NoError(t, err)
+
+	if os.Getenv(genFixturesEnv) != "" {
+		err = os.WriteFile(fixturePath, actual, 0644)
+		require.NoError(t, err)
+	}
+
+	expected, err := os.ReadFile(fixturePath)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(expected), string(actual))
 }

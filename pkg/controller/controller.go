@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -65,6 +66,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 	m.GetLogger().V(2).Info("using namespace: " + conf.NS)
+
+	if err := dns.NewExternalDns(m, conf, deploy); err != nil {
+		return nil, err
+	}
 
 	if err := nginx.New(m, conf, deploy); err != nil {
 		return nil, err

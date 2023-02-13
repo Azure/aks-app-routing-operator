@@ -47,7 +47,7 @@ func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConf
 	objs := []client.Object{ing}
 
 	if conf.NS != "kube-system" {
-		objs = append(objs, newNamespace(conf))
+		objs = append(objs, namespace(conf))
 	}
 
 	owners := getOwnerRefs(self)
@@ -64,7 +64,7 @@ func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deploymen
 
 	// Can safely assume the namespace exists if using kube-system
 	if conf.NS != "kube-system" {
-		objs = append(objs, newNamespace(conf))
+		objs = append(objs, namespace(conf))
 	}
 
 	objs = append(objs,
