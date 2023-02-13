@@ -94,7 +94,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	managed := false
 	for _, ingConfig := range p.ingConfigs {
-		if ingConfig.ControllerClass == *ing.Spec.IngressClassName {
+		if ing.Spec.IngressClassName != nil && ingConfig.ControllerClass == *ing.Spec.IngressClassName {
 			managed = true
 		}
 	}

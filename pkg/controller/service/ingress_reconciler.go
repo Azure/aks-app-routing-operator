@@ -92,7 +92,7 @@ func (n *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(n.ingConfig.ControllerClass),
+			IngressClassName: util.StringPtr(n.ingConfig.IcName),
 			Rules: []netv1.IngressRule{{
 				Host: svc.Annotations["kubernetes.azure.com/ingress-host"],
 				IngressRuleValue: netv1.IngressRuleValue{

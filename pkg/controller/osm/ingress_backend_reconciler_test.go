@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +32,7 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 			Annotations: map[string]string{"kubernetes.azure.com/use-osm-mtls": "true"},
 		},
 		Spec: netv1.IngressSpec{
+			IngressClassName: util.StringPtr("test-ingress-class"),
 			Rules: []netv1.IngressRule{{}, {
 				IngressRuleValue: netv1.IngressRuleValue{
 					HTTP: &netv1.HTTPIngressRuleValue{
@@ -53,7 +56,11 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
-	e := &IngressBackendReconciler{client: c, config: &config.Config{NS: "test-config-ns"}}
+	e := &IngressBackendReconciler{
+		client:     c,
+		config:     &config.Config{NS: "test-config-ns"},
+		ingConfigs: []*manifests.NginxIngressConfig{{IcName: *ing.Spec.IngressClassName, ResourceName: "test-name"}},
+	}
 
 	// Initial reconcile
 	_, err := e.Reconcile(ctx, req)

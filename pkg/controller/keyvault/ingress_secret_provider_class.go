@@ -114,7 +114,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 
 	managed := false
 	for _, ingConfig := range i.ingConfigs {
-		if ingConfig.ControllerClass == *ing.Spec.IngressClassName {
+		if ing.Spec.IngressClassName != nil && ingConfig.ControllerClass == *ing.Spec.IngressClassName {
 			managed = true
 		}
 	}

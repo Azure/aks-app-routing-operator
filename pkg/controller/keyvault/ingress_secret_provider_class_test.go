@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,9 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
+		},
+		ingConfigs: []*manifests.NginxIngressConfig{
+			{ControllerClass: ingressClass},
 		},
 	}
 
@@ -131,6 +135,9 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 			MSIClientID: "test-msi-client-id",
 		},
 		events: recorder,
+		ingConfigs: []*manifests.NginxIngressConfig{
+			{ControllerClass: ingressClass},
+		},
 	}
 
 	ctx := context.Background()
@@ -144,10 +151,13 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 }
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{}
+	ingressClass := "webapprouting.kubernetes.azure.com"
+
+	i := &IngressSecretProviderClassReconciler{
+		ingConfigs: []*manifests.NginxIngressConfig{{ControllerClass: ingressClass}},
+	}
 
 	ing := &netv1.Ingress{}
-	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 
 	t.Run("missing ingress class", func(t *testing.T) {
