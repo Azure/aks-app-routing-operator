@@ -25,7 +25,7 @@ import (
 )
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
-// Keyvault secrets referenced by each secret provider class managed by NginxIngressSecretProviderClassReconciler.
+// Keyvault secrets referenced by each secret provider class managed by IngressSecretProviderClassReconciler.
 //
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).

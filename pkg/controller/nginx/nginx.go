@@ -89,7 +89,7 @@ func (n *nginx) addConcurrencyWatchdog() error {
 }
 
 func (n *nginx) addIngressSecretProviderClassReconciler() error {
-	return keyvault.NewNginxIngressSecretProviderClassReconciler(n.manager, n.conf, n.ingConfigs)
+	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, n.ingConfigs)
 }
 
 func (n *nginx) addPlaceholderPodController() error {
@@ -97,7 +97,7 @@ func (n *nginx) addPlaceholderPodController() error {
 }
 
 func (n *nginx) addIngressReconciler() error {
-	return service.NewNginxIngressReconciler(n.manager, defaultIngConfig)
+	return service.NewIngressReconciler(n.manager, defaultIngConfig)
 
 }
 

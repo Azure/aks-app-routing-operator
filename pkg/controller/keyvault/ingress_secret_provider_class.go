@@ -26,24 +26,24 @@ import (
 
 type isConsumingFn func(i *netv1.Ingress) (bool, error)
 
-// NginxIngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
+// IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
-type NginxIngressSecretProviderClassReconciler struct {
+type IngressSecretProviderClassReconciler struct {
 	client     client.Client
 	events     record.EventRecorder
 	config     *config.Config
 	ingConfigs []*manifests.NginxIngressConfig
 }
 
-func NewNginxIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&NginxIngressSecretProviderClassReconciler{
+		Complete(&IngressSecretProviderClassReconciler{
 			client:     manager.GetClient(),
 			events:     manager.GetEventRecorderFor("aks-app-routing-operator"),
 			config:     conf,
@@ -51,7 +51,7 @@ func NewNginxIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *co
 		})
 }
 
-func (i *NginxIngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -107,7 +107,7 @@ func (i *NginxIngressSecretProviderClassReconciler) Reconcile(ctx context.Contex
 	return ctrl.Result{}, i.client.Delete(ctx, spc)
 }
 
-func (i *NginxIngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
+func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
 	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
 		return false, nil
 	}

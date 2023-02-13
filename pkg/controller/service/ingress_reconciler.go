@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-// NginxIngressReconciler manages an opinionated ingress resource for services that define certain annotations.
+// IngressReconciler manages an opinionated ingress resource for services that define certain annotations.
 // The resulting ingress uses Keyvault for TLS, never exposes insecure (plain http) routes, and uses OSM for upstream mTLS.
 // If those integrations aren't enabled, it won't work correctly.
 //
@@ -31,19 +31,19 @@ import (
 //
 // This functionality allows easy adoption of good ingress practices while providing an exit strategy.
 // Users can remove the annotations and take ownership of the generated resources at any time.
-type NginxIngressReconciler struct {
+type IngressReconciler struct {
 	client    client.Client
 	ingConfig *manifests.NginxIngressConfig
 }
 
-func NewNginxIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxIngressConfig) error {
+func NewIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxIngressConfig) error {
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&corev1.Service{}).
-		Complete(&NginxIngressReconciler{client: manager.GetClient(), ingConfig: ingConfig})
+		Complete(&IngressReconciler{client: manager.GetClient(), ingConfig: ingConfig})
 }
 
-func (n *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (n *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
