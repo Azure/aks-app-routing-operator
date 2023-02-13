@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -31,26 +32,23 @@ import (
 // This functionality allows easy adoption of good ingress practices while providing an exit strategy.
 // Users can remove the annotations and take ownership of the generated resources at any time.
 type NginxIngressReconciler struct {
-	client              client.Client
-	controller, icName  string
-	requiredAnnotations map[string]string
+	client    client.Client
+	ingConfig *manifests.NginxIngressConfig
 }
 
-func NewNginxIngressReconciler(manager ctrl.Manager, controller, icName string, requiredAnnotations map[string]string) error {
+func NewNginxIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxIngressConfig) error {
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&corev1.Service{}).
-		Complete(&NginxIngressReconciler{client: manager.GetClient(), controller: controller, icName: icName, requiredAnnotations: requiredAnnotations})
+		Complete(&NginxIngressReconciler{client: manager.GetClient(), ingConfig: ingConfig})
 }
-
-// TODO: decide if we want to remove this functionality completely, it's not currently documented
 
 func (n *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	logger = logger.WithName("ingressReconciler").WithValues("ingressClass", n.icName, "controller", n.controller)
+	logger = logger.WithName("ingressReconciler")
 
 	svc := &corev1.Service{}
 	err = n.client.Get(ctx, req.NamespacedName, svc)
@@ -66,34 +64,6 @@ func (n *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Give users a migration path away from managed ingress, etc. resources by not cleaning them up if annotations are removed.
 		// Users can remove the annotations, remove the owner references from managed resources, and take ownership of them.
 		return ctrl.Result{}, nil
-	}
-
-	for k, v := range n.requiredAnnotations {
-		val, ok := svc.Annotations[k]
-		if !ok {
-			return ctrl.Result{}, nil
-		}
-
-		if val != v {
-			return ctrl.Result{}, nil
-		}
-	}
-
-	logger.Info("reconciling ingressClass for service")
-	ic := &netv1.IngressClass{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "IngressClass",
-			APIVersion: "networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: n.icName,
-		},
-		Spec: netv1.IngressClassSpec{
-			Controller: n.controller,
-		},
-	}
-	if err := util.Upsert(ctx, n.client, ic); err != nil {
-		return ctrl.Result{}, err
 	}
 
 	serviceAccount := "default"
@@ -122,7 +92,7 @@ func (n *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(ic.Name),
+			IngressClassName: util.StringPtr(n.ingConfig.ControllerClass),
 			Rules: []netv1.IngressRule{{
 				Host: svc.Annotations["kubernetes.azure.com/ingress-host"],
 				IngressRuleValue: netv1.IngressRuleValue{

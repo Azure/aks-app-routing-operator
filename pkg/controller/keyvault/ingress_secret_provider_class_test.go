@@ -36,7 +36,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
-	i := &IngressSecretProviderClassReconciler{
+	i := &NginxIngressSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
@@ -124,7 +124,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	recorder := record.NewFakeRecorder(10)
-	i := &IngressSecretProviderClassReconciler{
+	i := &NginxIngressSecretProviderClassReconciler{
 		client: c,
 		config: &config.Config{
 			TenantID:    "test-tenant-id",
@@ -144,7 +144,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 }
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{}
+	i := &NginxIngressSecretProviderClassReconciler{}
 
 	ing := &netv1.Ingress{}
 	ingressClass := "webapprouting.kubernetes.azure.com"

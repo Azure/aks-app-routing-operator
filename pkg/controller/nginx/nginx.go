@@ -12,6 +12,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+var (
+	defaultIngConfig = &manifests.NginxIngressConfig{
+		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
+		ResourceName:    "nginx",
+		IcName:          "webapprouting.kubernetes.azure.com",
+	}
+	ingConfigs = []*manifests.NginxIngressConfig{defaultIngConfig}
+)
+
 type nginx struct {
 	name       string
 	manager    manager.Manager
@@ -21,7 +30,7 @@ type nginx struct {
 }
 
 // New starts all resources required for Nginx ingresses
-func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingConfigs []*manifests.NginxIngressConfig) error {
+func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) error {
 	n := &nginx{
 		name:       "nginx",
 		manager:    m,
@@ -76,22 +85,22 @@ func (n *nginx) addIngressControllerReconciler() error {
 }
 
 func (n *nginx) addConcurrencyWatchdog() error {
-	return ingress.NewConcurrencyWatchdog(n.manager, n.conf, n.controllerPodLabels)
+	return ingress.NewNginxConcurrencyWatchdog(n.manager, n.conf, n.ingConfigs)
 }
 
 func (n *nginx) addIngressSecretProviderClassReconciler() error {
-	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, n.isConsuming)
+	return keyvault.NewNginxIngressSecretProviderClassReconciler(n.manager, n.conf, n.ingConfigs)
 }
 
 func (n *nginx) addPlaceholderPodController() error {
-	return keyvault.NewPlaceholderPodController(n.manager, n.conf, n.isConsuming)
+	return keyvault.NewPlaceholderPodController(n.manager, n.conf, n.ingConfigs)
 }
 
 func (n *nginx) addIngressReconciler() error {
-	return service.NewNginxIngressReconciler(n.manager, n.controllerClass, "kubernetes.azure.com/nginx", map[string]string{})
+	return service.NewNginxIngressReconciler(n.manager, defaultIngConfig)
 
 }
 
 func (n *nginx) addIngressBackendReconciler() error {
-	return osm.NewIngressBackendReconciler(n.manager, n.conf, n.controllerName)
+	return osm.NewIngressBackendReconciler(n.manager, n.conf, n.ingConfigs)
 }

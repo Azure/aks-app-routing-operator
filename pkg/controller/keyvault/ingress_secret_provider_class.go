@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,32 +26,32 @@ import (
 
 type isConsumingFn func(i *netv1.Ingress) (bool, error)
 
-// IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
+// NginxIngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
-type IngressSecretProviderClassReconciler struct {
-	client        client.Client
-	events        record.EventRecorder
-	config        *config.Config
-	isConsumingFn isConsumingFn
+type NginxIngressSecretProviderClassReconciler struct {
+	client     client.Client
+	events     record.EventRecorder
+	config     *config.Config
+	ingConfigs []*manifests.NginxIngressConfig
 }
 
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, isConsumingFn isConsumingFn) error {
+func NewNginxIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&IngressSecretProviderClassReconciler{
-			client:        manager.GetClient(),
-			events:        manager.GetEventRecorderFor("aks-app-routing-operator"),
-			config:        conf,
-			isConsumingFn: isConsumingFn,
+		Complete(&NginxIngressSecretProviderClassReconciler{
+			client:     manager.GetClient(),
+			events:     manager.GetEventRecorderFor("aks-app-routing-operator"),
+			config:     conf,
+			ingConfigs: ingConfigs,
 		})
 }
 
-func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (i *NginxIngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -106,16 +107,18 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	return ctrl.Result{}, i.client.Delete(ctx, spc)
 }
 
-func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
+func (i *NginxIngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
 	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
 		return false, nil
 	}
 
-	consuming, err := i.isConsumingFn(ing)
-	if err != nil {
-		return false, err
+	managed := false
+	for _, ingConfig := range i.ingConfigs {
+		if ingConfig.ControllerClass == *ing.Spec.IngressClassName {
+			managed = true
+		}
 	}
-	if !consuming {
+	if !managed {
 		return false, nil
 	}
 

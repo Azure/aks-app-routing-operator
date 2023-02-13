@@ -6,6 +6,7 @@ package osm
 import (
 	"context"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -21,19 +22,19 @@ import (
 // IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "kubernetes.azure.com/use-osm-mtls=true".
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
-	client         client.Client
-	config         *config.Config
-	controllerName string
+	client     client.Client
+	config     *config.Config
+	ingConfigs []*manifests.NginxIngressConfig
 }
 
-func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, controllerName string) error {
+func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
 	if conf.DisableOSM {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, controllerName: controllerName})
+		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingConfigs: ingConfigs})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -71,7 +72,14 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		},
 	}
 
-	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" {
+	var controllerName string
+	for _, ingConfig := range i.ingConfigs {
+		if ingConfig.ControllerClass == *ing.Spec.IngressClassName {
+			controllerName = ingConfig.ResourceName
+		}
+	}
+
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || controllerName == "" {
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -87,7 +95,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		Sources: []policyv1alpha1.IngressSourceSpec{
 			{
 				Kind:      "Service",
-				Name:      i.controllerName,
+				Name:      controllerName,
 				Namespace: i.config.NS,
 			},
 			{

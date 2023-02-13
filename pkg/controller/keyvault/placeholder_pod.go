@@ -25,24 +25,24 @@ import (
 )
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
-// Keyvault secrets referenced by each secret provider class managed by IngressSecretProviderClassReconciler.
+// Keyvault secrets referenced by each secret provider class managed by NginxIngressSecretProviderClassReconciler.
 //
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
-	client        client.Client
-	config        *config.Config
-	isConsumingFn isConsumingFn
+	client     client.Client
+	config     *config.Config
+	ingConfigs []*manifests.NginxIngressConfig
 }
 
-func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, isConsumingFn isConsumingFn) error {
+func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, isConsumingFn: isConsumingFn})
+		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingConfigs: ingConfigs})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -91,11 +91,14 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{}, err
 		}
 	}
-	consuming, err := p.isConsumingFn(ing)
-	if err != nil {
-		return ctrl.Result{}, err
+
+	managed := false
+	for _, ingConfig := range p.ingConfigs {
+		if ingConfig.ControllerClass == *ing.Spec.IngressClassName {
+			managed = true
+		}
 	}
-	if ing.Name == "" || ing.Spec.IngressClassName == nil || !consuming {
+	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		if err := p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return ctrl.Result{}, err
 		}

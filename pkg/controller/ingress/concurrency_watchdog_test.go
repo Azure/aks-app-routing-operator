@@ -261,7 +261,7 @@ func buildTestPods(n int) *corev1.PodList {
 	return list
 }
 
-func countVotes(c *ConcurrencyWatchdog, pod string) int {
+func countVotes(c *NginxConcurrencyWatchdog, pod string) int {
 	var n int
 	c.votes.Do(func(obj interface{}) {
 		vote, ok := obj.(*evictionVote)
@@ -272,8 +272,8 @@ func countVotes(c *ConcurrencyWatchdog, pod string) int {
 	return n
 }
 
-func newTestConcurrencyWatchdog() *ConcurrencyWatchdog {
-	return &ConcurrencyWatchdog{
+func newTestConcurrencyWatchdog() *NginxConcurrencyWatchdog {
+	return &NginxConcurrencyWatchdog{
 		config:                      &config.Config{},
 		logger:                      logr.Discard(),
 		minPodAge:                   time.Minute,
