@@ -27,7 +27,7 @@ var (
 )
 
 type testConfig struct {
-	TestNamservers            []string
+	TestNameservers           []string
 	Kubeconfig                string
 	CertID, CertVersionlessID string
 	DNSZoneDomain             string
@@ -76,7 +76,7 @@ func TestBasicService(t *testing.T) {
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 	tc.WithResources(
-		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
 		fixtures.NewGoDeployment(t, "server"),
 		fixtures.NewService("server", hostname, conf.CertID, 8080))
 }
@@ -87,7 +87,7 @@ func TestBasicServiceVersionlessCert(t *testing.T) {
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 	tc.WithResources(
-		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
 		fixtures.NewGoDeployment(t, "server"),
 		fixtures.NewService("server", hostname, conf.CertVersionlessID, 8080))
 }
@@ -105,6 +105,6 @@ func TestBasicServiceNoOSM(t *testing.T) {
 	svr.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 
 	tc.WithResources(
-		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
 		svr, svc)
 }

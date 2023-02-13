@@ -327,7 +327,7 @@ resource "local_sensitive_file" "kubeconfig" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    TestNamservers    = azurerm_dns_zone.dnszone[0].name_servers
+    TestNameservers    = azurerm_dns_zone.dnszone[0].name_servers
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
@@ -344,7 +344,7 @@ resource "local_file" "registryconf" {
 
 resource "local_file" "e2econfprivatedns" {
   content = jsonencode({
-    TestNamservers    = [azurerm_kubernetes_cluster.cluster-private[0].network_profile[0].dns_service_ip]
+    TestNameservers    = [azurerm_kubernetes_cluster.cluster-private[0].network_profile[0].dns_service_ip]
     Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
