@@ -46,10 +46,6 @@ func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConf
 	}
 	objs := []client.Object{ing}
 
-	if conf.NS != "kube-system" {
-		objs = append(objs, namespace(conf))
-	}
-
 	owners := getOwnerRefs(self)
 	for _, obj := range objs {
 		obj.SetOwnerReferences(owners)
