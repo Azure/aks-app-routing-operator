@@ -44,7 +44,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			MSIClientID: "test-msi-client-id",
 		},
 		ingConfigs: []*manifests.NginxIngressConfig{
-			{ControllerClass: ingressClass},
+			{IcName: ingressClass},
 		},
 	}
 
@@ -136,7 +136,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 		},
 		events: recorder,
 		ingConfigs: []*manifests.NginxIngressConfig{
-			{ControllerClass: ingressClass},
+			{IcName: ingressClass},
 		},
 	}
 
@@ -154,7 +154,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	ingressClass := "webapprouting.kubernetes.azure.com"
 
 	i := &IngressSecretProviderClassReconciler{
-		ingConfigs: []*manifests.NginxIngressConfig{{ControllerClass: ingressClass}},
+		ingConfigs: []*manifests.NginxIngressConfig{{IcName: ingressClass}},
 	}
 
 	ing := &netv1.Ingress{}

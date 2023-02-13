@@ -47,7 +47,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	p := &PlaceholderPodController{
 		client:     c,
 		config:     &config.Config{Registry: "test-registry"},
-		ingConfigs: []*manifests.NginxIngressConfig{{ControllerClass: ingressClass}},
+		ingConfigs: []*manifests.NginxIngressConfig{{IcName: ingressClass}},
 	}
 
 	ctx := context.Background()
