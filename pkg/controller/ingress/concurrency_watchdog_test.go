@@ -31,6 +31,12 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
+var testIngConf = &manifests.NginxIngressConfig{
+	ControllerClass: "test-controller-class",
+	ResourceName:    "test-resource-name",
+	IcName:          "test-ic-name",
+}
+
 func TestConcurrencyWatchdogPositive(t *testing.T) {
 	ctx := context.Background()
 	list := buildTestPods(5)
@@ -248,7 +254,7 @@ func buildTestPods(n int) *corev1.PodList {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              fmt.Sprintf("pod-%d", i),
 				CreationTimestamp: metav1.NewTime(time.Now().Add(-time.Hour)),
-				Labels:            manifests.nginxIngressPodLabels,
+				Labels:            testIngConf.PodLabels(),
 			},
 			Status: corev1.PodStatus{
 				Conditions: []corev1.PodCondition{{
@@ -281,5 +287,6 @@ func newTestConcurrencyWatchdog() *NginxConcurrencyWatchdog {
 		minVotesBeforeEviction:      2,
 		minPercentOverAvgBeforeVote: 200,
 		votes:                       ring.New(20),
+		ingConfigs:                  []*manifests.NginxIngressConfig{testIngConf},
 	}
 }
