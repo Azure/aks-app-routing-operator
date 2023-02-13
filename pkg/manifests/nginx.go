@@ -29,7 +29,7 @@ type NginxIngressConfig struct {
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
-	return map[string]string{"app": n.IcName}
+	return map[string]string{"app": n.ResourceName}
 }
 
 // NginxIngressClass returns an IngressClass for the provided configuration

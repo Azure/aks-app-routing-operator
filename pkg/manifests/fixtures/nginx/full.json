@@ -203,7 +203,7 @@
           }
         ],
         "selector": {
-          "app": "webapprouting.kubernetes.azure.com"
+          "app": "nginx"
         },
         "type": "LoadBalancer",
         "externalTrafficPolicy": "Local"
@@ -234,14 +234,14 @@
       "spec": {
         "selector": {
           "matchLabels": {
-            "app": "webapprouting.kubernetes.azure.com"
+            "app": "nginx"
           }
         },
         "template": {
           "metadata": {
             "creationTimestamp": null,
             "labels": {
-              "app": "webapprouting.kubernetes.azure.com"
+              "app": "nginx"
             },
             "annotations": {
               "openservicemesh.io/sidecar-injection": "enabled"
@@ -423,7 +423,7 @@
       "spec": {
         "selector": {
           "matchLabels": {
-            "app": "webapprouting.kubernetes.azure.com"
+            "app": "nginx"
           }
         },
         "maxUnavailable": 1
