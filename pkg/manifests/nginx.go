@@ -23,29 +23,39 @@ import (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	controllerClass string            // controller class which is equivalent to controller field of IngressClass
-	resourceName    string            // name given to all resources
-	icName          string            // IngressClass name
-	podLabels       map[string]string // pod labels given to resources
+	ControllerClass string // controller class which is equivalent to controller field of IngressClass
+	ResourceName    string // name given to all resources
+	IcName          string // IngressClass name
+}
+
+func (n *NginxIngressConfig) PodLabels() map[string]string {
+	return map[string]string{"app": n.IcName}
 }
 
 // NginxIngressClass returns an IngressClass for the provided configuration
-func NginxIngressClass(self *appsv1.Deployment, ingressConfig *NginxIngressConfig) *netv1.IngressClass {
+func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
 	ing := &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressClass",
 			APIVersion: "networking.k8s.io/v1",
 		},
-		ObjectMeta: metav1.ObjectMeta{Name: ingressConfig.icName},
+		ObjectMeta: metav1.ObjectMeta{Name: ingressConfig.IcName},
 		Spec: netv1.IngressClassSpec{
-			Controller: ingressConfig.controllerClass,
+			Controller: ingressConfig.ControllerClass,
 		},
+	}
+	objs := []client.Object{ing}
+
+	if conf.NS != "kube-system" {
+		objs = append(objs, newNamespace(conf))
 	}
 
 	owners := getOwnerRefs(self)
-	ing.SetOwnerReferences(owners)
+	for _, obj := range objs {
+		obj.SetOwnerReferences(owners)
+	}
 
-	return ing
+	return objs
 }
 
 // NginxIngressControllerResources returns Kubernetes objects required for the controller
@@ -83,7 +93,7 @@ func newNginxIngressControllerServiceAccount(conf *config.Config, ingressConfig 
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
@@ -97,7 +107,7 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   ingressConfig.resourceName,
+			Name:   ingressConfig.ResourceName,
 			Labels: topLevelLabels,
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -142,17 +152,17 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   ingressConfig.resourceName,
+			Name:   ingressConfig.ResourceName,
 			Labels: topLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     ingressConfig.resourceName,
+			Name:     ingressConfig.ResourceName,
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 		}},
 	}
@@ -165,14 +175,14 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
 			Type:                  corev1.ServiceTypeLoadBalancer,
-			Selector:              ingressConfig.podLabels,
+			Selector:              ingressConfig.PodLabels(),
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
@@ -200,30 +210,30 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: ingressConfig.podLabels},
+			Selector:             &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      ingressConfig.podLabels,
+					Labels:      ingressConfig.PodLabels(),
 					Annotations: podAnnotations,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
-					ServiceAccountName: ingressConfig.resourceName,
+					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"),
 						Args: []string{
 							"/nginx-ingress-controller",
-							"--ingress-class=" + ingressConfig.icName,
-							"--controller-class=" + ingressConfig.controllerClass,
-							"--election-id=" + ingressConfig.controllerClass,
-							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.resourceName,
-							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.resourceName,
+							"--ingress-class=" + ingressConfig.IcName,
+							"--controller-class=" + ingressConfig.ControllerClass,
+							"--election-id=" + ingressConfig.ControllerClass,
+							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 							"--http-port=8080",
 							"--https-port=8443",
 						},
@@ -264,7 +274,7 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
@@ -285,12 +295,12 @@ func newNginxIngressControllerPDB(conf *config.Config, ingressConfig *NginxIngre
 			APIVersion: "policy/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
-			Selector:       &metav1.LabelSelector{MatchLabels: ingressConfig.podLabels},
+			Selector:       &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
 			MaxUnavailable: &maxUnavailable,
 		},
 	}
@@ -303,7 +313,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			APIVersion: "autoscaling/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.resourceName,
+			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
@@ -311,7 +321,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			ScaleTargetRef: autov1.CrossVersionObjectReference{
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
-				Name:       ingressConfig.resourceName,
+				Name:       ingressConfig.ResourceName,
 			},
 			MinReplicas:                    util.Int32Ptr(2),
 			MaxReplicas:                    100,

@@ -7,6 +7,6 @@ import (
 )
 
 // NewIngressClassReconciler creates a reconciler that manages ingress class resources
-func NewIngressClassReconciler(manager ctrl.Manager, resources []client.Object) error {
-	return common.NewResourceReconciler(manager, "ingressClassReconciler", resources, reconcileInterval)
+func NewIngressClassReconciler(manager ctrl.Manager, resources []client.Object, name string) error {
+	return common.NewResourceReconciler(manager, name+"IngressClassReconciler", resources, reconcileInterval)
 }

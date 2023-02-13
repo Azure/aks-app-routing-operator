@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const reconcileInterval = time.Minute * 2
+const reconcileInterval = time.Minute * 3
 
 // NewExternalDnsReconciler creates a reconciler that manages external dns resources
 func NewExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) error {

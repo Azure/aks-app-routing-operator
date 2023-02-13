@@ -18,20 +18,25 @@ import (
 
 const externalDNSName = "external-dns"
 
+// ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
 	resourceName                          string
 	tenantId, subscription, resourceGroup string
 }
 
-func NewExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfig *ExternalDnsConfig) []client.Object {
-	objs := []client.Object{}
+// ExternalDnsResources returns Kubernetes objects required for external dns
+func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfig *ExternalDnsConfig) []client.Object {
+	objs := []client.Object{
+		newExternalDNSServiceAccount(conf, externalDnsConfig),
+		newExternalDNSClusterRole(conf, externalDnsConfig),
+		newExternalDNSClusterRoleBinding(conf, externalDnsConfig),
+	}
 
 	if conf.NS != "kube-system" {
 		objs = append(objs, newNamespace(conf))
 	}
 
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
-	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
 	objs = append(objs, dnsCm)
 	objs = append(objs, newExternalDNSDeployment(conf, dnsCmHash, externalDnsConfig))
 
@@ -84,6 +89,29 @@ func newExternalDNSClusterRole(conf *config.Config, dnsConfig *ExternalDnsConfig
 				Verbs:     []string{"get", "watch", "list"},
 			},
 		},
+	}
+}
+
+func newExternalDNSClusterRoleBinding(conf *config.Config, dnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
+	return &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterRoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   dnsConfig.resourceName,
+			Labels: topLevelLabels,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     dnsConfig.resourceName,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      dnsConfig.resourceName,
+			Namespace: conf.NS,
+		}},
 	}
 }
 
@@ -173,7 +201,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string, externa
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: externalDNSName,
+									Name: externalDnsConfig.resourceName,
 								},
 							},
 						},

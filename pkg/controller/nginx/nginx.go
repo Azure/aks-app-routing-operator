@@ -1,46 +1,33 @@
 package nginx
 
 import (
-	"context"
-	"errors"
-	"fmt"
-
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	netv1 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 type nginx struct {
-	manager          manager.Manager
-	ingClassInformer informer.IngressClass
-	conf             *config.Config
-	self             *appsv1.Deployment
-	ingConfigs       []*manifests.NginxIngressConfig
+	name       string
+	manager    manager.Manager
+	conf       *config.Config
+	self       *appsv1.Deployment
+	ingConfigs []*manifests.NginxIngressConfig
 }
 
-// New adds all resources required for Nginx to the manager
-func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingClassInformer informer.IngressClass, ingConfigs []*manifests.NginxIngressConfig) error {
-	if ingClassInformer == nil {
-		return errors.New("ingressClassInformer is nil")
-	}
-
+// New starts all resources required for Nginx ingresses
+func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingConfigs []*manifests.NginxIngressConfig) error {
 	n := &nginx{
-		manager:          m,
-		conf:             conf,
-		self:             self,
-		ingClassInformer: ingClassInformer,
-		ingConfigs:       ingConfigs,
+		name:       "nginx",
+		manager:    m,
+		conf:       conf,
+		self:       self,
+		ingConfigs: ingConfigs,
 	}
 
 	if err := n.addIngressClassReconciler(); err != nil {
@@ -73,14 +60,19 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment, ingCla
 func (n *nginx) addIngressClassReconciler() error {
 	objs := []client.Object{}
 	for _, config := range n.ingConfigs {
-		objs = append(objs, manifests.NginxIngressClass(n.self, config))
+		objs = append(objs, manifests.NginxIngressClass(n.conf, n.self, config)...)
 	}
 
-	return ingress.NewIngressClassReconciler(n.manager, objs)
+	return ingress.NewIngressClassReconciler(n.manager, objs, n.name)
 }
 
 func (n *nginx) addIngressControllerReconciler() error {
-	return ingress.NewIngressControllerReconciler(n.manager, n.ingClassInformer, n.provisionFn())
+	objs := []client.Object{}
+	for _, config := range n.ingConfigs {
+		objs = append(objs, manifests.NginxIngressControllerResources(n.conf, n.self, config)...)
+	}
+
+	return ingress.NewIngressControllerReconciler(n.manager, objs, n.name)
 }
 
 func (n *nginx) addConcurrencyWatchdog() error {
@@ -102,73 +94,4 @@ func (n *nginx) addIngressReconciler() error {
 
 func (n *nginx) addIngressBackendReconciler() error {
 	return osm.NewIngressBackendReconciler(n.manager, n.conf, n.controllerName)
-}
-
-func (n *nginx) consumingIcs() ([]*netv1.IngressClass, error) {
-	ics, err := n.ingClassInformer.ByController(n.controllerClass)
-	if err != nil {
-		return nil, err
-	}
-
-	validIcs := make([]*netv1.IngressClass, 0)
-	for _, ic := range ics {
-		if ic.GetDeletionTimestamp() == nil {
-			validIcs = append(validIcs, ic)
-		}
-	}
-
-	return validIcs, nil
-}
-
-func (n *nginx) isConsuming(i *netv1.Ingress) (bool, error) {
-	consumingIcs, err := n.consumingIcs()
-	if err != nil {
-		return false, err
-	}
-
-	for _, ic := range consumingIcs {
-		if ic.Name == *i.Spec.IngressClassName {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func (n *nginx) provisionFn() ingress.ProvisionFn {
-	return func(ctx context.Context, c client.Client) error {
-		log := logr.FromContextOrDiscard(ctx)
-
-		ics, err := n.consumingIcs()
-		if err != nil {
-			return err
-		}
-
-		if len(ics) == 0 {
-			log.Info(fmt.Sprintf("no ingressClasses consuming %s controller found", n.controllerClass))
-			return nil
-		}
-
-		if len(ics) > 1 {
-			return errors.New(fmt.Sprintf("multiple ingressClasses consuming %s controller found when max of one is allowed", n.controllerClass))
-		}
-
-		ic := ics[0]
-		resources := manifests.NginxIngressControllerResources(n.conf, n.self, ic, n.controllerClass, n.controllerName, n.controllerPodLabels)
-		for _, res := range resources {
-			copy := res.DeepCopyObject().(client.Object)
-			if copy.GetDeletionTimestamp() != nil {
-				if err := c.Delete(ctx, copy); err != nil && !k8serrors.IsNotFound(err) {
-					log.Error(err, "deleting unneeded resources")
-				}
-				continue
-			}
-
-			if err := util.Upsert(ctx, c, copy); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
 }

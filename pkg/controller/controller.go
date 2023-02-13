@@ -7,8 +7,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/informer"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,13 +25,16 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
-const (
-	NginxControllerClass = "webapprouting.kubernetes.azure.com/nginx"
-	NginxControllerName  = "nginx"
-)
-
 func init() {
 	ctrl.SetLogger(klogr.New())
+}
+
+var ingConfigs = []*manifests.NginxIngressConfig{
+	{
+		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
+		ResourceName:    "nginx",
+		IcName:          "webapprouting.kubernetes.azure.com",
+	},
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
@@ -72,16 +75,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 	m.GetLogger().V(2).Info("using namespace: " + conf.NS)
 
-	factory, err := informer.NewFactory(m)
-	if err != nil {
-		return nil, err
-	}
-	ingressClassInformer, err := informer.NewIngressClass(factory)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := nginx.New(m, conf, deploy, ingressClassInformer, NginxControllerClass, NginxControllerName); err != nil {
+	if err := nginx.New(m, conf, deploy, ingConfigs); err != nil {
 		return nil, err
 	}
 
