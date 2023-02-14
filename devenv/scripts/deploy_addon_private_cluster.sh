@@ -1,10 +1,10 @@
 # Load variables from tfstate
-export CLUSTER_CLIENT_ID=$(cat terraform.tfstate | jq '.resources[] | select((.name=="clusteridentity") and .type=="azurerm_user_assigned_identity") | .instances[] | .attributes.client_id')
-export ARM_CLIENT_TENANT_ID=$(cat terraform.tfstate | jq '.resources[] | select((.name=="current") and .type=="azurerm_client_config") | .instances[] | .attributes.tenant_id')
-export RG_LOCATION=$(cat terraform.tfstate | jq '.resources[] | select((.type=="azurerm_resource_group") and .name=="rg") | .instances[] | .attributes.location')
-export DNS_ZONE_RG=$(cat terraform.tfstate | jq '.resources[] | select((.type=="azurerm_private_dns_zone") and .name=="dnszone") | .instances[] | .attributes.resource_group_name')
-export DNS_ZONE_SUBSCRIPTION=$(cat terraform.tfstate | jq '.resources[] | select((.type=="azurerm_subscription") and .name=="current") | .instances[] | .attributes.subscription_id')
-export DNS_ZONE_DOMAIN=$(cat terraform.tfstate | jq '.resources[] | select((.type=="azurerm_private_dns_zone") and .name=="dnszone") | .instances[] | .attributes.name')
+export CLUSTER_CLIENT_ID=$(cat state/deployment-auth-info.json | jq '.ClusterClientId' | tr -d '"')
+export ARM_CLIENT_TENANT_ID=$(cat state/deployment-auth-info.json | jq '.ArmTenantId' | tr -d '"')
+export RG_LOCATION=$(cat state/deployment-auth-info.json | jq '.ResourceGroupLocation' | tr -d '"')
+export DNS_ZONE_RG=$(cat state/deployment-auth-info.json | jq '.DnsResourceGroup' | tr -d '"')
+export DNS_ZONE_SUBSCRIPTION=$(cat state/deployment-auth-info.json | jq '.DnsZoneSubscription' | tr -d '"')
+export DNS_ZONE_DOMAIN=$(cat state/deployment-auth-info.json | jq '.DnsZoneDomain' | tr -d '"')
 
 # Put into filename that starts with terraform
 envsubst < private-cluster.yaml > state/terraform-formatted.yaml

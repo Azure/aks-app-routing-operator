@@ -76,7 +76,7 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 		newIngressControllerServiceAccount(conf),
 		newIngressControllerClusterRole(conf),
 		newIngressControllerClusterRoleBinding(conf),
-		getIngressControllerService(conf),
+		newIngressControllerService(conf),
 		newIngressControllerDeployment(conf),
 		newIngressControllerConfigmap(conf),
 		newIngressControllerPDB(conf),
@@ -86,7 +86,7 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 	if conf.DNSZoneDomain != "" {
 		dnsCM, dnsCMHash := newExternalDNSConfigMap(conf)
 		objs = append(objs, dnsCM,
-			getExternalDNSDeployment(conf, dnsCMHash))
+			newExternalDNSDeployment(conf, dnsCMHash))
 	}
 
 	owners := getOwnerRefs(self)
@@ -95,24 +95,6 @@ func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []
 	}
 
 	return objs
-}
-
-func getExternalDNSDeployment(conf *config.Config, dnsCMHash string) *appsv1.Deployment {
-	deploymentObj := newExternalDNSDeployment(conf, dnsCMHash)
-
-	if conf.DNSZonePrivate {
-		modifiedArgs := []string{
-			fmt.Sprintf("--provider=%s", azurePrivateDNSProvider),
-			fmt.Sprintf("--source=%s", ingressSource),
-			fmt.Sprintf("--azure-subscription-id=%s", conf.DNSZoneSub),
-			fmt.Sprintf("--txt-owner-id=%s", conf.DNSRecordID),
-			fmt.Sprintf("--domain-filter=%s", conf.DNSZoneDomain),
-			"--interval=3m0s",
-		}
-
-		deploymentObj.Spec.Template.Spec.Containers[0].Args = modifiedArgs
-	}
-	return deploymentObj
 }
 
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
@@ -240,29 +222,17 @@ func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.Cluster
 	}
 }
 
-func getIngressControllerService(conf *config.Config) *corev1.Service {
-	serviceObj := newIngressControllerService(conf)
-	if conf.DNSZoneDomain != "" && conf.DNSZonePrivate {
-		annotations := map[string]string{
-			"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
-			"external-dns.alpha.kubernetes.io/hostname":               fmt.Sprintf("loadbalancer.%s", conf.DNSZoneDomain),
-			"external-dns.alpha.kubernetes.io/internal-hostname":      fmt.Sprintf("clusterip.%s", conf.DNSZoneDomain),
-		}
-		serviceObj.ObjectMeta.Annotations = annotations
-	}
-	return serviceObj
-}
-
 func newIngressControllerService(conf *config.Config) *corev1.Service {
-	return &corev1.Service{
+	serviceObj := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceKind,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      IngressControllerName,
-			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Name:        IngressControllerName,
+			Namespace:   conf.NS,
+			Labels:      topLevelLabels,
+			Annotations: map[string]string{},
 		},
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
@@ -282,6 +252,13 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 			},
 		},
 	}
+	if conf.DNSZoneDomain != "" && conf.DNSZonePrivate {
+		serviceObj.ObjectMeta.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true"
+		serviceObj.ObjectMeta.Annotations["external-dns.alpha.kubernetes.io/hostname"] = fmt.Sprintf("loadbalancer.%s", conf.DNSZoneDomain)
+		serviceObj.ObjectMeta.Annotations["external-dns.alpha.kubernetes.io/internal-hostname"] = fmt.Sprintf("clusterip.%s", conf.DNSZoneDomain)
+	}
+
+	return serviceObj
 }
 
 func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
@@ -434,7 +411,7 @@ func newExternalDNSConfigMap(conf *config.Config) (*corev1.ConfigMap, string) {
 
 func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1.Deployment {
 	replicas := int32(1)
-	return &appsv1.Deployment{
+	deploymentObj := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       deploymentKind,
 			APIVersion: "apps/v1",
@@ -497,6 +474,19 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 			},
 		},
 	}
+	if conf.DNSZonePrivate {
+		modifiedArgs := []string{
+			fmt.Sprintf("--provider=%s", azurePrivateDNSProvider),
+			fmt.Sprintf("--source=%s", ingressSource),
+			fmt.Sprintf("--azure-subscription-id=%s", conf.DNSZoneSub),
+			fmt.Sprintf("--txt-owner-id=%s", conf.DNSRecordID),
+			fmt.Sprintf("--domain-filter=%s", conf.DNSZoneDomain),
+			"--interval=3m0s",
+		}
+
+		deploymentObj.Spec.Template.Spec.Containers[0].Args = modifiedArgs
+	}
+	return deploymentObj
 }
 
 func withPodRefEnvVars(contain *corev1.Container) *corev1.Container {

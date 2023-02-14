@@ -126,19 +126,22 @@ resource "azurerm_key_vault" "keyvault" {
   purge_protection_enabled = false
   sku_name                 = "standard"
 
-  access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
+}
 
-    certificate_permissions = [
-      "Get",
-      "List",
-      "Update",
-      "Create",
-      "Delete",
-      "Import",
-    ]
-  }
+resource "azurerm_key_vault_access_policy" "allowtesteraccess" {
+  key_vault_id = azurerm_key_vault.keyvault.id
+  tenant_id = data.azurerm_client_config.current.tenant_id
+  object_id = data.azurerm_client_config.current.object_id
+
+  certificate_permissions = [
+    "Get",
+    "List",
+    "Update",
+    "Create",
+    "Delete",
+    "Import",
+  ]
+
 }
 
 resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
@@ -158,6 +161,7 @@ resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
 resource "azurerm_key_vault_certificate" "testcert" {
   name         = "generated-cert"
   key_vault_id = azurerm_key_vault.keyvault.id
+  depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
 
   certificate_policy {
     issuer_parameters {
@@ -337,11 +341,6 @@ resource "local_file" "e2econf" {
   count = var.private-dns ? 0 : 1
 }
 
-resource "local_file" "registryconf" {
-  content  = azurerm_container_registry.acr.login_server
-  filename = "${path.module}/state/registry.txt"
-}
-
 resource "local_file" "e2econfprivatedns" {
   content = jsonencode({
     TestNameservers    = [azurerm_kubernetes_cluster.cluster-private[0].network_profile[0].dns_service_ip]
@@ -354,11 +353,28 @@ resource "local_file" "e2econfprivatedns" {
   count = var.private-dns ? 1 : 0
 }
 
-resource "local_file" "private_cluster_info" {
+resource "local_file" "registryconf" {
+  content  = azurerm_container_registry.acr.login_server
+  filename = "${path.module}/state/registry.txt"
+}
+
+resource "local_file" "cluster_info" {
   content = jsonencode({
-    ClusterName = azurerm_kubernetes_cluster.cluster-private[0].name
-    ClusterResourceGroup = azurerm_kubernetes_cluster.cluster-private[0].resource_group_name
+    ClusterName = var.private-dns ? azurerm_kubernetes_cluster.cluster-private[0].name : azurerm_kubernetes_cluster.cluster[0].name
+    ClusterResourceGroup = var.private-dns ? azurerm_kubernetes_cluster.cluster-private[0].resource_group_name : azurerm_kubernetes_cluster.cluster[0].resource_group_name
   })
   filename = "${path.module}/state/cluster-info.json"
+}
+
+resource "local_file" "private_cluster_addon_deployment_auth_info"{
+  content = jsonencode({
+    ClusterClientId = data.azurerm_user_assigned_identity.clusteridentity.client_id
+    ArmTenantId = data.azurerm_client_config.current.tenant_id
+    ResourceGroupLocation = azurerm_resource_group.rg.location
+    DnsResourceGroup = azurerm_private_dns_zone.dnszone[0].resource_group_name
+    DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
+    DnsZoneDomain = azurerm_private_dns_zone.dnszone[0].name
+  })
+  filename = "${path.module}/state/deployment-auth-info.json"
   count = var.private-dns ? 1 : 0
 }

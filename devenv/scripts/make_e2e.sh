@@ -1,2 +1,2 @@
 #!/bin/sh
-make e2e
+make run-e2e

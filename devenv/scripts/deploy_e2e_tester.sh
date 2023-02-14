@@ -1,10 +1,6 @@
 CLUSTER_RESOURCE_GROUP=$(cat state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
 CLUSTER_NAME=$(cat state/cluster-info.json | jq '.ClusterName' | tr -d '"')
 
-# get image tag for tester deployment
-export IMAGE=$(cat state/e2e-image-tag.txt)
-envsubst < e2e-tester.yaml > state/e2e-tester-formatted.yaml
-
 echo "deleting any existing e2e job..."
 az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl delete jobs app-routing-operator-e2e -n kube-system"
 
