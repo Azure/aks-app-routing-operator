@@ -4,18 +4,12 @@
 package manifests
 
 import (
-	"encoding/json"
-	"os"
 	"path"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const genFixturesEnv = "GENERATE_FIXTURES"
@@ -137,19 +131,4 @@ func TestIngressClassResources(t *testing.T) {
 		fixture := path.Join("fixtures", "nginx", tc.Name) + "-ingressclass.json"
 		AssertFixture(t, fixture, objs)
 	}
-}
-
-// AssertFixture checks the fixture path and compares it to the provided objects, failing if they are not equal
-func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
-	actual, err := json.MarshalIndent(&objs, "  ", "  ")
-	require.NoError(t, err)
-
-	if os.Getenv(genFixturesEnv) != "" {
-		err = os.WriteFile(fixturePath, actual, 0644)
-		require.NoError(t, err)
-	}
-
-	expected, err := os.ReadFile(fixturePath)
-	require.NoError(t, err)
-	assert.JSONEq(t, string(expected), string(actual))
 }
