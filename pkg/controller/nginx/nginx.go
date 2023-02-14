@@ -63,6 +63,10 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) error 
 		return err
 	}
 
+	if err := n.addIngressBackendReconciler(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

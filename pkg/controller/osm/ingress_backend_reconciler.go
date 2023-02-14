@@ -78,6 +78,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			controllerName = ingConfig.ResourceName
 		}
 	}
+	logger = logger.WithValues("controller")
 
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || controllerName == "" {
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
