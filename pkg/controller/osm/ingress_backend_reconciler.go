@@ -26,6 +26,7 @@ type IngressBackendReconciler struct {
 	ingressControllerNamers []IngressControllerNamer
 }
 
+// IngressControllerNamer returns the controller name that an Ingress consumes (or a boolean indicating it doesn't consume)
 type IngressControllerNamer interface {
 	IngressControllerName(ing *netv1.Ingress) (string, bool)
 }

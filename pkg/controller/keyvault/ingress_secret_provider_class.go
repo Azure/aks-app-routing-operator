@@ -33,6 +33,7 @@ type IngressSecretProviderClassReconciler struct {
 	managers []IngressManager
 }
 
+// IngressManager returns a boolean indicating whether the Ingress is being managed by us
 type IngressManager interface {
 	IsManaging(ing *netv1.Ingress) bool
 }
