@@ -57,9 +57,9 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	e := &IngressBackendReconciler{
-		client:     c,
-		config:     &config.Config{NS: "test-config-ns"},
-		ingConfigs: []*manifests.NginxIngressConfig{{IcName: *ing.Spec.IngressClassName, ResourceName: "test-name"}},
+		client:                  c,
+		config:                  &config.Config{NS: "test-config-ns"},
+		ingressControllerNamers: []IngressControllerNamer{&manifests.NginxIngressConfig{IcName: *ing.Spec.IngressClassName, ResourceName: "test-name"}},
 	}
 
 	// Initial reconcile

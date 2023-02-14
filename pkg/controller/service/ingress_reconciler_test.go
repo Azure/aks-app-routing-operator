@@ -39,7 +39,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	}}
 
 	c := fake.NewClientBuilder().WithObjects(svc).Build()
-	p := &IngressReconciler{client: c, ingConfig: &manifests.NginxIngressConfig{IcName: icName}}
+	p := &NginxIngressReconciler{client: c, ingConfig: &manifests.NginxIngressConfig{IcName: icName}}
 
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
@@ -145,7 +145,7 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 	}}
 
 	c := fake.NewClientBuilder().WithObjects(svc).Build()
-	p := &IngressReconciler{
+	p := &NginxIngressReconciler{
 		client:    c,
 		ingConfig: &manifests.NginxIngressConfig{IcName: icName},
 	}

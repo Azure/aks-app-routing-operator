@@ -45,9 +45,9 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	p := &PlaceholderPodController{
-		client:     c,
-		config:     &config.Config{Registry: "test-registry"},
-		ingConfigs: []*manifests.NginxIngressConfig{{IcName: ingressClass}},
+		client:   c,
+		config:   &config.Config{Registry: "test-registry"},
+		managers: []IngressManager{&manifests.NginxIngressConfig{IcName: ingressClass}},
 	}
 
 	ctx := context.Background()

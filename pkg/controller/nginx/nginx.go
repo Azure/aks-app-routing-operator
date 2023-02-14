@@ -93,17 +93,32 @@ func (n *nginx) addConcurrencyWatchdog() error {
 }
 
 func (n *nginx) addIngressSecretProviderClassReconciler() error {
-	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, n.ingConfigs)
+	ingressManagers := make([]keyvault.IngressManager, len(n.ingConfigs))
+	for i, ingConfig := range n.ingConfigs {
+		ingressManagers[i] = ingConfig
+	}
+
+	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, ingressManagers)
 }
 
 func (n *nginx) addPlaceholderPodController() error {
-	return keyvault.NewPlaceholderPodController(n.manager, n.conf, n.ingConfigs)
+	ingressManagers := make([]keyvault.IngressManager, len(n.ingConfigs))
+	for i, ingConfig := range n.ingConfigs {
+		ingressManagers[i] = ingConfig
+	}
+
+	return keyvault.NewPlaceholderPodController(n.manager, n.conf, ingressManagers)
 }
 
 func (n *nginx) addIngressReconciler() error {
-	return service.NewIngressReconciler(n.manager, defaultIngConfig)
+	return service.NewNginxIngressReconciler(n.manager, defaultIngConfig)
 }
 
 func (n *nginx) addIngressBackendReconciler() error {
-	return osm.NewIngressBackendReconciler(n.manager, n.conf, n.ingConfigs)
+	ingressControllerNamers := make([]osm.IngressControllerNamer, len(n.ingConfigs))
+	for i, ingConfig := range n.ingConfigs {
+		ingressControllerNamers[i] = ingConfig
+	}
+
+	return osm.NewIngressBackendReconciler(n.manager, n.conf, ingressControllerNamers)
 }

@@ -6,7 +6,6 @@ package osm
 import (
 	"context"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -22,19 +21,23 @@ import (
 // IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "kubernetes.azure.com/use-osm-mtls=true".
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
-	client     client.Client
-	config     *config.Config
-	ingConfigs []*manifests.NginxIngressConfig
+	client                  client.Client
+	config                  *config.Config
+	ingressControllerNamers []IngressControllerNamer
 }
 
-func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
+type IngressControllerNamer interface {
+	IngressControllerName(ing *netv1.Ingress) (string, bool)
+}
+
+func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingressControllerNamers []IngressControllerNamer) error {
 	if conf.DisableOSM {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingConfigs: ingConfigs})
+		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamers: ingressControllerNamers})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -73,9 +76,10 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	var controllerName string
-	for _, ingConfig := range i.ingConfigs {
-		if ing.Spec.IngressClassName != nil && ingConfig.IcName == *ing.Spec.IngressClassName {
-			controllerName = ingConfig.ResourceName
+	for _, controllerNamer := range i.ingressControllerNamers {
+		if cn, ok := controllerNamer.IngressControllerName(ing); ok {
+			controllerName = cn
+			break
 		}
 	}
 	logger = logger.WithValues("controller", controllerName)

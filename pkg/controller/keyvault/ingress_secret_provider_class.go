@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,13 +27,17 @@ import (
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
 type IngressSecretProviderClassReconciler struct {
-	client     client.Client
-	events     record.EventRecorder
-	config     *config.Config
-	ingConfigs []*manifests.NginxIngressConfig
+	client   client.Client
+	events   record.EventRecorder
+	config   *config.Config
+	managers []IngressManager
 }
 
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
+type IngressManager interface {
+	IsManaging(ing *netv1.Ingress) bool
+}
+
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, managers []IngressManager) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -42,10 +45,10 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
 		Complete(&IngressSecretProviderClassReconciler{
-			client:     manager.GetClient(),
-			events:     manager.GetEventRecorderFor("aks-app-routing-operator"),
-			config:     conf,
-			ingConfigs: ingConfigs,
+			client:   manager.GetClient(),
+			events:   manager.GetEventRecorderFor("aks-app-routing-operator"),
+			config:   conf,
+			managers: managers,
 		})
 }
 
@@ -111,8 +114,8 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	}
 
 	managed := false
-	for _, ingConfig := range i.ingConfigs {
-		if ing.Spec.IngressClassName != nil && ingConfig.IcName == *ing.Spec.IngressClassName {
+	for _, manager := range i.managers {
+		if manager.IsManaging(ing) {
 			managed = true
 		}
 	}

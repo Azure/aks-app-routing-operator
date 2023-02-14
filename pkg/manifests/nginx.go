@@ -32,6 +32,31 @@ func (n *NginxIngressConfig) PodLabels() map[string]string {
 	return map[string]string{"app": n.ResourceName}
 }
 
+func (n *NginxIngressConfig) IsManaging(ing *netv1.Ingress) bool {
+	if ing.Spec.IngressClassName == nil {
+		return false
+	}
+
+	if *ing.Spec.IngressClassName != n.IcName {
+		return false
+	}
+
+	return true
+}
+
+// IngressControllerName returns the name of the controller deployment and a boolean indicating if the Ingress consumes that controller
+func (n *NginxIngressConfig) IngressControllerName(ing *netv1.Ingress) (string, bool) {
+	if ing.Spec.IngressClassName == nil {
+		return "", false
+	}
+
+	if *ing.Spec.IngressClassName != n.IcName {
+		return "", false
+	}
+
+	return n.ResourceName, true
+}
+
 // NginxIngressClass returns an IngressClass for the provided configuration
 func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
 	ing := &netv1.IngressClass{

@@ -30,19 +30,19 @@ import (
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
-	client     client.Client
-	config     *config.Config
-	ingConfigs []*manifests.NginxIngressConfig
+	client   client.Client
+	config   *config.Config
+	managers []IngressManager
 }
 
-func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingConfigs []*manifests.NginxIngressConfig) error {
+func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, managers []IngressManager) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingConfigs: ingConfigs})
+		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, managers: managers})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -90,8 +90,8 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	managed := false
-	for _, ingConfig := range p.ingConfigs {
-		if ing.Spec.IngressClassName != nil && ingConfig.IcName == *ing.Spec.IngressClassName {
+	for _, manager := range p.managers {
+		if manager.IsManaging(ing) {
 			managed = true
 		}
 	}
