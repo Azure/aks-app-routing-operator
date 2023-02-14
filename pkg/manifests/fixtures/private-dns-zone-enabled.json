@@ -453,12 +453,12 @@
               "name": "controller",
               "image": "test-registry/oss/kubernetes/external-dns:v0.11.0.2",
               "args": [
-                "--provider=azure-private-dns",
                 "--source=ingress",
-                "--azure-subscription-id=test-dns-zone-sub",
+                "--interval=3m0s",
                 "--txt-owner-id=",
                 "--domain-filter=test-dns-zone-domain",
-                "--interval=3m0s"
+                "--provider=azure-private-dns",
+                "--azure-subscription-id=test-dns-zone-sub"
               ],
               "resources": {
                 "limits": {
