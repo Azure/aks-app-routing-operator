@@ -43,6 +43,7 @@ var (
 
 	externalDNSName         = "external-dns"
 	azurePrivateDNSProvider = "azure-private-dns"
+	azureDNSProvider        = "azure"
 	ingressSource           = "ingress"
 
 	topLevelLabels             = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
@@ -438,7 +439,6 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 						Name:  externalDnsDeploymentName,
 						Image: path.Join(conf.Registry, externalDnsImage),
 						Args: []string{
-							"--provider=azure",
 							"--source=ingress",
 							"--interval=3m0s",
 							"--txt-owner-id=" + conf.DNSRecordID,
@@ -474,18 +474,19 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 			},
 		},
 	}
-	if conf.DNSZonePrivate {
-		modifiedArgs := []string{
-			fmt.Sprintf("--provider=%s", azurePrivateDNSProvider),
-			fmt.Sprintf("--source=%s", ingressSource),
-			fmt.Sprintf("--azure-subscription-id=%s", conf.DNSZoneSub),
-			fmt.Sprintf("--txt-owner-id=%s", conf.DNSRecordID),
-			fmt.Sprintf("--domain-filter=%s", conf.DNSZoneDomain),
-			"--interval=3m0s",
-		}
+	var additionalArgs []string
 
-		deploymentObj.Spec.Template.Spec.Containers[0].Args = modifiedArgs
+	if conf.DNSZonePrivate {
+		additionalArgs = []string{
+			fmt.Sprintf("--provider=%s", azurePrivateDNSProvider),
+			fmt.Sprintf("--azure-subscription-id=%s", conf.DNSZoneSub),
+		}
+	} else {
+		additionalArgs = []string{
+			fmt.Sprintf("--provider=%s", azureDNSProvider),
+		}
 	}
+	deploymentObj.Spec.Template.Spec.Containers[0].Args = append(deploymentObj.Spec.Template.Spec.Containers[0].Args, additionalArgs...)
 	return deploymentObj
 }
 

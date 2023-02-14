@@ -1,15 +1,19 @@
 .PHONY: clean dev dev-private-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
 
-clean:
-	rm -rf devenv/state devenv/.terraform.lock.hcl devenv/.terraform devenv/terraform.tfstate devenv/terraform.tfstate.backup
+# keep separate for simultaneous public/private dev without need for resource recreation
+clean-public:
+	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
+
+clean-private:
+	rm -rf devenv/state devenv/private_cluster_tf/.terraform.lock.hcl devenv/private_cluster_tf/.terraform devenv/private_cluster_tf/terraform.tfstate devenv/private_cluster_tf/terraform.tfstate.backup
 
 dev:
 	terraform --version
-	cd devenv && mkdir -p state && terraform init && terraform apply -auto-approve
+	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
 
 dev-private-cluster:
 	terraform --version
-	cd devenv && mkdir -p state && terraform init && terraform apply -auto-approve -var="private-dns=true"
+	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
 	cd devenv && /usr/bin/env sh scripts/deploy_addon_private_cluster.sh
 
 # aka make push (formerly known as make push-private)
