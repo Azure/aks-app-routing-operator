@@ -102,7 +102,6 @@ func (n *nginx) addPlaceholderPodController() error {
 
 func (n *nginx) addIngressReconciler() error {
 	return service.NewIngressReconciler(n.manager, defaultIngConfig)
-
 }
 
 func (n *nginx) addIngressBackendReconciler() error {

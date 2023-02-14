@@ -19,7 +19,7 @@ type resourceReconciler struct {
 	resources               []client.Object
 }
 
-// NewResourceReconciler creates a runnable that continuously ensures that the provided resources are provisioned
+// NewResourceReconciler creates a reconciler that continuously ensures that the provided resources are provisioned
 func NewResourceReconciler(manager ctrl.Manager, name string, resources []client.Object, reconcileInterval time.Duration) error {
 	rr := &resourceReconciler{
 		name:          name,
