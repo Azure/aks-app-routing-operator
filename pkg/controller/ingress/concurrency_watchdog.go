@@ -65,7 +65,7 @@ func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 	return 0, fmt.Errorf("active connections metric not found")
 }
 
-// LabelGetter returns unique pod labels that reference this something
+// LabelGetter returns unique pod labels for an Ingress controller
 type LabelGetter interface {
 	PodLabels() map[string]string
 }
