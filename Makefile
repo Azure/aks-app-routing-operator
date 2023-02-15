@@ -1,4 +1,4 @@
-.PHONY: clean dev dev-private-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
+.PHONY: clean dev-public-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
 
 
 # keep separate for simultaneous public/private dev without need for resource recreation
@@ -29,6 +29,6 @@ push-tester-image:
 deploy-e2e: push-tester-image
 	cd devenv && /usr/bin/env sh scripts/deploy_e2e_tester.sh
 
-# to be run by e2e job for private cluster
+# to be run by e2e job inside the cluster
 run-e2e:
 	go test -v --count=1 --tags=e2e ./e2e
