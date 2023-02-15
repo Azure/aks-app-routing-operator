@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -71,11 +72,41 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	if err := nginx.New(m, conf, deploy); err != nil {
+	nginxConfigs, err := nginx.New(m, conf, deploy)
+	if err != nil {
 		return nil, err
 	}
 
+	watchdogTargets := make([]*ingress.WatchdogTarget, 0)
+	for _, nginxConfig := range nginxConfigs {
+		watchdogTargets = append(watchdogTargets, &ingress.WatchdogTarget{
+			ScrapeFn:    ingress.NginxScrapeFn,
+			LabelGetter: nginxConfig,
+		})
+	}
+	if err := ingress.NewConcurrencyWatchdog(m, conf, watchdogTargets); err != nil {
+		return nil, err
+	}
+
+	ingressManagers := make([]keyvault.IngressManager, 0)
+	for _, nginxConfig := range nginxConfigs {
+		ingressManagers = append(ingressManagers, nginxConfig)
+	}
+	if err := keyvault.NewIngressSecretProviderClassReconciler(m, conf, ingressManagers); err != nil {
+		return nil, err
+	}
+	if err := keyvault.NewPlaceholderPodController(m, conf, ingressManagers); err != nil {
+		return nil, err
+	}
 	if err = keyvault.NewEventMirror(m, conf); err != nil {
+		return nil, err
+	}
+
+	ingressControllerNamers := make([]osm.IngressControllerNamer, 0)
+	for _, nginxConfig := range nginxConfigs {
+		ingressControllerNamers = append(ingressControllerNamers, nginxConfig)
+	}
+	if err := osm.NewIngressBackendReconciler(m, conf, ingressControllerNamers); err != nil {
 		return nil, err
 	}
 	if err = osm.NewIngressCertConfigReconciler(m, conf); err != nil {

@@ -3,8 +3,6 @@ package nginx
 import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,8 +27,8 @@ type nginx struct {
 	ingConfigs []*manifests.NginxIngressConfig
 }
 
-// New starts all resources required for Nginx ingresses
-func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) error {
+// New starts all resources required for provisioning Nginx ingresses and the configs used for those ingresses
+func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) ([]*manifests.NginxIngressConfig, error) {
 	n := &nginx{
 		name:       "nginx",
 		manager:    m,
@@ -40,34 +38,18 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) error 
 	}
 
 	if err := n.addIngressClassReconciler(); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := n.addIngressControllerReconciler(); err != nil {
-		return err
-	}
-
-	if err := n.addConcurrencyWatchdog(); err != nil {
-		return err
-	}
-
-	if err := n.addIngressSecretProviderClassReconciler(); err != nil {
-		return err
-	}
-
-	if err := n.addPlaceholderPodController(); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := n.addIngressReconciler(); err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := n.addIngressBackendReconciler(); err != nil {
-		return err
-	}
-
-	return nil
+	return n.ingConfigs, nil
 }
 
 func (n *nginx) addIngressClassReconciler() error {
@@ -88,37 +70,6 @@ func (n *nginx) addIngressControllerReconciler() error {
 	return ingress.NewIngressControllerReconciler(n.manager, objs, n.name)
 }
 
-func (n *nginx) addConcurrencyWatchdog() error {
-	return ingress.NewNginxConcurrencyWatchdog(n.manager, n.conf, n.ingConfigs)
-}
-
-func (n *nginx) addIngressSecretProviderClassReconciler() error {
-	ingressManagers := make([]keyvault.IngressManager, len(n.ingConfigs))
-	for i, ingConfig := range n.ingConfigs {
-		ingressManagers[i] = ingConfig
-	}
-
-	return keyvault.NewIngressSecretProviderClassReconciler(n.manager, n.conf, ingressManagers)
-}
-
-func (n *nginx) addPlaceholderPodController() error {
-	ingressManagers := make([]keyvault.IngressManager, len(n.ingConfigs))
-	for i, ingConfig := range n.ingConfigs {
-		ingressManagers[i] = ingConfig
-	}
-
-	return keyvault.NewPlaceholderPodController(n.manager, n.conf, ingressManagers)
-}
-
 func (n *nginx) addIngressReconciler() error {
 	return service.NewNginxIngressReconciler(n.manager, defaultIngConfig)
-}
-
-func (n *nginx) addIngressBackendReconciler() error {
-	ingressControllerNamers := make([]osm.IngressControllerNamer, len(n.ingConfigs))
-	for i, ingConfig := range n.ingConfigs {
-		ingressControllerNamers[i] = ingConfig
-	}
-
-	return osm.NewIngressBackendReconciler(n.manager, n.conf, ingressControllerNamers)
 }
