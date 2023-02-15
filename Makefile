@@ -1,5 +1,6 @@
 .PHONY: clean dev dev-private-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
 
+
 # keep separate for simultaneous public/private dev without need for resource recreation
 clean-public:
 	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
@@ -7,7 +8,9 @@ clean-public:
 clean-private:
 	rm -rf devenv/state devenv/private_cluster_tf/.terraform.lock.hcl devenv/private_cluster_tf/.terraform devenv/private_cluster_tf/terraform.tfstate devenv/private_cluster_tf/terraform.tfstate.backup
 
-dev:
+clean-all: clean-public clean-private
+
+dev-public-cluster:
 	terraform --version
 	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
 
