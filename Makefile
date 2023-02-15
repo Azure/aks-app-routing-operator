@@ -5,19 +5,9 @@
 clean-public:
 	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
 
-clean-private:
-	rm -rf devenv/state devenv/private_cluster_tf/.terraform.lock.hcl devenv/private_cluster_tf/.terraform devenv/private_cluster_tf/terraform.tfstate devenv/private_cluster_tf/terraform.tfstate.backup
-
-clean-all: clean-public clean-private
-
 dev-public-cluster:
 	terraform --version
 	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
-
-dev-private-cluster:
-	terraform --version
-	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
-	cd devenv && /usr/bin/env sh scripts/deploy_addon_private_cluster.sh
 
 # aka make push (formerly known as make push-private)
 update-image-on-deployment:

@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"path"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,43 +24,15 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const (
-	IngressClass                = "webapprouting.kubernetes.azure.com"
-	deploymentKind              = "Deployment"
-	serviceAccountKind          = "ServiceAccount"
-	serviceKind                 = "Service"
-	osmAnnotationKey            = "openservicemesh.io/sidecar-injection"
-	nginxIngressControllerImage = "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"
-	externalDnsDeploymentName   = "controller"
-	externalDnsImage            = "/oss/kubernetes/external-dns:v0.11.0.2"
-	externalDnsVolumeName       = "azure-config"
-)
+const IngressClass = "webapprouting.kubernetes.azure.com"
 
 var (
 	IngressControllerName = "nginx"
 	IngressPodLabels      = map[string]string{"app": IngressControllerName}
 
-	externalDNSName         = "external-dns"
-	azurePrivateDNSProvider = "azure-private-dns"
-	azureDNSProvider        = "azure"
-	ingressSource           = "ingress"
+	externalDNSName = "external-dns"
 
-	topLevelLabels             = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
-	nginxIngressControllerArgs = []string{
-		"/nginx-ingress-controller",
-		"--ingress-class=" + IngressClass,
-		"--publish-service=$(POD_NAMESPACE)/" + IngressControllerName,
-		"--configmap=$(POD_NAMESPACE)/" + IngressControllerName,
-		"--http-port=8080",
-		"--https-port=8443",
-	}
-
-	ingressControllerConfigMapData = map[string]string{
-		// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
-		// But we can still protect against leaked service account tokens.
-		// See: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#annotation-value-word-blocklist
-		"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
-	}
+	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
 )
 
 func IngressControllerResources(conf *config.Config, self *appsv1.Deployment) []client.Object {
@@ -104,7 +75,7 @@ func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 	}
 	return []metav1.OwnerReference{{
 		APIVersion: "apps/v1",
-		Kind:       deploymentKind,
+		Kind:       "Deployment",
 		Name:       deploy.Name,
 		UID:        deploy.UID,
 	}}
@@ -117,8 +88,10 @@ func newNamespace(conf *config.Config) *corev1.Namespace {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        conf.NS,
-			Labels:      topLevelLabels,
+			Name: conf.NS,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "aks-app-routing-operator",
+			},
 			Annotations: map[string]string{},
 		},
 	}
@@ -144,7 +117,7 @@ func newIngressClass(conf *config.Config) *netv1.IngressClass {
 func newIngressControllerServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       rbacv1.ServiceAccountKind,
+			Kind:       "ServiceAccount",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -216,7 +189,7 @@ func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.Cluster
 			Name:     IngressControllerName,
 		},
 		Subjects: []rbacv1.Subject{{
-			Kind:      serviceAccountKind,
+			Kind:      "ServiceAccount",
 			Name:      IngressControllerName,
 			Namespace: conf.NS,
 		}},
@@ -224,16 +197,15 @@ func newIngressControllerClusterRoleBinding(conf *config.Config) *rbacv1.Cluster
 }
 
 func newIngressControllerService(conf *config.Config) *corev1.Service {
-	serviceObj := &corev1.Service{
+	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       serviceKind,
+			Kind:       "Service",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        IngressControllerName,
-			Namespace:   conf.NS,
-			Labels:      topLevelLabels,
-			Annotations: map[string]string{},
+			Name:      IngressControllerName,
+			Namespace: conf.NS,
+			Labels:    topLevelLabels,
 		},
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
@@ -253,24 +225,16 @@ func newIngressControllerService(conf *config.Config) *corev1.Service {
 			},
 		},
 	}
-	if conf.DNSZoneDomain != "" && conf.DNSZonePrivate {
-		serviceObj.ObjectMeta.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true"
-		serviceObj.ObjectMeta.Annotations["external-dns.alpha.kubernetes.io/hostname"] = fmt.Sprintf("loadbalancer.%s", conf.DNSZoneDomain)
-		serviceObj.ObjectMeta.Annotations["external-dns.alpha.kubernetes.io/internal-hostname"] = fmt.Sprintf("clusterip.%s", conf.DNSZoneDomain)
-	}
-
-	return serviceObj
 }
 
 func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
-		podAnnotations[osmAnnotationKey] = "enabled"
+		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
 	}
-
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       deploymentKind,
+			Kind:       "Deployment",
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -290,8 +254,15 @@ func newIngressControllerDeployment(conf *config.Config) *appsv1.Deployment {
 					ServiceAccountName: IngressControllerName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, nginxIngressControllerImage),
-						Args:  nginxIngressControllerArgs,
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"),
+						Args: []string{
+							"/nginx-ingress-controller",
+							"--ingress-class=" + IngressClass,
+							"--publish-service=$(POD_NAMESPACE)/" + IngressControllerName,
+							"--configmap=$(POD_NAMESPACE)/" + IngressControllerName,
+							"--http-port=8080",
+							"--https-port=8443",
+						},
 						SecurityContext: &corev1.SecurityContext{
 							RunAsUser: util.Int64Ptr(101),
 						},
@@ -333,7 +304,12 @@ func newIngressControllerConfigmap(conf *config.Config) *corev1.ConfigMap {
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
-		Data: ingressControllerConfigMapData,
+		Data: map[string]string{
+			// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
+			// But we can still protect against leaked service account tokens.
+			// See: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#annotation-value-word-blocklist
+			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
+		},
 	}
 }
 
@@ -370,7 +346,7 @@ func newIngressControllerHPA(conf *config.Config) *autov1.HorizontalPodAutoscale
 		Spec: autov1.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: autov1.CrossVersionObjectReference{
 				APIVersion: "apps/v1",
-				Kind:       deploymentKind,
+				Kind:       "Deployment",
 				Name:       IngressControllerName,
 			},
 			MinReplicas:                    util.Int32Ptr(2),
@@ -412,9 +388,9 @@ func newExternalDNSConfigMap(conf *config.Config) (*corev1.ConfigMap, string) {
 
 func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1.Deployment {
 	replicas := int32(1)
-	deploymentObj := &appsv1.Deployment{
+	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       deploymentKind,
+			Kind:       "Deployment",
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -436,16 +412,17 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: IngressControllerName,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
-						Name:  externalDnsDeploymentName,
-						Image: path.Join(conf.Registry, externalDnsImage),
+						Name:  "controller",
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
 						Args: []string{
+							"--provider=azure",
 							"--source=ingress",
 							"--interval=3m0s",
 							"--txt-owner-id=" + conf.DNSRecordID,
 							"--domain-filter=" + conf.DNSZoneDomain,
 						},
 						VolumeMounts: []corev1.VolumeMount{{
-							Name:      externalDnsVolumeName,
+							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",
 							ReadOnly:  true,
 						}},
@@ -461,7 +438,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 						},
 					}))},
 					Volumes: []corev1.Volume{{
-						Name: externalDnsVolumeName,
+						Name: "azure-config",
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
@@ -474,20 +451,6 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string) *appsv1
 			},
 		},
 	}
-	var additionalArgs []string
-
-	if conf.DNSZonePrivate {
-		additionalArgs = []string{
-			fmt.Sprintf("--provider=%s", azurePrivateDNSProvider),
-			fmt.Sprintf("--azure-subscription-id=%s", conf.DNSZoneSub),
-		}
-	} else {
-		additionalArgs = []string{
-			fmt.Sprintf("--provider=%s", azureDNSProvider),
-		}
-	}
-	deploymentObj.Spec.Template.Spec.Containers[0].Args = append(deploymentObj.Spec.Template.Spec.Containers[0].Args, additionalArgs...)
-	return deploymentObj
 }
 
 func withPodRefEnvVars(contain *corev1.Container) *corev1.Container {

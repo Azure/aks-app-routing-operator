@@ -21,7 +21,6 @@ func init() {
 	flag.StringVar(&Flags.DNSZoneSub, "dns-zone-subscription", "", "subscription ID of the Azure DNS Zone (optional)")
 	flag.StringVar(&Flags.DNSZoneDomain, "dns-zone-domain", "", "domain hostname of the Azure DNS Zone (optional)")
 	flag.StringVar(&Flags.DNSRecordID, "dns-record-id", "aks-app-routing-operator", "string that uniquely identifies DNS records managed by this cluster (optional)")
-	flag.BoolVar(&Flags.DNSZonePrivate, "dns-zone-private", false, "if the user's DNS zone is private")
 	flag.BoolVar(&Flags.DisableKeyvault, "disable-keyvault", false, "disable the keyvault integration")
 	flag.Float64Var(&Flags.ConcurrencyWatchdogThres, "concurrency-watchdog-threshold", 200, "percentage of concurrent connections above mean required to vote for load shedding")
 	flag.IntVar(&Flags.ConcurrencyWatchdogVotes, "concurrency-watchdog-votes", 4, "number of votes required for a pod to be considered for load shedding")
@@ -40,7 +39,6 @@ type Config struct {
 	MSIClientID, TenantID                             string
 	Cloud, Location                                   string
 	DNSZoneRG, DNSZoneSub, DNSZoneDomain, DNSRecordID string
-	DNSZonePrivate                                    bool
 	ConcurrencyWatchdogThres                          float64
 	ConcurrencyWatchdogVotes                          int
 	DisableOSM                                        bool
