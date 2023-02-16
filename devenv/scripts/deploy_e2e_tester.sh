@@ -5,7 +5,7 @@ echo "deleting any existing e2e job..."
 az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl delete jobs app-routing-operator-e2e -n kube-system"
 
 set -e
-az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl apply -f e2e-tester-formatted.yaml" --file state/e2e-tester-formatted.yaml
+cd state/kustomize && az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl apply -k ." --file . && cd ../.. # change wd to make kustomize work
 
 # wait until cluster has reached terminated status, keep checking until terminated result is not null
 RESULT="null"

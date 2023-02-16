@@ -26,7 +26,7 @@ func main() {
 				ns = nameservers[rand.Intn(len(nameservers)-1)]
 				ns = ns[:len(ns)-1] // remove trailing period added for some reason by azure dns
 			} else {
-				ns = nameservers[0]
+				ns = nameservers[0] // no need to remove trailing period if single entry coming from k8s vnet ns server
 			}
 
 			return d.DialContext(ctx, "tcp", ns+":53")

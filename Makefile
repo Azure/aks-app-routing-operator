@@ -23,7 +23,9 @@ push-tester-image:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator-e2e:$(shell date +%s)" > devenv/state/e2e-image-tag.txt
 	docker build --platform=linux/amd64 -t `cat devenv/state/e2e-image-tag.txt` -f e2e/Dockerfile .
 	docker push `cat devenv/state/e2e-image-tag.txt`
-	export IMAGE=`cat devenv/state/e2e-image-tag.txt` && cd devenv && envsubst < e2e-tester.yaml > state/e2e-tester-formatted.yaml
+	cp -R devenv/kustomize devenv/state && cd devenv/state/kustomize && kustomize edit set image placeholderfortesterimage=`cat ../e2e-image-tag.txt`
+
+#&& cd devenv && envsubst < e2e-tester.yaml > state/e2e-tester-formatted.yaml
 
 # deploy e2e job
 deploy-e2e: push-tester-image
