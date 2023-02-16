@@ -7,7 +7,7 @@ package e2e
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"testing"
 
@@ -35,11 +35,11 @@ type testConfig struct {
 
 func TestMain(m *testing.M) {
 	// Load configuration
-	rawConf, err := ioutil.ReadFile("../devenv/state/e2e.json")
-	if err != nil {
-		panic(err)
+	rawConf := os.Getenv("E2E_JSON_CONTENTS")
+	if rawConf == "" {
+		panic(fmt.Errorf("failed to get e2e contents from env"))
 	}
-	if err := json.Unmarshal(rawConf, conf); err != nil {
+	if err := json.Unmarshal([]byte(rawConf), conf); err != nil {
 		panic(err)
 	}
 

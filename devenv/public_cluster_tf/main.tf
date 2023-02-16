@@ -274,7 +274,7 @@ resource "local_file" "e2econf" {
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
     DNSZoneDomain     = var.domain
   })
-  filename = "${path.module}/../state/e2e.json"
+  filename = "${path.module}/../state/kustomize/e2e.json"
 }
 
 resource "local_file" "registryconf" {

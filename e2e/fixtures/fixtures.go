@@ -4,12 +4,10 @@
 package fixtures
 
 import (
-	"os"
-	"path"
+	_ "embed"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +15,12 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
+
+//go:embed client/main.go
+var clientContents string
+
+//go:embed server/main.go
+var serverContents string
 
 func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv1.Deployment {
 	deploy := NewGoDeployment(t, "client")
@@ -49,8 +53,14 @@ func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv
 }
 
 func NewGoDeployment(t testing.TB, name string) *appsv1.Deployment {
-	source, err := os.ReadFile(path.Join("fixtures", name, "main.go"))
-	require.NoError(t, err)
+	var source string
+	if name == "client" {
+		source = clientContents
+	} else if name == "server" {
+		source = serverContents
+	} else {
+		t.Fatalf("test failed: invalid deployment name given")
+	}
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -71,7 +81,7 @@ func NewGoDeployment(t testing.TB, name string) *appsv1.Deployment {
 						Command: []string{
 							"/bin/sh",
 							"-c",
-							"mkdir source && cd source && go mod init source && echo '" + string(source) + "' > main.go && go run main.go",
+							"mkdir source && cd source && go mod init source && echo '" + source + "' > main.go && go run main.go",
 						},
 					}},
 				},

@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 # Get cluster information for az aks command invoke
 CLUSTER_RESOURCE_GROUP=$(cat state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
 CLUSTER_NAME=$(cat state/cluster-info.json | jq '.ClusterName' | tr -d '"')

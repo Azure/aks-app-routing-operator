@@ -2,3 +2,4 @@
 .idea/
 .idea/*
 *.xml
+e2e.test

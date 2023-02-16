@@ -1,11 +1,16 @@
-CLUSTER_RESOURCE_GROUP=$(cat state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
-CLUSTER_NAME=$(cat state/cluster-info.json | jq '.ClusterName' | tr -d '"')
+#!/usr/bin/env sh
+set -e
+CLUSTER_RESOURCE_GROUP=$(cat devenv/state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
+CLUSTER_NAME=$(cat devenv/state/cluster-info.json | jq '.ClusterName' | tr -d '"')
+
+echo "adding image tag to kustomize and generating configmap..."
+cp devenv/kustomize/* devenv/state/kustomize
+cd devenv/state/kustomize
+kustomize edit set image placeholderfortesterimage=`cat ../e2e-image-tag.txt`
 
 echo "deleting any existing e2e job..."
-az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl delete jobs app-routing-operator-e2e -n kube-system"
-
-set -e
-cd state/kustomize && az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl apply -k ." --file . && cd ../.. # change wd to make kustomize work
+az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "kubectl delete jobs app-routing-operator-e2e -n kube-system --ignore-not-found && kubectl apply -k ." --file .
+cd ../.. # go back to root as working dir
 
 # wait until cluster has reached terminated status, keep checking until terminated result is not null
 RESULT="null"

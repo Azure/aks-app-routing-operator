@@ -12,7 +12,12 @@ spec:
       containers:
         - name: tester
           image: placeholderfortesterimage
-          command: [ "/bin/sh" ]
-          args: [ "/go/src/github.com/Azure/aks-app-routing-operator/devenv/scripts/make_run_e2e.sh" ]
+          command: [ "/go/e2e.test" ]
+          env:
+            - name: E2E_JSON_CONTENTS
+              valueFrom:
+                  configMapKeyRef:
+                      name: e2e-tester-configmap
+                      key: e2e.json
       restartPolicy: Never
   backoffLimit: 2

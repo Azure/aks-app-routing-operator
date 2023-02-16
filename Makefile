@@ -15,21 +15,18 @@ update-image-on-deployment:
 	az acr login -n `cat devenv/state/registry.txt`
 	docker build -t `cat devenv/state/operator-image-tag.txt` .
 	docker push `cat devenv/state/operator-image-tag.txt`
-	cd devenv && /usr/bin/env sh scripts/push_image.sh
+	cd devenv && ./scripts/push_image.sh
 
 push-tester-image:
 	# grab the image name and tag - that first gets determined by where and how we push it - so first need to build and push it - then export that name and registry and tag into the YAML
 	az acr login -n `cat devenv/state/registry.txt`
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator-e2e:$(shell date +%s)" > devenv/state/e2e-image-tag.txt
-	docker build --platform=linux/amd64 -t `cat devenv/state/e2e-image-tag.txt` -f e2e/Dockerfile .
+	docker build -t `cat devenv/state/e2e-image-tag.txt` -f e2e/Dockerfile .
 	docker push `cat devenv/state/e2e-image-tag.txt`
-	cp -R devenv/kustomize devenv/state && cd devenv/state/kustomize && kustomize edit set image placeholderfortesterimage=`cat ../e2e-image-tag.txt`
-
-#&& cd devenv && envsubst < e2e-tester.yaml > state/e2e-tester-formatted.yaml
 
 # deploy e2e job
 deploy-e2e: push-tester-image
-	cd devenv && /usr/bin/env sh scripts/deploy_e2e_tester.sh
+	./devenv/scripts/deploy_e2e_tester.sh
 
 # to be run by e2e job inside the cluster
 run-e2e:

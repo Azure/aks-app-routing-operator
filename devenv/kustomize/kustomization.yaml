@@ -10,3 +10,8 @@ images:
 
 resources:
 - e2e-tester.yaml
+
+configMapGenerator:
+  - name: e2e-tester-configmap
+    files:
+      - e2e.json
