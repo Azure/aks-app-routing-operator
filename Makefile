@@ -5,17 +5,16 @@
 clean-public:
 	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
 
-dev-public-cluster:
+dev-public:
 	terraform --version
 	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
 
-# aka make push (formerly known as make push-private)
-update-image-on-deployment:
+push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt
 	az acr login -n `cat devenv/state/registry.txt`
 	docker build -t `cat devenv/state/operator-image-tag.txt` .
 	docker push `cat devenv/state/operator-image-tag.txt`
-	cd devenv && ./scripts/push_image.sh
+	./devenv/scripts/push_image.sh
 
 push-tester-image:
 	# grab the image name and tag - that first gets determined by where and how we push it - so first need to build and push it - then export that name and registry and tag into the YAML
@@ -25,7 +24,7 @@ push-tester-image:
 	docker push `cat devenv/state/e2e-image-tag.txt`
 
 # deploy e2e job
-deploy-e2e: push-tester-image
+e2e: push-tester-image
 	./devenv/scripts/deploy_e2e_tester.sh
 
 # to be run by e2e job inside the cluster

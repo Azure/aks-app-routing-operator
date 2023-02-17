@@ -22,8 +22,19 @@ var clientContents string
 //go:embed server/main.go
 var serverContents string
 
+type DeploymentType int
+
+const (
+	Client DeploymentType = iota
+	Server
+)
+
+func (d DeploymentType) String() string {
+	return []string{"client", "server"}[d]
+}
+
 func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv1.Deployment {
-	deploy := NewGoDeployment(t, "client")
+	deploy := NewGoDeployment(t, Client)
 	deploy.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	deploy.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{
 		Name:  "URL",
@@ -52,15 +63,18 @@ func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv
 	return deploy
 }
 
-func NewGoDeployment(t testing.TB, name string) *appsv1.Deployment {
+func NewGoDeployment(t testing.TB, d DeploymentType) *appsv1.Deployment {
 	var source string
-	if name == "client" {
+	switch d {
+	case Client:
 		source = clientContents
-	} else if name == "server" {
+	case Server:
 		source = serverContents
-	} else {
+	default:
 		t.Fatalf("test failed: invalid deployment name given")
 	}
+
+	name := d.String()
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

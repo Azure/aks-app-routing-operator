@@ -1,7 +1,10 @@
 #!/usr/bin/env sh
+set -e
+source ./devenv/scripts/command_invoke_with_output.sh
+
 # Get cluster information for az aks command invoke
-CLUSTER_RESOURCE_GROUP=$(cat state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
-CLUSTER_NAME=$(cat state/cluster-info.json | jq '.ClusterName' | tr -d '"')
+CLUSTER_RESOURCE_GROUP=$(cat devenv/state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
+CLUSTER_NAME=$(cat devenv/state/cluster-info.json | jq '.ClusterName' | tr -d '"')
 
 if [ -z $CLUSTER_RESOURCE_GROUP  ]; then
   echo "CLUSTER_RESOURCE_GROUP is empty"
@@ -13,7 +16,7 @@ if [ -z $CLUSTER_NAME  ]; then
   exit 1
 fi
 
-TAG=$(cat state/operator-image-tag.txt)
+TAG=$(cat devenv/state/operator-image-tag.txt)
 
 if [ -z $TAG  ]; then
   echo "TAG is empty"
@@ -23,4 +26,4 @@ fi
 # Push image
 CMD="kubectl set image -n kube-system deployments/app-routing-operator operator=$TAG"
 
-az aks command invoke --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --command "$CMD"
+run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP "$CMD"

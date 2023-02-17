@@ -75,11 +75,6 @@ data "azurerm_user_assigned_identity" "clusteridentity" {
   resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
 }
 
-data "azurerm_resources" "noderesourcegroup" {
-  resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
-  type = "Microsoft.Network/virtualNetworks"
-}
-
 resource "azurerm_key_vault" "keyvault" {
   name                     = "dev-${random_string.random.result}a"
   location                 = azurerm_resource_group.rg.location
@@ -269,7 +264,6 @@ resource "local_sensitive_file" "kubeconfig" {
 resource "local_file" "e2econf" {
   content = jsonencode({
     TestNameservers    = azurerm_dns_zone.dnszone.name_servers
-    Kubeconfig        = "${abspath(path.module)}/../state/kubeconfig"
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
     DNSZoneDomain     = var.domain
