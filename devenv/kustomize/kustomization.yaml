@@ -7,7 +7,6 @@ namespace: kube-system
 images:
 - name: placeholderfortesterimage
 
-
 resources:
 - e2e-tester.yaml
 
