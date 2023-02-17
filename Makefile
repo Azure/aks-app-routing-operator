@@ -1,5 +1,5 @@
-.PHONY: clean-all clean-private clean-public dev-public-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
 
+.PHONY: clean-all clean-private clean-public dev-public dev-private push push-tester-image e2e run-e2e
 
 # keep separate for simultaneous public/private dev without need for resource recreation
 clean-public:

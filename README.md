@@ -20,7 +20,7 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 This project leverages Terraform and the local user's Azure credentials to run an extensive E2E suite.
 
 ### Public Cluster/Public DNS Zone
-The process to run an E2E test for public clusters is as follows: 
+The process to run an E2E test for public clusters is as follows:
 1. Run `make clean-public` or `make clean-all` to clear any preexisting Terraform state for the public cluster dev environment.
 2. Run `make dev-public` to deploy all Azure resources necessary to run a full suite, including a cluster with the add-on enabled. IMPORTANT: this does not start the add-on. The next step needs to be run for the add-on to be fully deployed with the correct image.
 3. Run `make push` to build the add-on image according to the user's local state/branch and push it to the add-on deployment. This step can be re-run when changes to the local add-on are made and the user wishes to manually test those changes on a cluster.

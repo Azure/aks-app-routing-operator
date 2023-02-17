@@ -1,0 +1,17 @@
+# kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kube-system
+
+images:
+- name: placeholderfortesterimage
+
+
+resources:
+- e2e-tester.yaml
+
+configMapGenerator:
+  - name: e2e-tester-configmap
+    files:
+      - e2e.json

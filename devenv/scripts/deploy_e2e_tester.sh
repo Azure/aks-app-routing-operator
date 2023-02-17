@@ -7,7 +7,6 @@ CLUSTER_NAME=$(cat devenv/state/cluster-info.json | jq '.ClusterName' | tr -d '"
 
 echo "adding image tag to kustomize and generating configmap..."
 cp devenv/kustomize/e2e/* devenv/state/kustomize/e2e
-
 cd devenv/state/kustomize/e2e # change workingdir to kustomize/e2e
 kustomize edit set image placeholderfortesterimage=`cat ../../e2e-image-tag.txt`
 
