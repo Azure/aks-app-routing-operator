@@ -17,7 +17,7 @@ dev-public:
 dev-private:
 	terraform --version
 	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
-	cd devenv && /usr/bin/env sh scripts/deploy_addon_private_cluster.sh
+	./devenv/scripts/deploy_addon_private_cluster.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt

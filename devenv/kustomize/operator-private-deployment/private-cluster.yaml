@@ -30,12 +30,4 @@ spec:
         - name: operator
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
           command: ["/aks-app-routing-operator"]
-          args: [
-            "--msi", $CLUSTER_CLIENT_ID,
-            "--tenant-id", $ARM_CLIENT_TENANT_ID,
-            "--location", $RG_LOCATION,
-            "--dns-zone-resource-group", $DNS_ZONE_RG,
-            "--dns-zone-subscription", $DNS_ZONE_SUBSCRIPTION,
-            "--dns-zone-domain", $DNS_ZONE_DOMAIN,
-            "--dns-zone-private"
-          ]
+          args: []
