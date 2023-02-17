@@ -1,13 +1,23 @@
-.PHONY: clean dev-public-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
+.PHONY: clean-all clean-private clean-public dev-public-cluster update-image-on-deployment push-tester-image deploy-e2e run-e2e
 
 
 # keep separate for simultaneous public/private dev without need for resource recreation
 clean-public:
 	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
 
+clean-private:
+	rm -rf devenv/state devenv/private_cluster_tf/.terraform.lock.hcl devenv/private_cluster_tf/.terraform devenv/private_cluster_tf/terraform.tfstate devenv/private_cluster_tf/terraform.tfstate.backup
+
+clean-all: clean-public clean-private
+
 dev-public:
 	terraform --version
 	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
+
+dev-private:
+	terraform --version
+	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
+	cd devenv && /usr/bin/env sh scripts/deploy_addon_private_cluster.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt

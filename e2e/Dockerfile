@@ -2,9 +2,9 @@ FROM golang:1.19 as builder
 
 WORKDIR /go/src/github.com/Azure/aks-app-routing-operator
 ADD ../. .
-RUN go test -c -o e2e/e2e.test --count=1 --tags=e2e -c ./e2e
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -o e2e/e2e.test --count=1 --tags=e2e -c ./e2e
 
-FROM golang:1.19
+FROM scratch
 WORKDIR /go
 
 COPY --from=builder /go/src/github.com/Azure/aks-app-routing-operator/e2e/e2e.test .
