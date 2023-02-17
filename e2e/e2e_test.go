@@ -7,12 +7,12 @@ package e2e
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"errors"
 	"os"
 	"testing"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
@@ -26,27 +26,27 @@ var (
 )
 
 type testConfig struct {
-	TestNamservers            []string
-	Kubeconfig                string
+	TestNameservers           []string
 	CertID, CertVersionlessID string
 	DNSZoneDomain             string
 }
 
 func TestMain(m *testing.M) {
 	// Load configuration
-	rawConf, err := ioutil.ReadFile("../devenv/state/e2e.json")
+	rawConf := os.Getenv("E2E_JSON_CONTENTS")
+	if rawConf == "" {
+		panic(errors.New("failed to get e2e contents from env"))
+	}
+	if err := json.Unmarshal([]byte(rawConf), conf); err != nil {
+		panic(err)
+	}
+
+	// attempt to load in-cluster config
+	rc, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err)
 	}
-	if err := json.Unmarshal(rawConf, conf); err != nil {
-		panic(err)
-	}
-	rc, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: conf.Kubeconfig},
-		&clientcmd.ConfigOverrides{}).ClientConfig()
-	if err != nil {
-		panic(err)
-	}
+
 	util.UseServerSideApply()
 	suite.Clientset, err = kubernetes.NewForConfig(rc)
 	if err != nil {
@@ -69,9 +69,9 @@ func TestBasicService(t *testing.T) {
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 	tc.WithResources(
-		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
-		fixtures.NewGoDeployment(t, "server"),
-		fixtures.NewService("server", hostname, conf.CertID, 8080))
+		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
+		fixtures.NewGoDeployment(t, fixtures.Server),
+		fixtures.NewService(fixtures.Server.String(), hostname, conf.CertID, 8080))
 }
 
 // TestBasicServiceVersionlessCert proves that users can remove the version hash from a Keyvault cert URI.
@@ -80,9 +80,9 @@ func TestBasicServiceVersionlessCert(t *testing.T) {
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 	tc.WithResources(
-		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
-		fixtures.NewGoDeployment(t, "server"),
-		fixtures.NewService("server", hostname, conf.CertVersionlessID, 8080))
+		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
+		fixtures.NewGoDeployment(t, fixtures.Server),
+		fixtures.NewService(fixtures.Server.String(), hostname, conf.CertVersionlessID, 8080))
 }
 
 // TestBasicServiceNoOSM is identical to TestBasicService but disables OSM.
@@ -91,13 +91,13 @@ func TestBasicServiceNoOSM(t *testing.T) {
 	tc := suite.StartTestCase(t)
 	hostname := tc.Hostname(conf.DNSZoneDomain)
 
-	svc := fixtures.NewService("server", hostname, conf.CertID, 8080)
+	svc := fixtures.NewService(fixtures.Server.String(), hostname, conf.CertID, 8080)
 	svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] = "true"
 
-	svr := fixtures.NewGoDeployment(t, "server")
+	svr := fixtures.NewGoDeployment(t, fixtures.Server)
 	svr.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 
 	tc.WithResources(
-		fixtures.NewClientDeployment(t, hostname, conf.TestNamservers),
+		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
 		svr, svc)
 }
