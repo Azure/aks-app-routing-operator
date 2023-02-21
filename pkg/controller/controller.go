@@ -88,25 +88,28 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	ingressManagers := make([]keyvault.IngressManager, 0)
+	icToController := make(map[string]string)
 	for _, nginxConfig := range nginxConfigs {
-		ingressManagers = append(ingressManagers, nginxConfig)
+		icToController[nginxConfig.IcName] = nginxConfig.ResourceName
 	}
-	if err := keyvault.NewIngressSecretProviderClassReconciler(m, conf, ingressManagers); err != nil {
+	ics := make(map[string]struct{})
+	for ic := range icToController {
+		ics[ic] = struct{}{}
+	}
+
+	ingressManager := keyvault.NewIngressManager(ics)
+	if err := keyvault.NewIngressSecretProviderClassReconciler(m, conf, ingressManager); err != nil {
 		return nil, err
 	}
-	if err := keyvault.NewPlaceholderPodController(m, conf, ingressManagers); err != nil {
+	if err := keyvault.NewPlaceholderPodController(m, conf, ingressManager); err != nil {
 		return nil, err
 	}
 	if err = keyvault.NewEventMirror(m, conf); err != nil {
 		return nil, err
 	}
 
-	ingressControllerNamers := make([]osm.IngressControllerNamer, 0)
-	for _, nginxConfig := range nginxConfigs {
-		ingressControllerNamers = append(ingressControllerNamers, nginxConfig)
-	}
-	if err := osm.NewIngressBackendReconciler(m, conf, ingressControllerNamers); err != nil {
+	ingressControllerNamer := osm.NewIngressControllerNamer(icToController)
+	if err := osm.NewIngressBackendReconciler(m, conf, ingressControllerNamer); err != nil {
 		return nil, err
 	}
 	if err = osm.NewIngressCertConfigReconciler(m, conf); err != nil {

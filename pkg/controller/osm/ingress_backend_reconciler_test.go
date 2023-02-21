@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -57,9 +56,9 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	e := &IngressBackendReconciler{
-		client:                  c,
-		config:                  &config.Config{NS: "test-config-ns"},
-		ingressControllerNamers: []IngressControllerNamer{&manifests.NginxIngressConfig{IcName: *ing.Spec.IngressClassName, ResourceName: "test-name"}},
+		client:                 c,
+		config:                 &config.Config{NS: "test-config-ns"},
+		ingressControllerNamer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
 	}
 
 	// Initial reconcile

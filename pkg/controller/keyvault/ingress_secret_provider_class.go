@@ -27,18 +27,13 @@ import (
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
 type IngressSecretProviderClassReconciler struct {
-	client   client.Client
-	events   record.EventRecorder
-	config   *config.Config
-	managers []IngressManager
+	client         client.Client
+	events         record.EventRecorder
+	config         *config.Config
+	ingressManager IngressManager
 }
 
-// IngressManager returns a boolean indicating whether the Ingress is being managed by us
-type IngressManager interface {
-	IsManaging(ing *netv1.Ingress) bool
-}
-
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, managers []IngressManager) error {
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -46,10 +41,10 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
 		Complete(&IngressSecretProviderClassReconciler{
-			client:   manager.GetClient(),
-			events:   manager.GetEventRecorderFor("aks-app-routing-operator"),
-			config:   conf,
-			managers: managers,
+			client:         manager.GetClient(),
+			events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
+			config:         conf,
+			ingressManager: ingressManager,
 		})
 }
 
@@ -114,12 +109,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	managed := false
-	for _, manager := range i.managers {
-		if manager.IsManaging(ing) {
-			managed = true
-		}
-	}
+	managed := i.ingressManager.IsManaging(ing)
 	if !managed {
 		return false, nil
 	}
