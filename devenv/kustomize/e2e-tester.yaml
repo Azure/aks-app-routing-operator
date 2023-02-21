@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: app-routing-operator-e2e
+  namespace: kube-system
+spec:
+  template:
+    metadata:
+      labels:
+        app: app-routing-operator-e2e
+    spec:
+      containers:
+        - name: tester
+          image: placeholderfortesterimage
+          command: [ "/go/e2e.test" ]
+          env:
+            - name: E2E_JSON_CONTENTS
+              valueFrom:
+                  configMapKeyRef:
+                      name: e2e-tester-configmap
+                      key: e2e.json
+      restartPolicy: Never
+  backoffLimit: 2
