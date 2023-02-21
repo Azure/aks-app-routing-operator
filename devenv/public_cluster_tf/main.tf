@@ -83,19 +83,22 @@ resource "azurerm_key_vault" "keyvault" {
   purge_protection_enabled = false
   sku_name                 = "standard"
 
-  access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
+}
 
-    certificate_permissions = [
-      "Get",
-      "List",
-      "Update",
-      "Create",
-      "Delete",
-      "Import",
-    ]
-  }
+resource "azurerm_key_vault_access_policy" "allowtesteraccess" {
+  key_vault_id = azurerm_key_vault.keyvault.id
+  tenant_id = data.azurerm_client_config.current.tenant_id
+  object_id = data.azurerm_client_config.current.object_id
+
+  certificate_permissions = [
+    "Get",
+    "List",
+    "Update",
+    "Create",
+    "Delete",
+    "Import",
+  ]
+
 }
 
 resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
@@ -115,6 +118,7 @@ resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
 resource "azurerm_key_vault_certificate" "testcert" {
   name         = "generated-cert"
   key_vault_id = azurerm_key_vault.keyvault.id
+  depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
 
   certificate_policy {
     issuer_parameters {
@@ -254,21 +258,29 @@ resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
 
 resource "local_sensitive_file" "kubeconfig" {
   content  = azurerm_kubernetes_cluster.cluster.kube_config_raw
-  filename = "${path.module}/state/kubeconfig"
+  filename = "${path.module}/../state/kubeconfig"
 }
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    TestNamservers    = azurerm_dns_zone.dnszone.name_servers
-    Kubeconfig        = "${abspath(path.module)}/state/kubeconfig"
+    TestNameservers    = azurerm_dns_zone.dnszone.name_servers
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
     DNSZoneDomain     = var.domain
   })
-  filename = "${path.module}/state/e2e.json"
+  filename = "${path.module}/../state/kustomize/e2e.json"
 }
 
 resource "local_file" "registryconf" {
   content  = azurerm_container_registry.acr.login_server
-  filename = "${path.module}/state/registry.txt"
+  filename = "${path.module}/../state/registry.txt"
 }
+
+resource "local_file" "cluster_info" {
+  content = jsonencode({
+    ClusterName = azurerm_kubernetes_cluster.cluster.name
+    ClusterResourceGroup = azurerm_kubernetes_cluster.cluster.resource_group_name
+  })
+  filename = "${path.module}/../state/cluster-info.json"
+}
+

@@ -13,17 +13,6 @@
       "status": {}
     },
     {
-      "kind": "IngressClass",
-      "apiVersion": "networking.k8s.io/v1",
-      "metadata": {
-        "name": "webapprouting.kubernetes.azure.com",
-        "creationTimestamp": null
-      },
-      "spec": {
-        "controller": "k8s.io/ingress-nginx"
-      }
-    },
-    {
       "kind": "ServiceAccount",
       "apiVersion": "v1",
       "metadata": {
@@ -205,6 +194,9 @@
             "creationTimestamp": null,
             "labels": {
               "app": "nginx"
+            },
+            "annotations": {
+              "openservicemesh.io/sidecar-injection": "enabled"
             }
           },
           "spec": {
@@ -215,6 +207,8 @@
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",
+                  "--controller-class=webapprouting.kubernetes.azure.com/nginx",
+                  "--election-id=nginx",
                   "--publish-service=$(POD_NAMESPACE)/nginx",
                   "--configmap=$(POD_NAMESPACE)/nginx",
                   "--http-port=8080",

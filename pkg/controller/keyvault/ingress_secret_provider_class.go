@@ -20,7 +20,6 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
@@ -28,12 +27,13 @@ import (
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
 type IngressSecretProviderClassReconciler struct {
-	client client.Client
-	events record.EventRecorder
-	config *config.Config
+	client         client.Client
+	events         record.EventRecorder
+	config         *config.Config
+	ingressManager IngressManager
 }
 
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config) error {
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -41,9 +41,10 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
 		Complete(&IngressSecretProviderClassReconciler{
-			client: manager.GetClient(),
-			events: manager.GetEventRecorderFor("aks-app-routing-operator"),
-			config: conf,
+			client:         manager.GetClient(),
+			events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
+			config:         conf,
+			ingressManager: ingressManager,
 		})
 }
 
@@ -104,7 +105,12 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 }
 
 func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
-	if ing.Spec.IngressClassName == nil || *ing.Spec.IngressClassName != manifests.IngressClass || ing.Annotations == nil {
+	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
+		return false, nil
+	}
+
+	managed := i.ingressManager.IsManaging(ing)
+	if !managed {
 		return false, nil
 	}
 

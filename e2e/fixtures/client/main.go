@@ -21,8 +21,14 @@ func main() {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: time.Second}
-			ns := nameservers[rand.Intn(len(nameservers)-1)]
-			ns = ns[:len(ns)-1] // remove trailing period added for some reason by azure dns
+			var ns string
+			if len(nameservers) > 1 {
+				ns = nameservers[rand.Intn(len(nameservers)-1)]
+				ns = ns[:len(ns)-1] // remove trailing period added for some reason by azure dns
+			} else {
+				ns = nameservers[0] // no need to remove trailing period if single entry coming from k8s vnet ns server
+			}
+
 			return d.DialContext(ctx, "tcp", ns+":53")
 		},
 	}}
@@ -46,6 +52,7 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
+		log.Printf("received response %s from url %s", string(body), os.Getenv("URL"))
 		if string(body) != "hello world" {
 			log.Printf("unexpected response body: %s", body)
 			w.WriteHeader(500)

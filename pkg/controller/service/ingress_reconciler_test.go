@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,10 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
+const (
+	icName = "test.ic.name"
+)
+
 func TestIngressReconcilerIntegration(t *testing.T) {
 	svc := &corev1.Service{}
 	svc.UID = "test-svc-uid"
@@ -34,7 +39,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	}}
 
 	c := fake.NewClientBuilder().WithObjects(svc).Build()
-	p := &IngressReconciler{client: c}
+	p := &NginxIngressReconciler{client: c, ingConfig: &manifests.NginxIngressConfig{IcName: icName}}
 
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
@@ -85,7 +90,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr("webapprouting.kubernetes.azure.com"),
+			IngressClassName: util.StringPtr(icName),
 			Rules: []netv1.IngressRule{{
 				Host: "test-host",
 				IngressRuleValue: netv1.IngressRuleValue{
@@ -140,7 +145,10 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 	}}
 
 	c := fake.NewClientBuilder().WithObjects(svc).Build()
-	p := &IngressReconciler{client: c}
+	p := &NginxIngressReconciler{
+		client:    c,
+		ingConfig: &manifests.NginxIngressConfig{IcName: icName},
+	}
 
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
@@ -171,7 +179,7 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr("webapprouting.kubernetes.azure.com"),
+			IngressClassName: util.StringPtr(icName),
 			Rules: []netv1.IngressRule{{
 				Host: "test-host",
 				IngressRuleValue: netv1.IngressRuleValue{

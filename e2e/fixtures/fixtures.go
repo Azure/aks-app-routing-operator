@@ -4,12 +4,10 @@
 package fixtures
 
 import (
-	"os"
-	"path"
+	_ "embed"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,8 +16,25 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
+//go:embed client/main.go
+var clientContents string
+
+//go:embed server/main.go
+var serverContents string
+
+type DeploymentType int
+
+const (
+	Client DeploymentType = iota
+	Server
+)
+
+func (d DeploymentType) String() string {
+	return []string{"client", "server"}[d]
+}
+
 func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv1.Deployment {
-	deploy := NewGoDeployment(t, "client")
+	deploy := NewGoDeployment(t, Client)
 	deploy.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	deploy.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{
 		Name:  "URL",
@@ -48,9 +63,18 @@ func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv
 	return deploy
 }
 
-func NewGoDeployment(t testing.TB, name string) *appsv1.Deployment {
-	source, err := os.ReadFile(path.Join("fixtures", name, "main.go"))
-	require.NoError(t, err)
+func NewGoDeployment(t testing.TB, d DeploymentType) *appsv1.Deployment {
+	var source string
+	switch d {
+	case Client:
+		source = clientContents
+	case Server:
+		source = serverContents
+	default:
+		t.Fatalf("test failed: invalid deployment name given")
+	}
+
+	name := d.String()
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -71,7 +95,7 @@ func NewGoDeployment(t testing.TB, name string) *appsv1.Deployment {
 						Command: []string{
 							"/bin/sh",
 							"-c",
-							"mkdir source && cd source && go mod init source && echo '" + string(source) + "' > main.go && go run main.go",
+							"mkdir source && cd source && go mod init source && echo '" + source + "' > main.go && go run main.go",
 						},
 					}},
 				},
