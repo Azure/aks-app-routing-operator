@@ -1,0 +1,19 @@
+# kustomization.yaml
+resources:
+  - private-cluster.yaml
+
+patches:
+  - patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args
+        value: [
+            "--msi", $CLUSTER_CLIENT_ID,
+            "--tenant-id", $ARM_CLIENT_TENANT_ID,
+            "--location", $RG_LOCATION,
+            "--dns-zone-resource-group", $DNS_ZONE_RG,
+            "--dns-zone-subscription", $DNS_ZONE_SUBSCRIPTION,
+            "--dns-zone-domain", $DNS_ZONE_DOMAIN,
+            "--dns-zone-private"
+          ]
+    target:
+      kind: Deployment

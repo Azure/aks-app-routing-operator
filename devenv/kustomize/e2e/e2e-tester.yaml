@@ -12,7 +12,7 @@ spec:
       containers:
         - name: tester
           image: placeholderfortesterimage
-          command: [ "/go/e2e.test" ]
+          command: [ "/go/bin/e2e.test" ]
           env:
             - name: E2E_JSON_CONTENTS
               valueFrom:
