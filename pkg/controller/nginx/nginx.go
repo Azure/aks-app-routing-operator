@@ -10,31 +10,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-var (
-	defaultIngConfig = &manifests.NginxIngressConfig{
-		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
-		ResourceName:    "nginx",
-		IcName:          "webapprouting.kubernetes.azure.com",
-	}
-	ingConfigs = []*manifests.NginxIngressConfig{defaultIngConfig}
-)
-
 type nginx struct {
-	name       string
-	manager    manager.Manager
-	conf       *config.Config
-	self       *appsv1.Deployment
-	ingConfigs []*manifests.NginxIngressConfig
+	name             string
+	manager          manager.Manager
+	conf             *config.Config
+	self             *appsv1.Deployment
+	ingConfigs       []*manifests.NginxIngressConfig
+	defaultIngConfig *manifests.NginxIngressConfig
 }
 
 // New starts all resources required for provisioning Nginx ingresses and the configs used for those ingresses
 func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) ([]*manifests.NginxIngressConfig, error) {
+	defaultIngConfig := &manifests.NginxIngressConfig{
+		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
+		ResourceName:    "nginx",
+		IcName:          "webapprouting.kubernetes.azure.com",
+	}
+	if conf.DNSZoneDomain != "" && conf.DNSZonePrivate {
+		defaultIngConfig.ServiceConfig = &manifests.ServiceConfig{
+			IsInternal: true,
+			Hostname:   conf.DNSZoneDomain,
+		}
+	}
+
+	ingConfigs := []*manifests.NginxIngressConfig{defaultIngConfig}
 	n := &nginx{
-		name:       "nginx",
-		manager:    m,
-		conf:       conf,
-		self:       self,
-		ingConfigs: ingConfigs,
+		name:             "nginx",
+		manager:          m,
+		conf:             conf,
+		self:             self,
+		ingConfigs:       ingConfigs,
+		defaultIngConfig: defaultIngConfig,
 	}
 
 	if err := n.addIngressClassReconciler(); err != nil {
@@ -71,5 +77,5 @@ func (n *nginx) addIngressControllerReconciler() error {
 }
 
 func (n *nginx) addIngressReconciler() error {
-	return service.NewNginxIngressReconciler(n.manager, defaultIngConfig)
+	return service.NewNginxIngressReconciler(n.manager, n.defaultIngConfig)
 }

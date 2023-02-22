@@ -23,13 +23,20 @@ import (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	ControllerClass string // controller class which is equivalent to controller field of IngressClass
-	ResourceName    string // name given to all resources
-	IcName          string // IngressClass name
+	ControllerClass string         // controller class which is equivalent to controller field of IngressClass
+	ResourceName    string         // name given to all resources
+	IcName          string         // IngressClass name
+	ServiceConfig   *ServiceConfig // service config that specifies details about the LB, defaults if nil
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
 	return map[string]string{"app": n.ResourceName}
+}
+
+// ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
+type ServiceConfig struct {
+	IsInternal bool
+	Hostname   string
 }
 
 // NginxIngressClass returns an IngressClass for the provided configuration
@@ -165,15 +172,34 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 }
 
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
+	isInternal := false
+	hostname := ""
+	if ingressConfig.ServiceConfig != nil {
+		isInternal = ingressConfig.ServiceConfig.IsInternal
+		hostname = ingressConfig.ServiceConfig.Hostname
+	}
+
+	annotations := make(map[string]string)
+	if isInternal {
+		annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true"
+	}
+	if hostname != "" {
+		annotations["external-dns.alpha.kubernetes.io/hostname"] = "loadbalancer." + hostname
+	}
+	if hostname != "" && isInternal {
+		annotations["external-dns.alpha.kubernetes.io/internal-hostname"] = "clusterip." + hostname
+	}
+
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressConfig.ResourceName,
-			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Name:        ingressConfig.ResourceName,
+			Namespace:   conf.NS,
+			Labels:      topLevelLabels,
+			Annotations: annotations,
 		},
 		Spec: corev1.ServiceSpec{
 			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,

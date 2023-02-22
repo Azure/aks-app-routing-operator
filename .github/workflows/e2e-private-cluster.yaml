@@ -1,4 +1,4 @@
-name: Run e2e
+name: Run e2e private cluster
 on:
   workflow_dispatch:
   schedule:
@@ -9,7 +9,7 @@ permissions:
   id-token: write
   contents: read
 
-jobs: 
+jobs:
   test:
     runs-on: ubuntu-latest
     steps:
@@ -30,10 +30,10 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: "make dev-public"
+        run: "make dev-private"
 
       - name: "Deploy operator"
-        run: "make update-image-on-deployment"
+        run: "make push"
 
       - name: "Run tests"
-        run: "make deploy-e2e"
+        run: "make e2e"

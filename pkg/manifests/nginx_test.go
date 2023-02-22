@@ -12,8 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const genFixturesEnv = "GENERATE_FIXTURES"
-
 var (
 	ingConfig = &NginxIngressConfig{
 		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
@@ -90,6 +88,35 @@ var (
 				DisableOSM:      true,
 			},
 			IngConfig: ingConfig,
+		},
+		{
+			Name: "internal",
+			Conf: &config.Config{
+				NS:            "test-namespace",
+				Registry:      "test-registry",
+				MSIClientID:   "test-msi-client-id",
+				TenantID:      "test-tenant-id",
+				Cloud:         "test-cloud",
+				Location:      "test-location",
+				DNSZoneRG:     "test-dns-zone-rg",
+				DNSZoneSub:    "test-dns-zone-sub",
+				DNSZoneDomain: "test-dns-zone-domain",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass: "test-controller-class",
+				ResourceName:    "nginx",
+				IcName:          "nginx-private",
+				ServiceConfig: &ServiceConfig{
+					IsInternal: true,
+					Hostname:   "test.hostname.com",
+				},
+			},
 		},
 	}
 	classTestCases = []struct {

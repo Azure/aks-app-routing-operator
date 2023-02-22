@@ -31,6 +31,7 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		ResourceGroup: conf.DNSZoneRG,
 		Domain:        conf.DNSZoneDomain,
 		RecordId:      conf.DNSRecordID,
+		IsPrivate:     conf.DNSZonePrivate,
 	}
 	objs := manifests.ExternalDnsResources(conf, self, dnsConfig)
 	return newExternalDnsReconciler(manager, objs)

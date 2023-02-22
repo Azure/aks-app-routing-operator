@@ -17,6 +17,7 @@ var (
 		ResourceGroup: "test-rg",
 		Domain:        "test-domain",
 		RecordId:      "test-record-id",
+		IsPrivate:     false,
 	}
 
 	testCases = []struct {
@@ -40,6 +41,25 @@ var (
 			Name:      "no-ownership",
 			Conf:      &config.Config{NS: "test-namespace"},
 			DnsConfig: dnsConfig,
+		},
+		{
+			Name: "private",
+			Conf: &config.Config{NS: "test-namespace"},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfig: &ExternalDnsConfig{
+				ResourceName:  "private-dns",
+				TenantId:      "test-tenant",
+				Subscription:  "test-subscription",
+				ResourceGroup: "test-rg",
+				Domain:        "test.domain.com",
+				RecordId:      "test-record-id",
+				IsPrivate:     true,
+			},
 		},
 	}
 )

@@ -16,12 +16,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const externalDNSName = "external-dns"
+const (
+	provider        = "azure"
+	privateProvider = "azure-private-dns"
+)
 
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
 	ResourceName                                            string
 	TenantId, Subscription, ResourceGroup, Domain, RecordId string
+	IsPrivate                                               bool
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
@@ -147,6 +151,12 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 
 func newExternalDNSDeployment(conf *config.Config, configMapHash string, externalDnsConfig *ExternalDnsConfig) *appsv1.Deployment {
 	replicas := int32(1)
+
+	provider := provider
+	if externalDnsConfig.IsPrivate {
+		provider = privateProvider
+	}
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -174,7 +184,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string, externa
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
 						Args: []string{
-							"--provider=azure",
+							"--provider=" + provider,
 							"--source=ingress",
 							"--interval=3m0s",
 							"--txt-owner-id=" + externalDnsConfig.RecordId,

@@ -6,10 +6,10 @@ CLUSTER_RESOURCE_GROUP=$(cat devenv/state/cluster-info.json | jq '.ClusterResour
 CLUSTER_NAME=$(cat devenv/state/cluster-info.json | jq '.ClusterName' | tr -d '"')
 
 echo "adding image tag to kustomize and generating configmap..."
-cp devenv/kustomize/* devenv/state/kustomize
+cp devenv/kustomize/e2e/* devenv/state/kustomize/e2e
 
-cd devenv/state/kustomize # change workingdir to kustomize
-kustomize edit set image placeholderfortesterimage=`cat ../e2e-image-tag.txt`
+cd devenv/state/kustomize/e2e # change workingdir to kustomize/e2e
+kustomize edit set image placeholderfortesterimage=`cat ../../e2e-image-tag.txt`
 
 echo "deleting any existing e2e job..."
 DELETE_APPLY_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP "kubectl delete jobs app-routing-operator-e2e -n kube-system --ignore-not-found && kubectl apply -k ." ".")

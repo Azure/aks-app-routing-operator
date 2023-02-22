@@ -12,6 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const genFixturesEnv = "GENERATE_FIXTURES"
+
 var (
 	namespaceTestCases = []struct {
 		Name   string
