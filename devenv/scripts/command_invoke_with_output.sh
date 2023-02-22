@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 run_invoke () {
   CLUSTER_NAME=$1
   CLUSTER_RESOURCE_GROUP=$2
