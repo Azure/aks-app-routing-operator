@@ -33,7 +33,7 @@ jobs:
         run: "make dev-public"
 
       - name: "Deploy operator"
-        run: "make update-image-on-deployment"
+        run: "make push"
 
       - name: "Run tests"
-        run: "make deploy-e2e"
+        run: "make e2e"
