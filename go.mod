@@ -4,9 +4,13 @@ go 1.17
 
 require (
 	github.com/go-logr/logr v1.2.3
+	github.com/openservicemesh/osm v1.0.0
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.28.0
 	github.com/stretchr/testify v1.7.1
 	k8s.io/api v0.23.0
 	k8s.io/apimachinery v0.23.5
+	k8s.io/client-go v0.23.0
 	k8s.io/klog/v2 v2.60.1
 	sigs.k8s.io/controller-runtime v0.11.1
 	sigs.k8s.io/secrets-store-csi-driver v0.0.24-0.20211001213819-41b8bb9bf89a
@@ -24,6 +28,8 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
