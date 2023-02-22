@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,11 +16,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-// IngressReconciler manages an opinionated ingress resource for services that define certain annotations.
+// NginxIngressReconciler manages an opinionated ingress resource for services that define certain annotations.
 // The resulting ingress uses Keyvault for TLS, never exposes insecure (plain http) routes, and uses OSM for upstream mTLS.
 // If those integrations aren't enabled, it won't work correctly.
 //
@@ -31,18 +31,19 @@ import (
 //
 // This functionality allows easy adoption of good ingress practices while providing an exit strategy.
 // Users can remove the annotations and take ownership of the generated resources at any time.
-type IngressReconciler struct {
-	client client.Client
+type NginxIngressReconciler struct {
+	client    client.Client
+	ingConfig *manifests.NginxIngressConfig
 }
 
-func NewIngressReconciler(manager ctrl.Manager) error {
+func NewNginxIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxIngressConfig) error {
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&corev1.Service{}).
-		Complete(&IngressReconciler{client: manager.GetClient()})
+		Complete(&NginxIngressReconciler{client: manager.GetClient(), ingConfig: ingConfig})
 }
 
-func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -91,7 +92,7 @@ func (i *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(manifests.IngressClass),
+			IngressClassName: util.StringPtr(i.ingConfig.IcName),
 			Rules: []netv1.IngressRule{{
 				Host: svc.Annotations["kubernetes.azure.com/ingress-host"],
 				IngressRuleValue: netv1.IngressRuleValue{

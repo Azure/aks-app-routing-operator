@@ -30,18 +30,19 @@ import (
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
-	client client.Client
-	config *config.Config
+	client         client.Client
+	config         *config.Config
+	ingressManager IngressManager
 }
 
-func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config) error {
+func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
 	if conf.DisableKeyvault {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf})
+		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingressManager: ingressManager})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -79,8 +80,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		},
 	}
 
-	// Don't manage placeholder pod for secret provider classes that aren't owned by ingresses that use our ingress class
-
 	ing := &netv1.Ingress{}
 	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
 	ing.Namespace = req.Namespace
@@ -89,7 +88,9 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{}, err
 		}
 	}
-	if ing.Name == "" || ing.Spec.IngressClassName == nil || *ing.Spec.IngressClassName != manifests.IngressClass {
+
+	managed := p.ingressManager.IsManaging(ing)
+	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		if err := p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return ctrl.Result{}, err
 		}

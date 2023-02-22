@@ -31,6 +31,18 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
+var testIngConf = &manifests.NginxIngressConfig{
+	ControllerClass: "test-controller-class",
+	ResourceName:    "test-resource-name",
+	IcName:          "test-ic-name",
+}
+
+type testLabelGetter struct{}
+
+func (t testLabelGetter) PodLabels() map[string]string {
+	return map[string]string{}
+}
+
 func TestConcurrencyWatchdogPositive(t *testing.T) {
 	ctx := context.Background()
 	list := buildTestPods(5)
@@ -40,12 +52,15 @@ func TestConcurrencyWatchdogPositive(t *testing.T) {
 	c := newTestConcurrencyWatchdog()
 	c.clientset = cs
 	c.client = cli
-	c.scrapeFn = func(ctx context.Context, pod *corev1.Pod) (float64, error) {
-		if pod.Name == "pod-1" {
-			return 2000, nil
-		}
-		return 1, nil
-	}
+	c.targets = []*WatchdogTarget{{
+		ScrapeFn: func(_ context.Context, _ rest.Interface, pod *corev1.Pod) (float64, error) {
+			if pod.Name == "pod-1" {
+				return 2000, nil
+			}
+			return 1, nil
+		},
+		LabelGetter: testLabelGetter{},
+	}}
 
 	// No eviction after first tick of the loop
 	require.NoError(t, c.tick(ctx))
@@ -64,11 +79,16 @@ func TestConcurrencyWatchdogPodNotReady(t *testing.T) {
 
 	c := newTestConcurrencyWatchdog()
 	c.client = cli
-	c.scrapeFn = func(ctx context.Context, pod *corev1.Pod) (float64, error) {
-		if pod.Name == "pod-1" {
-			return 2000, nil
-		}
-		return 1, nil
+	c.targets = []*WatchdogTarget{
+		{
+			ScrapeFn: func(_ context.Context, _ rest.Interface, pod *corev1.Pod) (float64, error) {
+				if pod.Name == "pod-1" {
+					return 2000, nil
+				}
+				return 1, nil
+			},
+			LabelGetter: testLabelGetter{},
+		},
 	}
 
 	// No eviction after first tick of the loop
@@ -115,7 +135,7 @@ func TestConcurrencyWatchdogProcessVotesPositive(t *testing.T) {
 	assert.Equal(t, "pod-1", pod, "the pod was evicted")
 }
 
-func TestConcurrencyWatchdogScrapeHappyPath(t *testing.T) {
+func TestConcurrencyWatchdogNginxScrapeHappyPath(t *testing.T) {
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/v1/namespaces/test-ns/pods/test-pod:10254/proxy/metrics", r.URL.Path)
 
@@ -140,12 +160,12 @@ func TestConcurrencyWatchdogScrapeHappyPath(t *testing.T) {
 	require.NoError(t, err)
 
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "test-ns"}}
-	value, err := c.scrape(context.Background(), pod)
+	value, err := NginxScrapeFn(context.Background(), c.restClient, pod)
 	require.NoError(t, err)
 	assert.Equal(t, float64(123), value)
 }
 
-func TestConcurrencyWatchdogScrapeMissingLabel(t *testing.T) {
+func TestConcurrencyWatchdogNginxScrapeMissingLabel(t *testing.T) {
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, strings.Join([]string{
 			"# TYPE nginx_ingress_controller_nginx_process_connections gauge",
@@ -163,7 +183,7 @@ func TestConcurrencyWatchdogScrapeMissingLabel(t *testing.T) {
 	require.NoError(t, err)
 
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "test-ns"}}
-	_, err = c.scrape(context.Background(), pod)
+	_, err = NginxScrapeFn(context.Background(), c.restClient, pod)
 	require.EqualError(t, err, "active connections metric not found")
 }
 
@@ -248,7 +268,7 @@ func buildTestPods(n int) *corev1.PodList {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              fmt.Sprintf("pod-%d", i),
 				CreationTimestamp: metav1.NewTime(time.Now().Add(-time.Hour)),
-				Labels:            manifests.IngressPodLabels,
+				Labels:            testIngConf.PodLabels(),
 			},
 			Status: corev1.PodStatus{
 				Conditions: []corev1.PodCondition{{

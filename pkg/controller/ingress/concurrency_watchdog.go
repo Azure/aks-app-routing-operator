@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/hashicorp/go-multierror"
 	prommodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	corev1 "k8s.io/api/core/v1"
@@ -24,125 +25,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-// ConcurrencyWatchdog evicts ingress controller pods that have too many active connections relative to others.
-// This helps redistribute long-running connections when the ingress controller scales up.
-type ConcurrencyWatchdog struct {
-	client     client.Client
-	clientset  kubernetes.Interface
-	restClient rest.Interface
-	logger     logr.Logger
-	config     *config.Config
+// ScrapeFn returns the connection count for the given pod
+type ScrapeFn func(ctx context.Context, client rest.Interface, pod *corev1.Pod) (float64, error)
 
-	interval, minPodAge, voteTTL time.Duration
-	minVotesBeforeEviction       int
-	minPercentOverAvgBeforeVote  float64
-
-	votes    *ring.Ring
-	scrapeFn func(context.Context, *corev1.Pod) (float64, error)
-}
-
-func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config) error {
-	clientset, err := kubernetes.NewForConfig(manager.GetConfig())
-	if err != nil {
-		return err
-	}
-
-	c := &ConcurrencyWatchdog{
-		client:     manager.GetClient(),
-		clientset:  clientset,
-		restClient: clientset.CoreV1().RESTClient(),
-		logger:     manager.GetLogger().WithName("ingressWatchdog"),
-		config:     conf,
-
-		interval:                    time.Minute,
-		minPodAge:                   time.Minute * 5,
-		minVotesBeforeEviction:      conf.ConcurrencyWatchdogVotes,
-		minPercentOverAvgBeforeVote: conf.ConcurrencyWatchdogThres,
-		voteTTL:                     time.Minute * 10,
-
-		votes: ring.New(20),
-	}
-	c.scrapeFn = c.scrape
-
-	return manager.Add(c)
-}
-
-func (c *ConcurrencyWatchdog) Start(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(util.Jitter(c.interval, 0.3)):
-		}
-		if err := c.tick(ctx); err != nil {
-			c.logger.Error(err, "error reconciling ingress controller resources")
-			continue
-		}
-	}
-}
-
-func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
-	start := time.Now()
-	defer func() {
-		c.logger.Info("finished checking on ingress controller pods", "latencySec", time.Since(start).Seconds())
-	}()
-
-	list := &corev1.PodList{}
-	err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(manifests.IngressPodLabels))
-	if err != nil {
-		return err
-	}
-
-	connectionCountByPod := make([]float64, len(list.Items))
-	nReadyPods := 0
-	var totalConnectionCount float64
-	for i, pod := range list.Items {
-		if !podIsReady(&pod) {
-			continue
-		}
-		nReadyPods++
-		count, err := c.scrapeFn(ctx, &pod)
-		if err != nil {
-			return fmt.Errorf("scraping pod %q: %w", pod.Name, err)
-		}
-		connectionCountByPod[i] = count
-		totalConnectionCount += count
-	}
-	avgConnectionCount := totalConnectionCount / float64(nReadyPods)
-
-	// Only rebalance connections when three or more replicas are ready.
-	// Otherwise we will just push the connections to the other replica.
-	if nReadyPods < 3 {
-		return nil
-	}
-
-	pod := c.processVotes(list, connectionCountByPod, avgConnectionCount)
-	if pod == "" {
-		return nil // no pods to evict
-	}
-
-	c.logger.Info("evicting pod due to high relative connection concurrency", "name", pod)
-	eviction := &policyv1beta1.Eviction{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pod,
-			Namespace: c.config.NS,
-		},
-	}
-
-	if err := c.clientset.CoreV1().Pods(eviction.Namespace).EvictV1beta1(ctx, eviction); err != nil {
-		c.logger.Error(err, "unable to evict pod", "name", pod)
-		// don't return the error since we shouldn't retry right away
-	}
-
-	return nil
-}
-
-func (c *ConcurrencyWatchdog) scrape(ctx context.Context, pod *corev1.Pod) (float64, error) {
-	resp, err := c.restClient.Get().
+// NginxScrapeFn is the scrape function for Nginx
+func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) (float64, error) {
+	resp, err := client.Get().
 		AbsPath("/api/v1/namespaces", pod.Namespace, "pods", pod.Name+":10254", "proxy/metrics").
 		Timeout(time.Second * 30).
 		MaxRetries(4).
@@ -172,6 +63,137 @@ func (c *ConcurrencyWatchdog) scrape(ctx context.Context, pod *corev1.Pod) (floa
 		}
 	}
 	return 0, fmt.Errorf("active connections metric not found")
+}
+
+// LabelGetter returns unique pod labels for an Ingress controller
+type LabelGetter interface {
+	PodLabels() map[string]string
+}
+
+// WatchdogTarget refers to a target the concurrency watchdog should track
+type WatchdogTarget struct {
+	ScrapeFn ScrapeFn
+	LabelGetter
+}
+
+// ConcurrencyWatchdog evicts ingress controller pods that have too many active connections relative to others.
+// This helps redistribute long-running connections when the ingress controller scales up.
+type ConcurrencyWatchdog struct {
+	client     client.Client
+	clientset  kubernetes.Interface
+	restClient rest.Interface
+	logger     logr.Logger
+	config     *config.Config
+	targets    []*WatchdogTarget
+
+	interval, minPodAge, voteTTL time.Duration
+	minVotesBeforeEviction       int
+	minPercentOverAvgBeforeVote  float64
+
+	votes *ring.Ring
+}
+
+func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, targets []*WatchdogTarget) error {
+	clientset, err := kubernetes.NewForConfig(manager.GetConfig())
+	if err != nil {
+		return err
+	}
+
+	c := &ConcurrencyWatchdog{
+		client:     manager.GetClient(),
+		clientset:  clientset,
+		restClient: clientset.CoreV1().RESTClient(),
+		logger:     manager.GetLogger().WithName("ingressWatchdog"),
+		config:     conf,
+		targets:    targets,
+
+		interval:                    time.Minute,
+		minPodAge:                   time.Minute * 5,
+		minVotesBeforeEviction:      conf.ConcurrencyWatchdogVotes,
+		minPercentOverAvgBeforeVote: conf.ConcurrencyWatchdogThres,
+		voteTTL:                     time.Minute * 10,
+
+		votes: ring.New(20),
+	}
+
+	return manager.Add(c)
+}
+
+func (c *ConcurrencyWatchdog) Start(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(util.Jitter(c.interval, 0.3)):
+		}
+		if err := c.tick(ctx); err != nil {
+			c.logger.Error(err, "error reconciling ingress controller resources")
+			continue
+		}
+	}
+}
+
+func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
+	start := time.Now()
+	defer func() {
+		c.logger.Info("finished checking on ingress controller pods", "latencySec", time.Since(start).Seconds())
+	}()
+
+	var retErr *multierror.Error
+	for _, target := range c.targets {
+		c.logger.Info("starting checking on ingress controller pods", "labels", target.PodLabels())
+
+		list := &corev1.PodList{}
+		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.LabelGetter.PodLabels()))
+		if err != nil {
+			retErr = multierror.Append(retErr, err)
+			continue
+		}
+
+		connectionCountByPod := make([]float64, len(list.Items))
+		nReadyPods := 0
+		var totalConnectionCount float64
+		for i, pod := range list.Items {
+			if !podIsReady(&pod) {
+				continue
+			}
+			nReadyPods++
+			count, err := target.ScrapeFn(ctx, c.restClient, &pod)
+			if err != nil {
+				retErr = multierror.Append(retErr, fmt.Errorf("scraping pod %q: %w", pod.Name, err))
+				continue
+			}
+			connectionCountByPod[i] = count
+			totalConnectionCount += count
+		}
+		avgConnectionCount := totalConnectionCount / float64(nReadyPods)
+
+		// Only rebalance connections when three or more replicas are ready.
+		// Otherwise we will just push the connections to the other replica.
+		if nReadyPods < 3 {
+			continue
+		}
+
+		pod := c.processVotes(list, connectionCountByPod, avgConnectionCount)
+		if pod == "" {
+			continue
+		}
+
+		c.logger.Info("evicting pod due to high relative connection concurrency", "name", pod)
+		eviction := &policyv1beta1.Eviction{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      pod,
+				Namespace: c.config.NS,
+			},
+		}
+
+		if err := c.clientset.CoreV1().Pods(eviction.Namespace).EvictV1beta1(ctx, eviction); err != nil {
+			c.logger.Error(err, "unable to evict pod", "name", pod)
+			// don't add the error to return since we shouldn't retry right away
+		}
+	}
+
+	return retErr.ErrorOrNil()
 }
 
 func (c *ConcurrencyWatchdog) processVotes(list *corev1.PodList, connectionCountByPod []float64, avgConnectionCount float64) string {

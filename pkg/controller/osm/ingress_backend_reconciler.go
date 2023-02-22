@@ -15,25 +15,58 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
+
+// IngressControllerNamer returns the controller name that an Ingress consumes and a boolean indicating whether it's managed by web app routing.
+// If an ingress is not managed by web app routing, the namer will return false and isn't guaranteed to return the controller name
+type IngressControllerNamer interface {
+	IngressControllerName(ing *netv1.Ingress) (string, bool)
+}
+
+type ingressControllerNamer struct {
+	icToController map[string]string
+}
+
+// NewIngressControllerNamer returns an IngressControllerNamer using a map from ingress class names to controller names
+func NewIngressControllerNamer(icToController map[string]string) IngressControllerNamer {
+	return &ingressControllerNamer{icToController: icToController}
+}
+
+func (i ingressControllerNamer) IngressControllerName(ing *netv1.Ingress) (string, bool) {
+	if ing == nil {
+		return "", false
+	}
+
+	cn := ing.Spec.IngressClassName
+	if cn == nil {
+		return "", false
+	}
+
+	controller, ok := i.icToController[*cn]
+	if !ok {
+		return "", false
+	}
+
+	return controller, true
+}
 
 // IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "kubernetes.azure.com/use-osm-mtls=true".
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
-	client client.Client
-	config *config.Config
+	client                 client.Client
+	config                 *config.Config
+	ingressControllerNamer IngressControllerNamer
 }
 
-func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config) error {
+func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingressControllerNamer IngressControllerNamer) error {
 	if conf.DisableOSM {
 		return nil
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&netv1.Ingress{}).
-		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf})
+		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamer: ingressControllerNamer})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -71,7 +104,9 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		},
 	}
 
-	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" {
+	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
+	logger = logger.WithValues("controller", controllerName)
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -87,7 +122,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		Sources: []policyv1alpha1.IngressSourceSpec{
 			{
 				Kind:      "Service",
-				Name:      manifests.IngressControllerName,
+				Name:      controllerName,
 				Namespace: i.config.NS,
 			},
 			{

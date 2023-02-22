@@ -21,25 +21,6 @@
       "status": {}
     },
     {
-      "kind": "IngressClass",
-      "apiVersion": "networking.k8s.io/v1",
-      "metadata": {
-        "name": "webapprouting.kubernetes.azure.com",
-        "creationTimestamp": null,
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
-      },
-      "spec": {
-        "controller": "k8s.io/ingress-nginx"
-      }
-    },
-    {
       "kind": "ServiceAccount",
       "apiVersion": "v1",
       "metadata": {
@@ -199,6 +180,11 @@
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
         },
+        "annotations": {
+          "external-dns.alpha.kubernetes.io/hostname": "loadbalancer.test.hostname.com",
+          "external-dns.alpha.kubernetes.io/internal-hostname": "clusterip.test.hostname.com",
+          "service.beta.kubernetes.io/azure-load-balancer-internal": "true"
+        },
         "ownerReferences": [
           {
             "apiVersion": "apps/v1",
@@ -273,7 +259,9 @@
                 "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1",
                 "args": [
                   "/nginx-ingress-controller",
-                  "--ingress-class=webapprouting.kubernetes.azure.com",
+                  "--ingress-class=nginx-private",
+                  "--controller-class=test-controller-class",
+                  "--election-id=nginx",
                   "--publish-service=$(POD_NAMESPACE)/nginx",
                   "--configmap=$(POD_NAMESPACE)/nginx",
                   "--http-port=8080",
@@ -485,186 +473,5 @@
         "currentReplicas": 0,
         "desiredReplicas": 0
       }
-    },
-    {
-      "kind": "ConfigMap",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "external-dns",
-        "namespace": "test-namespace",
-        "creationTimestamp": null,
-        "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
-      },
-      "data": {
-        "azure.json": "{\"cloud\":\"test-cloud\",\"location\":\"test-location\",\"resourceGroup\":\"test-dns-zone-rg\",\"subscriptionId\":\"test-dns-zone-sub\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"test-msi-client-id\"}"
-      }
-    },
-    {
-      "kind": "Deployment",
-      "apiVersion": "apps/v1",
-      "metadata": {
-        "name": "external-dns",
-        "namespace": "test-namespace",
-        "creationTimestamp": null,
-        "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
-      },
-      "spec": {
-        "replicas": 1,
-        "selector": {
-          "matchLabels": {
-            "app": "external-dns"
-          }
-        },
-        "template": {
-          "metadata": {
-            "creationTimestamp": null,
-            "labels": {
-              "app": "external-dns",
-              "checksum/configmap": "fe10e8cec6d08818"
-            }
-          },
-          "spec": {
-            "volumes": [
-              {
-                "name": "azure-config",
-                "configMap": {
-                  "name": "external-dns"
-                }
-              }
-            ],
-            "containers": [
-              {
-                "name": "controller",
-                "image": "test-registry/oss/kubernetes/external-dns:v0.11.0.2",
-                "args": [
-                  "--source=ingress",
-                  "--interval=3m0s",
-                  "--txt-owner-id=",
-                  "--domain-filter=test-dns-zone-domain",
-                  "--provider=azure"
-                ],
-                "resources": {
-                  "limits": {
-                    "cpu": "100m",
-                    "memory": "250Mi"
-                  },
-                  "requests": {
-                    "cpu": "100m",
-                    "memory": "250Mi"
-                  }
-                },
-                "volumeMounts": [
-                  {
-                    "name": "azure-config",
-                    "readOnly": true,
-                    "mountPath": "/etc/kubernetes"
-                  }
-                ],
-                "livenessProbe": {
-                  "httpGet": {
-                    "path": "/healthz",
-                    "port": 7979,
-                    "scheme": "HTTP"
-                  },
-                  "initialDelaySeconds": 10,
-                  "timeoutSeconds": 1,
-                  "periodSeconds": 5,
-                  "successThreshold": 1,
-                  "failureThreshold": 3
-                },
-                "readinessProbe": {
-                  "httpGet": {
-                    "path": "/healthz",
-                    "port": 7979,
-                    "scheme": "HTTP"
-                  },
-                  "initialDelaySeconds": 10,
-                  "timeoutSeconds": 1,
-                  "periodSeconds": 5,
-                  "successThreshold": 1,
-                  "failureThreshold": 3
-                }
-              }
-            ],
-            "serviceAccountName": "nginx",
-            "affinity": {
-              "nodeAffinity": {
-                "requiredDuringSchedulingIgnoredDuringExecution": {
-                  "nodeSelectorTerms": [
-                    {
-                      "matchExpressions": [
-                        {
-                          "key": "kubernetes.azure.com/cluster",
-                          "operator": "Exists"
-                        },
-                        {
-                          "key": "type",
-                          "operator": "NotIn",
-                          "values": [
-                            "virtual-kubelet"
-                          ]
-                        },
-                        {
-                          "key": "kubernetes.io/os",
-                          "operator": "In",
-                          "values": [
-                            "linux"
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "preferredDuringSchedulingIgnoredDuringExecution": [
-                  {
-                    "weight": 100,
-                    "preference": {
-                      "matchExpressions": [
-                        {
-                          "key": "kubernetes.azure.com/mode",
-                          "operator": "In",
-                          "values": [
-                            "system"
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
-            "tolerations": [
-              {
-                "key": "CriticalAddonsOnly",
-                "operator": "Exists"
-              }
-            ],
-            "priorityClassName": "system-node-critical"
-          }
-        },
-        "strategy": {},
-        "revisionHistoryLimit": 2
-      },
-      "status": {}
     }
   ]

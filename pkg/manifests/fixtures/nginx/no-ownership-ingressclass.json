@@ -1,0 +1,13 @@
+[
+    {
+      "kind": "IngressClass",
+      "apiVersion": "networking.k8s.io/v1",
+      "metadata": {
+        "name": "webapprouting.kubernetes.azure.com",
+        "creationTimestamp": null
+      },
+      "spec": {
+        "controller": "webapprouting.kubernetes.azure.com/nginx"
+      }
+    }
+  ]
