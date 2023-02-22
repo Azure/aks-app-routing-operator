@@ -12,11 +12,11 @@ clean-all: clean-public clean-private
 
 dev-public:
 	terraform --version
-	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
+	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve && cd ../..
 
 dev-private:
 	terraform --version
-	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
+	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve && cd ../..
 	./devenv/scripts/deploy_operator_private_cluster.sh
 
 push:
