@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/go-logr/logr"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -62,11 +63,13 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	if err := checkNamespace(kcs, conf); err != nil {
 		return nil, err
 	}
-	deploy, err := getSelfDeploy(kcs, conf)
+
+	log := m.GetLogger()
+	deploy, err := getSelfDeploy(kcs, conf, log)
 	if err != nil {
 		return nil, err
 	}
-	m.GetLogger().V(2).Info("using namespace: " + conf.NS)
+	log.V(2).Info("using namespace: " + conf.NS)
 
 	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy)); err != nil {
 		return nil, err
@@ -113,11 +116,12 @@ func checkNamespace(kcs kubernetes.Interface, conf *config.Config) error {
 	return err
 }
 
-func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config) (*appsv1.Deployment, error) {
+func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
 	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		// It's okay if we don't find the deployment - just skip setting ownership references
-		err = nil
+		// It's okay if we don't find the deployment - just skip setting ownership references latter
+		log.Info("self deploy not found")
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
