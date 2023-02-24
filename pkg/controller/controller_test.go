@@ -79,7 +79,6 @@ func TestGetSelfDeploy(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, self)
 		assert.Equal(t, self.Name, deploy.Name)
-
 	})
 
 	t.Run("deploy missing", func(t *testing.T) {
