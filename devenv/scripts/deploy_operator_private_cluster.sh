@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -e
 
 source ./devenv/scripts/command_invoke_with_output.sh

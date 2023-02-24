@@ -8,6 +8,9 @@ import (
 	"net/http"
 
 	"github.com/go-logr/logr"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -20,11 +23,8 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
 func init() {
@@ -71,28 +71,51 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 	log.V(2).Info("using namespace: " + conf.NS)
 
-	if err = ingress.NewIngressControllerReconciler(m, manifests.IngressControllerResources(conf, deploy)); err != nil {
+	if err := dns.NewExternalDns(m, conf, deploy); err != nil {
 		return nil, err
 	}
-	if err = ingress.NewConcurrencyWatchdog(m, conf); err != nil {
+
+	nginxConfigs, err := nginx.New(m, conf, deploy)
+	if err != nil {
 		return nil, err
 	}
-	if err = keyvault.NewIngressSecretProviderClassReconciler(m, conf); err != nil {
+
+	watchdogTargets := make([]*ingress.WatchdogTarget, 0)
+	for _, nginxConfig := range nginxConfigs {
+		watchdogTargets = append(watchdogTargets, &ingress.WatchdogTarget{
+			ScrapeFn:    ingress.NginxScrapeFn,
+			LabelGetter: nginxConfig,
+		})
+	}
+	if err := ingress.NewConcurrencyWatchdog(m, conf, watchdogTargets); err != nil {
 		return nil, err
 	}
-	if err = keyvault.NewPlaceholderPodController(m, conf); err != nil {
+
+	icToController := make(map[string]string)
+	for _, nginxConfig := range nginxConfigs {
+		icToController[nginxConfig.IcName] = nginxConfig.ResourceName
+	}
+	ics := make(map[string]struct{})
+	for ic := range icToController {
+		ics[ic] = struct{}{}
+	}
+
+	ingressManager := keyvault.NewIngressManager(ics)
+	if err := keyvault.NewIngressSecretProviderClassReconciler(m, conf, ingressManager); err != nil {
+		return nil, err
+	}
+	if err := keyvault.NewPlaceholderPodController(m, conf, ingressManager); err != nil {
 		return nil, err
 	}
 	if err = keyvault.NewEventMirror(m, conf); err != nil {
 		return nil, err
 	}
+
+	ingressControllerNamer := osm.NewIngressControllerNamer(icToController)
+	if err := osm.NewIngressBackendReconciler(m, conf, ingressControllerNamer); err != nil {
+		return nil, err
+	}
 	if err = osm.NewIngressCertConfigReconciler(m, conf); err != nil {
-		return nil, err
-	}
-	if err = osm.NewIngressBackendReconciler(m, conf); err != nil {
-		return nil, err
-	}
-	if err = service.NewIngressReconciler(m); err != nil {
 		return nil, err
 	}
 

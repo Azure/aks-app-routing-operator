@@ -5,6 +5,8 @@ package keyvault
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -40,6 +42,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
 	}
 
 	ctx := context.Background()
@@ -128,7 +131,8 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		events: recorder,
+		events:         recorder,
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
 	}
 
 	ctx := context.Background()
@@ -142,10 +146,13 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 }
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{}
+	ingressClass := "webapprouting.kubernetes.azure.com"
+
+	i := &IngressSecretProviderClassReconciler{
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+	}
 
 	ing := &netv1.Ingress{}
-	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
 
 	t.Run("missing ingress class", func(t *testing.T) {
@@ -188,11 +195,13 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 	t.Run("url with control character", func(t *testing.T) {
 		ing := ing.DeepCopy()
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": string([]byte{0x7f})}
+		cc := string([]byte{0x7f})
+		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": cc}
 
 		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
-		require.EqualError(t, err, "parse \"\\u007f\": net/url: invalid control character in URL")
+		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
+		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
 	})
 
 	t.Run("url with one path segment", func(t *testing.T) {
