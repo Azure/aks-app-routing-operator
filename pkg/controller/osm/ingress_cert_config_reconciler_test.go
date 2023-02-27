@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
+	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -20,12 +20,12 @@ import (
 )
 
 func TestIngressCertConfigReconcilerIntegration(t *testing.T) {
-	conf := &cfgv1alpha1.MeshConfig{}
+	conf := &cfgv1alpha2.MeshConfig{}
 	conf.Name = osmMeshConfigName
 	conf.Namespace = osmNamespace
 
 	scheme := runtime.NewScheme()
-	require.NoError(t, cfgv1alpha1.AddToScheme(scheme))
+	require.NoError(t, cfgv1alpha2.AddToScheme(scheme))
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -42,10 +42,10 @@ func TestIngressCertConfigReconcilerIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prove config is correct
-	actual := &cfgv1alpha1.MeshConfig{}
+	actual := &cfgv1alpha2.MeshConfig{}
 	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(conf), actual))
 
-	expected := &cfgv1alpha1.IngressGatewayCertSpec{
+	expected := &cfgv1alpha2.IngressGatewayCertSpec{
 		ValidityDuration: "24h",
 		SubjectAltNames:  []string{"ingress-nginx.ingress.cluster.local"},
 		Secret: corev1.SecretReference{

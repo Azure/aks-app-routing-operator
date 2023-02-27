@@ -99,6 +99,30 @@
           "resources": [
             "nodes"
           ]
+        },
+        {
+          "verbs": [
+            "*"
+          ],
+          "apiGroups": [
+            "coordination.k8s.io"
+          ],
+          "resources": [
+            "leases"
+          ]
+        },
+        {
+          "verbs": [
+            "list",
+            "watch",
+            "get"
+          ],
+          "apiGroups": [
+            "discovery.k8s.io"
+          ],
+          "resources": [
+            "endpointslices"
+          ]
         }
       ]
     },
@@ -190,7 +214,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.6.4",
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",

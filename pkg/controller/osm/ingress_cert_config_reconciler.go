@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
+	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +35,7 @@ func NewIngressCertConfigReconciler(manager ctrl.Manager, conf *config.Config) e
 	}
 	return ctrl.
 		NewControllerManagedBy(manager).
-		For(&cfgv1alpha1.MeshConfig{}).
+		For(&cfgv1alpha2.MeshConfig{}).
 		Complete(&IngressCertConfigReconciler{client: manager.GetClient()})
 }
 
@@ -50,7 +50,7 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
-	conf := &cfgv1alpha1.MeshConfig{}
+	conf := &cfgv1alpha2.MeshConfig{}
 	err = i.client.Get(ctx, req.NamespacedName, conf)
 	if errors.IsNotFound(err) {
 		return ctrl.Result{}, nil
@@ -61,7 +61,7 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	var dirty bool
 	if conf.Spec.Certificate.IngressGateway == nil {
-		conf.Spec.Certificate.IngressGateway = &cfgv1alpha1.IngressGatewayCertSpec{}
+		conf.Spec.Certificate.IngressGateway = &cfgv1alpha2.IngressGatewayCertSpec{}
 	}
 	if conf.Spec.Certificate.IngressGateway.Secret.Name != osmClientCertName {
 		dirty = true
