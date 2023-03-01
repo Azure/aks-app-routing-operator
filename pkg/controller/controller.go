@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
-	cfgv1alpha1 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha1"
+	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -50,8 +50,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	if err != nil {
 		return nil, err
 	}
-	secv1.AddToScheme(m.GetScheme())
-	cfgv1alpha1.AddToScheme(m.GetScheme())
+	secv1.Install(m.GetScheme())
+	cfgv1alpha2.AddToScheme(m.GetScheme())
 	policyv1alpha1.AddToScheme(m.GetScheme())
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })

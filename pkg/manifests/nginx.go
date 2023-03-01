@@ -21,6 +21,10 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
+const (
+	controllerImageTag = "v1.3.0"
+)
+
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
 	ControllerClass string         // controller class which is equivalent to controller field of IngressClass
@@ -144,6 +148,13 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 				Resources: []string{"nodes"},
 				Verbs:     []string{"watch", "list"},
 			},
+			{
+				// required as of v1.3.0 due to controller switch to lease api
+				// https://github.com/kubernetes/ingress-nginx/releases/tag/controller-v1.3.0
+				APIGroups: []string{"coordination.k8s.io"},
+				Resources: []string{"leases"},
+				Verbs:     []string{"*"},
+			},
 		},
 	}
 }
@@ -248,7 +259,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:v1.2.1"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
 						Args: []string{
 							"/nginx-ingress-controller",
 							"--ingress-class=" + ingressConfig.IcName,
