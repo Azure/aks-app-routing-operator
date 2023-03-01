@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	controllerImageTag = "v1.6.4"
+	controllerImageTag = "v1.3.0"
 )
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
@@ -149,16 +149,11 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 				Verbs:     []string{"watch", "list"},
 			},
 			{
-				// required as of v1.3.1 due to controller switch to lease api
-				// https://github.com/kubernetes/ingress-nginx/releases/tag/controller-v1.3.1
+				// required as of v1.3.0 due to controller switch to lease api
+				// https://github.com/kubernetes/ingress-nginx/releases/tag/controller-v1.3.0
 				APIGroups: []string{"coordination.k8s.io"},
 				Resources: []string{"leases"},
 				Verbs:     []string{"*"},
-			},
-			{
-				APIGroups: []string{"discovery.k8s.io"},
-				Resources: []string{"endpointslices"},
-				Verbs:     []string{"list", "watch", "get"},
 			},
 		},
 	}
