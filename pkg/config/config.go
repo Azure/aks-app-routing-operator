@@ -11,7 +11,7 @@ import (
 var Flags = &Config{}
 
 func init() {
-	flag.StringVar(&Flags.NS, "namespace", "app-routing-system", "namespace for managed resources (deprecated: omit flag to use kube-system instead)")
+	flag.StringVar(&Flags.NS, "namespace", "app-routing-system", "namespace for managed resources")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
