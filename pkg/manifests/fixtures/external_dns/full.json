@@ -1,5 +1,26 @@
 [
     {
+      "kind": "Namespace",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "test-operator-deploy",
+            "uid": "test-operator-deploy-uid"
+          }
+        ]
+      },
+      "spec": {},
+      "status": {}
+    },
+    {
       "kind": "ServiceAccount",
       "apiVersion": "v1",
       "metadata": {
@@ -113,27 +134,6 @@
         "kind": "ClusterRole",
         "name": "external-dns"
       }
-    },
-    {
-      "kind": "Namespace",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "test-namespace",
-        "creationTimestamp": null,
-        "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
-      },
-      "spec": {},
-      "status": {}
     },
     {
       "kind": "ConfigMap",
