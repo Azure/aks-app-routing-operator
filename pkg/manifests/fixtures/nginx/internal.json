@@ -194,6 +194,8 @@
         "annotations": {
           "external-dns.alpha.kubernetes.io/hostname": "loadbalancer.test.hostname.com",
           "external-dns.alpha.kubernetes.io/internal-hostname": "clusterip.test.hostname.com",
+          "prometheus.io/port": "10254",
+          "prometheus.io/scrape": "true",
           "service.beta.kubernetes.io/azure-load-balancer-internal": "true"
         },
         "ownerReferences": [
@@ -216,6 +218,11 @@
             "name": "https",
             "port": 443,
             "targetPort": "https"
+          },
+          {
+            "name": "prometheus",
+            "port": 10254,
+            "targetPort": "prometheus"
           }
         ],
         "selector": {
@@ -260,7 +267,9 @@
               "app": "nginx"
             },
             "annotations": {
-              "openservicemesh.io/sidecar-injection": "enabled"
+              "openservicemesh.io/sidecar-injection": "enabled",
+              "prometheus.io/port": "10254",
+              "prometheus.io/scrape": "true"
             }
           },
           "spec": {
@@ -286,6 +295,10 @@
                   {
                     "name": "https",
                     "containerPort": 8443
+                  },
+                  {
+                    "name": "prometheus",
+                    "containerPort": 10254
                   }
                 ],
                 "env": [
