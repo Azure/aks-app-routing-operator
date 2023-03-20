@@ -14,6 +14,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -55,13 +56,12 @@ type Case struct {
 }
 
 func (c *Case) Retry(fn func() error) {
-	c.t.Helper()
 	for {
 		err := fn()
 		if err == nil {
 			return
 		}
-		c.t.Logf("error: %s", err)
+		log.Printf("error: %s", err)
 		time.Sleep(util.Jitter(time.Millisecond*200, 0.5))
 	}
 }
@@ -74,16 +74,23 @@ func (c *Case) Hostname(domain string) string {
 // WithResources creates Kubernetes resources for the test case and waits for them to become ready.
 func (c *Case) WithResources(resources ...client.Object) {
 	c.ensureNS()
+
 	var wg sync.WaitGroup
 	for _, res := range resources {
-		res.SetNamespace(c.ns)
-		c.Retry(func() error {
-			return c.Client.Create(context.Background(), res)
-		})
-
 		wg.Add(1)
-		go func(res interface{}) {
+		go func(res client.Object) {
 			defer wg.Done()
+
+			res.SetNamespace(c.ns)
+			c.Retry(func() error {
+				err := c.Client.Create(context.Background(), res)
+				if err != nil && k8serrors.IsAlreadyExists(err) {
+					err = c.Client.Update(context.Background(), res)
+				}
+
+				return err
+			})
+
 			switch obj := res.(type) {
 			case *appsv1.Deployment:
 				c.watchDeployment(obj)
@@ -164,4 +171,9 @@ func (c *Case) ensureNS() {
 			return nil
 		})
 	}()
+}
+
+func (c *Case) NS() string {
+	c.ensureNS()
+	return c.ns
 }

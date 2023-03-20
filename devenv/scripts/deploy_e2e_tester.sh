@@ -5,8 +5,9 @@ source ./devenv/scripts/command_invoke_with_output.sh
 CLUSTER_RESOURCE_GROUP=$(cat devenv/state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
 CLUSTER_NAME=$(cat devenv/state/cluster-info.json | jq '.ClusterName' | tr -d '"')
 
-echo "adding image tag to kustomize and generating configmap..."
+echo "adding image tags to kustomize and generating configmaps..."
 cp devenv/kustomize/e2e/* devenv/state/kustomize/e2e
+cp devenv/state/e2e-prom-client.txt devenv/state/kustomize/e2e
 
 cd devenv/state/kustomize/e2e # change workingdir to kustomize/e2e
 kustomize edit set image placeholderfortesterimage=`cat ../../e2e-image-tag.txt`
@@ -43,11 +44,11 @@ POD_LOGS_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP 'kubectl logs
 echo $POD_LOGS_RESULT
 
 
-if [ $FINALSTATUS != "0" ]
+if [[ $FINALSTATUS == "0" ]]
 then
-  echo "TEST FAILED"
-else
   echo "TEST PASSED"
+  exit 0
 fi
 
-exit $FINALSTATUS
+echo "TEST FAILED"
+exit 1
