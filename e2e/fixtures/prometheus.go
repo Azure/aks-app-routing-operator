@@ -137,8 +137,8 @@ scrape_configs:
 				APIVersion: "rbac.authorization.k8s.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: promServer, // use GenerateName to avoid name collision (ensures e2e idempotence)
-				Namespace:    ns,
+				Name:      promServer,
+				Namespace: ns,
 			},
 			Subjects: []rbacv1.Subject{
 				{
