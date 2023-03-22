@@ -26,10 +26,11 @@ push:
 	docker push `cat devenv/state/operator-image-tag.txt`
 	./devenv/scripts/push_image.sh
 
+TAG = $(shell date +%s)
 push-tester-images:
 	az acr login -n `cat devenv/state/registry.txt`
-	echo "$(shell cat devenv/state/registry.txt)/e2e-prom-client:$(shell date +%s)" > devenv/state/e2e-prom-client.txt
-	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator-e2e:$(shell date +%s)" > devenv/state/e2e-image-tag.txt
+	echo "$(shell cat devenv/state/registry.txt)/e2e-prom-client:$(TAG)" > devenv/state/e2e-prom-client.txt
+	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator-e2e:$(TAG)" > devenv/state/e2e-image-tag.txt
 	docker build -t `cat devenv/state/e2e-prom-client.txt` -f e2e/fixtures/promclient/Dockerfile ./e2e/fixtures/promclient/
 	docker push `cat devenv/state/e2e-prom-client.txt`
 	docker build -t `cat devenv/state/e2e-image-tag.txt` -f e2e/Dockerfile .

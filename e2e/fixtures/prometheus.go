@@ -67,6 +67,8 @@ func NewPrometheusClient(ns, image string) client.Object {
 
 // NewPrometheus returns objects for running Prometheus that monitors web app routing
 func NewPrometheus(ns string) []client.Object {
+	// comes from https://github.com/kubernetes/ingress-nginx/blob/main/deploy/prometheus/prometheus.yaml
+	// just a standard prometheus config for nginx-ingress
 	c := fmt.Sprintf(`
 global:
   scrape_interval: 10s
