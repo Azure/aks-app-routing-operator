@@ -5,6 +5,7 @@ package manifests
 
 import (
 	"path"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autov1 "k8s.io/api/autoscaling/v1"
@@ -23,6 +24,23 @@ import (
 
 const (
 	controllerImageTag = "v1.3.0"
+	prom               = "prometheus"
+)
+
+var (
+	promServicePort = corev1.ServicePort{
+		Name:       prom,
+		Port:       10254,
+		TargetPort: intstr.FromString(prom),
+	}
+	promPodPort = corev1.ContainerPort{
+		Name:          prom,
+		ContainerPort: promServicePort.Port,
+	}
+	promAnnotations = map[string]string{
+		"prometheus.io/scrape": "true",
+		"prometheus.io/port":   strconv.Itoa(int(promServicePort.Port)),
+	}
 )
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
@@ -201,6 +219,10 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 		annotations["external-dns.alpha.kubernetes.io/internal-hostname"] = "clusterip." + hostname
 	}
 
+	for k, v := range promAnnotations {
+		annotations[k] = v
+	}
+
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
@@ -227,6 +249,7 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 					Port:       443,
 					TargetPort: intstr.FromString("https"),
 				},
+				promServicePort,
 			},
 		},
 	}
@@ -237,6 +260,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 	if !conf.DisableOSM {
 		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
 	}
+
+	for k, v := range promAnnotations {
+		podAnnotations[k] = v
+	}
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -282,6 +310,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 								Name:          "https",
 								ContainerPort: 8443,
 							},
+							promPodPort,
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{

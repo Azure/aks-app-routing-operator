@@ -7,7 +7,6 @@ namespace: kube-system
 images:
 - name: placeholderfortesterimage
 
-
 resources:
 - e2e-tester.yaml
 
@@ -15,3 +14,6 @@ configMapGenerator:
   - name: e2e-tester-configmap
     files:
       - e2e.json
+  - name: e2e-prom-client-image
+    files:
+      - e2e-prom-client.txt

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"k8s.io/client-go/kubernetes"
@@ -29,6 +30,7 @@ type testConfig struct {
 	TestNameservers           []string
 	CertID, CertVersionlessID string
 	DNSZoneDomain             string
+	PromClientImage           string
 }
 
 func TestMain(m *testing.M) {
@@ -40,6 +42,12 @@ func TestMain(m *testing.M) {
 	if err := json.Unmarshal([]byte(rawConf), conf); err != nil {
 		panic(err)
 	}
+
+	promClientImage := strings.TrimSpace(os.Getenv("PROM_CLIENT_IMAGE"))
+	if promClientImage == "" {
+		panic(errors.New("failed to get prometheus client image from env"))
+	}
+	conf.PromClientImage = promClientImage
 
 	// attempt to load in-cluster config
 	rc, err := rest.InClusterConfig()
@@ -100,4 +108,13 @@ func TestBasicServiceNoOSM(t *testing.T) {
 	tc.WithResources(
 		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
 		svr, svc)
+}
+
+// TestPrometheus proves that users can consume Prometheus metrics emitted by our controllers
+func TestPrometheus(t *testing.T) {
+	t.Parallel()
+	tc := suite.StartTestCase(t)
+	ns := tc.NS()
+
+	tc.WithResources(append(fixtures.NewPrometheus(ns), fixtures.NewPrometheusClient(ns, conf.PromClientImage))...)
 }

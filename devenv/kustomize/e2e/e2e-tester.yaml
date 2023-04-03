@@ -17,7 +17,14 @@ spec:
             - name: E2E_JSON_CONTENTS
               valueFrom:
                   configMapKeyRef:
-                      name: e2e-tester-configmap
-                      key: e2e.json
+                    name: e2e-tester-configmap
+                    key: e2e.json
+            - name: PROM_CLIENT_IMAGE
+              valueFrom:
+                  configMapKeyRef:
+                    name: e2e-prom-client-image
+                    key: e2e-prom-client.txt
+
+
       restartPolicy: Never
   backoffLimit: 2
