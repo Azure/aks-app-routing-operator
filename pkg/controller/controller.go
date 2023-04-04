@@ -7,10 +7,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/go-logr/logr"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
+	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -58,9 +58,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	kcs, err := kubernetes.NewForConfig(rc) // need non-caching client since manager hasn't started yet
 	if err != nil {
-		return nil, err
-	}
-	if err := checkNamespace(kcs, conf); err != nil {
 		return nil, err
 	}
 
@@ -120,23 +117,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	return m, nil
-}
-
-// checkNamespace mutates the configuration's namespace to "kube-system" if it is set to a different
-// value, and that namespace does not exist.
-//
-// This allows us to move the "app-routing-system" namespace to "kube-system" before GA'ing the feature
-// without breaking existing clusters.
-func checkNamespace(kcs kubernetes.Interface, conf *config.Config) error {
-	if conf.NS == "kube-system" {
-		return nil
-	}
-	ns, err := kcs.CoreV1().Namespaces().Get(context.Background(), conf.NS, metav1.GetOptions{})
-	if errors.IsNotFound(err) || (ns != nil && ns.DeletionTimestamp != nil) {
-		conf.NS = "kube-system"
-		return nil
-	}
-	return err
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {

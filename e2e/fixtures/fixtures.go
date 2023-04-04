@@ -91,7 +91,7 @@ func NewGoDeployment(t testing.TB, d DeploymentType) *appsv1.Deployment {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:  "container",
-						Image: "mcr.microsoft.com/oss/go/microsoft/golang:1.18",
+						Image: "mcr.microsoft.com/oss/go/microsoft/golang:1.20",
 						Command: []string{
 							"/bin/sh",
 							"-c",

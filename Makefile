@@ -26,15 +26,18 @@ push:
 	docker push `cat devenv/state/operator-image-tag.txt`
 	./devenv/scripts/push_image.sh
 
-push-tester-image:
-	# grab the image name and tag - that first gets determined by where and how we push it - so first need to build and push it - then export that name and registry and tag into the YAML
+TAG = $(shell date +%s)
+push-tester-images:
 	az acr login -n `cat devenv/state/registry.txt`
-	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator-e2e:$(shell date +%s)" > devenv/state/e2e-image-tag.txt
+	echo "$(shell cat devenv/state/registry.txt)/e2e-prom-client:$(TAG)" > devenv/state/e2e-prom-client.txt
+	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator-e2e:$(TAG)" > devenv/state/e2e-image-tag.txt
+	docker build -t `cat devenv/state/e2e-prom-client.txt` -f e2e/fixtures/promclient/Dockerfile ./e2e/fixtures/promclient/
+	docker push `cat devenv/state/e2e-prom-client.txt`
 	docker build -t `cat devenv/state/e2e-image-tag.txt` -f e2e/Dockerfile .
 	docker push `cat devenv/state/e2e-image-tag.txt`
 
 # deploy e2e job
-e2e: push-tester-image
+e2e: push-tester-images
 	./devenv/scripts/deploy_e2e_tester.sh
 
 # to be run by e2e job inside the cluster

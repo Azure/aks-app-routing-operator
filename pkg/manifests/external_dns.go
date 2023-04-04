@@ -30,15 +30,16 @@ type ExternalDnsConfig struct {
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
 func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfig *ExternalDnsConfig) []client.Object {
-	objs := []client.Object{
-		newExternalDNSServiceAccount(conf, externalDnsConfig),
-		newExternalDNSClusterRole(conf, externalDnsConfig),
-		newExternalDNSClusterRoleBinding(conf, externalDnsConfig),
-	}
+	objs := []client.Object{}
 
+	// Can safely assume the namespace exists if using kube-system
 	if conf.NS != "kube-system" {
 		objs = append(objs, namespace(conf))
 	}
+
+	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
+	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
+	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
 
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
 	objs = append(objs, dnsCm)
