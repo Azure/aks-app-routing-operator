@@ -256,6 +256,13 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 }
 
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
+	ingressControllerLabels := make(map[string]string)
+
+	for k, v := range topLevelLabels {
+		ingressControllerLabels[k] = v
+	}
+
+	ingressControllerLabels["app.kubernetes.io/component"] = "ingress-controller"
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
 		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
@@ -273,7 +280,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    ingressControllerLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
