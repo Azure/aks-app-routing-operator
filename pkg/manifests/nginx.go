@@ -256,7 +256,12 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 }
 
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
-	ingressControllerLabels := topLevelLabels
+	ingressControllerLabels := make(map[string]string)
+
+	for k, v := range topLevelLabels {
+		ingressControllerLabels[k] = v
+	}
+
 	ingressControllerLabels["app.kubernetes.io/component"] = "ingress-controller"
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
