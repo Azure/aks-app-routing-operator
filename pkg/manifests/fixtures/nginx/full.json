@@ -241,7 +241,7 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
-          "app.kubernetes.io/component" : "aks-app-routing-operator-ingress-controller"
+          "app.kubernetes.io/component" : "ingress-controller"
         },
         "ownerReferences": [
           {
