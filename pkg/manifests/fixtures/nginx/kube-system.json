@@ -201,7 +201,9 @@
           "metadata": {
             "creationTimestamp": null,
             "labels": {
-              "app": "nginx"
+              "app": "nginx",
+              "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+              "app.kubernetes.io/component" : "ingress-controller"
             },
             "annotations": {
               "openservicemesh.io/sidecar-injection": "enabled",
