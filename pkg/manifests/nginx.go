@@ -120,7 +120,7 @@ func newNginxIngressControllerServiceAccount(conf *config.Config, ingressConfig 
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    addComponentLabel(topLevelLabels, "ingress-controller-service-account"),
 		},
 	}
 }
@@ -133,7 +133,7 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   ingressConfig.ResourceName,
-			Labels: topLevelLabels,
+			Labels: addComponentLabel(topLevelLabels, "ingress-controller-cluster-role"),
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -185,7 +185,7 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   ingressConfig.ResourceName,
-			Labels: topLevelLabels,
+			Labels: addComponentLabel(topLevelLabels, "ingress-controller-cluster-role-binding"),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -231,7 +231,7 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        ingressConfig.ResourceName,
 			Namespace:   conf.NS,
-			Labels:      topLevelLabels,
+			Labels:      addComponentLabel(topLevelLabels, "ingress-controller-service"),
 			Annotations: annotations,
 		},
 		Spec: corev1.ServiceSpec{
@@ -255,18 +255,23 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 	}
 }
 
-func addControllerDeploymentLabels(originalLabels map[string]string) map[string]string {
+func addComponentLabel(originalLabels map[string]string, componentName string) map[string]string {
 	tr := make(map[string]string)
 	for k, v := range originalLabels {
 		tr[k] = v
 	}
-	tr["app.kubernetes.io/component"] = "ingress-controller"
-	tr["app.kubernetes.io/managed-by"] = "aks-app-routing-operator"
+	tr["app.kubernetes.io/component"] = componentName
 	return tr
 }
 
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
-	ingressControllerLabels := addControllerDeploymentLabels(topLevelLabels)
+	ingressControllerComponentName := "ingress-controller"
+	ingressControllerDeploymentLabels := addComponentLabel(topLevelLabels, ingressControllerComponentName)
+
+	ingressControllerPodLabels := addComponentLabel(topLevelLabels, ingressControllerComponentName)
+	for k, v := range ingressConfig.PodLabels() {
+		ingressControllerPodLabels[k] = v
+	}
 
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
@@ -285,14 +290,14 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    ingressControllerLabels,
+			Labels:    ingressControllerDeploymentLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
 			Selector:             &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      addControllerDeploymentLabels(ingressConfig.PodLabels()),
+					Labels:      ingressControllerPodLabels,
 					Annotations: podAnnotations,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
@@ -350,7 +355,7 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    addComponentLabel(topLevelLabels, "ingress-controller-configmap"),
 		},
 		Data: map[string]string{
 			// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
@@ -371,7 +376,7 @@ func newNginxIngressControllerPDB(conf *config.Config, ingressConfig *NginxIngre
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    addComponentLabel(topLevelLabels, "ingress-controller-pod-disruption-budget"),
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
 			Selector:       &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
@@ -389,7 +394,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    addComponentLabel(topLevelLabels, "ingress-controller-hpa"),
 		},
 		Spec: autov1.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: autov1.CrossVersionObjectReference{

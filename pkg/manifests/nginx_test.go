@@ -162,13 +162,13 @@ func TestIngressClassResources(t *testing.T) {
 
 func TestMapAdditions(t *testing.T) {
 	testMap := map[string]string{"testkey1": "testval1"}
-	withAdditions := addControllerDeploymentLabels(testMap)
+	withAdditions := addComponentLabel(testMap, "ingress-controller")
 
 	if withAdditions["testkey1"] != "testval1" {
 		t.Errorf("new map doesn't include original values")
 	}
 
-	if withAdditions["app.kubernetes.io/component"] != "ingress-controller" || withAdditions["app.kubernetes.io/managed-by"] != "aks-app-routing-operator" {
+	if withAdditions["app.kubernetes.io/component"] != "ingress-controller" {
 		t.Errorf("new map doesn't include correct labels for ingress controller deployment")
 	}
 }
