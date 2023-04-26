@@ -171,4 +171,9 @@ func TestMapAdditions(t *testing.T) {
 	if withAdditions["app.kubernetes.io/component"] != "ingress-controller" {
 		t.Errorf("new map doesn't include correct labels for ingress controller deployment")
 	}
+
+	_, ok := testMap["app.kubernetes.io/component"]
+	if ok {
+		t.Errorf("original map was written to")
+	}
 }
