@@ -255,15 +255,6 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 	}
 }
 
-func addComponentLabel(originalLabels map[string]string, componentName string) map[string]string {
-	tr := make(map[string]string)
-	for k, v := range originalLabels {
-		tr[k] = v
-	}
-	tr["app.kubernetes.io/component"] = componentName
-	return tr
-}
-
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
 	ingressControllerComponentName := "ingress-controller"
 	ingressControllerDeploymentLabels := addComponentLabel(topLevelLabels, ingressControllerComponentName)
