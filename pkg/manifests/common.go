@@ -137,3 +137,12 @@ func WithPreferSystemNodes(spec *corev1.PodSpec) *corev1.PodSpec {
 
 	return copy
 }
+
+func addComponentLabel(originalLabels map[string]string, componentName string) map[string]string {
+	tr := make(map[string]string)
+	for k, v := range originalLabels {
+		tr[k] = v
+	}
+	tr["app.kubernetes.io/component"] = componentName
+	return tr
+}

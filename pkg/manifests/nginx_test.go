@@ -159,3 +159,21 @@ func TestIngressClassResources(t *testing.T) {
 		AssertFixture(t, fixture, objs)
 	}
 }
+
+func TestMapAdditions(t *testing.T) {
+	testMap := map[string]string{"testkey1": "testval1"}
+	withAdditions := addComponentLabel(testMap, "ingress-controller")
+
+	if withAdditions["testkey1"] != "testval1" {
+		t.Errorf("new map doesn't include original values")
+	}
+
+	if withAdditions["app.kubernetes.io/component"] != "ingress-controller" {
+		t.Errorf("new map doesn't include correct labels for ingress controller deployment")
+	}
+
+	_, ok := testMap["app.kubernetes.io/component"]
+	if ok {
+		t.Errorf("original map was written to")
+	}
+}
