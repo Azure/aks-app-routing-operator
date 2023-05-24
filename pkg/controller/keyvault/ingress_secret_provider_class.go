@@ -164,5 +164,10 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 			"objects":                string(objects),
 		},
 	}
+
+	if cloud := i.config.Cloud; cloud != "" {
+		spc.Spec.Parameters["cloudName"] = cloud
+	}
+
 	return true, nil
 }
