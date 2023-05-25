@@ -10,6 +10,8 @@ clean-private:
 
 clean-all: clean-public clean-private
 
+# modify the Azure location by exporting an environment variable
+# export TF_VAR_location="East US"
 dev-public:
 	terraform --version
 	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
