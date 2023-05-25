@@ -21,10 +21,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-)
-
-const (
-	cloudNameKey = "cloudName"
+	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
@@ -177,7 +174,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	}
 
 	if i.config.Cloud != "" {
-		spc.Spec.Parameters[cloudNameKey] = i.config.Cloud
+		spc.Spec.Parameters[kvcsi.CloudNameParameter] = i.config.Cloud
 	}
 
 	return true, nil

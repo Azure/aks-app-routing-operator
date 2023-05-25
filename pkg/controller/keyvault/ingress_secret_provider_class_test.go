@@ -23,6 +23,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -265,7 +266,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			require.NoError(t, err, "building SPC should not error")
 			require.True(t, ok, "SPC should be built")
 
-			spcCloud, ok := spc.Spec.Parameters[cloudNameKey]
+			spcCloud, ok := spc.Spec.Parameters[kvcsi.CloudNameParameter]
 			require.Equal(t, c.expected, ok, "SPC cloud annotation unexpected")
 			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
 		})
