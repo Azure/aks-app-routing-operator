@@ -23,6 +23,10 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
+const (
+	cloudNameKey = "cloudName"
+)
+
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
 // so that it can be used by the ingress controller.
@@ -162,6 +166,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 				},
 			},
 		}},
+		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
 		Parameters: map[string]string{
 			"keyvaultName":           vaultName,
 			"useVMManagedIdentity":   "true",
@@ -170,5 +175,10 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 			"objects":                string(objects),
 		},
 	}
+
+	if i.config.Cloud != "" {
+		spc.Spec.Parameters[cloudNameKey] = i.config.Cloud
+	}
+
 	return true, nil
 }
