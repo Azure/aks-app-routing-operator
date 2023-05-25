@@ -10,7 +10,7 @@ You can easily provision a development environment to test your changes on.
 1. `az login` logs in the account you want to use
 2. `az account set --subscription <subscription>` sets the subscription to use
 4. `make clean-public` clears preexisitng development state
-5. `make dev-public` provisions requires resources
+5. `make dev-public` provisions required resources
 6. `make push` builds and pushes the operator image to the cluster
 
 You can test with a private cluster by replacing the `-public` suffix with `-private` in the commands.
