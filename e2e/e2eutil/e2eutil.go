@@ -132,58 +132,6 @@ func (c *Case) watchDeployment(obj *appsv1.Deployment) {
 	})
 }
 
-func (c *Case) ensureNS(env env.Environment) string {
-	if c.ns != "" {
-		return c.ns
-	}
-
-	c.Retry(func() error {
-		ns := &corev1.Namespace{}
-		ns.GenerateName = "e2e-" + strings.ToLower(c.t.Name()) + "-"
-		ns.Labels = map[string]string{"app.kubernetes.io/managed-by": "e2eutil", "openservicemesh.io/monitored-by": "osm"}
-		ns.Annotations = map[string]string{"openservicemesh.io/sidecar-injection": "enabled"}
-		ns, err := c.Clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
-		c.ns = ns.Name
-		return err
-	})
-
-	return c.ns
-
-	//// Log events in the namespace
-	//go func() {
-	//	c.Retry(func() error {
-	//		watch, err := c.Clientset.CoreV1().Events(c.ns).Watch(context.Background(), metav1.ListOptions{})
-	//		if err != nil {
-	//			return err
-	//		}
-	//		c.t.Cleanup(watch.Stop)
-	//		for msg := range watch.ResultChan() {
-	//			event, ok := msg.Object.(*corev1.Event)
-	//			if !ok {
-	//				return fmt.Errorf("unknown event type: %T", msg.Object)
-	//			}
-	//			log.Printf("k8s event: (%s %s) %s %s - %s", event.InvolvedObject.Kind, event.InvolvedObject.Name, event.Kind, event.Reason, event.Message)
-	//
-	//			// Print pod logs if they crash or fail readiness probes
-	//			probeFailed := strings.Contains(event.Message, "Readiness probe failed")
-	//			containerCrashed := event.Message == "Back-off restarting failed container"
-	//			if !containerCrashed && !probeFailed {
-	//				continue
-	//			}
-	//			logs, err := c.Clientset.CoreV1().Pods(c.ns).
-	//				GetLogs(event.InvolvedObject.Name, &corev1.PodLogOptions{Previous: containerCrashed, Container: "container", TailLines: util.Int64Ptr(3)}).
-	//				DoRaw(context.Background())
-	//			if err != nil {
-	//				log.Printf("error while getting pod logs: %s", err)
-	//				continue
-	//			}
-	//			log.Printf("log from pod %s:\n%s", event.InvolvedObject.Name, logs)
-	//		}
-	//		return nil
-	//	})
-	//}()
-}
-
 func (c *Case) NS(env env.Environment) string {
 	if c.ns == "" {
 		return c.ensureNS(env)

@@ -33,8 +33,8 @@ func (d DeploymentType) String() string {
 	return []string{"client", "server"}[d]
 }
 
-func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv1.Deployment {
-	deploy := NewGoDeployment(t, Client)
+func NewClientDeployment(t *testing.T, host string, nameservers []string, namespace string) *appsv1.Deployment {
+	deploy := NewGoDeployment(t, Client, namespace)
 	deploy.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	deploy.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{
 		Name:  "URL",
@@ -63,7 +63,7 @@ func NewClientDeployment(t *testing.T, host string, nameservers []string) *appsv
 	return deploy
 }
 
-func NewGoDeployment(t testing.TB, d DeploymentType) *appsv1.Deployment {
+func NewGoDeployment(t testing.TB, d DeploymentType, namespace string) *appsv1.Deployment {
 	var source string
 	switch d {
 	case Client:
@@ -78,7 +78,8 @@ func NewGoDeployment(t testing.TB, d DeploymentType) *appsv1.Deployment {
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: util.Int32Ptr(1),
