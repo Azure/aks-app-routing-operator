@@ -6,7 +6,6 @@ package e2eutil
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"log"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"strings"
@@ -194,8 +193,9 @@ func (c *Case) NS(env env.Environment) string {
 
 // CreateNSForTest creates a random namespace with the runID as a prefix. It is stored in the context
 // so that the deleteNSForTest routine can look it up and delete it.
-func CreateNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T, runID string) (context.Context, error) {
-	ns := envconf.RandomName(runID, 10)
+func CreateNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
+	prefix := "e2e-" + strings.ToLower(t.Name()) + "-"
+	ns := envconf.RandomName(prefix, 10)
 	ctx = context.WithValue(ctx, GetNamespaceKey(t), ns)
 
 	t.Logf("Creating NS %s for test %s", ns, t.Name())
@@ -205,22 +205,22 @@ func CreateNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T, run
 }
 
 // DeleteNSForTest looks up the namespace corresponding to the given test and deletes it.
-func DeleteNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T, runID string) (context.Context, error) {
+func DeleteNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
 	ns := fmt.Sprint(ctx.Value(GetNamespaceKey(t)))
 	t.Logf("Deleting NS %v for test %v", ns, t.Name())
 
 	nsObj := &corev1.Namespace{}
-	nsObj.GenerateName = "e2e-" + strings.ToLower(c.t.Name()) + "-" = ns
+	nsObj.Name = ns
 	return ctx, cfg.Client().Resources().Delete(ctx, nsObj)
 }
 
 // GetNamespaceKey returns the context key for a given test
-func GetNamespaceKey(t *testing.T) NamespaceCtxKey {
+func GetNamespaceKey(t *testing.T) string {
 	// When we pass t.Name() from inside an `assess` step, the name is in the form TestName/Features/Assess
 	if strings.Contains(t.Name(), "/") {
-		return NamespaceCtxKey(strings.Split(t.Name(), "/")[0])
+		return strings.Split(t.Name(), "/")[0]
 	}
 
 	// When pass t.Name() from inside a `testenv.BeforeEachTest` function, the name is just TestName
-	return NamespaceCtxKey(t.Name())
+	return t.Name()
 }
