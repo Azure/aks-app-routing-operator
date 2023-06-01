@@ -57,6 +57,13 @@ func TestMain(m *testing.M) {
 
 	util.UseServerSideApply()
 
+	testEnv.BeforeEachTest(func(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
+		return e2eutil.CreateNSForTest(ctx, cfg, t, runID)
+	})
+	testEnv.AfterEachTest(func(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
+		return e2eutil.DeleteNSForTest(ctx, cfg, t, runID)
+	})
+
 	// Run tests
 	os.Exit(testEnv.Run(m))
 }
@@ -76,7 +83,7 @@ func TestBasicService(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// Ensure Namespace - follow example in namespace-per-test example, generate new one per
+			// Ensure Namespace - follow example in namespace-per-test example, generate new one per test case like in every_test_custom_ns example
 
 			// how do we want to do this?
 
