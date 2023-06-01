@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"strings"
 	"sync"
 	"testing"
@@ -16,15 +17,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/e2e-framework/pkg/env"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 type Suite struct {
-	Client    client.Client
-	Clientset kubernetes.Interface
+	Env env.Environment
 }
 
 func (s *Suite) StartTestCase(t *testing.T) *Case {
@@ -32,21 +32,30 @@ func (s *Suite) StartTestCase(t *testing.T) *Case {
 }
 
 // Purge cleans up resources created by the previous run.
-func (s *Suite) Purge() {
-	list, err := s.Clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/managed-by=e2eutil",
+var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
+	client, err := cfg.NewClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client during setup/purge: %s", err)
+	}
+	var list corev1.NamespaceList
+	err = client.Resources().List(ctx, &list, func(opts *metav1.ListOptions) {
+		opts.LabelSelector = "app.kubernetes.io/managed-by=e2eutil"
 	})
+
 	if err != nil {
 		fmt.Printf("error while listing namespaces to purge past test runs: %s\n", err)
-		return
+		return ctx, err
 	}
 	for _, item := range list.Items {
 		fmt.Printf("cleaning up namespace from previous run %q\n", item.Name)
-		err = s.Clientset.CoreV1().Namespaces().Delete(context.Background(), item.Name, metav1.DeleteOptions{})
+		err = client.Resources().Delete(ctx, &item)
 		if err != nil {
 			fmt.Printf("error while cleaning up namespace %q: %s\n", item.Name, err)
+			return ctx, err
 		}
 	}
+
+	return ctx, nil
 }
 
 type Case struct {
@@ -67,8 +76,8 @@ func (c *Case) Retry(fn func() error) {
 }
 
 func (c *Case) Hostname(domain string) string {
-	c.ensureNS()
-	return strings.ToLower(c.ns) + "." + domain
+	ns := c.NS()
+	return strings.ToLower(ns) + "." + domain
 }
 
 // WithResources creates Kubernetes resources for the test case and waits for them to become ready.
@@ -123,9 +132,9 @@ func (c *Case) watchDeployment(obj *appsv1.Deployment) {
 	})
 }
 
-func (c *Case) ensureNS() {
+func (c *Case) ensureNS(env env.Environment) string {
 	if c.ns != "" {
-		return
+		return c.ns
 	}
 
 	c.Retry(func() error {
@@ -138,42 +147,46 @@ func (c *Case) ensureNS() {
 		return err
 	})
 
-	// Log events in the namespace
-	go func() {
-		c.Retry(func() error {
-			watch, err := c.Clientset.CoreV1().Events(c.ns).Watch(context.Background(), metav1.ListOptions{})
-			if err != nil {
-				return err
-			}
-			c.t.Cleanup(watch.Stop)
-			for msg := range watch.ResultChan() {
-				event, ok := msg.Object.(*corev1.Event)
-				if !ok {
-					return fmt.Errorf("unknown event type: %T", msg.Object)
-				}
-				log.Printf("k8s event: (%s %s) %s %s - %s", event.InvolvedObject.Kind, event.InvolvedObject.Name, event.Kind, event.Reason, event.Message)
+	return c.ns
 
-				// Print pod logs if they crash or fail readiness probes
-				probeFailed := strings.Contains(event.Message, "Readiness probe failed")
-				containerCrashed := event.Message == "Back-off restarting failed container"
-				if !containerCrashed && !probeFailed {
-					continue
-				}
-				logs, err := c.Clientset.CoreV1().Pods(c.ns).
-					GetLogs(event.InvolvedObject.Name, &corev1.PodLogOptions{Previous: containerCrashed, Container: "container", TailLines: util.Int64Ptr(3)}).
-					DoRaw(context.Background())
-				if err != nil {
-					log.Printf("error while getting pod logs: %s", err)
-					continue
-				}
-				log.Printf("log from pod %s:\n%s", event.InvolvedObject.Name, logs)
-			}
-			return nil
-		})
-	}()
+	//// Log events in the namespace
+	//go func() {
+	//	c.Retry(func() error {
+	//		watch, err := c.Clientset.CoreV1().Events(c.ns).Watch(context.Background(), metav1.ListOptions{})
+	//		if err != nil {
+	//			return err
+	//		}
+	//		c.t.Cleanup(watch.Stop)
+	//		for msg := range watch.ResultChan() {
+	//			event, ok := msg.Object.(*corev1.Event)
+	//			if !ok {
+	//				return fmt.Errorf("unknown event type: %T", msg.Object)
+	//			}
+	//			log.Printf("k8s event: (%s %s) %s %s - %s", event.InvolvedObject.Kind, event.InvolvedObject.Name, event.Kind, event.Reason, event.Message)
+	//
+	//			// Print pod logs if they crash or fail readiness probes
+	//			probeFailed := strings.Contains(event.Message, "Readiness probe failed")
+	//			containerCrashed := event.Message == "Back-off restarting failed container"
+	//			if !containerCrashed && !probeFailed {
+	//				continue
+	//			}
+	//			logs, err := c.Clientset.CoreV1().Pods(c.ns).
+	//				GetLogs(event.InvolvedObject.Name, &corev1.PodLogOptions{Previous: containerCrashed, Container: "container", TailLines: util.Int64Ptr(3)}).
+	//				DoRaw(context.Background())
+	//			if err != nil {
+	//				log.Printf("error while getting pod logs: %s", err)
+	//				continue
+	//			}
+	//			log.Printf("log from pod %s:\n%s", event.InvolvedObject.Name, logs)
+	//		}
+	//		return nil
+	//	})
+	//}()
 }
 
-func (c *Case) NS() string {
-	c.ensureNS()
+func (c *Case) NS(env env.Environment) string {
+	if c.ns == "" {
+		return c.ensureNS(env)
+	}
 	return c.ns
 }

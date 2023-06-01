@@ -1,29 +1,30 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-//go:build e2e
+//adfgo:build e2e
 
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
+	"sigs.k8s.io/e2e-framework/pkg/envconf"
+	"sigs.k8s.io/e2e-framework/pkg/features"
 	"strings"
 	"testing"
-
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"sigs.k8s.io/e2e-framework/pkg/env"
 )
 
 var (
-	suite e2eutil.Suite
-	conf  = &testConfig{}
+	suite   e2eutil.Suite
+	conf    = &testConfig{}
+	testEnv env.Environment
 )
 
 type testConfig struct {
@@ -49,25 +50,15 @@ func TestMain(m *testing.M) {
 	}
 	conf.PromClientImage = promClientImage
 
-	// attempt to load in-cluster config
-	rc, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err)
-	}
+	testEnv = env.NewInClusterConfig()
+
+	testEnv.Setup(
+		e2eutil.Purge)
 
 	util.UseServerSideApply()
-	suite.Clientset, err = kubernetes.NewForConfig(rc)
-	if err != nil {
-		panic(err)
-	}
-	suite.Client, err = client.New(rc, client.Options{})
-	if err != nil {
-		panic(err)
-	}
 
 	// Run tests
-	suite.Purge()
-	os.Exit(m.Run())
+	os.Exit(testEnv.Run(m))
 }
 
 // TestBasicService is the most common user scenario - add annotations to a service, get back working
@@ -75,7 +66,34 @@ func TestMain(m *testing.M) {
 func TestBasicService(t *testing.T) {
 	t.Parallel()
 	tc := suite.StartTestCase(t)
-	hostname := tc.Hostname(conf.DNSZoneDomain)
+
+	hostname := tc.Hostname(testEnv, conf.DNSZoneDomain)
+
+	basicFeature := features.New("basic").
+		Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Ensure Namespace - follow example in namespace-per-test example, generate new one per
+
+			// how do we want to do this?
+
+			clientDeployment := fixtures.NewClientDeployment(t, hostname, conf.TestNameservers)
+			clientDeployment.SetNamespace(tc.NS())
+			// Create Deployments and Service
+			if err := client.Resources().Create(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			return ctx
+		}).
+		Assess("client deployment", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+
+			return ctx
+		}).Feature()
+
 	tc.WithResources(
 		fixtures.NewClientDeployment(t, hostname, conf.TestNameservers),
 		fixtures.NewGoDeployment(t, fixtures.Server),
