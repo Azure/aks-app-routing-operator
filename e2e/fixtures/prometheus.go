@@ -27,7 +27,8 @@ const (
 func NewPrometheusClient(ns, image string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "prometheus-client",
+			Name:      "prometheus-client",
+			Namespace: ns,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: util.Int32Ptr(1),

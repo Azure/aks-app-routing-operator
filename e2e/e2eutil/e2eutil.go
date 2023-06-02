@@ -6,11 +6,16 @@ package e2eutil
 import (
 	"context"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/e2e-framework/pkg/envconf"
+	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"math/rand"
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"sigs.k8s.io/e2e-framework/pkg/envconf"
 )
 
 // Purge cleans up resources created by the previous run.
@@ -37,6 +42,22 @@ var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, err
 		}
 	}
 
+	// cleanup Prometheus cluster-level resources
+	promClusterRoleBinding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{
+		Name: fixtures.PromServer,
+	}}
+	if err := client.Resources().Delete(ctx, promClusterRoleBinding); err != nil {
+		return ctx, err
+	}
+
+	// cleanup Prometheus cluster-level resources
+	promClusterRole := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{
+		Name: fixtures.PromServer,
+	}}
+	if err := client.Resources().Delete(ctx, promClusterRole); err != nil {
+		return ctx, err
+	}
+
 	return ctx, nil
 }
 
@@ -48,11 +69,14 @@ func GetHostname(ns, domain string) string {
 // so that the deleteNSForTest routine can look it up and delete it.
 func CreateNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
 	prefix := "e2e-" + strings.ToLower(t.Name()) + "-"
-	ns := envconf.RandomName(prefix, 10)
+	ns := prefix + randomString(5)
 	ctx = context.WithValue(ctx, GetNamespaceKey(t), ns)
 
 	t.Logf("Creating NS %s for test %s", ns, t.Name())
 	nsObj := &corev1.Namespace{}
+	nsObj.Labels = map[string]string{"app.kubernetes.io/managed-by": "e2eutil", "openservicemesh.io/monitored-by": "osm"}
+	nsObj.Annotations = map[string]string{"openservicemesh.io/sidecar-injection": "enabled"}
+
 	nsObj.Name = ns
 	return ctx, cfg.Client().Resources().Create(ctx, nsObj)
 }
@@ -70,10 +94,20 @@ func DeleteNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T) (co
 // GetNamespaceKey returns the context key for a given test
 func GetNamespaceKey(t *testing.T) string {
 	// When we pass t.Name() from inside an `assess` step, the name is in the form TestName/Features/Assess
+	t.Logf("Getting key from test name %s", t.Name())
 	if strings.Contains(t.Name(), "/") {
 		return strings.Split(t.Name(), "/")[0]
 	}
 
 	// When pass t.Name() from inside a `testenv.BeforeEachTest` function, the name is just TestName
 	return t.Name()
+}
+
+func randomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
 }
