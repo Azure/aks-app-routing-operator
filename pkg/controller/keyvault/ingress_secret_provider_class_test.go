@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -22,6 +23,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -212,4 +214,61 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		assert.False(t, ok)
 		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
 	})
+}
+
+func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
+	cases := []struct {
+		name, configCloud, spcCloud string
+		expected                    bool
+	}{
+		{
+			name:        "empty config cloud",
+			configCloud: "",
+			expected:    false,
+		},
+		{
+			name:        "public cloud",
+			configCloud: "AzurePublicCloud",
+			spcCloud:    "AzurePublicCloud",
+			expected:    true,
+		},
+		{
+			name:        "sov cloud",
+			configCloud: "AzureUSGovernmentCloud",
+			spcCloud:    "AzureUSGovernmentCloud",
+			expected:    true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ingressClass := "webapprouting.kubernetes.azure.com"
+			i := &IngressSecretProviderClassReconciler{
+				config: &config.Config{
+					Cloud: c.configCloud,
+				},
+				ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+			}
+
+			ing := &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
+					},
+				},
+				Spec: netv1.IngressSpec{
+					IngressClassName: &ingressClass,
+				},
+			}
+
+			spc := &secv1.SecretProviderClass{}
+			ok, err := i.buildSPC(ing, spc)
+			require.NoError(t, err, "building SPC should not error")
+			require.True(t, ok, "SPC should be built")
+
+			spcCloud, ok := spc.Spec.Parameters[kvcsi.CloudNameParameter]
+			require.Equal(t, c.expected, ok, "SPC cloud annotation unexpected")
+			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
+		})
+	}
 }
