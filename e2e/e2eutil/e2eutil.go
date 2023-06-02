@@ -6,30 +6,12 @@ package e2eutil
 import (
 	"context"
 	"fmt"
-	"log"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
 	"strings"
-	"sync"
 	"testing"
-	"time"
-
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/e2e-framework/pkg/env"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
-
-type Suite struct {
-	Env env.Environment
-}
-
-func (s *Suite) StartTestCase(t *testing.T) *Case {
-	return &Case{Suite: s, t: t}
-}
 
 // Purge cleans up resources created by the previous run.
 var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, error) {
@@ -58,85 +40,8 @@ var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, err
 	return ctx, nil
 }
 
-type Case struct {
-	*Suite
-	t  *testing.T
-	ns string
-}
-
-func (c *Case) Retry(fn func() error) {
-	for {
-		err := fn()
-		if err == nil {
-			return
-		}
-		log.Printf("error: %s", err)
-		time.Sleep(util.Jitter(time.Millisecond*200, 0.5))
-	}
-}
-
-func (c *Case) Hostname(domain string) string {
-	ns := c.NS()
+func GetHostname(ns, domain string) string {
 	return strings.ToLower(ns) + "." + domain
-}
-
-// WithResources creates Kubernetes resources for the test case and waits for them to become ready.
-func (c *Case) WithResources(resources ...client.Object) {
-	c.ensureNS()
-
-	var wg sync.WaitGroup
-	for _, res := range resources {
-		wg.Add(1)
-		go func(res client.Object) {
-			defer wg.Done()
-
-			res.SetNamespace(c.ns)
-			c.Retry(func() error {
-				err := c.Client.Create(context.Background(), res)
-				if err != nil && k8serrors.IsAlreadyExists(err) {
-					err = c.Client.Update(context.Background(), res)
-				}
-
-				return err
-			})
-
-			switch obj := res.(type) {
-			case *appsv1.Deployment:
-				c.watchDeployment(obj)
-			}
-		}(res)
-	}
-	wg.Wait()
-}
-
-func (c *Case) watchDeployment(obj *appsv1.Deployment) {
-	c.Retry(func() error {
-		watch, err := c.Clientset.AppsV1().Deployments(c.ns).Watch(context.Background(), metav1.ListOptions{
-			FieldSelector:   "metadata.name=" + obj.Name,
-			ResourceVersion: obj.ResourceVersion,
-		})
-		if err != nil {
-			return err
-		}
-		c.t.Cleanup(watch.Stop)
-		for event := range watch.ResultChan() {
-			item, ok := event.Object.(*appsv1.Deployment)
-			if !ok {
-				return fmt.Errorf("unknown event type: %T", event.Object)
-			}
-			if item.Status.ReadyReplicas == *item.Spec.Replicas {
-				break
-			}
-		}
-		return nil
-	})
-}
-
-func (c *Case) NS(env env.Environment) string {
-	if c.ns == "" {
-		return c.ensureNS(env)
-	}
-	return c.ns
 }
 
 // CreateNSForTest creates a random namespace with the runID as a prefix. It is stored in the context

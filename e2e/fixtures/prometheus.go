@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"fmt"
+	"sigs.k8s.io/e2e-framework/klient/k8s"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -10,12 +11,11 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // these need to be the same as the consts in promclient/main.go
 const (
-	promServer = "prometheus-server"
+	PromServer = "prometheus-server"
 	promNsEnv  = "PROM_NS"
 )
 
@@ -24,7 +24,7 @@ const (
 	promConfigFile = "prometheus.yaml"
 )
 
-func NewPrometheusClient(ns, image string) client.Object {
+func NewPrometheusClient(ns, image string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "prometheus-client",
@@ -66,7 +66,7 @@ func NewPrometheusClient(ns, image string) client.Object {
 }
 
 // NewPrometheus returns objects for running Prometheus that monitors web app routing
-func NewPrometheus(ns string) []client.Object {
+func NewPrometheus(ns string) []k8s.Object {
 	// comes from https://github.com/kubernetes/ingress-nginx/blob/main/deploy/prometheus/prometheus.yaml
 	// just a standard prometheus config for nginx-ingress
 	c := fmt.Sprintf(`
@@ -99,9 +99,9 @@ scrape_configs:
   - source_labels: [__meta_kubernetes_service_name]
     regex: %s
     action: drop
-`, config.DefaultNs, promServer)
+`, config.DefaultNs, PromServer)
 
-	return []client.Object{
+	return []k8s.Object{
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      promConfig,
@@ -113,7 +113,7 @@ scrape_configs:
 		},
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      promServer,
+				Name:      PromServer,
 				Namespace: ns,
 			},
 		},
@@ -123,7 +123,7 @@ scrape_configs:
 				APIVersion: "rbac.authorization.k8s.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: promServer,
+				Name: PromServer,
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -139,18 +139,18 @@ scrape_configs:
 				APIVersion: "rbac.authorization.k8s.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      promServer,
+				Name:      PromServer,
 				Namespace: ns,
 			},
 			Subjects: []rbacv1.Subject{
 				{
-					Name:      promServer,
+					Name:      PromServer,
 					Namespace: ns,
 					Kind:      "ServiceAccount",
 				},
 			},
 			RoleRef: rbacv1.RoleRef{
-				Name:     promServer,
+				Name:     PromServer,
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
 			},
@@ -161,16 +161,16 @@ scrape_configs:
 				APIVersion: "apps/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      promServer,
+				Name:      PromServer,
 				Namespace: ns,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Replicas: util.Int32Ptr(1),
-				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": promServer}},
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": PromServer}},
 				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": promServer}},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": PromServer}},
 					Spec: corev1.PodSpec{
-						ServiceAccountName: promServer,
+						ServiceAccountName: PromServer,
 						Containers: []corev1.Container{
 							{
 								Name:  "prometheus",
@@ -216,11 +216,11 @@ scrape_configs:
 		},
 		&corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      promServer,
+				Name:      PromServer,
 				Namespace: ns,
 			},
 			Spec: corev1.ServiceSpec{
-				Selector: map[string]string{"app": promServer},
+				Selector: map[string]string{"app": PromServer},
 				Type:     "NodePort",
 				Ports: []corev1.ServicePort{
 					{

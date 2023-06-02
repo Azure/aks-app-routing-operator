@@ -105,10 +105,11 @@ func NewGoDeployment(t testing.TB, d DeploymentType, namespace string) *appsv1.D
 	}
 }
 
-func NewService(app, host, keyvaultURI string, port int32) *corev1.Service {
+func NewService(app, host, keyvaultURI string, port int32, namespace string) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: app,
+			Name:      app,
+			Namespace: namespace,
 			Annotations: map[string]string{
 				"kubernetes.azure.com/ingress-host":          host,
 				"kubernetes.azure.com/tls-cert-keyvault-uri": keyvaultURI,
