@@ -6,10 +6,10 @@ package e2eutil
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
-
 	"strings"
 	"testing"
+
+	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
