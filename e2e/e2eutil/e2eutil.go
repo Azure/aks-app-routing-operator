@@ -7,11 +7,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
-	rbacv1 "k8s.io/api/rbac/v1"
+
 	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
