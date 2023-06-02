@@ -2,6 +2,10 @@
 
 A Kubernetes operator that manages resources related to AKS Application Routing functionality.
 
+## Docs
+
+View the [docs](docs/) folder for more information.
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
@@ -15,23 +19,6 @@ provided by the bot. You will only need to do this once across all repos using o
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
-## E2E
-This project leverages Terraform and the local user's Azure credentials to run an extensive E2E suite.
-
-### Public Cluster/Public DNS Zone
-The process to run an E2E test for public clusters is as follows:
-1. Run `make clean-public` or `make clean-all` to clear any preexisting Terraform state for the public cluster dev environment.
-2. Run `make dev-public` to deploy all Azure resources necessary to run a full suite, including a cluster with the add-on enabled. IMPORTANT: this does not start the add-on. The next step needs to be run for the add-on to be fully deployed with the correct image.
-3. Run `make push` to build the add-on image according to the user's local state/branch and push it to the add-on deployment. This step can be re-run when changes to the local add-on are made and the user wishes to manually test those changes on a cluster.
-4. Run `make e2e` to deploy the e2e tester job, which will run the e2e test suite inside the cluster.
-
-### Private Cluster/Private DNS Zone
-The process to run an E2E test for private clusters is as follows:
-1. Run `make clean-private` or `make clean-all` to clear any preexisting Terraform state for the private cluster dev environment.
-2. Run `make dev-private` to deploy all Azure resources necessary to run a full suite, including a cluster with the add-on enabled. IMPORTANT: this does not start the add-on. The next step needs to be run for the add-on to be fully deployed with the correct image.
-3. Run `make push` to build the add-on image according to the user's local state/branch and push it to the add-on deployment. This step can be re-run when changes to the local add-on are made and the user wishes to manually test those changes on a cluster.
-4. Run `make e2e` to deploy the e2e tester job, which will run the e2e test suite inside the cluster.
 
 ## Trademarks
 

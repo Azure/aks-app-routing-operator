@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
@@ -162,6 +163,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 				},
 			},
 		}},
+		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
 		Parameters: map[string]string{
 			"keyvaultName":           vaultName,
 			"useVMManagedIdentity":   "true",
@@ -170,5 +172,10 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 			"objects":                string(objects),
 		},
 	}
+
+	if i.config.Cloud != "" {
+		spc.Spec.Parameters[kvcsi.CloudNameParameter] = i.config.Cloud
+	}
+
 	return true, nil
 }
