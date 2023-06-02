@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"math/rand"
 	"strings"
 	"testing"
 
@@ -69,16 +68,19 @@ func GetHostname(ns, domain string) string {
 // so that the deleteNSForTest routine can look it up and delete it.
 func CreateNSForTest(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
 	prefix := "e2e-" + strings.ToLower(t.Name()) + "-"
-	ns := prefix + randomString(5)
-	ctx = context.WithValue(ctx, GetNamespaceKey(t), ns)
 
-	t.Logf("Creating NS %s for test %s", ns, t.Name())
 	nsObj := &corev1.Namespace{}
 	nsObj.Labels = map[string]string{"app.kubernetes.io/managed-by": "e2eutil", "openservicemesh.io/monitored-by": "osm"}
 	nsObj.Annotations = map[string]string{"openservicemesh.io/sidecar-injection": "enabled"}
+	nsObj.GenerateName = prefix
 
-	nsObj.Name = ns
-	return ctx, cfg.Client().Resources().Create(ctx, nsObj)
+	if err := cfg.Client().Resources().Create(ctx, nsObj); err != nil {
+		return ctx, err
+	}
+	ctx = context.WithValue(ctx, GetNamespaceKey(t), nsObj.Name)
+	t.Logf("Created NS %s for test %s", nsObj.Name, t.Name())
+
+	return ctx, nil
 }
 
 // DeleteNSForTest looks up the namespace corresponding to the given test and deletes it.
@@ -101,13 +103,4 @@ func GetNamespaceKey(t *testing.T) string {
 
 	// When pass t.Name() from inside a `testenv.BeforeEachTest` function, the name is just TestName
 	return t.Name()
-}
-
-func randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
 }
