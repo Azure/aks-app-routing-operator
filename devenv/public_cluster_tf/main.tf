@@ -265,11 +265,6 @@ resource "kubernetes_cluster_role_binding_v1" "defaultadmin" {
   }
 }
 
-resource "local_sensitive_file" "kubeconfig" {
-  content  = azurerm_kubernetes_cluster.cluster.kube_config_raw
-  filename = "${path.module}/../state/kubeconfig"
-}
-
 resource "local_file" "e2econf" {
   content = jsonencode({
     TestNameservers    = azurerm_dns_zone.dnszone.name_servers
