@@ -5,7 +5,7 @@ resource "azurerm_private_dns_zone" "dnszone" {
 }
 
 resource "azurerm_role_assignment" "dns-role-assignment" {
-  scope                = azurerm_private_dns_zone.dnszone.id
+  scope                = azurerm_private_dns_zone.dnszone[0].id
   role_definition_name = "Private DNS Zone Contributor"
   principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
   count = var.dnszonetype == "private" ? 1 : 0
@@ -21,7 +21,7 @@ data "azurerm_resources" "noderesourcegroup" {
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
   name                  = "approutingdev${random_string.random.result}a"
   resource_group_name   = azurerm_resource_group.rg.name
-  private_dns_zone_name = azurerm_private_dns_zone.dnszone.name
+  private_dns_zone_name = azurerm_private_dns_zone.dnszone[0].name
   virtual_network_id    = data.azurerm_resources.noderesourcegroup[0].resources[0].id
   count = var.dnszonetype == "private" ? 1 : 0
 }

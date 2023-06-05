@@ -2,22 +2,29 @@
 .PHONY: clean-all clean-private clean-public dev-public dev-private push push-tester-image e2e run-e2e
 
 # keep separate for simultaneous public/private dev without need for resource recreation
-clean-public:
-	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
+clean:
+	rm -rf devenv/state devenv/tf/.terraform.lock.hcl devenv/tf/.terraform devenv/tf/terraform.tfstate devenv/tf/terraform.tfstate.backup
 
-clean-private:
-	rm -rf devenv/state devenv/private_cluster_tf/.terraform.lock.hcl devenv/private_cluster_tf/.terraform devenv/private_cluster_tf/terraform.tfstate devenv/private_cluster_tf/terraform.tfstate.backup
 
-clean-all: clean-public clean-private
-
-dev-public:
+private-cluster-public-dns:
 	terraform --version
-	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=private" -var="dnszonetype=public"
 
-dev-private:
+private-cluster-private-dns:
 	terraform --version
-	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
-	./devenv/scripts/deploy_operator_private_cluster.sh
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=private" -var="dnszonetype=private"
+
+public-cluster-public-dns:
+	terraform --version
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=public" -var="dnszonetype=public"
+
+public-cluster-private-dns:
+	terraform --version
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=public" -var="dnszonetype=private"
+
+
+deploy-operator:
+	./devenv/scripts/deploy_operator.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt
@@ -43,3 +50,29 @@ e2e: push-tester-images
 # to be run by e2e job inside the cluster
 run-e2e:
 	go test -v --count=1 --tags=e2e ./e2e
+
+# runs full test suite for all scenarios
+all: clean
+	echo "running all"
+	make private-cluster-public-dns
+	make deploy-operator
+	make push
+	make e2e
+
+	make private-cluster-private-dns
+	make deploy-operator
+	make e2e
+
+	echo "beginning public cluster tests..."
+	make clean
+	make public-cluster-public-dns
+	make push
+	make deploy-operator
+	make e2e
+
+	make public-cluster-private-dns
+	make deploy-operator
+	make e2e
+
+
+

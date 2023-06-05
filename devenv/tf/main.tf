@@ -51,11 +51,6 @@ provider "kubernetes" {
   cluster_ca_certificate =  base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.cluster_ca_certificate)
 }
 
-data "azurerm_user_assigned_identity" "clusteridentity" {
-  name                = "cluster-agentpool"
-  resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
-}
-
 resource "azurerm_resource_group" "rg" {
   name     = "app-routing-dev-${random_string.random.result}a"
   location = "South Central US"
@@ -81,7 +76,7 @@ resource "azurerm_role_assignment" "acr" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    TestNameservers    = var.dnszonetype == "private" ? [azurerm_kubernetes_cluster.cluster[0].network_profile[0].dns_service_ip] : azurerm_dns_zone.dnszone[0].name_servers
+    TestNameservers    = var.dnszonetype == "private" ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : azurerm_dns_zone.dnszone[0].name_servers
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
     DNSZoneDomain     = var.domain
@@ -102,7 +97,7 @@ resource "local_file" "cluster_info" {
   filename = "${path.module}/../state/cluster-info.json"
 }
 
-resource "local_file" "private_cluster_addon_deployment_auth_info"{
+resource "local_file" "addon_deployment_auth_info"{
   content = jsonencode({
     ClusterClientId = data.azurerm_user_assigned_identity.clusteridentity.client_id
     ArmTenantId = data.azurerm_client_config.current.tenant_id
@@ -110,7 +105,6 @@ resource "local_file" "private_cluster_addon_deployment_auth_info"{
     DnsResourceGroup = azurerm_resource_group.rg.name
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
     DnsZoneDomain = var.domain
-    # naive implementation
     PrivateDnsZoneFlag = var.dnszonetype == "private" ? "--dns-zone-private" : ""
   })
   filename = "${path.module}/../state/deployment-auth-info.json"

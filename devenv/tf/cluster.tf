@@ -1,4 +1,4 @@
-resource "azurerm_kubernetes_cluster" "cluster-private" {
+resource "azurerm_kubernetes_cluster" "cluster" {
   name                      = "cluster"
   location                  = azurerm_resource_group.rg.location
   resource_group_name       = azurerm_resource_group.rg.name
@@ -6,7 +6,7 @@ resource "azurerm_kubernetes_cluster" "cluster-private" {
   azure_policy_enabled      = true
   open_service_mesh_enabled = true
   oidc_issuer_enabled       = true
-  private_cluster_enabled = true
+  private_cluster_enabled = var.clustertype == "private" ? true : false
 
   default_node_pool {
     name       = "default"
@@ -31,10 +31,5 @@ resource "azurerm_kubernetes_cluster" "cluster-private" {
 
 data "azurerm_user_assigned_identity" "clusteridentity" {
   name                = "cluster-agentpool"
-  resource_group_name = azurerm_kubernetes_cluster.cluster-private.node_resource_group
-}
-
-data "azurerm_resources" "noderesourcegroup" {
-  resource_group_name = azurerm_kubernetes_cluster.cluster-private.node_resource_group
-  type = "Microsoft.Network/virtualNetworks"
+  resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
 }
