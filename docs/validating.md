@@ -15,7 +15,7 @@ To run a single E2E suite, the user must run the following commands from the roo
 
 By default, the `make dev` command will create an environment with a public cluster using a public DNS Zone. However, two arguments can be specified to change the type of the cluster and/or the zone: `CLUSTER_TYPE` and `DNS_ZONE_TYPE`. For instance, to run a suite with a private cluster and a public zone, a user can run `	make dev CLUSTER_TYPE=private DNS_ZONE_TYPE=public`.
 
-Alternatively, to run a full suite with all possible configuration options, users can simply run `make all`.
+Alternatively, to run a full suite with all possible configuration options, users can simply run `make public-cluster-test` for a public cluster and `make private-cluster-test` for private clusters. To run both, users can run `make all-tests`.
 
 Region can be specified by exporting an env variable before running the `make dev` command. `export TF_VAR_location="East US"` sets the location to East US.
 

@@ -1,0 +1,33 @@
+name: Run e2e - public cluster
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+  push:
+    branches: [main]
+permissions:
+  id-token: write
+  contents: read
+
+jobs: 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hashicorp/setup-terraform@v2
+      - uses: azure/setup-kubectl@v3.0
+
+      - name: 'Azure login'
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "Run E2E"
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: "make public-cluster-test"

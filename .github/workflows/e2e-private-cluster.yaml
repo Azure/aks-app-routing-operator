@@ -1,4 +1,4 @@
-name: Run e2e
+name: Run e2e - private cluster
 on:
   workflow_dispatch:
   schedule:
@@ -30,4 +30,4 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: "make all"
+        run: "make private-cluster-test"

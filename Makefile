@@ -38,9 +38,16 @@ e2e: push-tester-images
 run-e2e:
 	go test -v --count=1 --tags=e2e ./e2e
 
-# runs full test suite for all scenarios
-all: clean
-	./devenv/scripts/run_all.sh
+# runs full test suite for all private cluster scenarios
+private-cluster-test: clean
+	./devenv/scripts/run_private_cluster.sh
 
+# runs full test suite for all public cluster scenarios
+public-cluster-test: clean
+	./devenv/scripts/run_public_cluster.sh
 
+all-tests:
+	./devenv/scripts/run_private_cluster.sh
+	make clean
+	./devenv/scripts/run_public_cluster.sh
 
