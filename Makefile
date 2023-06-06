@@ -1,29 +1,16 @@
+.PHONY: clean dev push push-tester-image e2e run-e2e
 
-.PHONY: clean-all clean-private clean-public dev-public dev-private push push-tester-image e2e run-e2e
+# both can have values of "public" or "private"
+CLUSTER_TYPE="public"
+DNS_ZONE_TYPE="public"
 
 # keep separate for simultaneous public/private dev without need for resource recreation
 clean:
 	rm -rf devenv/state devenv/tf/.terraform.lock.hcl devenv/tf/.terraform devenv/tf/terraform.tfstate devenv/tf/terraform.tfstate.backup
 
-
-private-cluster-public-dns:
+dev:
 	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=private" -var="dnszonetype=public"
-
-private-cluster-private-dns:
-	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=private" -var="dnszonetype=private"
-
-public-cluster-public-dns:
-	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=public" -var="dnszonetype=public"
-
-public-cluster-private-dns:
-	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=public" -var="dnszonetype=private"
-
-
-deploy-operator:
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)" -var="dnszonetype=$(DNS_ZONE_TYPE)"
 	./devenv/scripts/deploy_operator.sh
 
 push:

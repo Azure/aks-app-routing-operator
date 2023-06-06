@@ -1,21 +1,19 @@
 	echo "running all"
-	make private-cluster-public-dns
-	make deploy-operator
+	echo "beginning private cluster tests..."
+	make dev CLUSTER_TYPE=private DNS_ZONE_TYPE=public
 	make push
 	make e2e
 
-	make private-cluster-private-dns
-	make deploy-operator
+  make dev CLUSTER_TYPE=private DNS_ZONE_TYPE=private
 	make push
 	make e2e
 
 	echo "beginning public cluster tests..."
 	make clean
-	make public-cluster-public-dns
+	make dev CLUSTER_TYPE=public DNS_ZONE_TYPE=public
 	make push
-	make deploy-operator
 	make e2e
 
-	make public-cluster-private-dns
-	make deploy-operator
+	make dev CLUSTER_TYPE=public DNS_ZONE_TYPE=private
+	make push
 	make e2e
