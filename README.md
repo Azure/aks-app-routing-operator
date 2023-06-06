@@ -2,6 +2,10 @@
 
 A Kubernetes operator that manages resources related to AKS Application Routing functionality.
 
+## Docs
+
+View the [docs](docs/) folder for more information.
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a

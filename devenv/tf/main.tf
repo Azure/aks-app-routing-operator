@@ -15,6 +15,12 @@ provider "azurerm" {
   }
 }
 
+variable "location" {
+  type = string
+  description = "The Azure Region in which resources will be created"
+  default = "South Central US"
+}
+
 resource "random_string" "random" {
   length  = 12
   upper   = false
@@ -53,7 +59,7 @@ provider "kubernetes" {
 
 resource "azurerm_resource_group" "rg" {
   name     = "app-routing-dev-${random_string.random.result}a"
-  location = "South Central US"
+  location = var.location
   tags = {
     deletion_due_time  = time_static.provisiontime.unix + 36000, // keep resources for 10hr
     deletion_marked_by = "gc",
