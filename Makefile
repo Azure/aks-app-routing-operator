@@ -1,23 +1,17 @@
+.PHONY: clean dev push push-tester-image e2e run-e2e
 
-.PHONY: clean-all clean-private clean-public dev-public dev-private push push-tester-image e2e run-e2e
+# both can have values of "public" or "private"
+CLUSTER_TYPE="public"
+DNS_ZONE_TYPE="public"
 
 # keep separate for simultaneous public/private dev without need for resource recreation
-clean-public:
-	rm -rf devenv/state devenv/public_cluster_tf/.terraform.lock.hcl devenv/public_cluster_tf/.terraform devenv/public_cluster_tf/terraform.tfstate devenv/public_cluster_tf/terraform.tfstate.backup
+clean:
+	rm -rf devenv/state devenv/tf/.terraform.lock.hcl devenv/tf/.terraform devenv/tf/terraform.tfstate devenv/tf/terraform.tfstate.backup
 
-clean-private:
-	rm -rf devenv/state devenv/private_cluster_tf/.terraform.lock.hcl devenv/private_cluster_tf/.terraform devenv/private_cluster_tf/terraform.tfstate devenv/private_cluster_tf/terraform.tfstate.backup
-
-clean-all: clean-public clean-private
-
-dev-public:
+dev:
 	terraform --version
-	cd devenv && mkdir -p state && cd public_cluster_tf && terraform init && terraform apply -auto-approve
-
-dev-private:
-	terraform --version
-	cd devenv && mkdir -p state && cd private_cluster_tf && terraform init && terraform apply -auto-approve
-	./devenv/scripts/deploy_operator_private_cluster.sh
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)" -var="dnszonetype=$(DNS_ZONE_TYPE)"
+	./devenv/scripts/deploy_operator.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt
@@ -43,3 +37,17 @@ e2e: push-tester-images
 # to be run by e2e job inside the cluster
 run-e2e:
 	go test -v --count=1 --tags=e2e ./e2e
+
+# runs full test suite for all private cluster scenarios
+private-cluster-test: clean
+	./devenv/scripts/run_private_cluster.sh
+
+# runs full test suite for all public cluster scenarios
+public-cluster-test: clean
+	./devenv/scripts/run_public_cluster.sh
+
+all-tests:
+	./devenv/scripts/run_private_cluster.sh
+	make clean
+	./devenv/scripts/run_public_cluster.sh
+

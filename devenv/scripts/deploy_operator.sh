@@ -10,19 +10,20 @@ export RG_LOCATION=$(cat devenv/state/deployment-auth-info.json | jq '.ResourceG
 export DNS_ZONE_RG=$(cat devenv/state/deployment-auth-info.json | jq '.DnsResourceGroup' | tr -d '"')
 export DNS_ZONE_SUBSCRIPTION=$(cat devenv/state/deployment-auth-info.json | jq '.DnsZoneSubscription' | tr -d '"')
 export DNS_ZONE_DOMAIN=$(cat devenv/state/deployment-auth-info.json | jq '.DnsZoneDomain' | tr -d '"')
+export PRIVATE_FLAG=$(cat devenv/state/deployment-auth-info.json | jq '.PrivateDnsZoneFlag' | tr -d '"')
 
 # move into state before envsubst
-mkdir -p devenv/state/kustomize/operator-private-deployment
-cp devenv/kustomize/operator-private-deployment/* devenv/state/kustomize/operator-private-deployment
+mkdir -p devenv/state/kustomize/operator-deployment
+cp devenv/kustomize/operator-deployment/* devenv/state/kustomize/operator-deployment
 
 # Write env to kustomize patch
-envsubst < devenv/kustomize/operator-private-deployment/kustomization.yaml > devenv/state/kustomize/operator-private-deployment/kustomization.yaml
+envsubst < devenv/kustomize/operator-deployment/kustomization.yaml > devenv/state/kustomize/operator-deployment/kustomization.yaml
 
 # Get cluster information for az aks command invoke
 CLUSTER_RESOURCE_GROUP=$(cat devenv/state/cluster-info.json | jq '.ClusterResourceGroup' | tr -d '"')
 CLUSTER_NAME=$(cat devenv/state/cluster-info.json | jq '.ClusterName' | tr -d '"')
 
 echo "deploying to ${CLUSTER_NAME} in resource group ${CLUSTER_RESOURCE_GROUP}"
-cd devenv/state/kustomize/operator-private-deployment
+cd devenv/state/kustomize/operator-deployment
 
 APPLY_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP "kubectl apply -k ." ".")
