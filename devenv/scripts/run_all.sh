@@ -1,3 +1,4 @@
+	set -e
 	echo "running all"
 	echo "beginning private cluster tests..."
 	make dev CLUSTER_TYPE=private DNS_ZONE_TYPE=public
