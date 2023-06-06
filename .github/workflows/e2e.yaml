@@ -1,4 +1,4 @@
-name: Run e2e - private cluster
+name: Run e2e - public cluster
 on:
   workflow_dispatch:
   schedule:
@@ -10,7 +10,10 @@ permissions:
   contents: read
 
 jobs: 
-  test:
+  test_matrix:
+    strategy:
+      matrix:
+        cmd: [public-cluster-test, private-cluster-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,4 +33,4 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: "make private-cluster-test"
+        run: "make ${{ matrix.cmd }}"
