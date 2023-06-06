@@ -6,6 +6,7 @@ package e2eutil
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"strings"
 	"testing"
 
@@ -46,7 +47,7 @@ var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, err
 	promClusterRoleBinding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{
 		Name: fixtures.PromServer,
 	}}
-	if err := client.Resources().Delete(ctx, promClusterRoleBinding); err != nil {
+	if err := client.Resources().Delete(ctx, promClusterRoleBinding); err != nil && !errors.IsNotFound(err) {
 		return ctx, err
 	}
 
@@ -54,7 +55,7 @@ var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, err
 	promClusterRole := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{
 		Name: fixtures.PromServer,
 	}}
-	if err := client.Resources().Delete(ctx, promClusterRole); err != nil {
+	if err := client.Resources().Delete(ctx, promClusterRole); err != nil && !errors.IsNotFound(err) {
 		return ctx, err
 	}
 
