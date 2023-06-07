@@ -9,7 +9,7 @@ export ARM_CLIENT_TENANT_ID=$(cat devenv/state/deployment-auth-info.json | jq '.
 export RG_LOCATION=$(cat devenv/state/deployment-auth-info.json | jq '.ResourceGroupLocation' | tr -d '"')
 export DNS_ZONE_RG=$(cat devenv/state/deployment-auth-info.json | jq '.DnsResourceGroup' | tr -d '"')
 export DNS_ZONE_SUBSCRIPTION=$(cat devenv/state/deployment-auth-info.json | jq '.DnsZoneSubscription' | tr -d '"')
-export DNS_ZONE_DOMAIN=$(cat devenv/state/deployment-auth-info.json | jq '.DnsZoneDomain' | tr -d '"')
+export DNS_ZONE_DOMAIN=$(cat devenv/state/deployment-auth-info.json | jq '.DnsZoneDomain' | tr -d '"') # GET RID OF THIS
 export PRIVATE_FLAG=$(cat devenv/state/deployment-auth-info.json | jq '.PrivateDnsZoneFlag' | tr -d '"')
 
 # move into state before envsubst

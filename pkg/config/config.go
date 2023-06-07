@@ -5,12 +5,18 @@ package config
 
 import (
 	"errors"
-	"flag"
+	"fmt"
+	"strings"
+
+	"github.com/Azure/go-autorest/autorest/azure"
+	flag "github.com/spf13/pflag"
 )
 
 const (
 	// DefaultNs is the default namespace for the resources deployed by this operator
-	DefaultNs = "app-routing-system"
+	DefaultNs       = "app-routing-system"
+	PublicZoneType  = "dnszones"
+	PrivateZoneType = "privatednszones"
 )
 
 var Flags = &Config{}
@@ -24,9 +30,7 @@ func init() {
 	flag.StringVar(&Flags.Location, "location", "", "azure region name")
 	flag.StringVar(&Flags.DNSZoneRG, "dns-zone-resource-group", "", "resource group of the Azure DNS Zone (optional)")
 	flag.StringVar(&Flags.DNSZoneSub, "dns-zone-subscription", "", "subscription ID of the Azure DNS Zone (optional)")
-	flag.StringVar(&Flags.DNSZoneDomain, "dns-zone-domain", "", "domain hostname of the Azure DNS Zone (optional)")
-	flag.StringVar(&Flags.DNSRecordID, "dns-record-id", "aks-app-routing-operator", "string that uniquely identifies DNS records managed by this cluster (optional)")
-	flag.BoolVar(&Flags.DNSZonePrivate, "dns-zone-private", false, "if the user's DNS zone is private")
+	Flags.DNSZoneIDs = flag.StringSlice("dns-zone-ids", []string{}, "comma-separated strings of DNS Zones associated with the add-on (optional)")
 	flag.BoolVar(&Flags.DisableKeyvault, "disable-keyvault", false, "disable the keyvault integration")
 	flag.Float64Var(&Flags.ConcurrencyWatchdogThres, "concurrency-watchdog-threshold", 200, "percentage of concurrent connections above mean required to vote for load shedding")
 	flag.IntVar(&Flags.ConcurrencyWatchdogVotes, "concurrency-watchdog-votes", 4, "number of votes required for a pod to be considered for load shedding")
@@ -38,18 +42,19 @@ func init() {
 }
 
 type Config struct {
-	ServiceAccountTokenPath                           string
-	MetricsAddr, ProbeAddr                            string
-	NS, Registry                                      string
-	DisableKeyvault                                   bool
-	MSIClientID, TenantID                             string
-	Cloud, Location                                   string
-	DNSZoneRG, DNSZoneSub, DNSZoneDomain, DNSRecordID string
-	DNSZonePrivate                                    bool
-	ConcurrencyWatchdogThres                          float64
-	ConcurrencyWatchdogVotes                          int
-	DisableOSM                                        bool
-	OperatorDeployment                                string
+	ServiceAccountTokenPath  string
+	MetricsAddr, ProbeAddr   string
+	NS, Registry             string
+	DisableKeyvault          bool
+	MSIClientID, TenantID    string
+	Cloud, Location          string
+	DNSZoneRG, DNSZoneSub    string
+	DNSZoneIDs               *[]string
+	DNSZoneDomains           []string
+	ConcurrencyWatchdogThres float64
+	ConcurrencyWatchdogVotes int
+	DisableOSM               bool
+	OperatorDeployment       string
 }
 
 func (c *Config) Validate() error {
@@ -71,15 +76,12 @@ func (c *Config) Validate() error {
 	if c.Location == "" {
 		return errors.New("--location is required")
 	}
-	if c.DNSZoneRG != "" || c.DNSZoneSub != "" || c.DNSZoneDomain != "" {
+	if c.DNSZoneRG != "" || c.DNSZoneSub != "" {
 		if c.DNSZoneRG == "" {
 			return errors.New("--dns-zone-resource-group is required")
 		}
 		if c.DNSZoneSub == "" {
 			return errors.New("--dns-zone-subscription is required")
-		}
-		if c.DNSZoneDomain == "" {
-			return errors.New("--dns-zone-domain is required")
 		}
 	}
 	if c.ConcurrencyWatchdogThres <= 100 {
@@ -88,5 +90,26 @@ func (c *Config) Validate() error {
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
+
+	c.DNSZoneDomains = make([]string, len(*c.DNSZoneIDs))
+	for _, id := range *c.DNSZoneIDs {
+		if id == "" {
+			return errors.New("--dns-zone-ids must not contain empty strings")
+		}
+
+		parsedID, err := azure.ParseResourceID(id)
+		if err != nil {
+			return fmt.Errorf("failed to parse DNS Zone ID %s: %s", id, err)
+		}
+
+		isPublicDnsZone := strings.EqualFold(parsedID.ResourceType, PublicZoneType)
+		isPrivateDnsZone := strings.EqualFold(parsedID.ResourceType, PrivateZoneType)
+
+		if !strings.EqualFold(parsedID.Provider, "Microsoft.Network") || (!isPublicDnsZone && !isPrivateDnsZone) {
+			return fmt.Errorf("invalid DNS Zone ID %s: must be a public or private DNS Zone resource ID", id)
+		}
+		c.DNSZoneDomains = append(c.DNSZoneDomains, parsedID.ResourceName)
+	}
+
 	return nil
 }

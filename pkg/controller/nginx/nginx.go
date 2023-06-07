@@ -26,12 +26,6 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) ([]*ma
 		ResourceName:    "nginx",
 		IcName:          "webapprouting.kubernetes.azure.com",
 	}
-	if conf.DNSZoneDomain != "" && conf.DNSZonePrivate {
-		defaultIngConfig.ServiceConfig = &manifests.ServiceConfig{
-			IsInternal: true,
-			Hostname:   conf.DNSZoneDomain,
-		}
-	}
 
 	ingConfigs := []*manifests.NginxIngressConfig{defaultIngConfig}
 	n := &nginx{

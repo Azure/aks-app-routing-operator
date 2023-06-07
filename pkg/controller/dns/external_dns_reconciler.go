@@ -20,18 +20,17 @@ func newExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Deployment) error {
-	if conf.DNSZoneDomain == "" {
+	if len(conf.DNSZoneDomains) == 0 {
 		return nil
 	}
 
 	dnsConfig := &manifests.ExternalDnsConfig{
-		ResourceName:  "external-dns",
-		TenantId:      conf.TenantID,
-		Subscription:  conf.DNSZoneSub,
-		ResourceGroup: conf.DNSZoneRG,
-		Domain:        conf.DNSZoneDomain,
-		RecordId:      conf.DNSRecordID,
-		IsPrivate:     conf.DNSZonePrivate,
+		ResourceName:       "external-dns",
+		TenantId:           conf.TenantID,
+		Subscription:       conf.DNSZoneSub,
+		ResourceGroup:      conf.DNSZoneRG,
+		DNSZoneDomains:     conf.DNSZoneDomains,
+		DnsZoneResourceIDs: *conf.DNSZoneIDs, // deploy appropriate external DNS instances if any are private/public
 	}
 	objs := manifests.ExternalDnsResources(conf, self, dnsConfig)
 	return newExternalDnsReconciler(manager, objs)

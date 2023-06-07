@@ -8,8 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+const operatorName = "aks-app-routing-operator"
+
 var (
-	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator"}
+	topLevelLabels = map[string]string{"app.kubernetes.io/managed-by": operatorName}
 )
 
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {

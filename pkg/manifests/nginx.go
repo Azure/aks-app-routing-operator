@@ -202,21 +202,10 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
 	isInternal := false
-	hostname := ""
-	if ingressConfig.ServiceConfig != nil {
-		isInternal = ingressConfig.ServiceConfig.IsInternal
-		hostname = ingressConfig.ServiceConfig.Hostname
-	}
 
 	annotations := make(map[string]string)
 	if isInternal {
 		annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true"
-	}
-	if hostname != "" {
-		annotations["external-dns.alpha.kubernetes.io/hostname"] = "loadbalancer." + hostname
-	}
-	if hostname != "" && isInternal {
-		annotations["external-dns.alpha.kubernetes.io/internal-hostname"] = "clusterip." + hostname
 	}
 
 	for k, v := range promAnnotations {

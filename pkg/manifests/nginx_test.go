@@ -112,10 +112,6 @@ var (
 				ControllerClass: "test-controller-class",
 				ResourceName:    "nginx",
 				IcName:          "nginx-private",
-				ServiceConfig: &ServiceConfig{
-					IsInternal: true,
-					Hostname:   "test.hostname.com",
-				},
 			},
 		},
 	}

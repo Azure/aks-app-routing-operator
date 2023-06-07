@@ -2,7 +2,7 @@
 
 	echo "beginning public cluster tests..."
 	make clean
-	make dev CLUSTER_TYPE=public DNS_ZONE_TYPE=public
+	make dev CLUSTER_TYPE=public DNS_ZONE_TYPE=public,private,private
 	make push
 	make e2e
 
