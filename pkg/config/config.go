@@ -57,6 +57,9 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
+	if c.DNSZoneIDs == nil {
+		c.DNSZoneIDs = &[]string{}
+	}
 	if c.NS == "" {
 		return errors.New("--namespace is required")
 	}
@@ -75,7 +78,7 @@ func (c *Config) Validate() error {
 	if c.Location == "" {
 		return errors.New("--location is required")
 	}
-	if c.DNSZoneSub != "" {
+	if len(*c.DNSZoneIDs) > 0 {
 		if c.DNSZoneSub == "" {
 			return errors.New("--dns-zone-subscription is required")
 		}

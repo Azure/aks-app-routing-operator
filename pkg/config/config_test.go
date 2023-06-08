@@ -4,6 +4,7 @@
 package config
 
 import (
+	"github.com/Azure/go-autorest/autorest/to"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,9 +37,7 @@ var configTestCases = []struct {
 			TenantID:                 "test-tenant-id",
 			Cloud:                    "test-cloud",
 			Location:                 "test-location",
-			DNSZoneRG:                "test-dns-zone-rg",
 			DNSZoneSub:               "test-dns-zone-sub",
-			DNSZoneDomain:            "test-dns-zone-domain",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
 		},
@@ -122,22 +121,6 @@ var configTestCases = []struct {
 		Error: "--location is required",
 	},
 	{
-		Name: "missing-dns-zone-rg",
-		Conf: &Config{
-			NS:                       "test-namespace",
-			Registry:                 "test-registry",
-			MSIClientID:              "test-msi-client-id",
-			TenantID:                 "test-tenant-id",
-			Cloud:                    "test-cloud",
-			Location:                 "test-location",
-			DNSZoneSub:               "test-dns-zone-sub",
-			DNSZoneDomain:            "test-dns-zone-domain",
-			ConcurrencyWatchdogThres: 101,
-			ConcurrencyWatchdogVotes: 2,
-		},
-		Error: "--dns-zone-resource-group is required",
-	},
-	{
 		Name: "missing-dns-zone-sub",
 		Conf: &Config{
 			NS:                       "test-namespace",
@@ -146,28 +129,11 @@ var configTestCases = []struct {
 			TenantID:                 "test-tenant-id",
 			Cloud:                    "test-cloud",
 			Location:                 "test-location",
-			DNSZoneRG:                "test-dns-zone-rg",
-			DNSZoneDomain:            "test-dns-zone-domain",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			DNSZoneIDs:               to.StringSlicePtr([]string{"test-id-1", "test-id-2"}),
 		},
 		Error: "--dns-zone-subscription is required",
-	},
-	{
-		Name: "missing-dns-zone-domain",
-		Conf: &Config{
-			NS:                       "test-namespace",
-			Registry:                 "test-registry",
-			MSIClientID:              "test-msi-client-id",
-			TenantID:                 "test-tenant-id",
-			Cloud:                    "test-cloud",
-			Location:                 "test-location",
-			DNSZoneRG:                "test-dns-zone-rg",
-			DNSZoneSub:               "test-dns-zone-sub",
-			ConcurrencyWatchdogThres: 101,
-			ConcurrencyWatchdogVotes: 2,
-		},
-		Error: "--dns-zone-domain is required",
 	},
 	{
 		Name: "low-concurrency-watchdog-thres",
