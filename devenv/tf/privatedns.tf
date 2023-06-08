@@ -20,7 +20,7 @@ resource "azurerm_role_assignment" "dns-role-assignment" {
 data "azurerm_resources" "noderesourcegroup" {
   resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
   type = "Microsoft.Network/virtualNetworks"
-  count = var.privatednszones > 0 ? 1 : 0
+  count = var.numprivatednszones > 0 ? 1 : 0
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
@@ -32,5 +32,5 @@ resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnecti
 }
 
 locals {
-  publicdnszoneids = azurerm_private_dns_zone.dnszone[*].id
+  privatednszoneids = azurerm_private_dns_zone.dnszone[*].id
 }

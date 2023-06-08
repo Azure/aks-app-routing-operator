@@ -86,6 +86,8 @@ resource "local_file" "e2econf" {
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
     DNSZoneDomain     = var.domain
+    PrivateDnsZones = join(",", local.privatednszoneids)
+    PublicDnsZones = join(",",  local.publicdnszoneids)
   })
   filename = "${path.module}/../state/kustomize/e2e/e2e.json"
 }
