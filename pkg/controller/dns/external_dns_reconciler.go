@@ -1,6 +1,9 @@
 package dns
 
 import (
+	"fmt"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"strings"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -11,7 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const reconcileInterval = time.Minute * 3
+const (
+	reconcileInterval = time.Minute * 3
+)
 
 // newExternalDnsReconciler creates a reconciler that manages external dns resources
 func newExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) error {
@@ -24,14 +29,56 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		return nil
 	}
 
-	dnsConfig := &manifests.ExternalDnsConfig{
-		ResourceName:       "external-dns",
-		TenantId:           conf.TenantID,
-		Subscription:       conf.DNSZoneSub,
-		ResourceGroup:      conf.DNSZoneRG,
-		DNSZoneDomains:     conf.DNSZoneDomains,
-		DnsZoneResourceIDs: *conf.DNSZoneIDs, // deploy appropriate external DNS instances if any are private/public
+	privateZones := []string{}
+	var privateZoneRg string
+
+	publicZones := []string{}
+	var publicZoneRg string
+
+	for _, zoneId := range *conf.DNSZoneIDs {
+		parsedZone, err := azure.ParseResourceID(zoneId)
+		// this should be impossible
+		if err != nil {
+			continue
+		}
+
+		if strings.EqualFold(parsedZone.ResourceType, config.PrivateZoneType) {
+			// it's a private zone
+			privateZones = append(privateZones, zoneId)
+			privateZoneRg = parsedZone.ResourceGroup
+		} else {
+			// it's a public zone
+			publicZones = append(publicZones, zoneId)
+			publicZoneRg = parsedZone.ResourceGroup
+		}
 	}
-	objs := manifests.ExternalDnsResources(conf, self, dnsConfig)
+
+	// one config for private, one config for public
+	objs := []client.Object{}
+	if len(privateZones) > 0 {
+		privateZoneConfig := &manifests.ExternalDnsConfig{
+			ResourceName:       fmt.Sprintf("%s%s", manifests.ResourceName, manifests.PrivateSuffix),
+			TenantId:           conf.TenantID,
+			Subscription:       conf.DNSZoneSub,
+			ResourceGroup:      privateZoneRg,
+			DnsZoneResourceIDs: privateZones,
+			Provider:           manifests.PrivateProvider,
+		}
+		objs = append(objs, manifests.ExternalDnsResources(conf, self, privateZoneConfig)...)
+	}
+
+	if len(publicZones) > 0 {
+		publicZoneConfig := &manifests.ExternalDnsConfig{
+			ResourceName:       fmt.Sprintf("%s%s", manifests.ResourceName, manifests.PublicSuffix),
+			TenantId:           conf.TenantID,
+			Subscription:       conf.DNSZoneSub,
+			ResourceGroup:      publicZoneRg,
+			DnsZoneResourceIDs: publicZones,
+			Provider:           manifests.PrivateProvider,
+		}
+
+		objs = append(objs, manifests.ExternalDnsResources(conf, self, publicZoneConfig)...)
+	}
+
 	return newExternalDnsReconciler(manager, objs)
 }

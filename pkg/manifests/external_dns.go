@@ -4,31 +4,34 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"path"
-	"strings"
-
+	"fmt"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/Azure/go-autorest/autorest/to"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	provider        = "azure"
-	privateProvider = "azure-private-dns"
+	Provider        = "azure"
+	PrivateProvider = "azure-private-dns"
+	replicas        = 1
+
+	ResourceName  = "external-dns"
+	PrivateSuffix = "-private"
+	PublicSuffix  = "-public"
 )
 
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
-	ResourceName                                            string
-	TenantId, Subscription, ResourceGroup string
-	DnsZoneResourceIDs, DNSZoneDomains 									[]string
-	IsPrivate                                               bool
+	TenantId, Subscription, ResourceName, ResourceGroup, Provider string
+	DnsZoneResourceIDs                                            []string
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
@@ -47,9 +50,7 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
 	objs = append(objs, dnsCm)
 
-	for _, dep := range newExternalDNSDeployments(conf, dnsCmHash, externalDnsConfig){
-		objs = append(objs, dep)
-	}
+	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
 
 	owners := getOwnerRefs(self)
 	for _, obj := range objs {
@@ -130,7 +131,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 	js, err := json.Marshal(&map[string]interface{}{
 		"tenantId":                    externalDnsConfig.TenantId,
 		"subscriptionId":              externalDnsConfig.Subscription,
-		"resourceGroup":               externalDnsConfig.ResourceGroup, // all private in same RG, all public in same RG
+		"resourceGroup":               externalDnsConfig.ResourceGroup,
 		"userAssignedIdentityID":      conf.MSIClientID,
 		"useManagedIdentityExtension": true,
 		"cloud":                       conf.Cloud,
@@ -156,96 +157,76 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployments(conf *config.Config, configMapHash string, externalDnsConfig *ExternalDnsConfig) []*appsv1.Deployment {
-	replicas := int32(1)
+func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string) *appsv1.Deployment {
+	domainFilters := []string{}
 
-	privateZones := []string{}
-	publicZones := []string{}
-
-	for _, zoneId := range *conf.DNSZoneIDs {
+	for _, zoneId := range externalDnsConfig.DnsZoneResourceIDs {
 		parsedZone, err := azure.ParseResourceID(zoneId)
-
-		// this should be impossible
 		if err != nil {
 			continue
 		}
-
-		if strings.EqualFold(parsedZone.ResourceType, config.PrivateZoneType) {
-			// it's a private zone
-		} else{
-			// it's a public zone
-		}
-
+		domainFilters = append(domainFilters, fmt.Sprintf("--domain-filter=%s", parsedZone.ResourceName))
 	}
 
-	provider := provider
-	if externalDnsConfig.IsPrivate {
-		provider = privateProvider
-	}
-
-	return []*appsv1.Deployment{
-		{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Deployment",
-				APIVersion: "apps/v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      externalDnsConfig.ResourceName,
-				Namespace: conf.NS,
-				Labels:    topLevelLabels,
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas:             &replicas,
-				RevisionHistoryLimit: util.Int32Ptr(2),
-				Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.ResourceName}},
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app":                externalDnsConfig.ResourceName,
-							"checksum/configmap": configMapHash[:16],
-						},
+	return &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      externalDnsConfig.ResourceName,
+			Namespace: conf.NS,
+			Labels:    topLevelLabels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas:             to.Int32Ptr(replicas),
+			RevisionHistoryLimit: util.Int32Ptr(2),
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.ResourceName}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":                externalDnsConfig.ResourceName,
+						"checksum/configmap": configMapHash[:16],
 					},
-					Spec: *WithPreferSystemNodes(&corev1.PodSpec{
-						ServiceAccountName: externalDnsConfig.ResourceName,
-						Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
-							Name:  "controller",
-							Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
-							Args: []string{
-								"--provider=" + provider,
-								"--source=ingress",
-								"--interval=3m0s",
-								"--txt-owner-id=" + operatorName,
-								"--domain-filter=" + externalDnsConfig.Domain, // multiple filters per zone - going to want to include the domains of all the zones here
-								--domain-filter filler
-							},
-							VolumeMounts: []corev1.VolumeMount{{
-								Name:      "azure-config",
-								MountPath: "/etc/kubernetes",
-								ReadOnly:  true,
-							}},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("250Mi"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("250Mi"),
-								},
-							},
-						}))},
-						Volumes: []corev1.Volume{{
-							Name: "azure-config",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: externalDnsConfig.ResourceName,
-									},
-								},
-							},
-						}},
-					}),
 				},
+				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
+					ServiceAccountName: externalDnsConfig.ResourceName,
+					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
+						Name:  "controller",
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
+						Args: append([]string{
+							"--provider=" + externalDnsConfig.Provider,
+							"--source=ingress",
+							"--interval=3m0s",
+							"--txt-owner-id=" + operatorName,
+						}, domainFilters...),
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "azure-config",
+							MountPath: "/etc/kubernetes",
+							ReadOnly:  true,
+						}},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("250Mi"),
+							},
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("250Mi"),
+							},
+						},
+					}))},
+					Volumes: []corev1.Volume{{
+						Name: "azure-config",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: externalDnsConfig.ResourceName,
+								},
+							},
+						},
+					}},
+				}),
 			},
 		},
 	}

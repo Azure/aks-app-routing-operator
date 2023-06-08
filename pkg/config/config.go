@@ -28,7 +28,6 @@ func init() {
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
 	flag.StringVar(&Flags.Cloud, "cloud", "AzurePublicCloud", "azure cloud name")
 	flag.StringVar(&Flags.Location, "location", "", "azure region name")
-	flag.StringVar(&Flags.DNSZoneRG, "dns-zone-resource-group", "", "resource group of the Azure DNS Zone (optional)")
 	flag.StringVar(&Flags.DNSZoneSub, "dns-zone-subscription", "", "subscription ID of the Azure DNS Zone (optional)")
 	Flags.DNSZoneIDs = flag.StringSlice("dns-zone-ids", []string{}, "comma-separated strings of DNS Zones associated with the add-on (optional)")
 	flag.BoolVar(&Flags.DisableKeyvault, "disable-keyvault", false, "disable the keyvault integration")
@@ -48,7 +47,7 @@ type Config struct {
 	DisableKeyvault          bool
 	MSIClientID, TenantID    string
 	Cloud, Location          string
-	DNSZoneRG, DNSZoneSub    string
+	DNSZoneSub               string
 	DNSZoneIDs               *[]string
 	DNSZoneDomains           []string
 	ConcurrencyWatchdogThres float64
@@ -76,10 +75,7 @@ func (c *Config) Validate() error {
 	if c.Location == "" {
 		return errors.New("--location is required")
 	}
-	if c.DNSZoneRG != "" || c.DNSZoneSub != "" {
-		if c.DNSZoneRG == "" {
-			return errors.New("--dns-zone-resource-group is required")
-		}
+	if c.DNSZoneSub != "" {
 		if c.DNSZoneSub == "" {
 			return errors.New("--dns-zone-subscription is required")
 		}
