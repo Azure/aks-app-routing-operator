@@ -29,13 +29,25 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		return nil
 	}
 
-	privateZones := []string{}
-	var privateZoneRg string
+	privateZones, privateZoneRg, publicZones, publicZoneRg := parseZoneIds(conf.DNSZoneDomains)
 
-	publicZones := []string{}
-	var publicZoneRg string
+	// one config for private, one config for public
+	objs := []client.Object{}
+	if len(privateZones) > 0 {
+		privateZoneConfig := generateConfig(conf, privateZones, privateZoneRg, manifests.PrivateProvider)
+		objs = append(objs, manifests.ExternalDnsResources(conf, self, privateZoneConfig)...)
+	}
 
-	for _, zoneId := range *conf.DNSZoneIDs {
+	if len(publicZones) > 0 {
+		publicZoneConfig := generateConfig(conf, publicZones, publicZoneRg, manifests.Provider)
+		objs = append(objs, manifests.ExternalDnsResources(conf, self, publicZoneConfig)...)
+	}
+
+	return newExternalDnsReconciler(manager, objs)
+}
+
+func parseZoneIds(zones []string) (privateZones []string, privateZoneRg string, publicZones []string, publicZoneRg string) {
+	for _, zoneId := range zones {
 		parsedZone, err := azure.ParseResourceID(zoneId)
 		// this should be impossible
 		if err != nil {
@@ -53,32 +65,25 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		}
 	}
 
-	// one config for private, one config for public
-	objs := []client.Object{}
-	if len(privateZones) > 0 {
-		privateZoneConfig := &manifests.ExternalDnsConfig{
-			ResourceName:       fmt.Sprintf("%s%s", manifests.ResourceName, manifests.PrivateSuffix),
-			TenantId:           conf.TenantID,
-			Subscription:       conf.DNSZoneSub,
-			ResourceGroup:      privateZoneRg,
-			DnsZoneResourceIDs: privateZones,
-			Provider:           manifests.PrivateProvider,
-		}
-		objs = append(objs, manifests.ExternalDnsResources(conf, self, privateZoneConfig)...)
+	return privateZones, privateZoneRg, publicZones, publicZoneRg
+}
+
+func generateConfig(conf *config.Config, zones []string, resourceGroup, provider string) *manifests.ExternalDnsConfig {
+	var resourceName string
+
+	switch provider {
+	case manifests.PrivateProvider:
+		resourceName = fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PrivateSuffix)
+	default:
+		resourceName = fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PublicSuffix)
 	}
 
-	if len(publicZones) > 0 {
-		publicZoneConfig := &manifests.ExternalDnsConfig{
-			ResourceName:       fmt.Sprintf("%s%s", manifests.ResourceName, manifests.PublicSuffix),
-			TenantId:           conf.TenantID,
-			Subscription:       conf.DNSZoneSub,
-			ResourceGroup:      publicZoneRg,
-			DnsZoneResourceIDs: publicZones,
-			Provider:           manifests.PrivateProvider,
-		}
-
-		objs = append(objs, manifests.ExternalDnsResources(conf, self, publicZoneConfig)...)
+	return &manifests.ExternalDnsConfig{
+		ResourceName:       resourceName,
+		TenantId:           conf.TenantID,
+		Subscription:       conf.DNSZoneSub,
+		ResourceGroup:      resourceGroup,
+		DnsZoneResourceIDs: zones,
+		Provider:           provider,
 	}
-
-	return newExternalDnsReconciler(manager, objs)
 }

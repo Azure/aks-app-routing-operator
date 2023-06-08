@@ -23,9 +23,9 @@ const (
 	PrivateProvider = "azure-private-dns"
 	replicas        = 1
 
-	ResourceName  = "external-dns"
-	PrivateSuffix = "-private"
-	PublicSuffix  = "-public"
+	ExternalDnsResourceName = "external-dns"
+	PrivateSuffix           = "-private"
+	PublicSuffix            = "-public"
 )
 
 // ExternalDnsConfig defines configuration options for required resources for external dns
