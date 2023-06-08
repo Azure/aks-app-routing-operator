@@ -15,8 +15,8 @@ var (
 	publicZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-two.com"
 	publicZones   = []string{publicZoneOne, publicZoneTwo}
 
-	privateZoneOne = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-one.com"
-	privateZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
+	privateZoneOne = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-three.com"
+	privateZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-four.com"
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
 	publicDnsConfig = &ExternalDnsConfig{
@@ -60,7 +60,7 @@ var (
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
 		},
 		{
-			Name: "private-only",
+			Name: "private",
 			Conf: &config.Config{NS: "test-namespace"},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -76,9 +76,8 @@ var (
 func TestExternalDnsResources(t *testing.T) {
 	for _, tc := range testCases {
 		objs := []client.Object{}
-		for _, dnsConfig := range tc.DnsConfigs {
-			objs = append(objs, ExternalDnsResources(tc.Conf, tc.Deploy, dnsConfig)...)
-		}
+
+		objs = append(objs, ExternalDnsResources(tc.Conf, tc.Deploy, tc.DnsConfigs)...)
 
 		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".json"
 		AssertFixture(t, fixture, objs)

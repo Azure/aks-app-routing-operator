@@ -35,13 +35,28 @@ type ExternalDnsConfig struct {
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
-func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfig *ExternalDnsConfig) []client.Object {
-	objs := []client.Object{}
+func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
+	var objs []client.Object
 
-	// Can safely assume the namespace exists if using kube-system
+	// Can safely assume the Namespace exists if using kube-system
 	if conf.NS != "kube-system" {
-		objs = append(objs, namespace(conf))
+		objs = append(objs, Namespace(conf))
 	}
+
+	for _, dnsConfig := range externalDnsConfigs {
+		objs = append(objs, externalDnsResourcesFromConfig(conf, dnsConfig)...)
+	}
+
+	owners := getOwnerRefs(self)
+	for _, obj := range objs {
+		obj.SetOwnerReferences(owners)
+	}
+
+	return objs
+}
+
+func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
+	var objs []client.Object
 
 	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
@@ -51,11 +66,6 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 	objs = append(objs, dnsCm)
 
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
-
-	owners := getOwnerRefs(self)
-	for _, obj := range objs {
-		obj.SetOwnerReferences(owners)
-	}
 
 	return objs
 }

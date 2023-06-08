@@ -19,11 +19,11 @@ var (
 		Name   string
 		Config *config.Config
 	}{
-		{Name: "namespace", Config: &config.Config{
+		{Name: "Namespace", Config: &config.Config{
 			NS: "test-namespace",
 		}},
 		{
-			Name: "another-namespace",
+			Name: "another-Namespace",
 			Config: &config.Config{
 				NS: "another-test-namespace",
 			},
@@ -33,7 +33,7 @@ var (
 
 func TestNamespaceResources(t *testing.T) {
 	for _, tc := range namespaceTestCases {
-		objs := namespace(tc.Config)
+		objs := Namespace(tc.Config)
 		fixture := path.Join("fixtures", "common", tc.Name) + ".json"
 		AssertFixture(t, fixture, []client.Object{objs})
 	}
@@ -41,6 +41,7 @@ func TestNamespaceResources(t *testing.T) {
 
 // AssertFixture checks the fixture path and compares it to the provided objects, failing if they are not equal
 func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
+	t.Logf("Testing fixture %s", fixturePath)
 	actual, err := json.MarshalIndent(&objs, "  ", "  ")
 	require.NoError(t, err)
 

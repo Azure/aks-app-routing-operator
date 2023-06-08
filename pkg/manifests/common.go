@@ -26,7 +26,7 @@ func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 	}}
 }
 
-func namespace(conf *config.Config) *corev1.Namespace {
+func Namespace(conf *config.Config) *corev1.Namespace {
 	ns := &corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Namespace",
