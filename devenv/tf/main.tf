@@ -34,13 +34,13 @@ variable "clustertype" {
   type = string
 }
 
-variable "dnszonetype" {
-  description = "The type of dns zone to deploy. Can be 'private' or 'public'."
+variable "numprivatednszones" {
+  description = "The number of private dns zones to create"
   type = string
 }
-
-variable "domain" {
-  default = "ingress.dev"
+variable "numpublicdnszones" {
+  description = "The number of public dns zones to create"
+  type = string
 }
 
 data "azurerm_client_config" "current" {
@@ -110,8 +110,8 @@ resource "local_file" "addon_deployment_auth_info"{
     ResourceGroupLocation = azurerm_resource_group.rg.location
     DnsResourceGroup = azurerm_resource_group.rg.name
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    DnsZoneDomain = var.domain
-    PrivateDnsZoneFlag = var.dnszonetype == "private" ? "--dns-zone-private" : ""
+    PrivateDnsZones = join(",", local.privatednszoneids)
+    PublicDnsZones = join(",",  local.publicdnszoneids)
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }
