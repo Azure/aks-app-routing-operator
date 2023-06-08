@@ -30,18 +30,18 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 	}
 
 	privateZones, privateZoneRg, publicZones, publicZoneRg := parseZoneIds(conf.DNSZoneDomains)
-
+	var configs []*manifests.ExternalDnsConfig
 	// one config for private, one config for public
-	objs := []client.Object{}
+	var objs []client.Object
 	if len(privateZones) > 0 {
-		privateZoneConfig := generateConfig(conf, privateZones, privateZoneRg, manifests.PrivateProvider)
-		objs = append(objs, manifests.ExternalDnsResources(conf, self, privateZoneConfig)...)
+		configs = append(configs, generateConfig(conf, privateZones, privateZoneRg, manifests.PrivateProvider))
 	}
 
 	if len(publicZones) > 0 {
-		publicZoneConfig := generateConfig(conf, publicZones, publicZoneRg, manifests.Provider)
-		objs = append(objs, manifests.ExternalDnsResources(conf, self, publicZoneConfig)...)
+		configs = append(configs, generateConfig(conf, publicZones, publicZoneRg, manifests.Provider))
 	}
+
+	objs = append(objs, manifests.ExternalDnsResources(conf, self, configs)...)
 
 	return newExternalDnsReconciler(manager, objs)
 }
