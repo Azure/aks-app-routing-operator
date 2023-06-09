@@ -20,6 +20,8 @@ resource "azurerm_key_vault_access_policy" "allowtesteraccess" {
     "Create",
     "Delete",
     "Import",
+    "Purge",
+    "Recover",
   ]
 
 }
@@ -40,7 +42,7 @@ resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
 
 resource "azurerm_key_vault_certificate" "testcert-private" {
   for_each = { for i,d in azurerm_private_dns_zone.dnszone : i => d }
-  name         = "generated-cert-${index(tolist(var.privatezones) , each.key)}"
+  name         = "generated-cert-private-${index(tolist(var.privatezones) , each.key)}"
   key_vault_id = azurerm_key_vault.keyvault.id
   depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
 
@@ -92,7 +94,7 @@ resource "azurerm_key_vault_certificate" "testcert-private" {
 
 resource "azurerm_key_vault_certificate" "testcert-public" {
   for_each = { for i,d in azurerm_dns_zone.dnszone : i => d }
-  name         = "generated-cert-${index(tolist(var.publiczones) , each.key)}"
+  name         = "generated-cert-public-${index(tolist(var.publiczones) , each.key)}"
   key_vault_id = azurerm_key_vault.keyvault.id
   depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
 
