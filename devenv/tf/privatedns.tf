@@ -7,7 +7,7 @@ variable "privatezones" {
 }
 resource "azurerm_private_dns_zone" "dnszone" {
   for_each            = var.privatezones
-  name = each.value
+  name = "${random_string.random.result}-${each.value}"
 #  name                = "ingress-${random_string.random.result}-private-${count.index}.dev"
   resource_group_name = azurerm_resource_group.rg-private.name
 
@@ -29,7 +29,7 @@ data "azurerm_resources" "noderesourcegroup" {
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
   for_each              = azurerm_private_dns_zone.dnszone
   name                  = "approutingdev-link-${each.value.name}"
-  resource_group_name   = azurerm_resource_group.rg.name
+  resource_group_name   = azurerm_resource_group.rg-private.name
   private_dns_zone_name = each.value.name
   virtual_network_id    = data.azurerm_resources.noderesourcegroup[0].resources[0].id
 }
