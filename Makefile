@@ -13,7 +13,7 @@ clean:
 dev:
 	terraform --version
 	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
-	#./devenv/scripts/deploy_operator.sh
+	./devenv/scripts/deploy_operator.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt

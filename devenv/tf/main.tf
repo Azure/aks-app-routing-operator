@@ -104,8 +104,7 @@ resource "local_file" "addon_deployment_auth_info"{
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    PrivateDnsZones = {for zone in azurerm_private_dns_zone.dnszone : zone.id => zone.id}
-    PublicDnsZones = {for zone in azurerm_dns_zone.dnszone : zone.id => zone.id}
+    DnsZones = concat([for zone in azurerm_private_dns_zone.dnszone : zone.id], [for zone in azurerm_dns_zone.dnszone : zone.id])
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }
