@@ -2,8 +2,7 @@
 
 # both can have values of "public" or "private"
 CLUSTER_TYPE="public"
-NUM_PRIVATE_ZONES="2"
-NUM_PUBLIC_ZONES="2"
+
 
 
 # keep separate for simultaneous public/private dev without need for resource recreation
