@@ -1,13 +1,16 @@
-locals {
-  privatednsdomains = [
-    for i in range(var.numprivatednszones): "ingress-${random_string.random.result}-private-${i}.dev"
-    ]
+variable "privatezones" {
+  type = set(string)
+  default = [
+    "ingress-war-private-1.dev",
+    "ingress-war-private-2.dev"
+  ]
 }
-
 resource "azurerm_private_dns_zone" "dnszone" {
-  for_each            = toset(local.privatednsdomains)
-  name                = each.value
-  resource_group_name = azurerm_resource_group.rg.name
+  for_each            = var.privatezones
+  name = each.value
+#  name                = "ingress-${random_string.random.result}-private-${count.index}.dev"
+  resource_group_name = azurerm_resource_group.rg-private.name
+
 }
 
 resource "azurerm_role_assignment" "dns-role-assignment" {
@@ -20,7 +23,7 @@ resource "azurerm_role_assignment" "dns-role-assignment" {
 data "azurerm_resources" "noderesourcegroup" {
   resource_group_name = azurerm_kubernetes_cluster.cluster.node_resource_group
   type = "Microsoft.Network/virtualNetworks"
-  count = var.numprivatednszones > 0 ? 1 : 0
+  count = length(var.privatezones) > 0 ? 1 : 0
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
@@ -32,5 +35,5 @@ resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnecti
 }
 
 locals {
-  privatednszoneids = azurerm_private_dns_zone.dnszone[*].id
+  privatednszoneids = { for k, v in azurerm_private_dns_zone.dnszone : k => v.id }
 }

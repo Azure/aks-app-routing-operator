@@ -12,7 +12,7 @@ clean:
 
 dev:
 	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)" -var="numprivatednszones=$(NUM_PRIVATE_ZONES)" -var="numpublicdnszones=$(NUM_PUBLIC_ZONES)"
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
 	#./devenv/scripts/deploy_operator.sh
 
 push:

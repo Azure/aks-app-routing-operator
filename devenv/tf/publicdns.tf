@@ -1,13 +1,16 @@
-locals {
-  publicdnsdomains = [
-    for i in range(var.numpublicdnszones): "ingress-${random_string.random.result}-public-${i}.dev"
-    ]
+variable "publiczones" {
+  type = set(string)
+  default = [
+    "ingress-war-public-1.dev",
+    "ingress-war-public-2.dev"
+  ]
 }
 
+
 resource "azurerm_dns_zone" "dnszone" {
-  for_each             = toset(local.privatednsdomains)
-  name                = each.value 
-  resource_group_name = azurerm_resource_group.rg.name
+  for_each            = var.publiczones
+  name = each.value
+  resource_group_name = azurerm_resource_group.rg-public.name
 }
 
 resource "azurerm_role_assignment" "approutingdnszone" {
@@ -18,7 +21,18 @@ resource "azurerm_role_assignment" "approutingdnszone" {
 }
 
 
-locals {
-  publicdnszoneids = azurerm_dns_zone.dnszone[*].id
-  publicnameservers = azurerm_dns_zone.dnszone[*].name_servers
+#locals {
+#  publicdnszoneids = azurerm_dns_zone.dnszone[*].id
+#  publicnameservers = azurerm_dns_zone.dnszone[*].name_servers
+#}
+
+#locals {
+#  publicdnszoneids = { for k, v in azurerm_dns_zone.dnszone : k => v.id }
+#  publicnameservers = { for k, v in azurerm_dns_zone.dnszone : k => v.name_servers }
+#}
+
+output "publiczoneids" {
+  value = {
+  for k, v in azurerm_dns_zone.dnszone : k => v.id
+  }
 }

@@ -34,14 +34,14 @@ variable "clustertype" {
   type = string
 }
 
-variable "numprivatednszones" {
-  description = "The number of private dns zones to create"
-  type = string
-}
-variable "numpublicdnszones" {
-  description = "The number of public dns zones to create"
-  type = string
-}
+#variable "numprivatednszones" {
+#  description = "The number of private dns zones to create"
+#  type = string
+#}
+#variable "numpublicdnszones" {
+#  description = "The number of public dns zones to create"
+#  type = string
+#}
 
 data "azurerm_client_config" "current" {
 }
@@ -73,12 +73,14 @@ resource "azurerm_role_assignment" "acr" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    PrivateNameservers = var.numprivatednszones > 0 ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : []
-    PublicNameservers    = var.numpublicdnszones > 0 ? local.publicnameservers : []
-    CertID            = azurerm_key_vault_certificate.testcert.id
-    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    PrivateDnsZones = local.privatednszoneids
-    PublicDnsZones = local.publicdnszoneids
+    PrivateNameservers = length(var.privatezones) > 0 ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : []
+    PublicNameservers    = length(var.publiczones) > 0 ? azurerm_dns_zone.dnszone[*].name_servers : []
+    PublicCertIDs           = azurerm_key_vault_certificate.testcert-public[*].id
+    PublicCertVersionlessIDs = azurerm_key_vault_certificate.testcert-public[*].versionless_id
+    PrivateCertIDs           = azurerm_key_vault_certificate.testcert-private[*].id
+    PrivateCertVersionlessIDs = azurerm_key_vault_certificate.testcert-private[*].versionless_id
+    PrivateDnsZones = azurerm_private_dns_zone.dnszone[*].id
+    PublicDnsZones = azurerm_private_dns_zone.dnszone[*].id
   })
   filename = "${path.module}/../state/kustomize/e2e/e2e.json"
 }
@@ -102,7 +104,8 @@ resource "local_file" "addon_deployment_auth_info"{
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    DnsZoneIds = concat(local.privatednszoneids, local.publicdnszoneids)
+    PrivateDnsZones = azurerm_private_dns_zone.dnszone.id
+    PublicDnsZones = {for azurerm_dns_zone.dnszone.id}
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }

@@ -39,8 +39,8 @@ resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
 }
 
 resource "azurerm_key_vault_certificate" "testcert-private" {
-  for_each             = toset(local.privatednsdomains)
-  name         = "generated-cert-${each.value}"
+  for_each             = azurerm_private_dns_zone.dnszone
+  name         = "generated-cert-${each.value.name}"
   key_vault_id = azurerm_key_vault.keyvault.id
   depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
 
@@ -81,7 +81,7 @@ resource "azurerm_key_vault_certificate" "testcert-private" {
       ]
 
       subject_alternative_names {
-        dns_names = ["*.${each.value}"]
+        dns_names = ["*.${each.value.name}"]
       }
 
       subject            = "CN=testcert"
@@ -91,7 +91,7 @@ resource "azurerm_key_vault_certificate" "testcert-private" {
 }
 
 resource "azurerm_key_vault_certificate" "testcert-public" {
-  for_each             = toset(local.publicdnsdomains)
+  for_each = azurerm_dns_zone.dnszone
   name         = "generated-cert-${each.value}"
   key_vault_id = azurerm_key_vault.keyvault.id
   depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
@@ -133,7 +133,7 @@ resource "azurerm_key_vault_certificate" "testcert-public" {
       ]
 
       subject_alternative_names {
-        dns_names = ["*.${each.value}"]
+        dns_names = ["*.${each.value.name}"]
       }
 
       subject            = "CN=testcert"
