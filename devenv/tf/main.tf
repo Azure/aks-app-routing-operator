@@ -73,14 +73,14 @@ resource "azurerm_role_assignment" "acr" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    PrivateNameservers = length(var.privatezones) > 0 ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : []
-    PublicNameservers    = length(var.publiczones) > 0 ? azurerm_dns_zone.dnszone[*].name_servers : []
-    PublicCertIDs           = azurerm_key_vault_certificate.testcert-public[*].id
-    PublicCertVersionlessIDs = azurerm_key_vault_certificate.testcert-public[*].versionless_id
-    PrivateCertIDs           = azurerm_key_vault_certificate.testcert-private[*].id
-    PrivateCertVersionlessIDs = azurerm_key_vault_certificate.testcert-private[*].versionless_id
-    PrivateDnsZones = azurerm_private_dns_zone.dnszone[*].id
-    PublicDnsZones = azurerm_private_dns_zone.dnszone[*].id
+    PrivateNameservers = length(var.privatezones) > 0 ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : [] 
+    PublicNameservers    = length(var.publiczones) > 0 ? {for k, v in azurerm_dns_zone.dnszone : k => v.name_servers}:{}
+    PublicCertIDs           = {for k,v in azurerm_key_vault_certificate.testcert-public : k => v.id}
+    PublicCertVersionlessIDs = {for k,v in azurerm_key_vault_certificate.testcert-public : k => v.versionless_id}
+    PrivateCertIDs           = {for k,v in azurerm_key_vault_certificate.testcert-private : k => v.id}
+    PrivateCertVersionlessIDs = {for k,v in azurerm_key_vault_certificate.testcert-private : k=> v.versionless_id}
+    PrivateDnsZones = {for k,v in azurerm_private_dns_zone.dnszone: k => v.id}
+    PublicDnsZones = {for k,v in azurerm_private_dns_zone.dnszone: k => v.id}
   })
   filename = "${path.module}/../state/kustomize/e2e/e2e.json"
 }
@@ -104,8 +104,8 @@ resource "local_file" "addon_deployment_auth_info"{
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    PrivateDnsZones = azurerm_private_dns_zone.dnszone.id
-    PublicDnsZones = {for azurerm_dns_zone.dnszone.id}
+    PrivateDnsZones = {for zone in azurerm_private_dns_zone.dnszone : zone.id => zone.id}
+    PublicDnsZones = {for zone in azurerm_dns_zone.dnszone : zone.id => zone.id}
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }
