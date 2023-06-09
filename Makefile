@@ -2,7 +2,9 @@
 
 # both can have values of "public" or "private"
 CLUSTER_TYPE="public"
-DNS_ZONE_TYPE="public"
+NUM_PRIVATE_ZONES="2"
+NUM_PUBLIC_ZONES="2"
+
 
 # keep separate for simultaneous public/private dev without need for resource recreation
 clean:
@@ -10,8 +12,8 @@ clean:
 
 dev:
 	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)" -var="dnszonetype=$(DNS_ZONE_TYPE)"
-	./devenv/scripts/deploy_operator.sh
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)" -var="numprivatednszones=$(NUM_PRIVATE_ZONES)" -var="numpublicdnszones=$(NUM_PUBLIC_ZONES)"
+	#./devenv/scripts/deploy_operator.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt

@@ -74,11 +74,11 @@ resource "azurerm_role_assignment" "acr" {
 resource "local_file" "e2econf" {
   content = jsonencode({
     PrivateNameservers = var.numprivatednszones > 0 ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : []
-    TestNameservers    = var.numpublicdnszones > 0 ? local.publicnameservers : []
+    PublicNameservers    = var.numpublicdnszones > 0 ? local.publicnameservers : []
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    PrivateDnsZones = join(",", local.privatednszoneids)
-    PublicDnsZones = join(",",  local.publicdnszoneids)
+    PrivateDnsZones = local.privatednszoneids
+    PublicDnsZones = local.publicdnszoneids
   })
   filename = "${path.module}/../state/kustomize/e2e/e2e.json"
 }
@@ -102,8 +102,7 @@ resource "local_file" "addon_deployment_auth_info"{
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    PrivateDnsZones = local.privatednszoneids
-    PublicDnsZones = local.publicdnszoneids
+    DnsZoneIds = concat(local.privatednszoneids, local.publicdnszoneids)
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }
