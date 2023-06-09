@@ -57,15 +57,6 @@ provider "kubernetes" {
   cluster_ca_certificate =  base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.cluster_ca_certificate)
 }
 
-resource "azurerm_resource_group" "rg" {
-  name     = "app-routing-dev-${random_string.random.result}a"
-  location = var.location
-  tags = {
-    deletion_due_time  = time_static.provisiontime.unix + 36000, // keep resources for 10hr
-    deletion_marked_by = "gc",
-  }
-}
-
 resource "azurerm_container_registry" "acr" {
   name                = "approutingdev${random_string.random.result}a"
   resource_group_name = azurerm_resource_group.rg.name
@@ -82,10 +73,10 @@ resource "azurerm_role_assignment" "acr" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    TestNameservers    = var.dnszonetype == "private" ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : azurerm_dns_zone.dnszone[0].name_servers
+    PrivateNameservers = var.numprivatednszones > 0 ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : []
+    TestNameservers    = var.numpublicdnszones > 0 ? local.publicnameservers : []
     CertID            = azurerm_key_vault_certificate.testcert.id
     CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    DNSZoneDomain     = var.domain
     PrivateDnsZones = join(",", local.privatednszoneids)
     PublicDnsZones = join(",",  local.publicdnszoneids)
   })
@@ -110,10 +101,9 @@ resource "local_file" "addon_deployment_auth_info"{
     ClusterClientId = data.azurerm_user_assigned_identity.clusteridentity.client_id
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
-    DnsResourceGroup = azurerm_resource_group.rg.name
     DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    PrivateDnsZones = join(",", local.privatednszoneids)
-    PublicDnsZones = join(",",  local.publicdnszoneids)
+    PrivateDnsZones = local.privatednszoneids
+    PublicDnsZones = local.publicdnszoneids
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }
