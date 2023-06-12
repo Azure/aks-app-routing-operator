@@ -5,6 +5,40 @@ on:
     types: [ok-to-test-command]
 
 jobs:
+  setup:
+    permissions:
+      checks: write
+    steps:
+      - name: set-check-run-in-progress
+        uses: actions/github-script@v6
+        id: set-check-run-in-progress
+        env:
+          number: ${{ github.event.client_payload.pull_request.number }}
+          job: ${{ github.job }}
+          server_url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          run_id: ${{ github.run_id }}
+          integration_test_job: 'validation-tests' # must match the variable below
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = `${process.env.server_url}/${process.env.repo}/actions/runs/${process.env.run_id}`
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: process.env.number
+            });
+            const ref = pull.head.sha;
+            const { data: result } = await github.rest.checks.create({
+              ...context.repo,
+              name: process.env.integration_test_job,
+              head_sha: ref,
+              status: 'in_progress',
+              details_url: url,
+            });
+            return result;
+
+
+
   e2e:
     if:
       github.event_name == 'repository_dispatch' &&
@@ -22,6 +56,8 @@ jobs:
     with:
       ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
   status:
+    permissions:
+      checks: write
     needs: [e2e, unit]
     runs-on: ubuntu-latest
     if: ${{ always() }}
