@@ -20,11 +20,11 @@ jobs:
       - name: Branch based PR checkout
         uses: actions/checkout@v3
       - name: E2E
-        uses: ./github/e2e-action.yaml
+        uses: ./github/e2e-action
         with:
           cmd: ${{ matrix.cmd }}
 
-  # Repo owner has commented /ok-to-test on a fork-based pull request
+  # Repo writer has commented /ok-to-test on a fork-based pull request
   e2e-fork:
     runs-on: ubuntu-latest
     permissions:
@@ -47,7 +47,7 @@ jobs:
           ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
 
       - name: E2E
-        uses: ./github/e2e-action.yaml
+        uses: ./github/e2e-action
         with:
           cmd: ${{ matrix.cmd }}
 
