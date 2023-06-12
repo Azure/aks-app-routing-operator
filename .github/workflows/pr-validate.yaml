@@ -31,6 +31,7 @@ jobs:
           server_url: ${{ github.server_url }}
           repo: ${{ github.repository }}
           run_id: ${{ github.run_id }}
+          test: ${{ jobs.needs.*.result }}
           testing: ${{ contains(job.needs.*.result, 'failure') }}
           testinganother: ${{ (contains(job.needs.*.result, 'failure') || contains(job.needs.*.result, 'cancelled') || contains(job.needs.*.result, 'skipped')) }}
         with:
