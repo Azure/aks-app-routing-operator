@@ -1,4 +1,5 @@
-name: Call E2E Tests
+# File based on https://github.com/imjohnbo/ok-to-test/blob/master/.github/workflows/integration.yml
+name: E2E Tests
 on:
   repository_dispatch:
     types: [ ok-to-test-command ]
@@ -12,11 +13,16 @@ jobs:
   e2e-trusted:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      matrix:
+        cmd: [public-cluster-test, private-cluster-test]
     steps:
       - name: Branch based PR checkout
         uses: actions/checkout@v3
       - name: E2E
         uses: ./github/e2e-action.yaml
+        with:
+          cmd: ${{ matrix.cmd }}
 
   # Repo owner has commented /ok-to-test on a fork-based pull request
   e2e-fork:
@@ -31,17 +37,19 @@ jobs:
         github.event.client_payload.pull_request.head.sha,
         github.event.client_payload.slash_command.args.named.sha
       )
+    strategy:
+      matrix:
+        cmd: [ public-cluster-test, private-cluster-test ]
     steps:
-
-      # Check out merge commit
       - name: Fork based /ok-to-test checkout
         uses: actions/checkout@v3
         with:
           ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
 
-
       - name: E2E
         uses: ./github/e2e-action.yaml
+        with:
+          cmd: ${{ matrix.cmd }}
 
       # Update check run called "integration-fork"
       - uses: actions/github-script@v6
@@ -50,7 +58,6 @@ jobs:
         env:
           number: ${{ github.event.client_payload.pull_request.number }}
           job: ${{ github.job }}
-          # Conveniently, job.status maps to https://developer.github.com/v3/checks/runs/#update-a-check-run
           conclusion: ${{ job.status }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
