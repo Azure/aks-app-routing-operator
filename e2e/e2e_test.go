@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -305,13 +304,6 @@ func generateZoneConfigs(conf *testConfig) []*zoneConfig {
 		certId := conf.PrivateCertIDs[withoutRandom]
 		versionlessCertId := conf.PrivateCertVersionlessIDs[withoutRandom]
 
-		log.Printf("withoutRandom: %s", withoutRandom)
-		log.Printf("privateCertIDs: %v", conf.PrivateCertIDs)
-		log.Printf("privateCertVersionlessIDs: %v", conf.PrivateCertVersionlessIDs)
-
-		log.Printf("private certId: %s", certId)
-		log.Printf("private versionlessCertId: %s", versionlessCertId)
-
 		ret = append(ret, &zoneConfig{
 			DNSZoneId:         privateZoneId,
 			ZoneType:          "private",
@@ -331,18 +323,8 @@ func generateZoneConfigs(conf *testConfig) []*zoneConfig {
 		withoutRandom := strings.Replace(parsedId.ResourceName, fmt.Sprintf("%s-", conf.RandomPrefix), "", 1)
 
 		publicNameserver := conf.PublicNameservers[withoutRandom][0]
-
-		certId, ok := conf.PublicCertIDs[withoutRandom]
-		if !ok {
-			log.Printf("failed to find public cert id for zone %s with parsed name %s", publicZoneId, withoutRandom)
-			panic(fmt.Errorf("failed to find public cert id for zone %s with parsed name %s", publicZoneId, withoutRandom))
-		}
-
-		certVersionlessId, ok := conf.PublicCertIDs[withoutRandom]
-		if !ok {
-			log.Printf("failed to find public versionless cert id for zone %s with parsed name %s", publicZoneId, withoutRandom)
-			panic(fmt.Errorf("failed to find public versionless cert id for zone %s with parsed name %s", publicZoneId, withoutRandom))
-		}
+		certId := conf.PublicCertIDs[withoutRandom]
+		certVersionlessId := conf.PublicCertIDs[withoutRandom]
 
 		ret = append(ret, &zoneConfig{
 			DNSZoneId:         publicZoneId,
