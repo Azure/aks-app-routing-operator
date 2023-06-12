@@ -33,7 +33,6 @@ var (
 				TenantID:    "test-tenant-id",
 				Cloud:       "test-cloud",
 				Location:    "test-location",
-				DNSZoneSub:  "test-dns-zone-sub",
 			},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -52,7 +51,6 @@ var (
 				TenantID:    "test-tenant-id",
 				Cloud:       "test-cloud",
 				Location:    "test-location",
-				DNSZoneSub:  "test-dns-zone-sub",
 			},
 			IngConfig: ingConfig,
 		},
@@ -65,7 +63,6 @@ var (
 				TenantID:    "test-tenant-id",
 				Cloud:       "test-cloud",
 				Location:    "test-location",
-				DNSZoneSub:  "test-dns-zone-sub",
 			},
 			IngConfig: ingConfig,
 		},
@@ -92,7 +89,6 @@ var (
 				TenantID:    "test-tenant-id",
 				Cloud:       "test-cloud",
 				Location:    "test-location",
-				DNSZoneSub:  "test-dns-zone-sub",
 			},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{

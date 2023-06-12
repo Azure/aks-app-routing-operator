@@ -25,29 +25,25 @@ func newExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Deployment) error {
-	if len(conf.DNSZoneDomains) == 0 {
+	if len(conf.DNSZoneIDs) == 0 {
 		return nil
 	}
 
-	privateZones, privateZoneRg, publicZones, publicZoneRg := parseZoneIds(conf.DNSZoneDomains)
-	var configs []*manifests.ExternalDnsConfig
+	configs := parseZoneIds(conf)
 	// one config for private, one config for public
 	var objs []client.Object
-	if len(privateZones) > 0 {
-		configs = append(configs, generateConfig(conf, privateZones, privateZoneRg, manifests.PrivateProvider))
-	}
-
-	if len(publicZones) > 0 {
-		configs = append(configs, generateConfig(conf, publicZones, publicZoneRg, manifests.Provider))
-	}
 
 	objs = append(objs, manifests.ExternalDnsResources(conf, self, configs)...)
 
 	return newExternalDnsReconciler(manager, objs)
 }
 
-func parseZoneIds(zones []string) (privateZones []string, privateZoneRg string, publicZones []string, publicZoneRg string) {
-	for _, zoneId := range zones {
+func parseZoneIds(conf *config.Config) (configs []*manifests.ExternalDnsConfig) {
+	var ret []*manifests.ExternalDnsConfig
+	var privateZones, publicZones []string
+	var privateSubscription, privateZoneRg, publicSubscription, publicZoneRg string
+
+	for _, zoneId := range conf.DNSZoneIDs {
 		parsedZone, err := azure.ParseResourceID(zoneId)
 		// this should be impossible
 		if err != nil {
@@ -57,18 +53,28 @@ func parseZoneIds(zones []string) (privateZones []string, privateZoneRg string, 
 		if strings.EqualFold(parsedZone.ResourceType, config.PrivateZoneType) {
 			// it's a private zone
 			privateZones = append(privateZones, zoneId)
+			privateSubscription = parsedZone.SubscriptionID
 			privateZoneRg = parsedZone.ResourceGroup
 		} else {
 			// it's a public zone
 			publicZones = append(publicZones, zoneId)
+			publicSubscription = parsedZone.SubscriptionID
 			publicZoneRg = parsedZone.ResourceGroup
 		}
 	}
 
-	return privateZones, privateZoneRg, publicZones, publicZoneRg
+	if len(privateZones) > 0 {
+		ret = append(ret, generateConfig(conf, privateZones, privateSubscription, privateZoneRg, manifests.PrivateProvider))
+	}
+
+	if len(publicZones) > 0 {
+		ret = append(ret, generateConfig(conf, publicZones, publicSubscription, publicZoneRg, manifests.Provider))
+	}
+
+	return ret
 }
 
-func generateConfig(conf *config.Config, zones []string, resourceGroup, provider string) *manifests.ExternalDnsConfig {
+func generateConfig(conf *config.Config, zones []string, subscription, resourceGroup, provider string) *manifests.ExternalDnsConfig {
 	var resourceName string
 
 	switch provider {
@@ -81,7 +87,7 @@ func generateConfig(conf *config.Config, zones []string, resourceGroup, provider
 	return &manifests.ExternalDnsConfig{
 		ResourceName:       resourceName,
 		TenantId:           conf.TenantID,
-		Subscription:       conf.DNSZoneSub,
+		Subscription:       subscription,
 		ResourceGroup:      resourceGroup,
 		DnsZoneResourceIDs: zones,
 		Provider:           provider,

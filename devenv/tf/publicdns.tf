@@ -30,9 +30,3 @@ resource "azurerm_role_assignment" "approutingdnszone" {
 #  publicdnszoneids = { for k, v in azurerm_dns_zone.dnszone : k => v.id }
 #  publicnameservers = { for k, v in azurerm_dns_zone.dnszone : k => v.name_servers }
 #}
-
-output "publiczoneids" {
-  value = {
-  for k, v in azurerm_dns_zone.dnszone : k => v.id
-  }
-}

@@ -74,13 +74,14 @@ resource "azurerm_role_assignment" "acr" {
 resource "local_file" "e2econf" {
   content = jsonencode({
     PrivateNameserver = length(var.privatezones) > 0 ? azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip : ""
+    RandomPrefix = random_string.random.result
     PublicNameservers    = length(var.publiczones) > 0 ? {for k, v in azurerm_dns_zone.dnszone : k => v.name_servers}:{}
     PublicCertIDs           = {for k,v in azurerm_key_vault_certificate.testcert-public : k => v.id}
     PublicCertVersionlessIDs = {for k,v in azurerm_key_vault_certificate.testcert-public : k => v.versionless_id}
     PrivateCertIDs           = {for k,v in azurerm_key_vault_certificate.testcert-private : k => v.id}
     PrivateCertVersionlessIDs = {for k,v in azurerm_key_vault_certificate.testcert-private : k=> v.versionless_id}
     PrivateDnsZoneIDs = [for k,v in azurerm_private_dns_zone.dnszone: v.id]
-    PublicDnsZoneIDs = [for k,v in azurerm_private_dns_zone.dnszone: v.id]
+    PublicDnsZoneIDs = [for k,v in azurerm_dns_zone.dnszone: v.id]
   })
   filename = "${path.module}/../state/kustomize/e2e/e2e.json"
 }
@@ -103,7 +104,6 @@ resource "local_file" "addon_deployment_auth_info"{
     ClusterClientId = data.azurerm_user_assigned_identity.clusteridentity.client_id
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
-    DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
     DnsZones = join(",",concat([for zone in azurerm_private_dns_zone.dnszone : zone.id], [for zone in azurerm_dns_zone.dnszone : zone.id]))
   })
   filename = "${path.module}/../state/deployment-auth-info.json"

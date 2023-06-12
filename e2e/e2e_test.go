@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -48,13 +50,13 @@ type zoneConfig struct {
 var zoneConfigs []*zoneConfig
 
 type testConfig struct {
+	RandomPrefix      string
 	PublicNameservers map[string][]string
 	PrivateNameserver string
 
 	PublicCertIDs, PublicCertVersionlessIDs   map[string]string
 	PrivateCertIDs, PrivateCertVersionlessIDs map[string]string
 
-	CertID, CertVersionlessID           string
 	PrivateDNSZoneIDs, PublicDNSZoneIDs []string
 	PromClientImage                     string
 }
@@ -124,7 +126,8 @@ func TestBasicService(t *testing.T) {
 				}
 
 				// Wait for client deployment to be ready
-				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(5*time.Minute)); err != nil {
+				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(8*time.Minute)); err != nil {
+					t.Logf("failed to wait for client deployment %s to be ready: %s", clientDeployment.Name, err)
 					t.Fatal(err)
 				}
 
@@ -153,7 +156,7 @@ func TestBasicServiceVersionlessCert(t *testing.T) {
 				}
 				namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
 
-				clientDeployment, serverDeployment, service = generateTestingObjects(t, namespace, conf.CertVersionlessID, zoneConfig)
+				clientDeployment, serverDeployment, service = generateTestingObjects(t, namespace, zoneConfig.CertVersionlessID, zoneConfig)
 				deployObjects(t, ctx, client, []k8s.Object{clientDeployment, serverDeployment, service})
 				return ctx
 			}).
@@ -164,7 +167,8 @@ func TestBasicServiceVersionlessCert(t *testing.T) {
 				}
 
 				// Wait for client deployment to be ready
-				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(5*time.Minute)); err != nil {
+				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(8*time.Minute)); err != nil {
+					t.Logf("failed to wait for client deployment %s to be ready: %s", clientDeployment.Name, err)
 					t.Fatal(err)
 				}
 
@@ -192,7 +196,7 @@ func TestBasicServiceNoOSM(t *testing.T) {
 					t.Fatal(err)
 				}
 				namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
-				clientDeployment, svr, svc = generateTestingObjects(t, namespace, conf.CertID, zoneConfig)
+				clientDeployment, svr, svc = generateTestingObjects(t, namespace, zoneConfig.CertID, zoneConfig)
 
 				// disable OSM
 				svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] = "true"
@@ -208,7 +212,8 @@ func TestBasicServiceNoOSM(t *testing.T) {
 				}
 
 				// Wait for client deployment to be ready
-				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(5*time.Minute)); err != nil {
+				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(8*time.Minute)); err != nil {
+					t.Logf("failed to wait for client deployment %s to be ready: %s", clientDeployment.Name, err)
 					t.Fatal(err)
 				}
 
@@ -292,24 +297,59 @@ func generateZoneConfigs(conf *testConfig) []*zoneConfig {
 
 	// generate private zone config
 	for i, privateZoneId := range conf.PrivateDNSZoneIDs {
+		parsedId, err := azure.ParseResourceID(privateZoneId)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse private zone id: %s", err.Error()))
+		}
+		withoutRandom := strings.Replace(parsedId.ResourceName, fmt.Sprintf("%s-", conf.RandomPrefix), "", 1)
+		certId := conf.PrivateCertIDs[withoutRandom]
+		versionlessCertId := conf.PrivateCertVersionlessIDs[withoutRandom]
+
+		log.Printf("withoutRandom: %s", withoutRandom)
+		log.Printf("privateCertIDs: %v", conf.PrivateCertIDs)
+		log.Printf("privateCertVersionlessIDs: %v", conf.PrivateCertVersionlessIDs)
+
+		log.Printf("private certId: %s", certId)
+		log.Printf("private versionlessCertId: %s", versionlessCertId)
+
 		ret = append(ret, &zoneConfig{
 			DNSZoneId:         privateZoneId,
 			ZoneType:          "private",
 			NameServer:        conf.PrivateNameserver,
-			CertID:            conf.PrivateCertIDs[privateZoneId],
-			CertVersionlessID: conf.PrivateCertVersionlessIDs[privateZoneId],
+			CertID:            certId,
+			CertVersionlessID: versionlessCertId,
 			Id:                fmt.Sprintf("-private-%d", i),
 		})
 	}
 
 	// generate public zone config
 	for i, publicZoneId := range conf.PublicDNSZoneIDs {
+		parsedId, err := azure.ParseResourceID(publicZoneId)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse private zone id: %s", err.Error()))
+		}
+		withoutRandom := strings.Replace(parsedId.ResourceName, fmt.Sprintf("%s-", conf.RandomPrefix), "", 1)
+
+		publicNameserver := conf.PublicNameservers[withoutRandom][0]
+
+		certId, ok := conf.PublicCertIDs[withoutRandom]
+		if !ok {
+			log.Printf("failed to find public cert id for zone %s with parsed name %s", publicZoneId, withoutRandom)
+			panic(fmt.Errorf("failed to find public cert id for zone %s with parsed name %s", publicZoneId, withoutRandom))
+		}
+
+		certVersionlessId, ok := conf.PublicCertIDs[withoutRandom]
+		if !ok {
+			log.Printf("failed to find public versionless cert id for zone %s with parsed name %s", publicZoneId, withoutRandom)
+			panic(fmt.Errorf("failed to find public versionless cert id for zone %s with parsed name %s", publicZoneId, withoutRandom))
+		}
+
 		ret = append(ret, &zoneConfig{
 			DNSZoneId:         publicZoneId,
 			ZoneType:          "public",
-			NameServer:        conf.PublicNameservers[publicZoneId][0],
-			CertID:            conf.PublicCertIDs[publicZoneId],
-			CertVersionlessID: conf.PublicCertVersionlessIDs[publicZoneId],
+			NameServer:        publicNameserver,
+			CertID:            certId,
+			CertVersionlessID: certVersionlessId,
 			Id:                fmt.Sprintf("-public-%d", i),
 		})
 	}

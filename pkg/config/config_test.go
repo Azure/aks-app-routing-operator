@@ -4,7 +4,6 @@
 package config
 
 import (
-	"github.com/Azure/go-autorest/autorest/to"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,6 @@ var configTestCases = []struct {
 			TenantID:                 "test-tenant-id",
 			Cloud:                    "test-cloud",
 			Location:                 "test-location",
-			DNSZoneSub:               "test-dns-zone-sub",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
 		},
@@ -119,21 +117,6 @@ var configTestCases = []struct {
 			ConcurrencyWatchdogVotes: 2,
 		},
 		Error: "--location is required",
-	},
-	{
-		Name: "missing-dns-zone-sub",
-		Conf: &Config{
-			NS:                       "test-namespace",
-			Registry:                 "test-registry",
-			MSIClientID:              "test-msi-client-id",
-			TenantID:                 "test-tenant-id",
-			Cloud:                    "test-cloud",
-			Location:                 "test-location",
-			ConcurrencyWatchdogThres: 101,
-			ConcurrencyWatchdogVotes: 2,
-			DNSZoneIDs:               to.StringSlicePtr([]string{"test-id-1", "test-id-2"}),
-		},
-		Error: "--dns-zone-subscription is required",
 	},
 	{
 		Name: "low-concurrency-watchdog-thres",

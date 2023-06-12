@@ -5,11 +5,11 @@ package config
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"strings"
 
 	"github.com/Azure/go-autorest/autorest/azure"
-	flag "github.com/spf13/pflag"
 )
 
 const (
@@ -20,6 +20,7 @@ const (
 )
 
 var Flags = &Config{}
+var dnsZonesString string
 
 func init() {
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
@@ -28,8 +29,7 @@ func init() {
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
 	flag.StringVar(&Flags.Cloud, "cloud", "AzurePublicCloud", "azure cloud name")
 	flag.StringVar(&Flags.Location, "location", "", "azure region name")
-	flag.StringVar(&Flags.DNSZoneSub, "dns-zone-subscription", "", "subscription ID of the Azure DNS Zone (optional)")
-	Flags.DNSZoneIDs = flag.StringSlice("dns-zone-ids", []string{}, "comma-separated strings of DNS Zones associated with the add-on (optional)")
+	flag.StringVar(&dnsZonesString, "dns-zone-ids", "", "dns zone resource IDs")
 	flag.BoolVar(&Flags.DisableKeyvault, "disable-keyvault", false, "disable the keyvault integration")
 	flag.Float64Var(&Flags.ConcurrencyWatchdogThres, "concurrency-watchdog-threshold", 200, "percentage of concurrent connections above mean required to vote for load shedding")
 	flag.IntVar(&Flags.ConcurrencyWatchdogVotes, "concurrency-watchdog-votes", 4, "number of votes required for a pod to be considered for load shedding")
@@ -47,9 +47,7 @@ type Config struct {
 	DisableKeyvault          bool
 	MSIClientID, TenantID    string
 	Cloud, Location          string
-	DNSZoneSub               string
-	DNSZoneIDs               *[]string
-	DNSZoneDomains           []string
+	DNSZoneIDs               []string
 	ConcurrencyWatchdogThres float64
 	ConcurrencyWatchdogVotes int
 	DisableOSM               bool
@@ -57,9 +55,6 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if c.DNSZoneIDs == nil {
-		c.DNSZoneIDs = &[]string{}
-	}
 	if c.NS == "" {
 		return errors.New("--namespace is required")
 	}
@@ -78,11 +73,6 @@ func (c *Config) Validate() error {
 	if c.Location == "" {
 		return errors.New("--location is required")
 	}
-	if len(*c.DNSZoneIDs) > 0 {
-		if c.DNSZoneSub == "" {
-			return errors.New("--dns-zone-subscription is required")
-		}
-	}
 	if c.ConcurrencyWatchdogThres <= 100 {
 		return errors.New("--concurrency-watchdog-threshold must be greater than 100")
 	}
@@ -90,8 +80,13 @@ func (c *Config) Validate() error {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
 
-	c.DNSZoneDomains = make([]string, len(*c.DNSZoneIDs))
-	for _, id := range *c.DNSZoneIDs {
+	if dnsZonesString == "" {
+		c.DNSZoneIDs = []string{}
+	} else {
+		c.DNSZoneIDs = strings.Split(dnsZonesString, ",")
+	}
+
+	for _, id := range c.DNSZoneIDs {
 		if id == "" {
 			return errors.New("--dns-zone-ids must not contain empty strings")
 		}
@@ -107,7 +102,6 @@ func (c *Config) Validate() error {
 		if !strings.EqualFold(parsedID.Provider, "Microsoft.Network") || (!isPublicDnsZone && !isPrivateDnsZone) {
 			return fmt.Errorf("invalid DNS Zone ID %s: must be a public or private DNS Zone resource ID", id)
 		}
-		c.DNSZoneDomains = append(c.DNSZoneDomains, parsedID.ResourceName)
 	}
 
 	return nil
