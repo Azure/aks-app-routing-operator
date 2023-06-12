@@ -5,7 +5,7 @@ on:
     types: [ok-to-test-command]
 
 env:
-  validate_job_name: validation-tests
+  validate_job_name: validation-tests # must match env of same name in pr-validate
 
 jobs:
   setup:
@@ -92,16 +92,14 @@ jobs:
             });
             console.log('listed checks for ref')
             
-            console.log(checks)
-            
-            const mainCheck = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
+            const check = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
             const { data: result } = await github.rest.checks.update({
               ...context.repo,
-              check_run_id: mainCheck[0].id,
+              check_run_id: check[0].id,
               status: 'completed',
               conclusion: process.env.conclusion,
               details_url: url,
             });
-            console.log('updated main check')
+            console.log('updated check')
             
             return result;
