@@ -33,7 +33,7 @@ jobs:
             const ref = pull.head.sha;
             const { data: result } = await github.rest.checks.create({
               ...context.repo,
-              name: process.env.validate_job_name
+              name: process.env.validate_job_name,
               head_sha: ref,
               status: 'in_progress',
               details_url: url,
