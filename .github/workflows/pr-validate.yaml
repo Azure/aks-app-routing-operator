@@ -1,0 +1,13 @@
+# File based on https://github.com/imjohnbo/ok-to-test/blob/master/.github/workflows/integration.yml
+name: Validate PR
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/e2e.yaml
+  unit:
+    uses: ./.github/workflows/unit.yaml
