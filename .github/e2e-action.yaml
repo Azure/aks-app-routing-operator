@@ -1,78 +1,29 @@
-name: Call E2E Tests
-on:
-  repository_dispatch:
-    types: [ ok-to-test-command ]
-  push:
-    branches: [main]
-  pull_request:
-    branches: [ main ]
+name: E2E
+description: Runs E2E tests
+inputs:
+  cmd:
+    description: command to trigger e2e with
+    required: true
+    default: public-cluster-test
+runs:
+  using: composite
 
-jobs:
-  # Branch-based pull request
-  e2e-trusted:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - name: Branch based PR checkout
-        uses: actions/checkout@v3
-      - name: E2E
-        uses: ./github/e2e-action.yaml
+  steps:
+    - uses: actions/checkout@v3
+    - uses: hashicorp/setup-terraform@v2
+    - uses: azure/setup-kubectl@v3.0
 
-  # Repo owner has commented /ok-to-test on a fork-based pull request
-  e2e-fork:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      checks: write
-    if: |
-      github.event_name == 'repository_dispatch' &&
-      github.event.client_payload.slash_command.args.named.sha != '' &&
-      contains(
-        github.event.client_payload.pull_request.head.sha,
-        github.event.client_payload.slash_command.args.named.sha
-      )
-    steps:
+    - name: Azure login
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Check out merge commit
-      - name: Fork based /ok-to-test checkout
-        uses: actions/checkout@v3
-        with:
-          ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
-
-
-      - name: E2E
-        uses: ./github/e2e-action.yaml
-
-      # Update check run called "integration-fork"
-      - uses: actions/github-script@v6
-        id: update-check-run
-        if: ${{ always() }}
-        env:
-          number: ${{ github.event.client_payload.pull_request.number }}
-          job: ${{ github.job }}
-          # Conveniently, job.status maps to https://developer.github.com/v3/checks/runs/#update-a-check-run
-          conclusion: ${{ job.status }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { data: pull } = await github.rest.pulls.get({
-              ...context.repo,
-              pull_number: process.env.number
-            });
-            const ref = pull.head.sha;
-            
-            const { data: checks } = await github.rest.checks.listForRef({
-              ...context.repo,
-              ref
-            });
-            
-            const check = checks.check_runs.filter(c => c.name === process.env.job);
-            
-            const { data: result } = await github.rest.checks.update({
-              ...context.repo,
-              check_run_id: check[0].id,
-              status: 'completed',
-              conclusion: process.env.conclusion
-            });
-            
-            return result;
+    - name: Run E2E
+      env:
+        ARM_USE_OIDC: true
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      run: make ${{ matrix.cmd }}
