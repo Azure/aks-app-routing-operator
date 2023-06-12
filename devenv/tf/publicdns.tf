@@ -19,14 +19,3 @@ resource "azurerm_role_assignment" "approutingdnszone" {
   role_definition_name = "Contributor"
   principal_id         = data.azurerm_user_assigned_identity.clusteridentity.principal_id
 }
-
-
-#locals {
-#  publicdnszoneids = azurerm_dns_zone.dnszone[*].id
-#  publicnameservers = azurerm_dns_zone.dnszone[*].name_servers
-#}
-
-#locals {
-#  publicdnszoneids = { for k, v in azurerm_dns_zone.dnszone : k => v.id }
-#  publicnameservers = { for k, v in azurerm_dns_zone.dnszone : k => v.name_servers }
-#}

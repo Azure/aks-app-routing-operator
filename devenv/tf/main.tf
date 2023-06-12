@@ -34,15 +34,6 @@ variable "clustertype" {
   type = string
 }
 
-#variable "numprivatednszones" {
-#  description = "The number of private dns zones to create"
-#  type = string
-#}
-#variable "numpublicdnszones" {
-#  description = "The number of public dns zones to create"
-#  type = string
-#}
-
 data "azurerm_client_config" "current" {
 }
 
