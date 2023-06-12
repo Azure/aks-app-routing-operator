@@ -92,16 +92,7 @@ jobs:
             });
             console.log('listed checks for ref')
             
-            const forkCheck = checks.check_runs.filter(c => c.name === process.env.job);
-            await github.rest.checks.update({
-              ...context.repo,
-              check_run_id: forkCheck[0].id,
-              status: 'completed',
-              conclusion: process.env.conclusion,
-              details_url: url,
-            });
-            console.log('updated forked check')
-            
+            console.log(checks)
             
             const mainCheck = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
             const { data: result } = await github.rest.checks.update({
