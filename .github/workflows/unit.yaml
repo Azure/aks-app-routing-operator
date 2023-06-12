@@ -1,16 +1,19 @@
 name: Unit Tests
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
 
 jobs:
-  test:
+  unit-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
 
     - name: Set up Go
       uses: actions/setup-go@v2
