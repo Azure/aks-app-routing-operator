@@ -83,11 +83,15 @@ jobs:
               ...context.repo,
               pull_number: process.env.number
             });
+            console.log('retrieved pull request')
+            
             const ref = pull.head.sha;
             const { data: checks } = await github.rest.checks.listForRef({
               ...context.repo,
               ref
             });
+            console.log('listed checks for ref')
+            
             const forkCheck = checks.check_runs.filter(c => c.name === process.env.job);
             await github.rest.checks.update({
               ...context.repo,
@@ -96,6 +100,9 @@ jobs:
               conclusion: process.env.conclusion,
               details_url: url,
             });
+            console.log('updated forked check')
+            
+            
             const mainCheck = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
             const { data: result } = await github.rest.checks.update({
               ...context.repo,
@@ -104,4 +111,6 @@ jobs:
               conclusion: process.env.conclusion,
               details_url: url,
             });
+            console.log('updated main check')
+            
             return result;
