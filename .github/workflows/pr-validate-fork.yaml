@@ -4,6 +4,9 @@ on:
   repository_dispatch:
     types: [ok-to-test-command]
 
+env:
+  validate_job_name: validation-tests
+
 jobs:
   setup:
     permissions:
@@ -19,7 +22,6 @@ jobs:
           server_url: ${{ github.server_url }}
           repo: ${{ github.repository }}
           run_id: ${{ github.run_id }}
-          integration_test_job: 'validation-tests' # must match the variable below
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -31,7 +33,7 @@ jobs:
             const ref = pull.head.sha;
             const { data: result } = await github.rest.checks.create({
               ...context.repo,
-              name: process.env.integration_test_job,
+              name: process.env.validate_job_name
               head_sha: ref,
               status: 'in_progress',
               details_url: url,
@@ -68,7 +70,6 @@ jobs:
         if: ${{ always() }}
         env:
           number: ${{ github.event.number }}
-          integration_test_job: 'validation-tests' # This is the name of the job defined in pr-validation-fork.yml
           conclusion: ${{ contains(job.needs.*.result, 'failure') && 'failure' || contains(job.needs.*.result, 'cancelled') && 'cancelled' || contains(job.needs.*.result, 'skipped') && 'skipped' || 'success' }}
           server_url: ${{ github.server_url }}
           repo: ${{ github.repository }}
@@ -84,7 +85,7 @@ jobs:
             const ref = pull.head.sha;
             const { data: result } = await github.rest.checks.create({
               ...context.repo,
-              name: process.env.integration_test_job,
+              name: process.env.validate_job_name,
               head_sha: ref,
               status: 'completed',
               conclusion: process.env.conclusion,
