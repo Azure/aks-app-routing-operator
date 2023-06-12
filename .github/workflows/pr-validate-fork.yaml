@@ -1,0 +1,58 @@
+# File inspired by https://github.com/Azure/azure-service-operator/blob/main/.github/workflows/pr-validation-fork.yml
+name: Validate PR (fork)
+on:
+  repository_dispatch:
+    types: [ok-to-test-command]
+
+jobs:
+  e2e:
+    if:
+      github.event_name == 'repository_dispatch' &&
+      github.event.client_payload.slash_command.args.named.sha != '' &&
+      contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+  unit:
+    if:
+      github.event_name == 'repository_dispatch' &&
+      github.event.client_payload.slash_command.args.named.sha != '' &&
+      contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)
+    uses: ./.github/workflows/unit.yaml
+    with:
+      ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+  status:
+    needs: [e2e, unit]
+    if: ${{ always() }}
+    steps:
+      - name: Update status
+        uses: actions/github-script@v6
+        id: update-check-run
+        if: ${{ always() }}
+        env:
+          number: ${{ github.event.number }}
+          integration_test_job: 'validation-tests' # This is the name of the job defined in pr-validation-fork.yml
+          conclusion: ${{ (contains(job.needs.*.result, 'failure') || contains(job.needs.*.result, 'cancelled') || contains(job.needs.*.result, 'skipped')) && 'failure' || 'success' }}
+          server_url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          run_id: ${{ github.run_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = `${process.env.server_url}/${process.env.repo}/actions/runs/${process.env.run_id}`
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: process.env.number
+            });
+            const ref = pull.head.sha;
+            const { data: result } = await github.rest.checks.create({
+              ...context.repo,
+              name: process.env.integration_test_job,
+              head_sha: ref,
+              status: 'completed',
+              conclusion: process.env.conclusion,
+              details_url: url,
+            });
+            return result;
+
+
