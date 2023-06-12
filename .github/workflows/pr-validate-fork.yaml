@@ -83,14 +83,24 @@ jobs:
               pull_number: process.env.number
             });
             const ref = pull.head.sha;
-            const { data: result } = await github.rest.checks.create({
+            const { data: checks } = await github.rest.checks.listForRef({
               ...context.repo,
-              name: process.env.validate_job_name,
-              head_sha: ref,
+              ref
+            });
+            const forkCheck = checks.check_runs.filter(c => c.name === process.env.job);
+            await github.rest.checks.update({
+              ...context.repo,
+              check_run_id: forkCheck[0].id,
+              status: 'completed',
+              conclusion: process.env.conclusion,
+              details_url: url,
+            });
+            const mainCheck = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
+            const { data: result } = await github.rest.checks.update({
+              ...context.repo,
+              check_run_id: mainCheck[0].id,
               status: 'completed',
               conclusion: process.env.conclusion,
               details_url: url,
             });
             return result;
-
-
