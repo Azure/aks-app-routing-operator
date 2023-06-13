@@ -41,17 +41,19 @@ func init() {
 }
 
 type Config struct {
-	ServiceAccountTokenPath  string
-	MetricsAddr, ProbeAddr   string
-	NS, Registry             string
-	DisableKeyvault          bool
-	MSIClientID, TenantID    string
-	Cloud, Location          string
-	DNSZoneIDs               []string
-	ConcurrencyWatchdogThres float64
-	ConcurrencyWatchdogVotes int
-	DisableOSM               bool
-	OperatorDeployment       string
+	ServiceAccountTokenPath                           string
+	MetricsAddr, ProbeAddr                            string
+	NS, Registry                                      string
+	DisableKeyvault                                   bool
+	MSIClientID, TenantID                             string
+	Cloud, Location                                   string
+	PrivateZoneIds, PublicZoneIds                     []string
+	PrivateZoneSubscription, PublicZoneSubscription   string
+	PrivateZoneResourceGroup, PublicZoneResourceGroup string
+	ConcurrencyWatchdogThres                          float64
+	ConcurrencyWatchdogVotes                          int
+	DisableOSM                                        bool
+	OperatorDeployment                                string
 }
 
 func (c *Config) Validate() error {
@@ -80,27 +82,43 @@ func (c *Config) Validate() error {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
 
-	if dnsZonesString == "" {
-		c.DNSZoneIDs = []string{}
-	} else {
-		c.DNSZoneIDs = strings.Split(dnsZonesString, ",")
+	if dnsZonesString != "" {
+		if err := c.ParseZoneIDs(dnsZonesString); err != nil {
+			return err
+		}
 	}
 
-	for _, id := range c.DNSZoneIDs {
-		if id == "" {
+	return nil
+}
+
+func (c *Config) ParseZoneIDs(zonesString string) error {
+	DNSZoneIDs := strings.Split(zonesString, ",")
+	for _, zoneId := range DNSZoneIDs {
+		if zoneId == "" {
 			return errors.New("--dns-zone-ids must not contain empty strings")
 		}
 
-		parsedID, err := azure.ParseResourceID(id)
+		parsedZone, err := azure.ParseResourceID(zoneId)
 		if err != nil {
-			return fmt.Errorf("failed to parse DNS Zone ID %s: %s", id, err)
+			return fmt.Errorf("error while parsing dns zone resource ID %s: %s", zoneId, err)
 		}
 
-		isPublicDnsZone := strings.EqualFold(parsedID.ResourceType, PublicZoneType)
-		isPrivateDnsZone := strings.EqualFold(parsedID.ResourceType, PrivateZoneType)
+		if !strings.EqualFold(parsedZone.Provider, "Microsoft.Network") {
+			return fmt.Errorf("invalid resource provider %s from zone %s: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network", parsedZone.Provider, zoneId)
+		}
 
-		if !strings.EqualFold(parsedID.Provider, "Microsoft.Network") || (!isPublicDnsZone && !isPrivateDnsZone) {
-			return fmt.Errorf("invalid DNS Zone ID %s: must be a public or private DNS Zone resource ID", id)
+		if strings.EqualFold(parsedZone.ResourceType, PrivateZoneType) {
+			// it's a private zone
+			c.PrivateZoneIds = append(c.PrivateZoneIds, zoneId)
+			c.PrivateZoneSubscription = parsedZone.SubscriptionID
+			c.PrivateZoneResourceGroup = parsedZone.ResourceGroup
+		} else if strings.EqualFold(parsedZone.ResourceType, PublicZoneType) {
+			// it's a public zone
+			c.PublicZoneIds = append(c.PublicZoneIds, zoneId)
+			c.PublicZoneSubscription = parsedZone.SubscriptionID
+			c.PublicZoneResourceGroup = parsedZone.ResourceGroup
+		} else {
+			return fmt.Errorf("error while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
 	}
 

@@ -29,7 +29,6 @@ func NewResourceReconciler(manager ctrl.Manager, name string, resources []client
 		retryInterval: time.Second,
 		resources:     resources,
 	}
-
 	return manager.Add(rr)
 }
 
