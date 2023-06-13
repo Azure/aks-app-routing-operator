@@ -40,20 +40,24 @@ func init() {
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 }
 
+type DnsZoneConfig struct {
+	Subscription  string
+	ResourceGroup string
+	ZoneIds       []string
+}
+
 type Config struct {
-	ServiceAccountTokenPath                           string
-	MetricsAddr, ProbeAddr                            string
-	NS, Registry                                      string
-	DisableKeyvault                                   bool
-	MSIClientID, TenantID                             string
-	Cloud, Location                                   string
-	PrivateZoneIds, PublicZoneIds                     []string
-	PrivateZoneSubscription, PublicZoneSubscription   string
-	PrivateZoneResourceGroup, PublicZoneResourceGroup string
-	ConcurrencyWatchdogThres                          float64
-	ConcurrencyWatchdogVotes                          int
-	DisableOSM                                        bool
-	OperatorDeployment                                string
+	ServiceAccountTokenPath             string
+	MetricsAddr, ProbeAddr              string
+	NS, Registry                        string
+	DisableKeyvault                     bool
+	MSIClientID, TenantID               string
+	Cloud, Location                     string
+	PrivateZoneConfig, PublicZoneConfig *DnsZoneConfig
+	ConcurrencyWatchdogThres            float64
+	ConcurrencyWatchdogVotes            int
+	DisableOSM                          bool
+	OperatorDeployment                  string
 }
 
 func (c *Config) Validate() error {
@@ -92,6 +96,10 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) ParseZoneIDs(zonesString string) error {
+
+	c.PrivateZoneConfig = &DnsZoneConfig{}
+	c.PublicZoneConfig = &DnsZoneConfig{}
+
 	DNSZoneIDs := strings.Split(zonesString, ",")
 	for _, zoneId := range DNSZoneIDs {
 		if zoneId == "" {
@@ -109,14 +117,14 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 
 		if strings.EqualFold(parsedZone.ResourceType, PrivateZoneType) {
 			// it's a private zone
-			c.PrivateZoneIds = append(c.PrivateZoneIds, zoneId)
-			c.PrivateZoneSubscription = parsedZone.SubscriptionID
-			c.PrivateZoneResourceGroup = parsedZone.ResourceGroup
+			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
+			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
 		} else if strings.EqualFold(parsedZone.ResourceType, PublicZoneType) {
 			// it's a public zone
-			c.PublicZoneIds = append(c.PublicZoneIds, zoneId)
-			c.PublicZoneSubscription = parsedZone.SubscriptionID
-			c.PublicZoneResourceGroup = parsedZone.ResourceGroup
+			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
+			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
+			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
 		} else {
 			return fmt.Errorf("error while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}

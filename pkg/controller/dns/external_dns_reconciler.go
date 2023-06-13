@@ -23,7 +23,7 @@ func newExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Deployment) error {
-	if len(conf.PublicZoneIds) == 0 && len(conf.PrivateZoneIds) == 0 {
+	if conf.PublicZoneConfig != nil && len(conf.PublicZoneConfig.ZoneIds) == 0 && conf.PrivateZoneConfig != nil && len(conf.PrivateZoneConfig.ZoneIds) == 0 {
 		return nil
 	}
 
@@ -38,18 +38,18 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 
 func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsConfig) {
 	var ret []*manifests.ExternalDnsConfig
-	if len(conf.PrivateZoneIds) > 0 {
-		ret = append(ret, generateConfig(conf, conf.PrivateZoneIds, conf.PrivateZoneSubscription, conf.PrivateZoneResourceGroup, manifests.PrivateProvider))
+	if conf.PrivateZoneConfig != nil && len(conf.PrivateZoneConfig.ZoneIds) > 0 {
+		ret = append(ret, generateConfig(conf, conf.PrivateZoneConfig, manifests.PrivateProvider))
 	}
 
-	if len(conf.PublicZoneIds) > 0 {
-		ret = append(ret, generateConfig(conf, conf.PublicZoneIds, conf.PublicZoneSubscription, conf.PublicZoneResourceGroup, manifests.PublicProvider))
+	if conf.PublicZoneConfig != nil && len(conf.PublicZoneConfig.ZoneIds) > 0 {
+		ret = append(ret, generateConfig(conf, conf.PublicZoneConfig, manifests.PublicProvider))
 	}
 
 	return ret
 }
 
-func generateConfig(conf *config.Config, zones []string, subscription, resourceGroup string, provider manifests.Provider) *manifests.ExternalDnsConfig {
+func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, provider manifests.Provider) *manifests.ExternalDnsConfig {
 	var resourceName string
 
 	switch provider {
@@ -62,9 +62,9 @@ func generateConfig(conf *config.Config, zones []string, subscription, resourceG
 	return &manifests.ExternalDnsConfig{
 		ResourceName:       resourceName,
 		TenantId:           conf.TenantID,
-		Subscription:       subscription,
-		ResourceGroup:      resourceGroup,
-		DnsZoneResourceIDs: zones,
+		Subscription:       dnsZoneConfig.Subscription,
+		ResourceGroup:      dnsZoneConfig.ResourceGroup,
+		DnsZoneResourceIDs: dnsZoneConfig.ZoneIds,
 		Provider:           provider,
 	}
 }

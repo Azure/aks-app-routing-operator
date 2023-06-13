@@ -21,34 +21,52 @@ var (
 	zones = strings.Join(append(privateZones, publicZones...), ",")
 
 	publicConfig = &config.Config{
-		NS:                       "test-ns",
-		DisableKeyvault:          false,
-		PrivateZoneIds:           nil,
-		PublicZoneIds:            publicZones,
-		PrivateZoneSubscription:  "",
-		PublicZoneSubscription:   "test-public-subscription",
-		PrivateZoneResourceGroup: "",
-		PublicZoneResourceGroup:  "test-public-rg",
+		NS:              "test-ns",
+		DisableKeyvault: false,
+		PrivateZoneConfig: &config.DnsZoneConfig{
+			ZoneIds:       nil,
+			Subscription:  "",
+			ResourceGroup: "",
+		},
+		PublicZoneConfig: &config.DnsZoneConfig{
+			ZoneIds:       publicZones,
+			Subscription:  "test-public-subscription",
+			ResourceGroup: "test-public-rg",
+		},
 	}
 	privateConfig = &config.Config{
-		NS:                       "test-ns",
-		DisableKeyvault:          false,
-		PrivateZoneIds:           privateZones,
-		PublicZoneIds:            nil,
-		PrivateZoneSubscription:  "test-private-subscription",
-		PublicZoneSubscription:   "",
-		PrivateZoneResourceGroup: "test-private-rg",
-		PublicZoneResourceGroup:  "",
+		NS:              "test-ns",
+		DisableKeyvault: false,
+		PrivateZoneConfig: &config.DnsZoneConfig{
+			ZoneIds:       privateZones,
+			Subscription:  "test-private-subscription",
+			ResourceGroup: "test-private-rg",
+		},
+		PublicZoneConfig: &config.DnsZoneConfig{
+			ZoneIds:       nil,
+			Subscription:  "",
+			ResourceGroup: "",
+		},
 	}
 	fullConfig = &config.Config{
-		NS:                       "test-ns",
-		DisableKeyvault:          false,
-		PrivateZoneIds:           privateZones,
-		PublicZoneIds:            publicZones,
-		PrivateZoneSubscription:  "test-private-subscription",
-		PublicZoneSubscription:   "test-public-subscription",
-		PrivateZoneResourceGroup: "test-private-rg",
-		PublicZoneResourceGroup:  "test-public-rg",
+		NS:              "test-ns",
+		DisableKeyvault: false,
+		PrivateZoneConfig: &config.DnsZoneConfig{
+			ZoneIds:       privateZones,
+			Subscription:  "test-private-subscription",
+			ResourceGroup: "test-private-rg",
+		},
+		PublicZoneConfig: &config.DnsZoneConfig{
+			ZoneIds:       publicZones,
+			Subscription:  "test-public-subscription",
+			ResourceGroup: "test-public-rg",
+		},
+	}
+	nilConfig = &config.Config{
+		NS:                "test-ns",
+		DisableKeyvault:   false,
+		PrivateZoneConfig: nil,
+		PublicZoneConfig:  nil,
 	}
 )
 
@@ -56,18 +74,18 @@ func TestGenerateZoneConfigs_PublicOnly(t *testing.T) {
 	zoneConfigs := generateZoneConfigs(publicConfig)
 
 	require.Equal(t, 1, len(zoneConfigs))
-	require.Equal(t, publicConfig.PublicZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
+	require.Equal(t, publicConfig.PublicZoneConfig.ZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
 	require.Equal(t, manifests.Provider(manifests.PublicProvider), zoneConfigs[0].Provider)
-	require.Equal(t, publicConfig.PublicZoneSubscription, zoneConfigs[0].Subscription)
+	require.Equal(t, publicConfig.PublicZoneConfig.Subscription, zoneConfigs[0].Subscription)
 }
 
 func TestGenerateZoneConfigs_PrivateOnly(t *testing.T) {
 	zoneConfigs := generateZoneConfigs(privateConfig)
 
 	require.Equal(t, 1, len(zoneConfigs))
-	require.Equal(t, privateConfig.PrivateZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
+	require.Equal(t, privateConfig.PrivateZoneConfig.ZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
 	require.Equal(t, manifests.Provider(manifests.PrivateProvider), zoneConfigs[0].Provider)
-	require.Equal(t, privateConfig.PrivateZoneSubscription, zoneConfigs[0].Subscription)
+	require.Equal(t, privateConfig.PrivateZoneConfig.Subscription, zoneConfigs[0].Subscription)
 }
 
 func TestGenerateZoneConfigs_All(t *testing.T) {
@@ -78,13 +96,18 @@ func TestGenerateZoneConfigs_All(t *testing.T) {
 	prConfig := zoneConfigs[0]
 	pbConfig := zoneConfigs[1]
 
-	require.Equal(t, fullConfig.PrivateZoneIds, prConfig.DnsZoneResourceIDs)
-	require.Equal(t, fullConfig.PublicZoneIds, pbConfig.DnsZoneResourceIDs)
+	require.Equal(t, fullConfig.PrivateZoneConfig.ZoneIds, prConfig.DnsZoneResourceIDs)
+	require.Equal(t, fullConfig.PublicZoneConfig.ZoneIds, pbConfig.DnsZoneResourceIDs)
 
 	require.Equal(t, manifests.Provider(manifests.PrivateProvider), prConfig.Provider)
 	require.Equal(t, manifests.Provider(manifests.PublicProvider), pbConfig.Provider)
 
-	require.Equal(t, fullConfig.PrivateZoneSubscription, prConfig.Subscription)
-	require.Equal(t, fullConfig.PublicZoneSubscription, pbConfig.Subscription)
+	require.Equal(t, fullConfig.PrivateZoneConfig.Subscription, prConfig.Subscription)
+	require.Equal(t, fullConfig.PublicZoneConfig.Subscription, pbConfig.Subscription)
 
+}
+
+func TestGenerateZoneConfigs_Nil(t *testing.T) {
+	zoneConfigs := generateZoneConfigs(nilConfig)
+	require.Equal(t, len(zoneConfigs), 0)
 }

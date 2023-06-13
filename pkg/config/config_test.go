@@ -222,8 +222,8 @@ func TestConfigParse(t *testing.T) {
 			require.EqualError(t, err, tc.expectedError.Error())
 		} else {
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedPrivateZones, conf.PrivateZoneIds)
-			require.Equal(t, tc.expectedPublicZones, conf.PublicZoneIds)
+			require.Equal(t, tc.expectedPrivateZones, conf.PrivateZoneConfig.ZoneIds)
+			require.Equal(t, tc.expectedPublicZones, conf.PublicZoneConfig.ZoneIds)
 		}
 	}
 
