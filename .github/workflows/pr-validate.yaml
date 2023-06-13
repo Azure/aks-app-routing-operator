@@ -1,0 +1,55 @@
+name: Validate PR
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  validate_job_name: validation-tests # must match env of same name in pr-validate-fork
+
+jobs:
+  e2e:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/e2e.yaml
+  unit:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/unit.yaml
+  status:
+    permissions:
+      checks: write
+      pull-requests: read
+    needs: [e2e, unit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update status
+        uses: actions/github-script@v6
+        id: update-check-run
+        env:
+          number: ${{ github.event.number }}
+          conclusion: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) && 'failure' || 'success' }}
+          server_url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          run_id: ${{ github.run_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = `${process.env.server_url}/${process.env.repo}/actions/runs/${process.env.run_id}`
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: process.env.number
+            });
+            console.log('retrieved pull request')
+            
+            const ref = pull.head.sha;
+            const { data: result } = await github.rest.checks.create({
+              ...context.repo,
+              name: process.env.validate_job_name,
+              head_sha: ref,
+              status: 'completed',
+              conclusion: process.env.conclusion,
+              details_url: url,
+            });
+            console.log('created check')
+            
+            return result;
