@@ -90,6 +90,7 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	return objs
 }
 
+// will be used as part of external dns cleanup
 func addDnsTypeLabel(originalLabels map[string]string, resourceName string) map[string]string {
 	ret := map[string]string{}
 	for k, v := range originalLabels {

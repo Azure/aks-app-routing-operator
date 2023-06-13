@@ -1,11 +1,11 @@
 package dns
 
 import (
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/stretchr/testify/require"
 )
 
