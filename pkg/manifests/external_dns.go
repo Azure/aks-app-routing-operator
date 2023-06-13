@@ -23,6 +23,7 @@ import (
 
 const (
 	replicas                = 1
+	K8sNameKey              = "app.kubernetes.io/name"
 	ExternalDnsResourceName = "external-dns"
 	PrivateSuffix           = "-private"
 	PublicSuffix            = "-public"
@@ -87,6 +88,16 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
 
 	return objs
+}
+
+func addDnsTypeLabel(originalLabels map[string]string, resourceName string) map[string]string {
+	ret := map[string]string{}
+	for k, v := range originalLabels {
+		ret[k] = v
+	}
+	ret[K8sNameKey] = resourceName
+
+	return ret
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, dnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
@@ -156,11 +167,11 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, dnsConfig *ExternalDn
 	}
 }
 
-func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
+func newExternalDNSConfigMap(conf *config.Config, dnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 	js, err := json.Marshal(&map[string]interface{}{
-		"tenantId":                    externalDnsConfig.TenantId,
-		"subscriptionId":              externalDnsConfig.Subscription,
-		"resourceGroup":               externalDnsConfig.ResourceGroup,
+		"tenantId":                    dnsConfig.TenantId,
+		"subscriptionId":              dnsConfig.Subscription,
+		"resourceGroup":               dnsConfig.ResourceGroup,
 		"userAssignedIdentityID":      conf.MSIClientID,
 		"useManagedIdentityExtension": true,
 		"cloud":                       conf.Cloud,
@@ -176,7 +187,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDnsConfig.ResourceName,
+			Name:      dnsConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},

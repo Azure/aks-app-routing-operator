@@ -27,38 +27,41 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		return nil
 	}
 
-	configs := generateZoneConfigs(conf)
-	// one config for private, one config for public
-	var objs []client.Object
+	configs, _ := generateZoneConfigs(conf)
 
-	objs = append(objs, manifests.ExternalDnsResources(conf, self, configs)...)
+	// TODO: Uncomment this to implement an externalDNS cleanup runner
+	//err := newCleanupRunner(manager, namesToDelete)
+	//
+	//if err != nil {
+	//	return fmt.Errorf("failed to start cleanup runner: %w", err)
+	//}
+
+	objs := append([]client.Object{}, manifests.ExternalDnsResources(conf, self, configs)...)
 
 	return newExternalDnsReconciler(manager, objs)
 }
 
-func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsConfig) {
-	var ret []*manifests.ExternalDnsConfig
+func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsConfig, namesToDelete []string) {
+	publicResourceName := fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PublicSuffix)
+	privateResourceName := fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PrivateSuffix)
+
 	if conf.PrivateZoneConfig != nil && len(conf.PrivateZoneConfig.ZoneIds) > 0 {
-		ret = append(ret, generateConfig(conf, conf.PrivateZoneConfig, manifests.PrivateProvider))
+		configs = append(configs, generateConfig(conf, conf.PrivateZoneConfig, manifests.PrivateProvider, privateResourceName))
+	} else {
+		namesToDelete = append(namesToDelete, privateResourceName)
 	}
 
 	if conf.PublicZoneConfig != nil && len(conf.PublicZoneConfig.ZoneIds) > 0 {
-		ret = append(ret, generateConfig(conf, conf.PublicZoneConfig, manifests.PublicProvider))
+		configs = append(configs, generateConfig(conf, conf.PublicZoneConfig, manifests.PublicProvider, publicResourceName))
+	} else {
+		namesToDelete = append(namesToDelete, publicResourceName)
 	}
 
-	return ret
+	// namesToDelete will eventually be used for externalDNS cleanup
+	return
 }
 
-func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, provider manifests.Provider) *manifests.ExternalDnsConfig {
-	var resourceName string
-
-	switch provider {
-	case manifests.PrivateProvider:
-		resourceName = fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PrivateSuffix)
-	default:
-		resourceName = fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PublicSuffix)
-	}
-
+func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, provider manifests.Provider, resourceName string) *manifests.ExternalDnsConfig {
 	return &manifests.ExternalDnsConfig{
 		ResourceName:       resourceName,
 		TenantId:           conf.TenantID,
