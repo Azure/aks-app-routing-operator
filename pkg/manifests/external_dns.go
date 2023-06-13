@@ -38,7 +38,7 @@ type ExternalDnsConfig struct {
 func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
 	var objs []client.Object
 
-	// Can safely assume the Namespace exists if using kube-system
+	// Can safely assume the namespace exists if using kube-system
 	if conf.NS != "kube-system" {
 		objs = append(objs, Namespace(conf))
 	}

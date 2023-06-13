@@ -87,7 +87,7 @@ func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConf
 func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
 	objs := []client.Object{}
 
-	// Can safely assume the Namespace exists if using kube-system
+	// Can safely assume the namespace exists if using kube-system
 	if conf.NS != "kube-system" {
 		objs = append(objs, Namespace(conf))
 	}
@@ -203,7 +203,7 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
 	isInternal := false
 	hostname := ""
-	if ingressConfig.ServiceConfig != nil { // this should always be nil
+	if ingressConfig.ServiceConfig != nil { // this should always be nil prior to dynamic provisioning work
 		isInternal = ingressConfig.ServiceConfig.IsInternal
 		hostname = ingressConfig.ServiceConfig.Hostname
 	}
