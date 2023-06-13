@@ -33,6 +33,3 @@ Pull requests must pass a validating GitHub workflow that runs both E2E and unit
 /ok-to-test sha=<sha>`. Before commenting ensure that the PR doesn't contain malicious code. This comment must be posted every time you want the tests to retrigger. `<sha>` should be replaced by the latest sha of the PR.
 
 ![test-sha](./test-sha.png)
-
-
-
