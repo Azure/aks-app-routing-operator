@@ -36,3 +36,9 @@ jobs:
       with:
         script: core.setFailed('Ref is not latest')
 
+    - name: hello
+      env:
+        event: ${{ github.event_name }}
+        sha: ${{ github.event.client_payload.slash_command.args.named.sha }}
+        head: ${{ github.event.client_payload.pull_request.head.sha }}
+      runs: echo "hello"
