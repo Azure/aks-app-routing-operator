@@ -5,6 +5,9 @@ on:
     inputs:
       ref:
         type: string
+      skipRefCheck:
+        type: boolean
+        default: true
 
 jobs:
   e2e-test:
@@ -28,9 +31,24 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Run E2E
+        if:
+          (github.event_name == 'repository_dispatch' &&
+          github.event.client_payload.slash_command.args.named.sha != '' &&
+          contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+          inputs.skipRefCheck
         env:
           ARM_USE_OIDC: true
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: make ${{ matrix.cmd }}
+
+      - name: Ensure ref
+        uses: actions/github-script@v6
+        if:
+          !((github.event_name == 'repository_dispatch' &&
+          github.event.client_payload.slash_command.args.named.sha != '' &&
+          contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+          inputs.skipRefCheck)
+        with:
+          script: core.setFailed('Ref is not latest')
