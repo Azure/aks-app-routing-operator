@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      issues: write
+      contents: write
 
     # Only run for PRs, not issue comments
     if: ${{ github.event.issue.pull_request }}
@@ -17,7 +19,7 @@ jobs:
       - name: slash command dispatch
         uses: peter-evans/slash-command-dispatch@a28ee6cd74d5200f99e247ebc7b365c03ae0ef3c # v3.0.1
         with:
-          token: ${{ secrets.GH_PAT }} # we aren't allowed to use secrets.GITHUB_TOKEN here
+          token: ${{ secrets.GITHUB_TOKEN }}
           reaction-token: ${{ secrets.GITHUB_TOKEN }}
           issue-type: pull-request
           commands: ok-to-test
