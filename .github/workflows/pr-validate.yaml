@@ -21,12 +21,10 @@ jobs:
       pull-requests: read
     needs: [e2e, unit]
     runs-on: ubuntu-latest
-    if: ${{ always() }}
     steps:
       - name: Update status
         uses: actions/github-script@v6
         id: update-check-run
-        if: ${{ always() }}
         env:
           number: ${{ github.event.number }}
           conclusion: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) && 'failure' || 'success' }}
