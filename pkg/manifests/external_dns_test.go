@@ -26,6 +26,7 @@ var (
 		ResourceGroup:      "test-resource-group-public",
 		DnsZoneResourceIDs: publicZones,
 		Provider:           PublicProvider,
+		ClusterIdentifier:  "unique-cluster-identifier",
 	}
 
 	privateDnsConfig = &ExternalDnsConfig{
@@ -35,6 +36,7 @@ var (
 		ResourceGroup:      "test-resource-group-private",
 		DnsZoneResourceIDs: privateZones,
 		Provider:           PrivateProvider,
+		ClusterIdentifier:  "unique-cluster-identifier",
 	}
 
 	testCases = []struct {

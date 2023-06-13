@@ -1,7 +1,11 @@
 package dns
 
 import (
+	"context"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"log"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -27,7 +31,8 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		return nil
 	}
 
-	configs, _ := generateZoneConfigs(conf)
+	clusterIdentifier := getClusterIdentifierOrExternalDNS(context.Background(), manager)
+	configs, _ := generateZoneConfigs(conf, clusterIdentifier)
 
 	// TODO: Uncomment this to implement an externalDNS cleanup runner
 	//err := newCleanupRunner(manager, namesToDelete)
@@ -41,18 +46,18 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 	return newExternalDnsReconciler(manager, objs)
 }
 
-func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsConfig, namesToDelete []string) {
+func generateZoneConfigs(conf *config.Config, clusterIdentifier string) (configs []*manifests.ExternalDnsConfig, namesToDelete []string) {
 	publicResourceName := fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PublicSuffix)
 	privateResourceName := fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PrivateSuffix)
 
 	if conf.PrivateZoneConfig != nil && len(conf.PrivateZoneConfig.ZoneIds) > 0 {
-		configs = append(configs, generateConfig(conf, conf.PrivateZoneConfig, manifests.PrivateProvider, privateResourceName))
+		configs = append(configs, generateConfig(conf, conf.PrivateZoneConfig, manifests.PrivateProvider, privateResourceName, clusterIdentifier))
 	} else {
 		namesToDelete = append(namesToDelete, privateResourceName)
 	}
 
 	if conf.PublicZoneConfig != nil && len(conf.PublicZoneConfig.ZoneIds) > 0 {
-		configs = append(configs, generateConfig(conf, conf.PublicZoneConfig, manifests.PublicProvider, publicResourceName))
+		configs = append(configs, generateConfig(conf, conf.PublicZoneConfig, manifests.PublicProvider, publicResourceName, clusterIdentifier))
 	} else {
 		namesToDelete = append(namesToDelete, publicResourceName)
 	}
@@ -61,7 +66,7 @@ func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsC
 	return
 }
 
-func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, provider manifests.Provider, resourceName string) *manifests.ExternalDnsConfig {
+func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, provider manifests.Provider, resourceName, clusterIdentifier string) *manifests.ExternalDnsConfig {
 	return &manifests.ExternalDnsConfig{
 		ResourceName:       resourceName,
 		TenantId:           conf.TenantID,
@@ -69,5 +74,24 @@ func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, pr
 		ResourceGroup:      dnsZoneConfig.ResourceGroup,
 		DnsZoneResourceIDs: dnsZoneConfig.ZoneIds,
 		Provider:           provider,
+		ClusterIdentifier:  clusterIdentifier,
 	}
+}
+
+func getClusterIdentifierOrExternalDNS(ctx context.Context, manager ctrl.Manager) string {
+	// convention for unique identifier is to use UID of kube-system namespace
+	// see: https://github.com/kubernetes/kubernetes/issues/77487#issuecomment-489786023
+	c := manager.GetClient()
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kube-system",
+		},
+	}
+	err := c.Get(ctx, client.ObjectKey{Name: "kube-system"}, ns)
+	if err != nil || ns.UID == "" {
+		log.Printf("WARNING: failed to get namespace kube-system: %s, using externalDNS as dns record owner", err)
+		return manifests.ExternalDnsResourceName
+	}
+
+	return string(ns.UID)
 }

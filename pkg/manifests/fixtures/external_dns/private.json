@@ -209,7 +209,7 @@
                   "--provider=azure-private-dns",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=aks-app-routing-operator",
+                  "--txt-owner-id=unique-cluster-identifier",
                   "--domain-filter=test-three.com",
                   "--domain-filter=test-four.com"
                 ],
