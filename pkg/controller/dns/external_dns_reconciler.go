@@ -43,13 +43,13 @@ func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsC
 	}
 
 	if len(conf.PublicZoneIds) > 0 {
-		ret = append(ret, generateConfig(conf, conf.PublicZoneIds, conf.PublicZoneSubscription, conf.PublicZoneResourceGroup, manifests.Provider))
+		ret = append(ret, generateConfig(conf, conf.PublicZoneIds, conf.PublicZoneSubscription, conf.PublicZoneResourceGroup, manifests.PublicProvider))
 	}
 
 	return ret
 }
 
-func generateConfig(conf *config.Config, zones []string, subscription, resourceGroup, provider string) *manifests.ExternalDnsConfig {
+func generateConfig(conf *config.Config, zones []string, subscription, resourceGroup string, provider manifests.Provider) *manifests.ExternalDnsConfig {
 	var resourceName string
 
 	switch provider {

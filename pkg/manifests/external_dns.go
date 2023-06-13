@@ -5,33 +5,52 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	Provider        = "azure"
-	PrivateProvider = "azure-private-dns"
-	replicas        = 1
-
+	replicas                = 1
 	ExternalDnsResourceName = "external-dns"
 	PrivateSuffix           = "-private"
 	PublicSuffix            = "-public"
 )
 
+type Provider int
+
+const (
+	PublicProvider = iota
+	PrivateProvider
+)
+
+func (p Provider) String() string {
+	switch p {
+	case PublicProvider:
+		return "azure"
+	case PrivateProvider:
+		return "azure-private-dns"
+	default:
+		return ""
+	}
+}
+
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
-	TenantId, Subscription, ResourceName, ResourceGroup, Provider string
-	DnsZoneResourceIDs                                            []string
+	TenantId, Subscription, ResourceName, ResourceGroup string
+	Provider                                            Provider
+	DnsZoneResourceIDs                                  []string
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
@@ -205,7 +224,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
 						Args: append([]string{
-							"--provider=" + externalDnsConfig.Provider,
+							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
 							"--interval=3m0s",
 							"--txt-owner-id=" + operatorName,

@@ -57,7 +57,7 @@ func TestGenerateZoneConfigs_PublicOnly(t *testing.T) {
 
 	require.Equal(t, 1, len(zoneConfigs))
 	require.Equal(t, publicConfig.PublicZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
-	require.Equal(t, manifests.Provider, zoneConfigs[0].Provider)
+	require.Equal(t, manifests.Provider(manifests.PublicProvider), zoneConfigs[0].Provider)
 	require.Equal(t, publicConfig.PublicZoneSubscription, zoneConfigs[0].Subscription)
 }
 
@@ -66,7 +66,7 @@ func TestGenerateZoneConfigs_PrivateOnly(t *testing.T) {
 
 	require.Equal(t, 1, len(zoneConfigs))
 	require.Equal(t, privateConfig.PrivateZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
-	require.Equal(t, manifests.PrivateProvider, zoneConfigs[0].Provider)
+	require.Equal(t, manifests.Provider(manifests.PrivateProvider), zoneConfigs[0].Provider)
 	require.Equal(t, privateConfig.PrivateZoneSubscription, zoneConfigs[0].Subscription)
 }
 
@@ -81,8 +81,8 @@ func TestGenerateZoneConfigs_All(t *testing.T) {
 	require.Equal(t, fullConfig.PrivateZoneIds, prConfig.DnsZoneResourceIDs)
 	require.Equal(t, fullConfig.PublicZoneIds, pbConfig.DnsZoneResourceIDs)
 
-	require.Equal(t, manifests.PrivateProvider, prConfig.Provider)
-	require.Equal(t, manifests.Provider, pbConfig.Provider)
+	require.Equal(t, manifests.Provider(manifests.PrivateProvider), prConfig.Provider)
+	require.Equal(t, manifests.Provider(manifests.PublicProvider), pbConfig.Provider)
 
 	require.Equal(t, fullConfig.PrivateZoneSubscription, prConfig.Subscription)
 	require.Equal(t, fullConfig.PublicZoneSubscription, pbConfig.Subscription)

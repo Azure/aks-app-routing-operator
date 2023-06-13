@@ -25,7 +25,7 @@ var (
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-public",
 		DnsZoneResourceIDs: publicZones,
-		Provider:           Provider,
+		Provider:           PublicProvider,
 	}
 
 	privateDnsConfig = &ExternalDnsConfig{
