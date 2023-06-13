@@ -95,7 +95,10 @@ jobs:
             console.log('listed checks for ref')
             
             const check = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
-            if (check.length === 0) console.error('check not found. new commit may have been pushed')
+            if (check.length === 0) {
+              core.setFailed('check not found. new commit may have been pushed')
+              return
+            }
             const { data: result } = await github.rest.checks.update({
               ...context.repo,
               check_run_id: check[0].id,
