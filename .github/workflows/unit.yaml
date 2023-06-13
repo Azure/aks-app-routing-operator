@@ -41,4 +41,4 @@ jobs:
         event: ${{ github.event_name }}
         sha: ${{ github.event.client_payload.slash_command.args.named.sha }}
         head: ${{ github.event.client_payload.pull_request.head.sha }}
-      runs: echo "hello"
+      run: echo "hello"
