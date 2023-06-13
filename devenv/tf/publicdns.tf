@@ -6,7 +6,6 @@ variable "publiczones" {
   ]
 }
 
-
 resource "azurerm_dns_zone" "dnszone" {
   for_each            = var.publiczones
   name = "${random_string.random.result}-${each.value}"

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-//asdfgo:build e2e
+//go:build e2e
 
 package e2e
 
@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Azure/go-autorest/autorest/azure"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/go-autorest/autorest/azure"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -294,7 +294,7 @@ func deployObjects(t *testing.T, ctx context.Context, client klient.Client, objs
 func generateZoneConfigs(conf *testConfig) []*zoneConfig {
 	ret := []*zoneConfig{}
 
-	// generate private zone config
+	// generate private zone configs
 	for i, privateZoneId := range conf.PrivateDNSZoneIDs {
 		parsedId, err := azure.ParseResourceID(privateZoneId)
 		if err != nil {
@@ -314,7 +314,7 @@ func generateZoneConfigs(conf *testConfig) []*zoneConfig {
 		})
 	}
 
-	// generate public zone config
+	// generate public zone configs
 	for i, publicZoneId := range conf.PublicDNSZoneIDs {
 		parsedId, err := azure.ParseResourceID(publicZoneId)
 		if err != nil {

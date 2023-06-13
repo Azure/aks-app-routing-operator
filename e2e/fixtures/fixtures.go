@@ -39,7 +39,7 @@ func NewClientDeployment(t *testing.T, host string, nameserver, namespace, id st
 		Name:  "URL",
 		Value: "https://" + host,
 	}, {
-		Name:  "NAMESERVERS",
+		Name:  "NAMESERVER",
 		Value: nameserver,
 	}, {
 		Name:      "POD_IP",

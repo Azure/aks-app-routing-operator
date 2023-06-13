@@ -9,12 +9,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
 func main() {
-	nameservers := strings.Split(os.Getenv("NAMESERVERS"), ",")
+	nameservers := os.Getenv("NAMESERVER")
 	rand.Seed(time.Now().Unix())
 
 	dialer := &net.Dialer{Resolver: &net.Resolver{

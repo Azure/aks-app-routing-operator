@@ -33,7 +33,3 @@ resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnecti
   private_dns_zone_name = each.value.name
   virtual_network_id    = data.azurerm_resources.noderesourcegroup[0].resources[0].id
 }
-
-locals {
-  privatednszoneids = { for k, v in azurerm_private_dns_zone.dnszone : k => v.id }
-}
