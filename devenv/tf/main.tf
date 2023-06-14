@@ -95,6 +95,7 @@ resource "local_file" "addon_deployment_auth_info"{
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
     DnsZones = join(",",concat([for zone in azurerm_private_dns_zone.dnszone : zone.id], [for zone in azurerm_dns_zone.dnszone : zone.id]))
+    ClusterFqdn = var.clustertype == "private" ? azurerm_kubernetes_cluster.cluster.private_fqdn : azurerm_kubernetes_cluster.cluster.fqdn # even though api behavior is different, private cluster's 'fqdn' in tf is a blank string
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }

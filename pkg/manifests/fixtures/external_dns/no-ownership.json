@@ -161,7 +161,7 @@
                   "--provider=azure",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=unique-cluster-identifier",
+                  "--txt-owner-id=test-fqdn-hash",
                   "--domain-filter=test-one.com",
                   "--domain-filter=test-two.com"
                 ],

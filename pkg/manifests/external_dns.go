@@ -49,9 +49,9 @@ func (p Provider) String() string {
 
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
-	TenantId, Subscription, ResourceName, ResourceGroup, ClusterIdentifier string
-	Provider                                                               Provider
-	DnsZoneResourceIDs                                                     []string
+	TenantId, Subscription, ResourceName, ResourceGroup string
+	Provider                                            Provider
+	DnsZoneResourceIDs                                  []string
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
@@ -239,7 +239,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
 							"--interval=3m0s",
-							"--txt-owner-id=" + externalDnsConfig.ClusterIdentifier,
+							"--txt-owner-id=" + conf.ClusterFqdn,
 						}, domainFilters...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",

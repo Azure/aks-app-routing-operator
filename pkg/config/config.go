@@ -4,6 +4,8 @@
 package config
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,6 +40,7 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
+	flag.StringVar(&Flags.ClusterFqdn, "cluster-fqdn", "", "fqdn of the cluster the add-on belongs to")
 }
 
 type DnsZoneConfig struct {
@@ -58,6 +61,7 @@ type Config struct {
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
 	OperatorDeployment                  string
+	ClusterFqdn                         string
 }
 
 func (c *Config) Validate() error {
@@ -84,6 +88,12 @@ func (c *Config) Validate() error {
 	}
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
+	}
+
+	if c.ClusterFqdn == "" {
+		return errors.New("--cluster-fqdn is required")
+	} else {
+		c.ClusterFqdn = hash(c.ClusterFqdn)
 	}
 
 	if dnsZonesString != "" {
@@ -131,4 +141,10 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 	}
 
 	return nil
+}
+
+func hash(s string) string {
+	h := md5.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
 }

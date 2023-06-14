@@ -72,7 +72,7 @@ var (
 
 // TODO: add tests for cleanup names
 func TestGenerateZoneConfigs_PublicOnly(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(publicConfig, "uniqueIdentifier")
+	zoneConfigs, _ := generateZoneConfigs(publicConfig)
 
 	require.Equal(t, 1, len(zoneConfigs))
 	require.Equal(t, publicConfig.PublicZoneConfig.ZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
@@ -81,7 +81,7 @@ func TestGenerateZoneConfigs_PublicOnly(t *testing.T) {
 }
 
 func TestGenerateZoneConfigs_PrivateOnly(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(privateConfig, "uniqueIdentifier")
+	zoneConfigs, _ := generateZoneConfigs(privateConfig)
 
 	require.Equal(t, 1, len(zoneConfigs))
 	require.Equal(t, privateConfig.PrivateZoneConfig.ZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
@@ -90,7 +90,7 @@ func TestGenerateZoneConfigs_PrivateOnly(t *testing.T) {
 }
 
 func TestGenerateZoneConfigs_All(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(fullConfig, "uniqueIdentifier")
+	zoneConfigs, _ := generateZoneConfigs(fullConfig)
 
 	require.Equal(t, len(zoneConfigs), 2)
 
@@ -109,6 +109,6 @@ func TestGenerateZoneConfigs_All(t *testing.T) {
 }
 
 func TestGenerateZoneConfigs_Nil(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(nilConfig, "uniqueIdentifier")
+	zoneConfigs, _ := generateZoneConfigs(nilConfig)
 	require.Equal(t, len(zoneConfigs), 0)
 }

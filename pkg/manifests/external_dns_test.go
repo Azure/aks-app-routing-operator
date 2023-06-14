@@ -27,7 +27,6 @@ var (
 		ResourceGroup:      "test-resource-group-public",
 		DnsZoneResourceIDs: publicZones,
 		Provider:           PublicProvider,
-		ClusterIdentifier:  "unique-cluster-identifier",
 	}
 
 	privateDnsConfig = &ExternalDnsConfig{
@@ -37,7 +36,6 @@ var (
 		ResourceGroup:      "test-resource-group-private",
 		DnsZoneResourceIDs: privateZones,
 		Provider:           PrivateProvider,
-		ClusterIdentifier:  "unique-cluster-identifier",
 	}
 
 	testCases = []struct {
@@ -48,7 +46,7 @@ var (
 	}{
 		{
 			Name: "full",
-			Conf: &config.Config{NS: "test-namespace"},
+			Conf: &config.Config{NS: "test-namespace", ClusterFqdn: "test-fqdn-hash"},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",
@@ -59,12 +57,12 @@ var (
 		},
 		{
 			Name:       "no-ownership",
-			Conf:       &config.Config{NS: "test-namespace"},
+			Conf:       &config.Config{NS: "test-namespace", ClusterFqdn: "test-fqdn-hash"},
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
 		},
 		{
 			Name: "private",
-			Conf: &config.Config{NS: "test-namespace"},
+			Conf: &config.Config{NS: "test-namespace", ClusterFqdn: "test-fqdn-hash"},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",
