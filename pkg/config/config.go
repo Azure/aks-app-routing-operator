@@ -124,7 +124,8 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 			return fmt.Errorf("invalid resource provider %s from zone %s: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network", parsedZone.Provider, zoneId)
 		}
 
-		if strings.EqualFold(parsedZone.ResourceType, PrivateZoneType) {
+		switch strings.ToLower(parsedZone.ResourceType) {
+		case PrivateZoneType:
 			// it's a private zone
 			if err := validateSubAndRg(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
 				return err
@@ -133,8 +134,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
 			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
-
-		} else if strings.EqualFold(parsedZone.ResourceType, PublicZoneType) {
+		case PublicZoneType:
 			// it's a public zone
 			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
 				return err
@@ -143,7 +143,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
 			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
-		} else {
+		default:
 			return fmt.Errorf("while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
 	}
