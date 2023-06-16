@@ -23,7 +23,7 @@ var (
 			NS: "test-namespace",
 		}},
 		{
-			Name: "another-Namespace",
+			Name: "another-namespace",
 			Config: &config.Config{
 				NS: "another-test-namespace",
 			},

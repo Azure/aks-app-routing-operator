@@ -7,8 +7,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -76,9 +74,8 @@ var (
 
 func TestExternalDnsResources(t *testing.T) {
 	for _, tc := range testCases {
-		objs := []client.Object{}
 
-		objs = append(objs, ExternalDnsResources(tc.Conf, tc.Deploy, tc.DnsConfigs)...)
+		objs := ExternalDnsResources(tc.Conf, tc.Deploy, tc.DnsConfigs)
 
 		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".json"
 		AssertFixture(t, fixture, objs)

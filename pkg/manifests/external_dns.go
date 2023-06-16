@@ -101,28 +101,28 @@ func addDnsTypeLabel(originalLabels map[string]string, resourceName string) map[
 	return ret
 }
 
-func newExternalDNSServiceAccount(conf *config.Config, dnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
+func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dnsConfig.ResourceName,
+			Name:      externalDnsConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 	}
 }
 
-func newExternalDNSClusterRole(conf *config.Config, dnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
+func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   dnsConfig.ResourceName,
+			Name:   externalDnsConfig.ResourceName,
 			Labels: topLevelLabels,
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -145,34 +145,34 @@ func newExternalDNSClusterRole(conf *config.Config, dnsConfig *ExternalDnsConfig
 	}
 }
 
-func newExternalDNSClusterRoleBinding(conf *config.Config, dnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
+func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRoleBinding",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   dnsConfig.ResourceName,
+			Name:   externalDnsConfig.ResourceName,
 			Labels: topLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     dnsConfig.ResourceName,
+			Name:     externalDnsConfig.ResourceName,
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
-			Name:      dnsConfig.ResourceName,
+			Name:      externalDnsConfig.ResourceName,
 			Namespace: conf.NS,
 		}},
 	}
 }
 
-func newExternalDNSConfigMap(conf *config.Config, dnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
+func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 	js, err := json.Marshal(&map[string]interface{}{
-		"tenantId":                    dnsConfig.TenantId,
-		"subscriptionId":              dnsConfig.Subscription,
-		"resourceGroup":               dnsConfig.ResourceGroup,
+		"tenantId":                    externalDnsConfig.TenantId,
+		"subscriptionId":              externalDnsConfig.Subscription,
+		"resourceGroup":               externalDnsConfig.ResourceGroup,
 		"userAssignedIdentityID":      conf.MSIClientID,
 		"useManagedIdentityExtension": true,
 		"cloud":                       conf.Cloud,
@@ -188,7 +188,7 @@ func newExternalDNSConfigMap(conf *config.Config, dnsConfig *ExternalDnsConfig) 
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dnsConfig.ResourceName,
+			Name:      externalDnsConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
