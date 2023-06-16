@@ -23,7 +23,7 @@ func newExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Deployment) error {
-	if conf.PublicZoneConfig != nil && len(conf.PublicZoneConfig.ZoneIds) == 0 && conf.PrivateZoneConfig != nil && len(conf.PrivateZoneConfig.ZoneIds) == 0 {
+	if len(conf.PublicZoneConfig.ZoneIds) == 0 && len(conf.PrivateZoneConfig.ZoneIds) == 0 {
 		return nil
 	}
 
@@ -45,13 +45,13 @@ func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsC
 	publicResourceName := fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PublicSuffix)
 	privateResourceName := fmt.Sprintf("%s%s", manifests.ExternalDnsResourceName, manifests.PrivateSuffix)
 
-	if conf.PrivateZoneConfig != nil && len(conf.PrivateZoneConfig.ZoneIds) > 0 {
+	if len(conf.PrivateZoneConfig.ZoneIds) > 0 {
 		configs = append(configs, generateConfig(conf, conf.PrivateZoneConfig, manifests.PrivateProvider, privateResourceName))
 	} else {
 		namesToDelete = append(namesToDelete, privateResourceName)
 	}
 
-	if conf.PublicZoneConfig != nil && len(conf.PublicZoneConfig.ZoneIds) > 0 {
+	if len(conf.PublicZoneConfig.ZoneIds) > 0 {
 		configs = append(configs, generateConfig(conf, conf.PublicZoneConfig, manifests.PublicProvider, publicResourceName))
 	} else {
 		namesToDelete = append(namesToDelete, publicResourceName)
@@ -61,7 +61,7 @@ func generateZoneConfigs(conf *config.Config) (configs []*manifests.ExternalDnsC
 	return
 }
 
-func generateConfig(conf *config.Config, dnsZoneConfig *config.DnsZoneConfig, provider manifests.Provider, resourceName string) *manifests.ExternalDnsConfig {
+func generateConfig(conf *config.Config, dnsZoneConfig config.DnsZoneConfig, provider manifests.Provider, resourceName string) *manifests.ExternalDnsConfig {
 	return &manifests.ExternalDnsConfig{
 		ResourceName:       resourceName,
 		TenantId:           conf.TenantID,

@@ -23,12 +23,12 @@ var (
 	publicConfig = &config.Config{
 		NS:              "test-ns",
 		DisableKeyvault: false,
-		PrivateZoneConfig: &config.DnsZoneConfig{
+		PrivateZoneConfig: config.DnsZoneConfig{
 			ZoneIds:       nil,
 			Subscription:  "",
 			ResourceGroup: "",
 		},
-		PublicZoneConfig: &config.DnsZoneConfig{
+		PublicZoneConfig: config.DnsZoneConfig{
 			ZoneIds:       publicZones,
 			Subscription:  "test-public-subscription",
 			ResourceGroup: "test-public-rg",
@@ -37,12 +37,12 @@ var (
 	privateConfig = &config.Config{
 		NS:              "test-ns",
 		DisableKeyvault: false,
-		PrivateZoneConfig: &config.DnsZoneConfig{
+		PrivateZoneConfig: config.DnsZoneConfig{
 			ZoneIds:       privateZones,
 			Subscription:  "test-private-subscription",
 			ResourceGroup: "test-private-rg",
 		},
-		PublicZoneConfig: &config.DnsZoneConfig{
+		PublicZoneConfig: config.DnsZoneConfig{
 			ZoneIds:       nil,
 			Subscription:  "",
 			ResourceGroup: "",
@@ -51,22 +51,20 @@ var (
 	fullConfig = &config.Config{
 		NS:              "test-ns",
 		DisableKeyvault: false,
-		PrivateZoneConfig: &config.DnsZoneConfig{
+		PrivateZoneConfig: config.DnsZoneConfig{
 			ZoneIds:       privateZones,
 			Subscription:  "test-private-subscription",
 			ResourceGroup: "test-private-rg",
 		},
-		PublicZoneConfig: &config.DnsZoneConfig{
+		PublicZoneConfig: config.DnsZoneConfig{
 			ZoneIds:       publicZones,
 			Subscription:  "test-public-subscription",
 			ResourceGroup: "test-public-rg",
 		},
 	}
-	nilConfig = &config.Config{
-		NS:                "test-ns",
-		DisableKeyvault:   false,
-		PrivateZoneConfig: nil,
-		PublicZoneConfig:  nil,
+	zoneless = &config.Config{
+		NS:              "test-ns",
+		DisableKeyvault: false,
 	}
 )
 
@@ -108,7 +106,7 @@ func TestGenerateZoneConfigs_All(t *testing.T) {
 
 }
 
-func TestGenerateZoneConfigs_Nil(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(nilConfig)
+func TestGenerateZoneConfigs_zoneless(t *testing.T) {
+	zoneConfigs, _ := generateZoneConfigs(zoneless)
 	require.Equal(t, len(zoneConfigs), 0)
 }

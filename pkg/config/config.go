@@ -55,7 +55,7 @@ type Config struct {
 	DisableKeyvault                     bool
 	MSIClientID, TenantID               string
 	Cloud, Location                     string
-	PrivateZoneConfig, PublicZoneConfig *DnsZoneConfig
+	PrivateZoneConfig, PublicZoneConfig DnsZoneConfig
 	ConcurrencyWatchdogThres            float64
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
@@ -110,8 +110,8 @@ func (c *Config) Validate() error {
 
 func (c *Config) ParseZoneIDs(zonesString string) error {
 
-	c.PrivateZoneConfig = &DnsZoneConfig{}
-	c.PublicZoneConfig = &DnsZoneConfig{}
+	c.PrivateZoneConfig = DnsZoneConfig{}
+	c.PublicZoneConfig = DnsZoneConfig{}
 
 	DNSZoneIDs := strings.Split(zonesString, ",")
 	for _, zoneId := range DNSZoneIDs {
