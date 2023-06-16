@@ -161,7 +161,7 @@
                   "--provider=azure",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=test-fqdn-hash",
+                  "--txt-owner-id=19959b036ad19d4f9a7aa81c319df923",
                   "--domain-filter=test-one.com",
                   "--domain-filter=test-two.com"
                 ],

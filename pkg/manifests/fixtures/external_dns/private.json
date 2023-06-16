@@ -209,7 +209,7 @@
                   "--provider=azure-private-dns",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=test-fqdn-hash",
+                  "--txt-owner-id=19959b036ad19d4f9a7aa81c319df923",
                   "--domain-filter=test-three.com",
                   "--domain-filter=test-four.com"
                 ],
