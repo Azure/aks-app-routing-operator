@@ -8,16 +8,16 @@ import (
 )
 
 type CleanupRunner struct {
-	client        client.Client
-	namesToDelete []string
+	client           client.Client
+	unusedNameLabels []string
 }
 
 var _ manager.Runnable = &CleanupRunner{}
 
 func newCleanupRunner(manager ctrl.Manager, namesToDelete []string) error {
 	runner := &CleanupRunner{
-		client:        manager.GetClient(),
-		namesToDelete: namesToDelete,
+		client:           manager.GetClient(),
+		unusedNameLabels: namesToDelete,
 	}
 	return manager.Add(runner)
 }
