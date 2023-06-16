@@ -115,10 +115,6 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 
 	DNSZoneIDs := strings.Split(zonesString, ",")
 	for _, zoneId := range DNSZoneIDs {
-		if zoneId == "" {
-			return errors.New("--dns-zone-ids must not contain empty strings")
-		}
-
 		parsedZone, err := azure.ParseResourceID(zoneId)
 		if err != nil {
 			return fmt.Errorf("error while parsing dns zone resource ID %s: %s", zoneId, err)
@@ -130,7 +126,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 
 		if strings.EqualFold(parsedZone.ResourceType, PrivateZoneType) {
 			// it's a private zone
-			if err := validateZoneId(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+			if err := validateSubAndRg(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
 				return err
 			}
 
@@ -140,7 +136,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 
 		} else if strings.EqualFold(parsedZone.ResourceType, PublicZoneType) {
 			// it's a public zone
-			if err := validateZoneId(parsedZone, c.PublicZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
 				return err
 			}
 
@@ -155,7 +151,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 	return nil
 }
 
-func validateZoneId(parsedZone azure.Resource, subscription, resourceGroup string) error {
+func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
 	if subscription != "" && parsedZone.SubscriptionID != subscription {
 		return fmt.Errorf("error while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}

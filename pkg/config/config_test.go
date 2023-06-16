@@ -220,11 +220,6 @@ var (
 			expectedPublicZones:  publicZones,
 		},
 		{
-			name:          "empty-zone-id",
-			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",",
-			expectedError: errors.New("--dns-zone-ids must not contain empty strings"),
-		},
-		{
 			name:          "bad-provider",
 			zonesString:   strings.Join(publicZones, ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com",
 			expectedError: errors.New("invalid resource provider Microsoft.FakeRP from zone /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network"),
