@@ -1,7 +1,6 @@
 package manifests
 
 import (
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -240,7 +239,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
 							"--interval=3m0s",
-							"--txt-owner-id=" + hash(conf.ClusterFqdn.String()),
+							"--txt-owner-id=" + conf.ClusterFqdn.String(),
 						}, domainFilters...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
@@ -272,10 +271,4 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			},
 		},
 	}
-}
-
-func hash(s string) string {
-	h := md5.New()
-	h.Write([]byte(s))
-	return hex.EncodeToString(h.Sum(nil))
 }
