@@ -100,7 +100,7 @@ func (c *Config) Validate() error {
 	c.ClusterFqdn = parse
 
 	if dnsZonesString != "" {
-		if err := c.ParseZoneIDs(dnsZonesString); err != nil {
+		if err := c.ParseAndValidateZoneIDs(dnsZonesString); err != nil {
 			return err
 		}
 	}
@@ -108,7 +108,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) ParseZoneIDs(zonesString string) error {
+func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 	c.PrivateZoneConfig = DnsZoneConfig{}
 	c.PublicZoneConfig = DnsZoneConfig{}

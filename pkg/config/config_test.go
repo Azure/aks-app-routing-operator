@@ -245,7 +245,7 @@ var (
 func TestConfigParse(t *testing.T) {
 	for _, tc := range parseTestCases {
 		conf := &Config{}
-		err := conf.ParseZoneIDs(tc.zonesString)
+		err := conf.ParseAndValidateZoneIDs(tc.zonesString)
 		if tc.expectedError != nil {
 			require.EqualError(t, err, tc.expectedError.Error())
 		} else {
