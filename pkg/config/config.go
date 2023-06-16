@@ -117,7 +117,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 	for _, zoneId := range DNSZoneIDs {
 		parsedZone, err := azure.ParseResourceID(zoneId)
 		if err != nil {
-			return fmt.Errorf("error while parsing dns zone resource ID %s: %s", zoneId, err)
+			return fmt.Errorf("while parsing dns zone resource ID %s: %s", zoneId, err)
 		}
 
 		if !strings.EqualFold(parsedZone.Provider, "Microsoft.Network") {
@@ -144,7 +144,7 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
 			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
 		} else {
-			return fmt.Errorf("error while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
+			return fmt.Errorf("while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
 	}
 
@@ -153,11 +153,11 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 
 func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
 	if subscription != "" && parsedZone.SubscriptionID != subscription {
-		return fmt.Errorf("error while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
+		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}
 
 	if resourceGroup != "" && parsedZone.ResourceGroup != resourceGroup {
-		return fmt.Errorf("error while parsing resource IDs for %s: detected multiple resource groups %s and %s", parsedZone.ResourceType, parsedZone.ResourceGroup, resourceGroup)
+		return fmt.Errorf("while parsing resource IDs for %s: detected multiple resource groups %s and %s", parsedZone.ResourceType, parsedZone.ResourceGroup, resourceGroup)
 	}
 
 	return nil
