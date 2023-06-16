@@ -127,17 +127,38 @@ func (c *Config) ParseZoneIDs(zonesString string) error {
 
 		if strings.EqualFold(parsedZone.ResourceType, PrivateZoneType) {
 			// it's a private zone
-			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+			if err := validateZoneId(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+				return err
+			}
+
 			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
+			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+
 		} else if strings.EqualFold(parsedZone.ResourceType, PublicZoneType) {
 			// it's a public zone
-			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
+			if err := validateZoneId(parsedZone, c.PublicZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+				return err
+			}
+
 			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
+			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
 		} else {
 			return fmt.Errorf("error while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
+	}
+
+	return nil
+}
+
+func validateZoneId(parsedZone azure.Resource, subscription, resourceGroup string) error {
+	if subscription != "" && parsedZone.SubscriptionID != subscription {
+		return fmt.Errorf("error while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
+	}
+
+	if resourceGroup != "" && parsedZone.ResourceGroup != resourceGroup {
+		return fmt.Errorf("error while parsing resource IDs for %s: detected multiple resource groups %s and %s", parsedZone.ResourceType, parsedZone.ResourceGroup, resourceGroup)
 	}
 
 	return nil

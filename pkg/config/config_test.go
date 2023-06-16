@@ -234,6 +234,16 @@ var (
 			zonesString:   strings.Join(publicZones, ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com",
 			expectedError: errors.New("error while parsing dns zone resource ID /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com: detected invalid resource type hybriddnszones"),
 		},
+		{
+			name:          "bad-resource-group",
+			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/another-rg-private/providers/Microsoft.Network/privatednszones/test-two.com",
+			expectedError: errors.New("error while parsing resource IDs for privatednszones: detected multiple resource groups another-rg-private and test-rg-private"),
+		},
+		{
+			name:          "bad-subscription",
+			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/another-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com",
+			expectedError: errors.New("error while parsing resource IDs for dnszones: detected multiple subscriptions another-public-subscription and test-public-subscription"),
+		},
 	}
 )
 
