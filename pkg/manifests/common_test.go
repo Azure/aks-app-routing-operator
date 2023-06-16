@@ -33,7 +33,7 @@ var (
 
 func TestNamespaceResources(t *testing.T) {
 	for _, tc := range namespaceTestCases {
-		objs := Namespace(tc.Config)
+		objs := namespace(tc.Config)
 		fixture := path.Join("fixtures", "common", tc.Name) + ".json"
 		AssertFixture(t, fixture, []client.Object{objs})
 	}
