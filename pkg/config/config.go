@@ -92,13 +92,12 @@ func (c *Config) Validate() error {
 
 	if c.clusterFqdnString == "" {
 		return errors.New("--cluster-fqdn is required")
-	} else {
-		parse, err := url.Parse(c.clusterFqdnString)
-		if err != nil {
-			return fmt.Errorf("failed to parse cluster fqdn: %s", err)
-		}
-		c.ClusterFqdn = parse
 	}
+	parse, err := url.Parse(c.clusterFqdnString)
+	if err != nil {
+		return fmt.Errorf("failed to parse cluster fqdn: %s", err)
+	}
+	c.ClusterFqdn = parse
 
 	if dnsZonesString != "" {
 		if err := c.ParseZoneIDs(dnsZonesString); err != nil {
