@@ -11,7 +11,6 @@ require (
 	github.com/openservicemesh/osm v1.2.3
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.39.0
-	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	k8s.io/api v0.26.3
 	k8s.io/apimachinery v0.26.3
@@ -19,7 +18,7 @@ require (
 	k8s.io/klog/v2 v2.90.1
 	sigs.k8s.io/controller-runtime v0.14.5
 	sigs.k8s.io/e2e-framework v0.2.0
-	sigs.k8s.io/secrets-store-csi-driver v1.2.4
+	sigs.k8s.io/secrets-store-csi-driver v1.3.3
 )
 
 require (
@@ -62,6 +61,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
