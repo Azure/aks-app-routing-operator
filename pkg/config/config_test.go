@@ -190,8 +190,8 @@ var (
 	privateZoneTwo = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
-	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-one.com"
-	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-two.com"
+	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-one.com"
+	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com"
 	publicZones   = []string{publicZoneOne, publicZoneTwo}
 
 	parseTestCases = []struct {
