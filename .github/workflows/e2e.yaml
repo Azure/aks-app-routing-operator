@@ -9,6 +9,9 @@ on:
         type: boolean
         default: true
 
+permissions:
+  id-token: write
+
 jobs:
   e2e-test:
     strategy:
