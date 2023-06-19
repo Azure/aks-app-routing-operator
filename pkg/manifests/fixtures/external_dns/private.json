@@ -209,7 +209,7 @@
                   "--provider=azure-private-dns",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=test-ccp-id",
+                  "--txt-owner-id=test-cluster-uid",
                   "--domain-filter=test-three.com",
                   "--domain-filter=test-four.com"
                 ],

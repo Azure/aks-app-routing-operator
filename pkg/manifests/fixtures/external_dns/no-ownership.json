@@ -161,7 +161,7 @@
                   "--provider=azure",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=test-ccp-id",
+                  "--txt-owner-id=test-cluster-uid",
                   "--domain-filter=test-one.com",
                   "--domain-filter=test-two.com"
                 ],

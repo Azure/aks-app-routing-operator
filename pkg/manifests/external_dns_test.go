@@ -18,7 +18,7 @@ var (
 	privateZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-four.com"
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
-	ccpId = "test-ccp-id"
+	clusterUid = "test-cluster-uid"
 
 	publicDnsConfig = &ExternalDnsConfig{
 		ResourceName:       "external-dns-public",
@@ -46,7 +46,7 @@ var (
 	}{
 		{
 			Name: "full",
-			Conf: &config.Config{NS: "test-namespace", CCPId: ccpId},
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",
@@ -57,12 +57,12 @@ var (
 		},
 		{
 			Name:       "no-ownership",
-			Conf:       &config.Config{NS: "test-namespace", CCPId: ccpId},
+			Conf:       &config.Config{NS: "test-namespace", ClusterUid: clusterUid},
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
 		},
 		{
 			Name: "private",
-			Conf: &config.Config{NS: "test-namespace", CCPId: ccpId},
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",

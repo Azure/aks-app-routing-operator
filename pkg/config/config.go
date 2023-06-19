@@ -38,7 +38,7 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
-	flag.StringVar(&Flags.CCPId, "ccp-id", "", "ccp ID of the cluster the add-on belongs to")
+	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 }
 
 type DnsZoneConfig struct {
@@ -59,7 +59,7 @@ type Config struct {
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
 	OperatorDeployment                  string
-	CCPId                               string
+	ClusterUid                          string
 }
 
 func (c *Config) Validate() error {
@@ -88,8 +88,8 @@ func (c *Config) Validate() error {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
 
-	if c.CCPId == "" {
-		return errors.New("--ccp-id is required")
+	if c.ClusterUid == "" {
+		return errors.New("--cluster-uid is required")
 	}
 
 	if dnsZonesString != "" {
