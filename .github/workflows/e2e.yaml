@@ -1,36 +1,53 @@
-name: Run e2e
+name: E2E Tests
+
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 7 * * *"
-  push:
-    branches: [main]
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+      skipRefCheck:
+        type: boolean
+        default: true
+
 permissions:
   id-token: write
-  contents: read
 
-jobs: 
-  test_matrix:
+jobs:
+  e2e-test:
     strategy:
       matrix:
         cmd: [public-cluster-test, private-cluster-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: hashicorp/setup-terraform@v2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1 # v2.0.3
       - uses: azure/setup-kubectl@v3.0
 
-      - name: 'Azure login'
+      - name: Azure login
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "Run E2E"
+      - name: Run E2E
+        if:
+          (github.event_name == 'repository_dispatch' &&
+          github.event.client_payload.slash_command.args.named.sha != '' &&
+          contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+          inputs.skipRefCheck
         env:
-          ARM_USE_OIDC: "true"
+          ARM_USE_OIDC: true
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_E2E_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: "make ${{ matrix.cmd }}"
+        run: make ${{ matrix.cmd }}
+
+      - name: Ensure ref
+        uses: actions/github-script@v6
+        if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
+        with:
+          script: core.setFailed('Ref is not latest')
