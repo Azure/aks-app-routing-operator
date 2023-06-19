@@ -1,6 +1,7 @@
 package manifests
 
 import (
+	"net/url"
 	"path"
 	"testing"
 
@@ -10,63 +11,75 @@ import (
 )
 
 var (
-	dnsConfig = &ExternalDnsConfig{
-		ResourceName:  "external-dns",
-		TenantId:      "test-tenant-id",
-		Subscription:  "test-subscription",
-		ResourceGroup: "test-rg",
-		Domain:        "test-domain",
-		RecordId:      "test-record-id",
-		IsPrivate:     false,
+	publicZoneOne = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-one.com"
+	publicZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-two.com"
+	publicZones   = []string{publicZoneOne, publicZoneTwo}
+
+	privateZoneOne = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-three.com"
+	privateZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-four.com"
+	privateZones   = []string{privateZoneOne, privateZoneTwo}
+
+	fqdn, _ = url.Parse("testcluster-ba5ec521.hcp.eastus.azmk8s.io")
+
+	publicDnsConfig = &ExternalDnsConfig{
+		ResourceName:       "external-dns-public",
+		TenantId:           "test-tenant-id",
+		Subscription:       "test-subscription-id",
+		ResourceGroup:      "test-resource-group-public",
+		DnsZoneResourceIDs: publicZones,
+		Provider:           PublicProvider,
+	}
+
+	privateDnsConfig = &ExternalDnsConfig{
+		ResourceName:       "external-dns-private",
+		TenantId:           "test-tenant-id",
+		Subscription:       "test-subscription-id",
+		ResourceGroup:      "test-resource-group-private",
+		DnsZoneResourceIDs: privateZones,
+		Provider:           PrivateProvider,
 	}
 
 	testCases = []struct {
-		Name      string
-		Conf      *config.Config
-		Deploy    *appsv1.Deployment
-		DnsConfig *ExternalDnsConfig
+		Name       string
+		Conf       *config.Config
+		Deploy     *appsv1.Deployment
+		DnsConfigs []*ExternalDnsConfig
 	}{
 		{
 			Name: "full",
-			Conf: &config.Config{NS: "test-namespace"},
+			Conf: &config.Config{NS: "test-namespace", ClusterFqdn: fqdn},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfig: dnsConfig,
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
-			Name:      "no-ownership",
-			Conf:      &config.Config{NS: "test-namespace"},
-			DnsConfig: dnsConfig,
+			Name:       "no-ownership",
+			Conf:       &config.Config{NS: "test-namespace", ClusterFqdn: fqdn},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
 		},
 		{
 			Name: "private",
-			Conf: &config.Config{NS: "test-namespace"},
+			Conf: &config.Config{NS: "test-namespace", ClusterFqdn: fqdn},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfig: &ExternalDnsConfig{
-				ResourceName:  "private-dns",
-				TenantId:      "test-tenant",
-				Subscription:  "test-subscription",
-				ResourceGroup: "test-rg",
-				Domain:        "test.domain.com",
-				RecordId:      "test-record-id",
-				IsPrivate:     true,
-			},
+			DnsConfigs: []*ExternalDnsConfig{privateDnsConfig},
 		},
 	}
 )
 
 func TestExternalDnsResources(t *testing.T) {
 	for _, tc := range testCases {
-		objs := ExternalDnsResources(tc.Conf, tc.Deploy, tc.DnsConfig)
+
+		objs := ExternalDnsResources(tc.Conf, tc.Deploy, tc.DnsConfigs)
+
 		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".json"
 		AssertFixture(t, fixture, objs)
 	}

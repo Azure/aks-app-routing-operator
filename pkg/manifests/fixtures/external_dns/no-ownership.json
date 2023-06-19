@@ -16,7 +16,7 @@
       "kind": "ServiceAccount",
       "apiVersion": "v1",
       "metadata": {
-        "name": "external-dns",
+        "name": "external-dns-public",
         "namespace": "test-namespace",
         "creationTimestamp": null,
         "labels": {
@@ -28,7 +28,7 @@
       "kind": "ClusterRole",
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "metadata": {
-        "name": "external-dns",
+        "name": "external-dns-public",
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
@@ -84,7 +84,7 @@
       "kind": "ClusterRoleBinding",
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "metadata": {
-        "name": "external-dns",
+        "name": "external-dns-public",
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator"
@@ -93,21 +93,21 @@
       "subjects": [
         {
           "kind": "ServiceAccount",
-          "name": "external-dns",
+          "name": "external-dns-public",
           "namespace": "test-namespace"
         }
       ],
       "roleRef": {
         "apiGroup": "rbac.authorization.k8s.io",
         "kind": "ClusterRole",
-        "name": "external-dns"
+        "name": "external-dns-public"
       }
     },
     {
       "kind": "ConfigMap",
       "apiVersion": "v1",
       "metadata": {
-        "name": "external-dns",
+        "name": "external-dns-public",
         "namespace": "test-namespace",
         "creationTimestamp": null,
         "labels": {
@@ -115,14 +115,14 @@
         }
       },
       "data": {
-        "azure.json": "{\"cloud\":\"\",\"location\":\"\",\"resourceGroup\":\"test-rg\",\"subscriptionId\":\"test-subscription\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"\"}"
+        "azure.json": "{\"cloud\":\"\",\"location\":\"\",\"resourceGroup\":\"test-resource-group-public\",\"subscriptionId\":\"test-subscription-id\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"\"}"
       }
     },
     {
       "kind": "Deployment",
       "apiVersion": "apps/v1",
       "metadata": {
-        "name": "external-dns",
+        "name": "external-dns-public",
         "namespace": "test-namespace",
         "creationTimestamp": null,
         "labels": {
@@ -133,15 +133,15 @@
         "replicas": 1,
         "selector": {
           "matchLabels": {
-            "app": "external-dns"
+            "app": "external-dns-public"
           }
         },
         "template": {
           "metadata": {
             "creationTimestamp": null,
             "labels": {
-              "app": "external-dns",
-              "checksum/configmap": "514f300ec06024d7"
+              "app": "external-dns-public",
+              "checksum/configmap": "6fc415798cf89a5f"
             }
           },
           "spec": {
@@ -149,7 +149,7 @@
               {
                 "name": "azure-config",
                 "configMap": {
-                  "name": "external-dns"
+                  "name": "external-dns-public"
                 }
               }
             ],
@@ -161,8 +161,9 @@
                   "--provider=azure",
                   "--source=ingress",
                   "--interval=3m0s",
-                  "--txt-owner-id=test-record-id",
-                  "--domain-filter=test-domain"
+                  "--txt-owner-id=testcluster-ba5ec521.hcp.eastus.azmk8s.io",
+                  "--domain-filter=test-one.com",
+                  "--domain-filter=test-two.com"
                 ],
                 "resources": {
                   "limits": {
@@ -207,7 +208,7 @@
                 }
               }
             ],
-            "serviceAccountName": "external-dns",
+            "serviceAccountName": "external-dns-public",
             "affinity": {
               "nodeAffinity": {
                 "requiredDuringSchedulingIgnoredDuringExecution": {

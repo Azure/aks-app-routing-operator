@@ -9,12 +9,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
 func main() {
-	nameservers := strings.Split(os.Getenv("NAMESERVERS"), ",")
+	nameserver := os.Getenv("NAMESERVER")
 	rand.Seed(time.Now().Unix())
 
 	dialer := &net.Dialer{Resolver: &net.Resolver{
@@ -22,11 +21,10 @@ func main() {
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: time.Second}
 			var ns string
-			if len(nameservers) > 1 {
-				ns = nameservers[rand.Intn(len(nameservers)-1)]
-				ns = ns[:len(ns)-1] // remove trailing period added for some reason by azure dns
+			if nameserver[:len(nameserver)-1] == "." {
+				ns = nameserver[:len(ns)-1] // remove trailing period added for some reason by azure dns
 			} else {
-				ns = nameservers[0] // no need to remove trailing period if single entry coming from k8s vnet ns server
+				ns = nameserver // no need to remove trailing period if single entry coming from k8s vnet ns server
 			}
 
 			return d.DialContext(ctx, "tcp", ns+":53")

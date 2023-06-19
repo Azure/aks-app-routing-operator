@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/go-autorest/autorest/azure"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,11 +38,26 @@ var (
 	testEnv env.Environment
 )
 
-type testConfig struct {
-	TestNameservers           []string
+type zoneConfig struct {
+	ZoneType                  string
+	NameServer                string
 	CertID, CertVersionlessID string
-	DNSZoneDomain             string
-	PromClientImage           string
+	DNSZoneId                 string
+	Id                        string
+}
+
+var zoneConfigs []*zoneConfig
+
+type testConfig struct {
+	RandomPrefix      string
+	PublicNameservers map[string][]string
+	PrivateNameserver string
+
+	PublicCertIDs, PublicCertVersionlessIDs   map[string]string
+	PrivateCertIDs, PrivateCertVersionlessIDs map[string]string
+
+	PrivateDNSZoneIDs, PublicDNSZoneIDs []string
+	PromClientImage                     string
 }
 
 func TestMain(m *testing.M) {
@@ -52,6 +69,9 @@ func TestMain(m *testing.M) {
 	if err := json.Unmarshal([]byte(rawConf), conf); err != nil {
 		panic(err)
 	}
+
+	// Load zone configs
+	zoneConfigs = generateZoneConfigs(conf)
 
 	promClientImage := strings.TrimSpace(os.Getenv("PROM_CLIENT_IMAGE"))
 	if promClientImage == "" {
@@ -82,117 +102,129 @@ func TestMain(m *testing.M) {
 func TestBasicService(t *testing.T) {
 	t.Parallel()
 
-	var clientDeployment, serverDeployment *appsv1.Deployment
-	var service *corev1.Service
+	genBasicFeature := func(zoneconfig *zoneConfig) features.Feature {
+		var clientDeployment, serverDeployment *appsv1.Deployment
+		var service *corev1.Service
 
-	basicFeature := features.New("basic").
-		Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
-			namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
+		return features.New("basic").
+			Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+				client, err := config.NewClient()
+				if err != nil {
+					t.Fatal(err)
+				}
+				namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
 
-			clientDeployment, serverDeployment, service = generateTestingObjects(t, conf.CertID, namespace)
-			deployObjects(t, ctx, client, []k8s.Object{clientDeployment, serverDeployment, service})
-			return ctx
-		}).
-		Assess("client deployment available", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
+				clientDeployment, serverDeployment, service = generateTestingObjects(t, namespace, zoneconfig.CertID, zoneconfig)
+				deployObjects(t, ctx, client, []k8s.Object{clientDeployment, serverDeployment, service})
+				return ctx
+			}).
+			Assess("client deployment available", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+				client, err := config.NewClient()
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			// Wait for client deployment to be ready
-			if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(5*time.Minute)); err != nil {
-				t.Fatal(err)
-			}
+				// Wait for client deployment to be ready
+				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(8*time.Minute)); err != nil {
+					t.Logf("failed to wait for client deployment %s to be ready: %s", clientDeployment.Name, err)
+					t.Fatal(err)
+				}
 
-			return ctx
-		}).Feature()
+				return ctx
+			}).Feature()
+	}
 
-	testEnv.Test(t, basicFeature)
+	for _, config := range zoneConfigs {
+		testEnv.Test(t, genBasicFeature(config))
+	}
 }
 
 // TestBasicServiceVersionlessCert proves that users can remove the version hash from a Keyvault cert URI.
 func TestBasicServiceVersionlessCert(t *testing.T) {
 	t.Parallel()
 
-	var (
-		clientDeployment, serverDeployment *appsv1.Deployment
-		service                            *corev1.Service
-	)
+	genVersionlessFeature := func(zoneConfig *zoneConfig) features.Feature {
+		var clientDeployment, serverDeployment *appsv1.Deployment
+		var service *corev1.Service
 
-	versionlessFeature := features.New("versionlessCert").
-		Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
-			namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
+		return features.New("versionlessCert").
+			Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+				client, err := config.NewClient()
+				if err != nil {
+					t.Fatal(err)
+				}
+				namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
 
-			clientDeployment, serverDeployment, service = generateTestingObjects(t, conf.CertVersionlessID, namespace)
-			deployObjects(t, ctx, client, []k8s.Object{clientDeployment, serverDeployment, service})
-			return ctx
-		}).
-		Assess("client deployment available", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
+				clientDeployment, serverDeployment, service = generateTestingObjects(t, namespace, zoneConfig.CertVersionlessID, zoneConfig)
+				deployObjects(t, ctx, client, []k8s.Object{clientDeployment, serverDeployment, service})
+				return ctx
+			}).
+			Assess("client deployment available", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+				client, err := config.NewClient()
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			// Wait for client deployment to be ready
-			if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(5*time.Minute)); err != nil {
-				t.Fatal(err)
-			}
+				// Wait for client deployment to be ready
+				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(8*time.Minute)); err != nil {
+					t.Logf("failed to wait for client deployment %s to be ready: %s", clientDeployment.Name, err)
+					t.Fatal(err)
+				}
 
-			return ctx
-		}).Feature()
+				return ctx
+			}).Feature()
+	}
 
-	testEnv.Test(t, versionlessFeature)
+	for _, config := range zoneConfigs {
+		testEnv.Test(t, genVersionlessFeature(config))
+	}
 }
 
 // TestBasicServiceNoOSM is identical to TestBasicService but disables OSM.
 func TestBasicServiceNoOSM(t *testing.T) {
 	t.Parallel()
 
-	var (
-		clientDeployment, svr *appsv1.Deployment
-		svc                   *corev1.Service
-	)
+	genNoOSMFeature := func(zoneConfig *zoneConfig) features.Feature {
+		var clientDeployment, svr *appsv1.Deployment
+		var svc *corev1.Service
 
-	noOSMFeature := features.New("noOSM").
-		Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
-			namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
-			clientDeployment, svr, svc = generateTestingObjects(t, conf.CertID, namespace)
+		return features.New("noOSM").
+			Setup(func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+				client, err := config.NewClient()
+				if err != nil {
+					t.Fatal(err)
+				}
+				namespace := ctx.Value(e2eutil.GetNamespaceKey(t)).(string)
+				clientDeployment, svr, svc = generateTestingObjects(t, namespace, zoneConfig.CertID, zoneConfig)
 
-			// disable OSM
-			svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] = "true"
-			svr.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
+				// disable OSM
+				svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] = "true"
+				svr.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 
-			deployObjects(t, ctx, client, []k8s.Object{clientDeployment, svr, svc})
-			return ctx
-		}).
-		Assess("client deployment available", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
+				deployObjects(t, ctx, client, []k8s.Object{clientDeployment, svr, svc})
+				return ctx
+			}).
+			Assess("client deployment available", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+				client, err := config.NewClient()
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			// Wait for client deployment to be ready
-			if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(5*time.Minute)); err != nil {
-				t.Fatal(err)
-			}
+				// Wait for client deployment to be ready
+				if err := wait.For(conditions.New(client.Resources()).DeploymentConditionMatch(clientDeployment, appsv1.DeploymentAvailable, corev1.ConditionTrue), wait.WithTimeout(8*time.Minute)); err != nil {
+					t.Logf("failed to wait for client deployment %s to be ready: %s", clientDeployment.Name, err)
+					t.Fatal(err)
+				}
 
-			return ctx
-		}).
-		Feature()
+				return ctx
+			}).
+			Feature()
+	}
 
-	testEnv.Test(t, noOSMFeature)
+	for _, config := range zoneConfigs {
+		testEnv.Test(t, genNoOSMFeature(config))
+	}
+
 }
 
 // TestPrometheus proves that users can consume Prometheus metrics emitted by our controllers
@@ -242,11 +274,11 @@ func TestPrometheus(t *testing.T) {
 
 }
 
-func generateTestingObjects(t *testing.T, keyvaultURI, namespace string) (clientDeployment *appsv1.Deployment, serverDeployment *appsv1.Deployment, service *corev1.Service) {
-	hostname := e2eutil.GetHostname(namespace, conf.DNSZoneDomain)
-	clientDeployment = fixtures.NewClientDeployment(t, hostname, conf.TestNameservers, namespace)
-	serverDeployment = fixtures.NewGoDeployment(t, fixtures.Server, namespace)
-	service = fixtures.NewService(fixtures.Server.String(), hostname, keyvaultURI, 8080, namespace)
+func generateTestingObjects(t *testing.T, namespace, keyvaultURI string, config *zoneConfig) (clientDeployment *appsv1.Deployment, serverDeployment *appsv1.Deployment, service *corev1.Service) {
+	hostname := e2eutil.GetHostname(namespace, config.DNSZoneId)
+	clientDeployment = fixtures.NewClientDeployment(t, hostname, config.NameServer, namespace, config.Id)
+	serverDeployment = fixtures.NewGoDeployment(t, fixtures.Server, namespace, config.Id)
+	service = fixtures.NewService(fixtures.Server.String()+config.Id, hostname, keyvaultURI, 8080, namespace)
 
 	return clientDeployment, serverDeployment, service
 }
@@ -257,4 +289,52 @@ func deployObjects(t *testing.T, ctx context.Context, client klient.Client, objs
 			t.Fatal(err)
 		}
 	}
+}
+
+func generateZoneConfigs(conf *testConfig) []*zoneConfig {
+	ret := []*zoneConfig{}
+
+	// generate private zone configs
+	for i, privateZoneId := range conf.PrivateDNSZoneIDs {
+		parsedId, err := azure.ParseResourceID(privateZoneId)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse private zone id: %s", err.Error()))
+		}
+		withoutRandom := strings.Replace(parsedId.ResourceName, fmt.Sprintf("%s-", conf.RandomPrefix), "", 1)
+		certId := conf.PrivateCertIDs[withoutRandom]
+		versionlessCertId := conf.PrivateCertVersionlessIDs[withoutRandom]
+
+		ret = append(ret, &zoneConfig{
+			DNSZoneId:         privateZoneId,
+			ZoneType:          "private",
+			NameServer:        conf.PrivateNameserver,
+			CertID:            certId,
+			CertVersionlessID: versionlessCertId,
+			Id:                fmt.Sprintf("-private-%d", i),
+		})
+	}
+
+	// generate public zone configs
+	for i, publicZoneId := range conf.PublicDNSZoneIDs {
+		parsedId, err := azure.ParseResourceID(publicZoneId)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse private zone id: %s", err.Error()))
+		}
+		withoutRandom := strings.Replace(parsedId.ResourceName, fmt.Sprintf("%s-", conf.RandomPrefix), "", 1)
+
+		publicNameserver := conf.PublicNameservers[withoutRandom][0]
+		certId := conf.PublicCertIDs[withoutRandom]
+		certVersionlessId := conf.PublicCertIDs[withoutRandom]
+
+		ret = append(ret, &zoneConfig{
+			DNSZoneId:         publicZoneId,
+			ZoneType:          "public",
+			NameServer:        publicNameserver,
+			CertID:            certId,
+			CertVersionlessID: certVersionlessId,
+			Id:                fmt.Sprintf("-public-%d", i),
+		})
+	}
+
+	return ret
 }

@@ -34,36 +34,17 @@ variable "clustertype" {
   type = string
 }
 
-variable "dnszonetype" {
-  description = "The type of dns zone to deploy. Can be 'private' or 'public'."
-  type = string
-}
-
-variable "domain" {
-  default = "ingress.dev"
-}
-
 data "azurerm_client_config" "current" {
 }
 
 data "azurerm_subscription" "current" {
 }
 
-
 provider "kubernetes" {
   host                   =  azurerm_kubernetes_cluster.cluster.kube_config.0.host
   client_certificate     =  base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.client_certificate)
   client_key             =  base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.client_key)
   cluster_ca_certificate =  base64decode(azurerm_kubernetes_cluster.cluster.kube_config.0.cluster_ca_certificate)
-}
-
-resource "azurerm_resource_group" "rg" {
-  name     = "app-routing-dev-${random_string.random.result}a"
-  location = var.location
-  tags = {
-    deletion_due_time  = time_static.provisiontime.unix + 36000, // keep resources for 10hr
-    deletion_marked_by = "gc",
-  }
 }
 
 resource "azurerm_container_registry" "acr" {
@@ -82,10 +63,15 @@ resource "azurerm_role_assignment" "acr" {
 
 resource "local_file" "e2econf" {
   content = jsonencode({
-    TestNameservers    = var.dnszonetype == "private" ? [azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip] : azurerm_dns_zone.dnszone[0].name_servers
-    CertID            = azurerm_key_vault_certificate.testcert.id
-    CertVersionlessID = azurerm_key_vault_certificate.testcert.versionless_id
-    DNSZoneDomain     = var.domain
+    PrivateNameserver = length(var.privatezones) > 0 ? azurerm_kubernetes_cluster.cluster.network_profile[0].dns_service_ip : ""
+    RandomPrefix = random_string.random.result
+    PublicNameservers    = length(var.publiczones) > 0 ? {for k, v in azurerm_dns_zone.dnszone : k => v.name_servers}:{}
+    PublicCertIDs           = {for k,v in azurerm_key_vault_certificate.testcert-public : k => v.id}
+    PublicCertVersionlessIDs = {for k,v in azurerm_key_vault_certificate.testcert-public : k => v.versionless_id}
+    PrivateCertIDs           = {for k,v in azurerm_key_vault_certificate.testcert-private : k => v.id}
+    PrivateCertVersionlessIDs = {for k,v in azurerm_key_vault_certificate.testcert-private : k=> v.versionless_id}
+    PrivateDnsZoneIDs = [for k,v in azurerm_private_dns_zone.dnszone: v.id]
+    PublicDnsZoneIDs = [for k,v in azurerm_dns_zone.dnszone: v.id]
   })
   filename = "${path.module}/../state/kustomize/e2e/e2e.json"
 }
@@ -108,10 +94,8 @@ resource "local_file" "addon_deployment_auth_info"{
     ClusterClientId = data.azurerm_user_assigned_identity.clusteridentity.client_id
     ArmTenantId = data.azurerm_client_config.current.tenant_id
     ResourceGroupLocation = azurerm_resource_group.rg.location
-    DnsResourceGroup = azurerm_resource_group.rg.name
-    DnsZoneSubscription = data.azurerm_subscription.current.subscription_id
-    DnsZoneDomain = var.domain
-    PrivateDnsZoneFlag = var.dnszonetype == "private" ? "--dns-zone-private" : ""
+    DnsZones = join(",",concat([for zone in azurerm_private_dns_zone.dnszone : zone.id], [for zone in azurerm_dns_zone.dnszone : zone.id]))
+    ClusterFqdn = var.clustertype == "private" ? azurerm_kubernetes_cluster.cluster.private_fqdn : azurerm_kubernetes_cluster.cluster.fqdn # even though api behavior is different, private cluster's 'fqdn' in tf is a blank string
   })
   filename = "${path.module}/../state/deployment-auth-info.json"
 }

@@ -1,6 +1,6 @@
 # kustomization.yaml
 resources:
-  - private-cluster.yaml
+  - operator.yaml
 
 patches:
   - patch: |-
@@ -10,10 +10,8 @@ patches:
             "--msi", $CLUSTER_CLIENT_ID,
             "--tenant-id", $ARM_CLIENT_TENANT_ID,
             "--location", $RG_LOCATION,
-            "--dns-zone-resource-group", $DNS_ZONE_RG,
-            "--dns-zone-subscription", $DNS_ZONE_SUBSCRIPTION,
-            "--dns-zone-domain", $DNS_ZONE_DOMAIN,
-            $PRIVATE_FLAG
+            "--dns-zone-ids", "$DNS_ZONE_IDS",
+            "--cluster-fqdn", "$CLUSTER_FQDN"
           ]
     target:
       kind: Deployment

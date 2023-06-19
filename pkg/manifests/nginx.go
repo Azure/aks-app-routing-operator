@@ -203,7 +203,7 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
 	isInternal := false
 	hostname := ""
-	if ingressConfig.ServiceConfig != nil {
+	if ingressConfig.ServiceConfig != nil { // this should always be nil prior to dynamic provisioning work
 		isInternal = ingressConfig.ServiceConfig.IsInternal
 		hostname = ingressConfig.ServiceConfig.Hostname
 	}

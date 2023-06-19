@@ -6,14 +6,16 @@ package e2eutil
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/errors"
+
 	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
+	"github.com/Azure/go-autorest/autorest/azure"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"sigs.k8s.io/e2e-framework/pkg/envconf"
@@ -62,8 +64,14 @@ var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, err
 	return ctx, nil
 }
 
-func GetHostname(ns, domain string) string {
-	return strings.ToLower(ns) + "." + domain
+func GetHostname(ns, dnsZoneId string) string {
+	parsedId, err := azure.ParseResourceID(dnsZoneId)
+
+	// this means that our dns zone is bad
+	if err != nil {
+		panic(fmt.Errorf("failed to parse dns zone id: %s", err))
+	}
+	return strings.ToLower(ns) + "." + parsedId.ResourceName
 }
 
 // CreateNSForTest creates a random namespace with the runID as a prefix. It is stored in the context

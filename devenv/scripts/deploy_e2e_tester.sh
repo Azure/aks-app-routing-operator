@@ -40,7 +40,7 @@ echo "exited loop with status $STATUSNOQUOTES"
 FINALSTATUS=$(echo $RESULT | jq ".exitCode")
 
 echo "Test finished, echoing test pod logs..."
-POD_LOGS_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP 'kubectl logs -l app=app-routing-operator-e2e -n kube-system' | tr -d '\n\r' | jq ".logs")
+POD_LOGS_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP 'kubectl logs jobs/app-routing-operator-e2e -n kube-system' | tr -d '\n\r' | jq ".logs")
 echo $POD_LOGS_RESULT
 
 

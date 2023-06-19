@@ -6,14 +6,22 @@ package config
 import (
 	"errors"
 	"flag"
+	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/Azure/go-autorest/autorest/azure"
 )
 
 const (
 	// DefaultNs is the default namespace for the resources deployed by this operator
-	DefaultNs = "app-routing-system"
+	DefaultNs       = "app-routing-system"
+	PublicZoneType  = "dnszones"
+	PrivateZoneType = "privatednszones"
 )
 
 var Flags = &Config{}
+var dnsZonesString string
 
 func init() {
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
@@ -22,11 +30,7 @@ func init() {
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
 	flag.StringVar(&Flags.Cloud, "cloud", "AzurePublicCloud", "azure cloud name")
 	flag.StringVar(&Flags.Location, "location", "", "azure region name")
-	flag.StringVar(&Flags.DNSZoneRG, "dns-zone-resource-group", "", "resource group of the Azure DNS Zone (optional)")
-	flag.StringVar(&Flags.DNSZoneSub, "dns-zone-subscription", "", "subscription ID of the Azure DNS Zone (optional)")
-	flag.StringVar(&Flags.DNSZoneDomain, "dns-zone-domain", "", "domain hostname of the Azure DNS Zone (optional)")
-	flag.StringVar(&Flags.DNSRecordID, "dns-record-id", "aks-app-routing-operator", "string that uniquely identifies DNS records managed by this cluster (optional)")
-	flag.BoolVar(&Flags.DNSZonePrivate, "dns-zone-private", false, "if the user's DNS zone is private")
+	flag.StringVar(&dnsZonesString, "dns-zone-ids", "", "dns zone resource IDs")
 	flag.BoolVar(&Flags.DisableKeyvault, "disable-keyvault", false, "disable the keyvault integration")
 	flag.Float64Var(&Flags.ConcurrencyWatchdogThres, "concurrency-watchdog-threshold", 200, "percentage of concurrent connections above mean required to vote for load shedding")
 	flag.IntVar(&Flags.ConcurrencyWatchdogVotes, "concurrency-watchdog-votes", 4, "number of votes required for a pod to be considered for load shedding")
@@ -35,21 +39,29 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
+	flag.StringVar(&Flags.clusterFqdnString, "cluster-fqdn", "", "fqdn of the cluster the add-on belongs to")
+}
+
+type DnsZoneConfig struct {
+	Subscription  string
+	ResourceGroup string
+	ZoneIds       []string
 }
 
 type Config struct {
-	ServiceAccountTokenPath                           string
-	MetricsAddr, ProbeAddr                            string
-	NS, Registry                                      string
-	DisableKeyvault                                   bool
-	MSIClientID, TenantID                             string
-	Cloud, Location                                   string
-	DNSZoneRG, DNSZoneSub, DNSZoneDomain, DNSRecordID string
-	DNSZonePrivate                                    bool
-	ConcurrencyWatchdogThres                          float64
-	ConcurrencyWatchdogVotes                          int
-	DisableOSM                                        bool
-	OperatorDeployment                                string
+	ServiceAccountTokenPath             string
+	MetricsAddr, ProbeAddr              string
+	NS, Registry                        string
+	DisableKeyvault                     bool
+	MSIClientID, TenantID               string
+	Cloud, Location                     string
+	PrivateZoneConfig, PublicZoneConfig DnsZoneConfig
+	ConcurrencyWatchdogThres            float64
+	ConcurrencyWatchdogVotes            int
+	DisableOSM                          bool
+	OperatorDeployment                  string
+	clusterFqdnString                   string
+	ClusterFqdn                         *url.URL
 }
 
 func (c *Config) Validate() error {
@@ -71,22 +83,82 @@ func (c *Config) Validate() error {
 	if c.Location == "" {
 		return errors.New("--location is required")
 	}
-	if c.DNSZoneRG != "" || c.DNSZoneSub != "" || c.DNSZoneDomain != "" {
-		if c.DNSZoneRG == "" {
-			return errors.New("--dns-zone-resource-group is required")
-		}
-		if c.DNSZoneSub == "" {
-			return errors.New("--dns-zone-subscription is required")
-		}
-		if c.DNSZoneDomain == "" {
-			return errors.New("--dns-zone-domain is required")
-		}
-	}
 	if c.ConcurrencyWatchdogThres <= 100 {
 		return errors.New("--concurrency-watchdog-threshold must be greater than 100")
 	}
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
+
+	if c.clusterFqdnString == "" {
+		return errors.New("--cluster-fqdn is required")
+	}
+	parse, err := url.Parse(c.clusterFqdnString)
+	if err != nil {
+		return fmt.Errorf("failed to parse cluster fqdn: %s", err)
+	}
+	c.ClusterFqdn = parse
+
+	if dnsZonesString != "" {
+		if err := c.ParseAndValidateZoneIDs(dnsZonesString); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
+
+	c.PrivateZoneConfig = DnsZoneConfig{}
+	c.PublicZoneConfig = DnsZoneConfig{}
+
+	DNSZoneIDs := strings.Split(zonesString, ",")
+	for _, zoneId := range DNSZoneIDs {
+		parsedZone, err := azure.ParseResourceID(zoneId)
+		if err != nil {
+			return fmt.Errorf("while parsing dns zone resource ID %s: %s", zoneId, err)
+		}
+
+		if !strings.EqualFold(parsedZone.Provider, "Microsoft.Network") {
+			return fmt.Errorf("invalid resource provider %s from zone %s: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network", parsedZone.Provider, zoneId)
+		}
+
+		switch strings.ToLower(parsedZone.ResourceType) {
+		case PrivateZoneType:
+			// it's a private zone
+			if err := validateSubAndRg(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+				return err
+			}
+
+			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
+			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
+			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+		case PublicZoneType:
+			// it's a public zone
+			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+				return err
+			}
+
+			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
+			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
+			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
+		default:
+			return fmt.Errorf("while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
+		}
+	}
+
+	return nil
+}
+
+func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
+	if subscription != "" && parsedZone.SubscriptionID != subscription {
+		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
+	}
+
+	if resourceGroup != "" && parsedZone.ResourceGroup != resourceGroup {
+		return fmt.Errorf("while parsing resource IDs for %s: detected multiple resource groups %s and %s", parsedZone.ResourceType, parsedZone.ResourceGroup, resourceGroup)
+	}
+
 	return nil
 }

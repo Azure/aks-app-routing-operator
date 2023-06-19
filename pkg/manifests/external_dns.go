@@ -4,46 +4,68 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"path"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/Azure/go-autorest/autorest/to"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	provider        = "azure"
-	privateProvider = "azure-private-dns"
+	replicas                = 1
+	K8sNameKey              = "app.kubernetes.io/name"
+	ExternalDnsResourceName = "external-dns"
+	PrivateSuffix           = "-private"
+	PublicSuffix            = "-public"
 )
+
+type Provider int
+
+const (
+	PublicProvider = iota
+	PrivateProvider
+)
+
+func (p Provider) String() string {
+	switch p {
+	case PublicProvider:
+		return "azure"
+	case PrivateProvider:
+		return "azure-private-dns"
+	default:
+		return ""
+	}
+}
 
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
-	ResourceName                                            string
-	TenantId, Subscription, ResourceGroup, Domain, RecordId string
-	IsPrivate                                               bool
+	TenantId, Subscription, ResourceName, ResourceGroup string
+	Provider                                            Provider
+	DnsZoneResourceIDs                                  []string
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
-func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfig *ExternalDnsConfig) []client.Object {
-	objs := []client.Object{}
+func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
+	var objs []client.Object
 
 	// Can safely assume the namespace exists if using kube-system
 	if conf.NS != "kube-system" {
 		objs = append(objs, namespace(conf))
 	}
 
-	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
-	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
-	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
-
-	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
-	objs = append(objs, dnsCm)
-	objs = append(objs, newExternalDNSDeployment(conf, dnsCmHash, externalDnsConfig))
+	for _, dnsConfig := range externalDnsConfigs {
+		objs = append(objs, externalDnsResourcesFromConfig(conf, dnsConfig)...)
+	}
 
 	owners := getOwnerRefs(self)
 	for _, obj := range objs {
@@ -53,28 +75,54 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 	return objs
 }
 
-func newExternalDNSServiceAccount(conf *config.Config, dnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
+func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
+	var objs []client.Object
+
+	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
+	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
+	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
+
+	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
+	objs = append(objs, dnsCm)
+
+	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
+
+	return objs
+}
+
+// will be used as part of external dns cleanup
+func addDnsTypeLabel(originalLabels map[string]string, resourceName string) map[string]string {
+	ret := map[string]string{}
+	for k, v := range originalLabels {
+		ret[k] = v
+	}
+	ret[K8sNameKey] = resourceName
+
+	return ret
+}
+
+func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dnsConfig.ResourceName,
+			Name:      externalDnsConfig.ResourceName,
 			Namespace: conf.NS,
 			Labels:    topLevelLabels,
 		},
 	}
 }
 
-func newExternalDNSClusterRole(conf *config.Config, dnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
+func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   dnsConfig.ResourceName,
+			Name:   externalDnsConfig.ResourceName,
 			Labels: topLevelLabels,
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -97,24 +145,24 @@ func newExternalDNSClusterRole(conf *config.Config, dnsConfig *ExternalDnsConfig
 	}
 }
 
-func newExternalDNSClusterRoleBinding(conf *config.Config, dnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
+func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRoleBinding",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   dnsConfig.ResourceName,
+			Name:   externalDnsConfig.ResourceName,
 			Labels: topLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     dnsConfig.ResourceName,
+			Name:     externalDnsConfig.ResourceName,
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
-			Name:      dnsConfig.ResourceName,
+			Name:      externalDnsConfig.ResourceName,
 			Namespace: conf.NS,
 		}},
 	}
@@ -150,12 +198,15 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployment(conf *config.Config, configMapHash string, externalDnsConfig *ExternalDnsConfig) *appsv1.Deployment {
-	replicas := int32(1)
+func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string) *appsv1.Deployment {
+	domainFilters := []string{}
 
-	provider := provider
-	if externalDnsConfig.IsPrivate {
-		provider = privateProvider
+	for _, zoneId := range externalDnsConfig.DnsZoneResourceIDs {
+		parsedZone, err := azure.ParseResourceID(zoneId)
+		if err != nil {
+			continue
+		}
+		domainFilters = append(domainFilters, fmt.Sprintf("--domain-filter=%s", parsedZone.ResourceName))
 	}
 
 	return &appsv1.Deployment{
@@ -169,7 +220,7 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string, externa
 			Labels:    topLevelLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas:             &replicas,
+			Replicas:             to.Int32Ptr(replicas),
 			RevisionHistoryLimit: util.Int32Ptr(2),
 			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.ResourceName}},
 			Template: corev1.PodTemplateSpec{
@@ -184,13 +235,12 @@ func newExternalDNSDeployment(conf *config.Config, configMapHash string, externa
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
-						Args: []string{
-							"--provider=" + provider,
+						Args: append([]string{
+							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
 							"--interval=3m0s",
-							"--txt-owner-id=" + externalDnsConfig.RecordId,
-							"--domain-filter=" + externalDnsConfig.Domain,
-						},
+							"--txt-owner-id=" + conf.ClusterFqdn.String(),
+						}, domainFilters...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",

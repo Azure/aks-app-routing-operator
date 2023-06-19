@@ -196,11 +196,8 @@
           "app.kubernetes.io/component": "ingress-controller"
         },
         "annotations": {
-          "external-dns.alpha.kubernetes.io/hostname": "loadbalancer.test.hostname.com",
-          "external-dns.alpha.kubernetes.io/internal-hostname": "clusterip.test.hostname.com",
           "prometheus.io/port": "10254",
-          "prometheus.io/scrape": "true",
-          "service.beta.kubernetes.io/azure-load-balancer-internal": "true"
+          "prometheus.io/scrape": "true"
         },
         "ownerReferences": [
           {

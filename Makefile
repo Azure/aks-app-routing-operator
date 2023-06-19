@@ -1,8 +1,7 @@
 .PHONY: clean dev push push-tester-image e2e run-e2e
 
-# both can have values of "public" or "private"
+# can have values of "public" or "private"
 CLUSTER_TYPE="public"
-DNS_ZONE_TYPE="public"
 
 # keep separate for simultaneous public/private dev without need for resource recreation
 clean:
@@ -10,7 +9,7 @@ clean:
 
 dev:
 	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)" -var="dnszonetype=$(DNS_ZONE_TYPE)"
+	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
 	./devenv/scripts/deploy_operator.sh
 
 push:
