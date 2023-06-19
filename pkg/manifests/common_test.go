@@ -19,7 +19,7 @@ var (
 		Name   string
 		Config *config.Config
 	}{
-		{Name: "Namespace", Config: &config.Config{
+		{Name: "namespace", Config: &config.Config{
 			NS: "test-namespace",
 		}},
 		{
