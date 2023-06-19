@@ -136,7 +136,7 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
 		case PublicZoneType:
 			// it's a public zone
-			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PublicZoneConfig.ResourceGroup); err != nil {
 				return err
 			}
 
