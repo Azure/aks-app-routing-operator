@@ -455,7 +455,7 @@
               "args": [
                 "--source=ingress",
                 "--interval=3m0s",
-                "--txt-owner-id=test-fqdn.com",
+                "--txt-owner-id=testcluster-ba5ec521.hcp.eastus.azmk8s.io",
                 "--domain-filter=test-dns-zone-domain",
                 "--provider=azure-private-dns",
                 "--azure-subscription-id=test-dns-zone-sub"

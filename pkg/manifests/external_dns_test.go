@@ -19,7 +19,7 @@ var (
 	privateZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-four.com"
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
-	fqdn, _ = url.Parse("test-fqdn.com")
+	fqdn, _ = url.Parse("testcluster-ba5ec521.hcp.eastus.azmk8s.io")
 
 	publicDnsConfig = &ExternalDnsConfig{
 		ResourceName:       "external-dns-public",
