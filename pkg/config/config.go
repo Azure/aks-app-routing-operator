@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -39,7 +38,7 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
-	flag.StringVar(&Flags.clusterFqdnString, "cluster-fqdn", "", "fqdn of the cluster the add-on belongs to")
+	flag.StringVar(&Flags.CCPId, "ccp-id", "", "ccp ID of the cluster the add-on belongs to")
 }
 
 type DnsZoneConfig struct {
@@ -60,8 +59,7 @@ type Config struct {
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
 	OperatorDeployment                  string
-	clusterFqdnString                   string
-	ClusterFqdn                         *url.URL
+	CCPId                               string
 }
 
 func (c *Config) Validate() error {
@@ -90,14 +88,9 @@ func (c *Config) Validate() error {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
 
-	if c.clusterFqdnString == "" {
-		return errors.New("--cluster-fqdn is required")
+	if c.CCPId == "" {
+		return errors.New("--ccp-id is required")
 	}
-	parse, err := url.Parse(c.clusterFqdnString)
-	if err != nil {
-		return fmt.Errorf("failed to parse cluster fqdn: %s", err)
-	}
-	c.ClusterFqdn = parse
 
 	if dnsZonesString != "" {
 		if err := c.ParseAndValidateZoneIDs(dnsZonesString); err != nil {
