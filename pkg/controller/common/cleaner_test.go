@@ -96,6 +96,41 @@ func TestCleanerIntegration(t *testing.T) {
 					Version:  "v1",
 					Resource: "services",
 				}, "", metav1.ListOptions{LabelSelector: labels.String()}),
+				k8stesting.NewListAction(
+					schema.GroupVersionResource{
+						Group:    "core",
+						Version:  "v1",
+						Resource: "services",
+					}, schema.GroupVersionKind{
+						Group:   "core",
+						Version: "v1",
+						Kind:    "Service",
+					},
+					"",
+					metav1.ListOptions{LabelSelector: labels.String()}),
+			},
+			schemeFn: func() *runtime.Scheme {
+				return runtime.NewScheme()
+			},
+		},
+		{
+			name: "multiple resources with collections",
+			objs: []testingObj{
+				TestingObj("core", "v1", "Pod", "object1", "pods", labels),
+				TestingObj("core", "v1", "Deployment", "object2", "deployments", labels),
+			},
+			reactors: []reactors{},
+			actions: []k8stesting.Action{
+				k8stesting.NewDeleteCollectionAction(schema.GroupVersionResource{
+					Group:    "core",
+					Version:  "v1",
+					Resource: "pods",
+				}, "", metav1.ListOptions{LabelSelector: labels.String()}),
+				k8stesting.NewDeleteCollectionAction(schema.GroupVersionResource{
+					Group:    "core",
+					Version:  "v1",
+					Resource: "pods",
+				}, "", metav1.ListOptions{LabelSelector: labels.String()}),
 			},
 			schemeFn: func() *runtime.Scheme {
 				return runtime.NewScheme()

@@ -112,7 +112,7 @@ func (c *cleaner) Clean(ctx context.Context) error {
 
 			// what if it's not namespaceable?
 			err = client.Namespace(o.GetNamespace()).Delete(ctx, o.GetName(), metav1.DeleteOptions{})
-			if err != nil {
+			if err != nil && !errors.IsNotFound(err) { // handles race condition of resource being deleted between list and delete
 				return fmt.Errorf("deleting object %s in %s: %w", o.GetName(), o.GetNamespace(), err)
 			}
 
