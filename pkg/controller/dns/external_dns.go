@@ -20,8 +20,8 @@ func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 	return common.NewResourceReconciler(manager, "externalDnsReconciler", resources, reconcileInterval)
 }
 
-func addExternalDnsCleaner(manager ctrl.Manager, toClean []client.Object) error {
-	return nil
+func addExternalDnsCleaner(manager ctrl.Manager, toClean []client.Object, labels map[string]string) error {
+	return common.NewCleaner(manager, "externalDnsCleaner", common.GvrRetrieverFromObjs(toClean), labels)
 }
 
 // NewExternalDns starts all resources required for external dns
@@ -60,13 +60,22 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 	}
 
 	res := manifests.ExternalDnsResources(conf, self, needed)
-	cleanRes := manifests.ExternalDnsResources(conf, self, toClean)
-
 	if err := addExternalDnsReconciler(manager, res); err != nil {
 		return err
 	}
 
-	if err := addExternalDnsCleaner(manager, cleanRes); err != nil {
+	cleanRes := manifests.ExternalDnsResources(conf, self, toClean)
+	cleanLabels := map[string]string{}
+	for k, v := range manifests.TopLevelLabels {
+		cleanLabels[k] = v
+	}
+	for _, c := range toClean {
+		for k, v := range c.Provider.Labels() {
+			cleanLabels[k] = v
+		}
+	}
+
+	if err := addExternalDnsCleaner(manager, cleanRes, cleanLabels); err != nil {
 		return err
 	}
 

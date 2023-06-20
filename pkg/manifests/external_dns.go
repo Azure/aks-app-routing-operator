@@ -56,6 +56,13 @@ func (p Provider) ResourceName() string {
 	}
 }
 
+func (p Provider) Labels() map[string]string {
+	labels := map[string]string{
+		K8sNameKey: p.ResourceName(),
+	}
+	return labels
+}
+
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
 	TenantId, Subscription, ResourceGroup string
@@ -81,26 +88,26 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 		obj.SetOwnerReferences(owners)
 	}
 
-	for _, obj := range objs {
-		l := obj.GetLabels()
-		l[K8sNameKey] = ExternalDnsResourceName
-		obj.SetLabels(l)
-	}
-
 	return objs
 }
 
 func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
 	var objs []client.Object
-
 	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
 
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
 	objs = append(objs, dnsCm)
-
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
+
+	for _, obj := range objs {
+		l := obj.GetLabels()
+		for k, v := range externalDnsConfig.Provider.Labels() {
+			l[k] = v
+		}
+		obj.SetLabels(l)
+	}
 
 	return objs
 }
@@ -114,7 +121,7 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDnsConfig.Provider.ResourceName(),
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    TopLevelLabels,
 		},
 	}
 }
@@ -127,7 +134,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   externalDnsConfig.Provider.ResourceName(),
-			Labels: topLevelLabels,
+			Labels: TopLevelLabels,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -157,7 +164,7 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   externalDnsConfig.Provider.ResourceName(),
-			Labels: topLevelLabels,
+			Labels: TopLevelLabels,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -194,7 +201,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDnsConfig.Provider.ResourceName(),
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    TopLevelLabels,
 		},
 		Data: map[string]string{
 			"azure.json": string(js),
@@ -221,7 +228,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDnsConfig.Provider.ResourceName(),
 			Namespace: conf.NS,
-			Labels:    topLevelLabels,
+			Labels:    TopLevelLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas:             to.Int32Ptr(replicas),

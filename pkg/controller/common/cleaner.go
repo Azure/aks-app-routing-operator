@@ -19,25 +19,25 @@ import (
 )
 
 type cleaner struct {
-	name       string
-	dynamic    dynamic.Interface
-	logger     logr.Logger
-	types      []schema.GroupVersionResource // types of resources that will be cleaned
-	labels     labels.Set                    // labels that the cleanup objects are required to have
-	maxRetries int
+	name         string
+	client       client.Client
+	dynamic      dynamic.Interface
+	logger       logr.Logger
+	gvrRetriever gvrRetriever // gets the types of resources that will be cleaned
+	labels       labels.Set   // labels that the cleanup objects are required to have
+	maxRetries   int
 }
 
-// this should just be a generic thing that's passed information from a queue?
+type gvrRetriever func(client client.Client) ([]schema.GroupVersionResource, error) // we use a getter function because manager client isn't usable until manager starts
 
-func Gvrs(client client.Client, obj client.Object) ([]schema.GroupVersionResource, error) {
+func gvrs(client client.Client, obj client.Object) ([]schema.GroupVersionResource, error) {
 	gvk := obj.GetObjectKind().GroupVersionKind()
-	// how do we do this with the client? client isn't initialized until manager starts?
-	mappings, err := client.RESTMapper().RESTMappings(gvk.GroupKind())
+
+	mappings, err := client.RESTMapper().RESTMappings(gvk.GroupKind()) // retrieve all mappings because versions might be auto updated (by conversion webhooks)
 	if err != nil {
 		return nil, fmt.Errorf("getting rest mappings for %s: %w", gvk.String(), err)
 	}
 
-	// TODO: there's got to be a better way of doing this?
 	var gvrs []schema.GroupVersionResource
 	for _, mapping := range mappings {
 		gvrs = append(gvrs, mapping.Resource)
@@ -46,7 +46,25 @@ func Gvrs(client client.Client, obj client.Object) ([]schema.GroupVersionResourc
 	return gvrs, nil
 }
 
-func NewCleaner(manager ctrl.Manager, name string, types []schema.GroupVersionResource, lbs map[string]string) error {
+// GvrRetrieverFromObjs retrieves a list of group version resources based on supplied object types
+func GvrRetrieverFromObjs(objs []client.Object) gvrRetriever {
+	return func(client client.Client) ([]schema.GroupVersionResource, error) {
+		var ret []schema.GroupVersionResource
+		for _, obj := range objs {
+			gvrs, err := gvrs(client, obj)
+			if err != nil {
+				return nil, err
+			}
+
+			ret = append(ret, gvrs...)
+		}
+
+		return ret, nil
+	}
+}
+
+// NewCleaner creates a cleaner that attempts to delete resources with the labels specified and of the types returned by gvrRetriever
+func NewCleaner(manager ctrl.Manager, name string, gvrRetriever gvrRetriever, lbs map[string]string) error {
 	// TODO: we should use the manager client for caching purposes if possible?
 	d, err := dynamic.NewForConfig(manager.GetConfig())
 	if err != nil {
@@ -54,12 +72,13 @@ func NewCleaner(manager ctrl.Manager, name string, types []schema.GroupVersionRe
 	}
 
 	c := &cleaner{
-		name:       name,
-		dynamic:    d,
-		logger:     manager.GetLogger().WithName(name),
-		types:      types,
-		labels:     labels.Set(lbs),
-		maxRetries: 2,
+		name:         name,
+		client:       manager.GetClient(),
+		dynamic:      d,
+		logger:       manager.GetLogger().WithName(name),
+		gvrRetriever: gvrRetriever,
+		labels:       labels.Set(lbs),
+		maxRetries:   2,
 	}
 	return manager.Add(c)
 }
@@ -91,7 +110,12 @@ func (c *cleaner) Start(ctx context.Context) error {
 }
 
 func (c *cleaner) Clean(ctx context.Context) error {
-	for _, t := range c.types {
+	types, err := c.gvrRetriever(c.client)
+	if err != nil {
+		return fmt.Errorf("retrieving gvr types: %w", err)
+	}
+
+	for _, t := range types {
 		selector, err := c.labels.AsValidatedSelector()
 		if err != nil {
 			return fmt.Errorf("validating label selector: %w", err)
