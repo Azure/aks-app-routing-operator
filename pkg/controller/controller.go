@@ -16,6 +16,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2/klogr"
@@ -27,8 +29,19 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
+var (
+	scheme = runtime.NewScheme()
+)
+
 func init() {
 	ctrl.SetLogger(klogr.New())
+	registerSchemes(scheme)
+}
+
+func registerSchemes(s *runtime.Scheme) {
+	utilruntime.Must(secv1.Install(s))
+	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
+	utilruntime.Must(policyv1alpha1.AddToScheme(s))
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
@@ -46,13 +59,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElectionID:        "aks-app-routing-operator-leader",
 		MetricsBindAddress:      conf.MetricsAddr,
 		HealthProbeBindAddress:  conf.ProbeAddr,
+		Scheme:                  scheme,
 	})
 	if err != nil {
 		return nil, err
 	}
-	secv1.Install(m.GetScheme())
-	cfgv1alpha2.AddToScheme(m.GetScheme())
-	policyv1alpha1.AddToScheme(m.GetScheme())
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 

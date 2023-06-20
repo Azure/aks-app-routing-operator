@@ -72,6 +72,12 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 		obj.SetOwnerReferences(owners)
 	}
 
+	for _, obj := range objs {
+		l := obj.GetLabels()
+		l[K8sNameKey] = ExternalDnsResourceName
+		obj.SetLabels(l)
+	}
+
 	return objs
 }
 
@@ -88,17 +94,6 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
 
 	return objs
-}
-
-// will be used as part of external dns cleanup
-func addDnsTypeLabel(originalLabels map[string]string, resourceName string) map[string]string {
-	ret := map[string]string{}
-	for k, v := range originalLabels {
-		ret[k] = v
-	}
-	ret[K8sNameKey] = resourceName
-
-	return ret
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
