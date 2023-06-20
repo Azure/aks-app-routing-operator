@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type cleaner struct {
@@ -27,6 +28,23 @@ type cleaner struct {
 }
 
 // this should just be a generic thing that's passed information from a queue?
+
+func Gvrs(client client.Client, obj client.Object) ([]schema.GroupVersionResource, error) {
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	// how do we do this with the client? client isn't initialized until manager starts?
+	mappings, err := client.RESTMapper().RESTMappings(gvk.GroupKind())
+	if err != nil {
+		return nil, fmt.Errorf("getting rest mappings for %s: %w", gvk.String(), err)
+	}
+
+	// TODO: there's got to be a better way of doing this?
+	var gvrs []schema.GroupVersionResource
+	for _, mapping := range mappings {
+		gvrs = append(gvrs, mapping.Resource)
+	}
+
+	return gvrs, nil
+}
 
 func NewCleaner(manager ctrl.Manager, name string, types []schema.GroupVersionResource, lbs map[string]string) error {
 	// TODO: we should use the manager client for caching purposes if possible?
@@ -111,6 +129,7 @@ func (c *cleaner) Clean(ctx context.Context) error {
 			}
 
 			// what if it's not namespaceable?
+			// todo: decide if it's namespaceable
 			err = client.Namespace(o.GetNamespace()).Delete(ctx, o.GetName(), metav1.DeleteOptions{})
 			if err != nil && !errors.IsNotFound(err) { // handles race condition of resource being deleted between list and delete
 				return fmt.Errorf("deleting object %s in %s: %w", o.GetName(), o.GetNamespace(), err)
