@@ -27,17 +27,18 @@ func groupVersionResource(client client.Client, obj client.Object) schema.GroupV
 	return mapping.Resource
 }
 
-func TestCleanerEmptyTypes(t *testing.T) {
+func TestCleanerEmptyRetriever(t *testing.T) {
 	d := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 
 	c := &cleaner{
-		name:    "test-name",
-		dynamic: d,
-		logger:  logr.Discard(),
-		types:   nil,
-		labels:  nil,
+		name:         "test-name",
+		dynamic:      d,
+		logger:       logr.Discard(),
+		gvrRetriever: nil,
+		labels:       nil,
 	}
-	require.NoError(t, c.Clean(context.Background()))
+	require.NoError(t, c.Start(context.Background()))
+	require.NotNil(t, c.Clean(context.Background()))
 }
 
 func TestCleanerEmptyLabels(t *testing.T) {
@@ -47,14 +48,15 @@ func TestCleanerEmptyLabels(t *testing.T) {
 		name:    "test-name",
 		dynamic: d,
 		logger:  logr.Discard(),
-		types: []schema.GroupVersionResource{
-			{
-				Group:    "apps",
-				Version:  "v1",
-				Resource: "namespace",
-			},
-		},
-	}
+		gvrRetriever: func(client client.Client) ([]schema.GroupVersionResource, error) {
+			return []schema.GroupVersionResource{
+				{
+					Group:    "apps",
+					Version:  "v1",
+					Resource: "namespace",
+				}}, nil
+
+		}}
 	require.NoError(t, c.Clean(context.Background()))
 }
 
@@ -154,8 +156,10 @@ func TestCleanerIntegration(t *testing.T) {
 			name:    "test-name",
 			dynamic: d,
 			logger:  logr.Discard(),
-			types:   gvrs,
-			labels:  labels,
+			gvrRetriever: func(_ client.Client) ([]schema.GroupVersionResource, error) {
+				return gvrs, nil
+			},
+			labels: labels,
 		}
 		require.NoError(t, c.Start(context.Background()))
 

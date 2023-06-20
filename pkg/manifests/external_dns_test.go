@@ -22,7 +22,6 @@ var (
 	fqdn, _ = url.Parse("testcluster-ba5ec521.hcp.eastus.azmk8s.io")
 
 	publicDnsConfig = &ExternalDnsConfig{
-		ResourceName:       "external-dns-public",
 		TenantId:           "test-tenant-id",
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-public",
@@ -31,7 +30,6 @@ var (
 	}
 
 	privateDnsConfig = &ExternalDnsConfig{
-		ResourceName:       "external-dns-private",
 		TenantId:           "test-tenant-id",
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-private",

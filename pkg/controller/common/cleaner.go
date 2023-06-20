@@ -2,12 +2,13 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
 
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -110,6 +111,10 @@ func (c *cleaner) Start(ctx context.Context) error {
 }
 
 func (c *cleaner) Clean(ctx context.Context) error {
+	if c.gvrRetriever == nil {
+		return errors.New("gvrRetriever is nil")
+	}
+
 	types, err := c.gvrRetriever(c.client)
 	if err != nil {
 		return fmt.Errorf("retrieving gvr types: %w", err)
@@ -128,14 +133,14 @@ func (c *cleaner) Clean(ctx context.Context) error {
 		// does this work? delete collection doesn't work on all types
 		// need to detect if it can delete collection
 
-		// don't want to delete namespaces
+		// TODO: don't want to delete namespaces
 
 		client := c.dynamic.Resource(t)
 		err = client.DeleteCollection(ctx, metav1.DeleteOptions{}, listOpt)
 		if err == nil {
 			continue
 		}
-		if !errors.IsMethodNotSupported(err) {
+		if !k8serrors.IsMethodNotSupported(err) {
 			return fmt.Errorf("deleting collection %s", t.String())
 		}
 
@@ -155,7 +160,7 @@ func (c *cleaner) Clean(ctx context.Context) error {
 			// what if it's not namespaceable?
 			// todo: decide if it's namespaceable
 			err = client.Namespace(o.GetNamespace()).Delete(ctx, o.GetName(), metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) { // handles race condition of resource being deleted between list and delete
+			if err != nil && !k8serrors.IsNotFound(err) { // handles race condition of resource being deleted between list and delete
 				return fmt.Errorf("deleting object %s in %s: %w", o.GetName(), o.GetNamespace(), err)
 			}
 
