@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	replicas                = 1
-	K8sNameKey              = "app.kubernetes.io/name"
-	ExternalDnsResourceName = "external-dns"
+	replicas                = 1 // this must stay at 1 unless external-dns adds support for multiple replicas https://github.com/kubernetes-sigs/external-dns/issues/2430
+	k8sNameKey              = "app.kubernetes.io/name"
+	externalDnsResourceName = "external-dns"
 )
 
 type Provider int
@@ -48,9 +48,9 @@ func (p Provider) String() string {
 func (p Provider) ResourceName() string {
 	switch p {
 	case PublicProvider:
-		return ExternalDnsResourceName
+		return externalDnsResourceName
 	case PrivateProvider:
-		return ExternalDnsResourceName + "-private"
+		return externalDnsResourceName + "-private"
 	default:
 		return ""
 	}
@@ -58,7 +58,7 @@ func (p Provider) ResourceName() string {
 
 func (p Provider) Labels() map[string]string {
 	labels := map[string]string{
-		K8sNameKey: p.ResourceName(),
+		k8sNameKey: p.ResourceName(),
 	}
 	return labels
 }
