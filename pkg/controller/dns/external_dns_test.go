@@ -68,7 +68,6 @@ var (
 	}
 )
 
-// TODO: add tests for cleanup names
 func TestGenerateZoneConfigs_PublicOnly(t *testing.T) {
 	zoneConfigs, _ := generateZoneConfigs(publicConfig)
 

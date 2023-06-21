@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -22,6 +24,7 @@ import (
 type cleaner struct {
 	name         string
 	client       client.Client
+	clientset    kubernetes.Interface
 	dynamic      dynamic.Interface
 	logger       logr.Logger
 	gvrRetriever gvrRetriever // gets the types of resources that will be cleaned
@@ -64,6 +67,45 @@ func GvrRetrieverFromObjs(objs []client.Object) gvrRetriever {
 	}
 }
 
+// RemoveGk removes group kinds from retrieved types
+func (g gvrRetriever) RemoveGk(gks ...schema.GroupKind) gvrRetriever {
+	return func(client client.Client) ([]schema.GroupVersionResource, error) {
+		gvrs, err := g(client)
+		if err != nil {
+			return nil, err
+		}
+
+		var filters []schema.GroupVersionResource
+		for _, gk := range gks {
+			mappings, err := client.RESTMapper().RESTMappings(gk)
+			if err != nil {
+				return nil, fmt.Errorf("getting rest mappings for %s: %w", gk.String(), err)
+			}
+
+			for _, mapping := range mappings {
+				filters = append(filters, mapping.Resource)
+			}
+		}
+
+		var ok []schema.GroupVersionResource
+		for _, gvr := range gvrs {
+			filtered := false
+			for _, filter := range filters {
+				if reflect.DeepEqual(filter, gvr) {
+					filtered = true
+					break
+				}
+			}
+
+			if !filtered {
+				ok = append(ok, gvr)
+			}
+		}
+
+		return ok, nil
+	}
+}
+
 // NewCleaner creates a cleaner that attempts to delete resources with the labels specified and of the types returned by gvrRetriever
 func NewCleaner(manager ctrl.Manager, name string, gvrRetriever gvrRetriever, lbs map[string]string) error {
 	// TODO: we should use the manager client for caching purposes if possible?
@@ -72,11 +114,17 @@ func NewCleaner(manager ctrl.Manager, name string, gvrRetriever gvrRetriever, lb
 		return fmt.Errorf("creating dynamic client: %w", err)
 	}
 
+	cs, err := kubernetes.NewForConfig(manager.GetConfig())
+	if err != nil {
+		return fmt.Errorf("creating clientset: %w", err)
+	}
+
 	c := &cleaner{
 		name:         name,
 		client:       manager.GetClient(),
 		dynamic:      d,
 		logger:       manager.GetLogger().WithName(name),
+		clientset:    cs,
 		gvrRetriever: gvrRetriever,
 		labels:       labels.Set(lbs),
 		maxRetries:   2,
@@ -134,9 +182,10 @@ func (c *cleaner) Clean(ctx context.Context) error {
 		// need to detect if it can delete collection
 
 		// TODO: don't want to delete namespaces
+		c.logger.Info("cleaning type", "type", t.String(), "labels", c.labels.AsSelectorPreValidated().String())
 
-		client := c.dynamic.Resource(t)
-		err = client.DeleteCollection(ctx, metav1.DeleteOptions{}, listOpt)
+		dclient := c.dynamic.Resource(t)
+		err = dclient.DeleteCollection(ctx, metav1.DeleteOptions{}, listOpt)
 		if err == nil {
 			continue
 		}
@@ -144,9 +193,9 @@ func (c *cleaner) Clean(ctx context.Context) error {
 			return fmt.Errorf("deleting collection %s", t.String())
 		}
 
-		// delete collection is not supported for some types like services
-		// so we list then delete one by one
-		list, err := client.List(ctx, listOpt)
+		// delete collection is not supported for some types.
+		// instead we list then delete one by one
+		list, err := dclient.List(ctx, listOpt)
 		if err != nil {
 			return fmt.Errorf("listing %s", t.String())
 		}
@@ -158,9 +207,26 @@ func (c *cleaner) Clean(ctx context.Context) error {
 			}
 
 			// what if it's not namespaceable?
-			// todo: decide if it's namespaceable
-			err = client.Namespace(o.GetNamespace()).Delete(ctx, o.GetName(), metav1.DeleteOptions{})
-			if err != nil && !k8serrors.IsNotFound(err) { // handles race condition of resource being deleted between list and delete
+			res, err := c.clientset.Discovery().ServerResourcesForGroupVersion(t.String())
+			if err != nil {
+				return fmt.Errorf("getting server resources for group version")
+			}
+
+			namespaced := false
+			for _, r := range res.APIResources {
+				if r.Name == t.Resource {
+					namespaced = r.Namespaced
+					break
+				}
+			}
+
+			var nsClient dynamic.ResourceInterface = dclient
+			if namespaced {
+				nsClient = dclient.Namespace(o.GetNamespace())
+			}
+
+			err = nsClient.Delete(ctx, o.GetName(), metav1.DeleteOptions{})
+			if err != nil && !k8serrors.IsNotFound(err) {
 				return fmt.Errorf("deleting object %s in %s: %w", o.GetName(), o.GetNamespace(), err)
 			}
 

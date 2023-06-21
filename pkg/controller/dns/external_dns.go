@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -21,7 +22,10 @@ func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 }
 
 func addExternalDnsCleaner(manager ctrl.Manager, toClean []client.Object, labels map[string]string) error {
-	return common.NewCleaner(manager, "externalDnsCleaner", common.GvrRetrieverFromObjs(toClean), labels)
+	return common.NewCleaner(manager, "externalDnsCleaner", common.GvrRetrieverFromObjs(toClean).RemoveGk(schema.GroupKind{
+		Group: "v1",
+		Kind:  "Namespace",
+	}), labels)
 }
 
 // NewExternalDns starts all resources required for external dns
