@@ -30,7 +30,7 @@ const (
 type Provider int
 
 const (
-	PublicProvider = iota
+	PublicProvider Provider = iota
 	PrivateProvider
 )
 

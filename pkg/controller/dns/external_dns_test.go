@@ -302,3 +302,48 @@ func TestGetResources(t *testing.T) {
 	require.Equal(t, empty, getResources(nil), "failed to handle nil instances")
 	require.Equal(t, empty, getResources([]instance{}), "failed to handle empty instances")
 }
+
+func TestGetLabels(t *testing.T) {
+	tests := []struct {
+		name      string
+		instances []instance
+		expected  map[string]string
+	}{
+		{
+			name:      "always returns top level",
+			instances: []instance{},
+			expected:  manifests.TopLevelLabels,
+		},
+		{
+			name:      "top level and private",
+			instances: filterAction(instances(&onlyPrivZones, self), deploy),
+			expected:  merge(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+		},
+		{
+			name:      "top level and public",
+			instances: filterAction(instances(&onlyPubZones, self), deploy),
+			expected:  merge(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+		},
+		{
+			name:      "all labels",
+			instances: instances(&allZones, self),
+			expected:  merge(manifests.TopLevelLabels, manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
+		},
+	}
+
+	for _, test := range tests {
+		got := getLabels(test.instances)
+		require.Equal(t, test.expected, got, "expected labels do not match got")
+	}
+}
+
+func merge(maps ...map[string]string) map[string]string {
+	ret := map[string]string{}
+	for _, m := range maps {
+		for k, v := range m {
+			ret[k] = v
+		}
+	}
+
+	return ret
+}
