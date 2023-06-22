@@ -55,8 +55,91 @@ var (
 	self *appsv1.Deployment = nil
 )
 
-func TestInstances(t *testing.T) {
+func TestPublicConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     *config.Config
+		expected *manifests.ExternalDnsConfig
+	}{
+		{
+			name: "all zones config",
+			conf: &allZones,
+			expected: &manifests.ExternalDnsConfig{
+				TenantId:           allZones.TenantID,
+				Subscription:       allZones.PublicZoneConfig.Subscription,
+				ResourceGroup:      allZones.PublicZoneConfig.ResourceGroup,
+				Provider:           manifests.PublicProvider,
+				DnsZoneResourceIDs: allZones.PublicZoneConfig.ZoneIds,
+			},
+		},
+		{
+			name: "ony private config",
+			conf: &onlyPrivZones,
+			expected: &manifests.ExternalDnsConfig{
+				TenantId:           onlyPrivZones.TenantID,
+				Subscription:       onlyPrivZones.PublicZoneConfig.Subscription,
+				ResourceGroup:      onlyPrivZones.PublicZoneConfig.ResourceGroup,
+				Provider:           manifests.PublicProvider,
+				DnsZoneResourceIDs: onlyPrivZones.PublicZoneConfig.ZoneIds,
+			},
+		},
+	}
 
+	for _, test := range tests {
+		got := *publicConfig(test.conf)
+		if !reflect.DeepEqual(got, *test.expected) {
+			t.Error(
+				"For", test.name,
+				"got", got,
+				"expected", *test.expected,
+			)
+		}
+	}
+}
+
+func TestPrivateConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     *config.Config
+		expected *manifests.ExternalDnsConfig
+	}{
+		{
+			name: "all zones config",
+			conf: &allZones,
+			expected: &manifests.ExternalDnsConfig{
+				TenantId:           allZones.TenantID,
+				Subscription:       allZones.PrivateZoneConfig.Subscription,
+				ResourceGroup:      allZones.PrivateZoneConfig.ResourceGroup,
+				Provider:           manifests.PrivateProvider,
+				DnsZoneResourceIDs: allZones.PrivateZoneConfig.ZoneIds,
+			},
+		},
+		{
+			name: "ony private config",
+			conf: &onlyPrivZones,
+			expected: &manifests.ExternalDnsConfig{
+				TenantId:           onlyPrivZones.TenantID,
+				Subscription:       onlyPrivZones.PrivateZoneConfig.Subscription,
+				ResourceGroup:      onlyPrivZones.PrivateZoneConfig.ResourceGroup,
+				Provider:           manifests.PrivateProvider,
+				DnsZoneResourceIDs: onlyPrivZones.PrivateZoneConfig.ZoneIds,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		got := *privateConfig(test.conf)
+		if !reflect.DeepEqual(got, *test.expected) {
+			t.Error(
+				"For", test.name,
+				"got", got,
+				"expected", *test.expected,
+			)
+		}
+	}
+}
+
+func TestInstances(t *testing.T) {
 	tests := []struct {
 		name     string
 		conf     *config.Config
