@@ -7,7 +7,9 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -284,4 +286,19 @@ func TestFilterAction(t *testing.T) {
 		}
 	}
 
+}
+
+func TestGetResources(t *testing.T) {
+	instances := instances(&noZones, self)
+	got := getResources(instances)
+	var expected []client.Object
+	for _, instance := range instances {
+		expected = append(expected, instance.resources...)
+	}
+	require.Equal(t, expected, got, "expected is not equal to got")
+	require.True(t, len(got) != 0, "got is not empty")
+
+	var empty []client.Object
+	require.Equal(t, empty, getResources(nil), "failed to handle nil instances")
+	require.Equal(t, empty, getResources([]instance{}), "failed to handle empty instances")
 }
