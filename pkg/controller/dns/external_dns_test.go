@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -317,33 +318,70 @@ func TestGetLabels(t *testing.T) {
 		{
 			name:      "top level and private",
 			instances: filterAction(instances(&onlyPrivZones, self), deploy),
-			expected:  merge(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+			expected:  util.MergeMaps(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
 		},
 		{
 			name:      "top level and public",
 			instances: filterAction(instances(&onlyPubZones, self), deploy),
-			expected:  merge(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+			expected:  util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
 		},
 		{
 			name:      "all labels",
 			instances: instances(&allZones, self),
-			expected:  merge(manifests.TopLevelLabels, manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
+			expected:  util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
 		},
 	}
 
 	for _, test := range tests {
-		got := getLabels(test.instances)
+		got := getLabels(test.instances...)
 		require.Equal(t, test.expected, got, "expected labels do not match got")
 	}
 }
 
-func merge(maps ...map[string]string) map[string]string {
-	ret := map[string]string{}
-	for _, m := range maps {
-		for k, v := range m {
-			ret[k] = v
-		}
+func TestCleanObjs(t *testing.T) {
+	tests := []struct {
+		name      string
+		instances []instance
+		expected  []cleanObj
+	}{
+		{
+			name:      "private dns clean",
+			instances: instances(&onlyPubZones, self),
+			expected: []cleanObj{{
+				resources: instances(&onlyPubZones, self)[1].resources,
+				labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+			}},
+		},
+		{
+			name:      "public dns clean",
+			instances: instances(&onlyPrivZones, self),
+			expected: []cleanObj{{
+				resources: instances(&onlyPrivZones, self)[0].resources,
+				labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+			}},
+		},
+		{
+			name:      "all dns clean",
+			instances: instances(&noZones, self),
+			expected: []cleanObj{
+				{
+					resources: instances(&noZones, self)[0].resources,
+					labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+				},
+				{
+					resources: instances(&noZones, self)[1].resources,
+					labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+				}},
+		},
+		{
+			name:      "no dns clean",
+			instances: instances(&allZones, self),
+			expected:  []cleanObj(nil),
+		},
 	}
 
-	return ret
+	for _, test := range tests {
+		got := cleanObjs(test.instances)
+		require.Equal(t, test.expected, got)
+	}
 }
