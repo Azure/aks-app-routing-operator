@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +28,18 @@ const (
 	externalDnsResourceName = "external-dns"
 )
 
+var (
+	// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
+	// If the manifests used by app routing's external dns removes a GroupKind be sure to add
+	// it here to clean it up
+	OldExternalDnsGks []schema.GroupKind
+)
+
 type Provider int
+
+var (
+	Providers = []Provider{PublicProvider, PrivateProvider}
+)
 
 const (
 	PublicProvider Provider = iota

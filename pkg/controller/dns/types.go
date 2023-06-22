@@ -17,3 +17,8 @@ const (
 	deploy action = iota
 	clean
 )
+
+type cleanObj struct {
+	resources []client.Object
+	labels    map[string]string
+}

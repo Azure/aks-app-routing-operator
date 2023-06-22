@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -21,11 +22,27 @@ func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 	return common.NewResourceReconciler(manager, "externalDnsReconciler", resources, reconcileInterval)
 }
 
-func addExternalDnsCleaner(manager ctrl.Manager, toClean []client.Object, labels map[string]string) error {
-	return common.NewCleaner(manager, "externalDnsCleaner", common.GvrRetrieverFromObjs(toClean).RemoveGk(schema.GroupKind{
-		Group: "v1",
-		Kind:  "Namespace",
-	}), labels)
+func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
+	retriever := common.RetrieverEmpty()
+	for _, obj := range objs {
+		retriever = retriever.Add(common.RetrieverFromObjs(obj.resources, obj.labels)) // clean up entire unused external dns applications
+	}
+	for _, provider := range manifests.Providers {
+		labels := util.MergeMaps(provider.Labels(), manifests.TopLevelLabels)
+		retriever = retriever.Add(common.RetrieverFromGk(labels, manifests.OldExternalDnsGks...)) // clean up unused types from previous versions of app routing
+	}
+
+	retriever = retriever.Remove(common.RetrieverFromGk(
+		nil, // our compare strat is ignore labels
+		schema.GroupKind{
+			Group: "v1",
+			Kind:  "Namespace",
+		}),
+		common.RemoveOpt{
+			CompareStrat: common.IgnoreLabels, // ignore labels, we never want to clean namespaces
+		})
+
+	return common.NewCleaner(manager, "externalDnsCleaner", retriever)
 }
 
 // NewExternalDns starts all resources required for external dns
@@ -38,19 +55,8 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		return err
 	}
 
-	cleanInstances := filterAction(instances, clean)
-	cleanRes := getResources(cleanInstances)
-	cleanLabels := getLabels(cleanInstances)
-	for k, v := range manifests.TopLevelLabels {
-		cleanLabels[k] = v
-	}
-	for _, c := range cleanInstances {
-		for k, v := range c.config.Provider.Labels() {
-			cleanLabels[k] = v
-		}
-	}
-
-	if err := addExternalDnsCleaner(manager, cleanRes, cleanLabels); err != nil {
+	cleanObjs := cleanObjs(instances)
+	if err := addExternalDnsCleaner(manager, cleanObjs); err != nil {
 		return err
 	}
 
@@ -127,7 +133,7 @@ func getResources(instances []instance) []client.Object {
 	return ret
 }
 
-func getLabels(instances []instance) map[string]string {
+func getLabels(instances ...instance) map[string]string {
 	l := map[string]string{}
 	for k, v := range manifests.TopLevelLabels {
 		l[k] = v
@@ -140,4 +146,19 @@ func getLabels(instances []instance) map[string]string {
 	}
 
 	return l
+}
+
+func cleanObjs(instances []instance) []cleanObj {
+	var cleanObjs []cleanObj
+	for _, instance := range instances {
+		if instance.action == clean {
+			obj := cleanObj{
+				resources: instance.resources,
+				labels:    getLabels(instance),
+			}
+			cleanObjs = append(cleanObjs, obj)
+		}
+	}
+
+	return cleanObjs
 }

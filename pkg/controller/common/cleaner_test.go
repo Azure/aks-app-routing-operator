@@ -19,6 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// TODO: test that all actions use the label filter
+
 func groupVersionResource(client client.Client, obj client.Object) schema.GroupVersionResource {
 	gvk := obj.GetObjectKind().GroupVersionKind()
 	gk := schema.GroupKind{Group: gvk.Group, Kind: gvk.Kind}
@@ -31,11 +33,11 @@ func TestCleanerEmptyRetriever(t *testing.T) {
 	d := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 
 	c := &cleaner{
-		name:         "test-name",
-		dynamic:      d,
-		logger:       logr.Discard(),
-		gvrRetriever: nil,
-		labels:       nil,
+		name:      "test-name",
+		dynamic:   d,
+		logger:    logr.Discard(),
+		retriever: nil,
+		labels:    nil,
 	}
 	require.NoError(t, c.Start(context.Background()))
 	require.NotNil(t, c.Clean(context.Background()))
@@ -48,7 +50,7 @@ func TestCleanerEmptyLabels(t *testing.T) {
 		name:    "test-name",
 		dynamic: d,
 		logger:  logr.Discard(),
-		gvrRetriever: func(client client.Client) ([]schema.GroupVersionResource, error) {
+		retriever: func(client client.Client) ([]schema.GroupVersionResource, error) {
 			return []schema.GroupVersionResource{
 				{
 					Group:    "apps",
@@ -156,7 +158,7 @@ func TestCleanerIntegration(t *testing.T) {
 			name:    "test-name",
 			dynamic: d,
 			logger:  logr.Discard(),
-			gvrRetriever: func(_ client.Client) ([]schema.GroupVersionResource, error) {
+			retriever: func(_ client.Client) ([]schema.GroupVersionResource, error) {
 				return gvrs, nil
 			},
 			labels: labels,
@@ -166,7 +168,7 @@ func TestCleanerIntegration(t *testing.T) {
 		// we can't check if objects are actually deleted because delete collection isn't implemented by fakestore
 		// https://github.com/kubernetes/client-go/issues/609
 		// https://github.com/kubernetes/kubernetes/issues/105357
-		// we have to compare to actions instead
+		// we have to CompareStrategy to actions instead
 		for _, action := range test.actions {
 			AssertAction(t, d.Actions(), action)
 		}
