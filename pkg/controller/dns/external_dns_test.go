@@ -222,3 +222,66 @@ func TestInstances(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterAction(t *testing.T) {
+	allClean := instances(&noZones, self)
+	allDeploy := instances(&allZones, self)
+	oneDeployOneClean := instances(&onlyPrivZones, self)
+
+	tests := []struct {
+		name      string
+		instances []instance
+		action    action
+		expected  []instance
+	}{
+		{
+			name:      "all clean returns all",
+			instances: allClean,
+			action:    clean,
+			expected:  allClean,
+		},
+		{
+			name:      "all clean returns none",
+			instances: allClean,
+			action:    deploy,
+			expected:  []instance{},
+		},
+		{
+			name:      "all deploy returns all",
+			instances: allDeploy,
+			action:    deploy,
+			expected:  allDeploy,
+		},
+		{
+			name:      "all deploy returns none",
+			instances: allDeploy,
+			action:    clean,
+			expected:  []instance{},
+		},
+		{
+			name:      "one deploy one clean returns one deploy",
+			instances: oneDeployOneClean,
+			action:    deploy,
+			expected:  []instance{oneDeployOneClean[1]},
+		},
+		{
+			name:      "one deploy one clean returns one clean",
+			instances: oneDeployOneClean,
+			action:    clean,
+			expected:  []instance{oneDeployOneClean[0]},
+		},
+	}
+
+	for _, test := range tests {
+		got := filterAction(test.instances, test.action)
+		if !reflect.DeepEqual(got, test.expected) &&
+			(len(got) != 0 && len(test.expected) != 0) {
+			t.Error(
+				"For", test.name,
+				"got", got,
+				"expected", test.expected,
+			)
+		}
+	}
+
+}
