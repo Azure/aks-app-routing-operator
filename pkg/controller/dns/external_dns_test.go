@@ -1,111 +1,141 @@
 package dns
 
 import (
-	"strings"
+	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 )
 
 var (
-	privateZoneOne = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-one.com"
-	privateZoneTwo = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
-	privateZones   = []string{privateZoneOne, privateZoneTwo}
+	fqdn, _ = url.Parse("fqdn.com")
 
-	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-one.com"
-	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-two.com"
-	publicZones   = []string{publicZoneOne, publicZoneTwo}
-
-	zones = strings.Join(append(privateZones, publicZones...), ",")
-
-	publicConfig = &config.Config{
-		NS:              "test-ns",
-		DisableKeyvault: false,
-		PrivateZoneConfig: config.DnsZoneConfig{
-			ZoneIds:       nil,
-			Subscription:  "",
-			ResourceGroup: "",
-		},
+	noZones = config.Config{
+		ClusterFqdn:       fqdn,
+		PrivateZoneConfig: config.DnsZoneConfig{},
+		PublicZoneConfig:  config.DnsZoneConfig{},
+	}
+	onlyPubZones = config.Config{
+		ClusterFqdn:       fqdn,
+		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig: config.DnsZoneConfig{
-			ZoneIds:       publicZones,
-			Subscription:  "test-public-subscription",
-			ResourceGroup: "test-public-rg",
+			Subscription:  "subscription",
+			ResourceGroup: "resourcegroup",
+			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com"},
 		},
 	}
-	privateConfig = &config.Config{
-		NS:              "test-ns",
-		DisableKeyvault: false,
+	onlyPrivZones = config.Config{
+		ClusterFqdn:      fqdn,
+		PublicZoneConfig: config.DnsZoneConfig{},
 		PrivateZoneConfig: config.DnsZoneConfig{
-			ZoneIds:       privateZones,
-			Subscription:  "test-private-subscription",
-			ResourceGroup: "test-private-rg",
-		},
-		PublicZoneConfig: config.DnsZoneConfig{
-			ZoneIds:       nil,
-			Subscription:  "",
-			ResourceGroup: "",
+			Subscription:  "subscription",
+			ResourceGroup: "resourcegroup",
+			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com"},
 		},
 	}
-	fullConfig = &config.Config{
-		NS:              "test-ns",
-		DisableKeyvault: false,
-		PrivateZoneConfig: config.DnsZoneConfig{
-			ZoneIds:       privateZones,
-			Subscription:  "test-private-subscription",
-			ResourceGroup: "test-private-rg",
-		},
+	allZones = config.Config{
+		ClusterFqdn: fqdn,
 		PublicZoneConfig: config.DnsZoneConfig{
-			ZoneIds:       publicZones,
-			Subscription:  "test-public-subscription",
-			ResourceGroup: "test-public-rg",
+			Subscription:  "subscription",
+			ResourceGroup: "resourcegroup",
+			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com"},
 		},
-	}
-	zoneless = &config.Config{
-		NS:              "test-ns",
-		DisableKeyvault: false,
+		PrivateZoneConfig: config.DnsZoneConfig{
+			Subscription:  "subscription",
+			ResourceGroup: "resourcegroup",
+			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com"},
+		},
 	}
 )
 
-func TestGenerateZoneConfigs_PublicOnly(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(publicConfig)
+var (
+	self *appsv1.Deployment = nil
+)
 
-	require.Equal(t, 1, len(zoneConfigs))
-	require.Equal(t, publicConfig.PublicZoneConfig.ZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
-	require.Equal(t, manifests.Provider(manifests.PublicProvider), zoneConfigs[0].Provider)
-	require.Equal(t, publicConfig.PublicZoneConfig.Subscription, zoneConfigs[0].Subscription)
-}
+func TestInstances(t *testing.T) {
 
-func TestGenerateZoneConfigs_PrivateOnly(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(privateConfig)
+	tests := []struct {
+		name     string
+		conf     *config.Config
+		expected []instance
+	}{
+		{
+			name: "all clean",
+			conf: &noZones,
+			expected: []instance{
+				{
+					config:    publicConfig(&noZones),
+					resources: manifests.ExternalDnsResources(&noZones, self, []*manifests.ExternalDnsConfig{publicConfig(&noZones)}),
+					action:    clean,
+				},
+				{
+					config:    privateConfig(&noZones),
+					resources: manifests.ExternalDnsResources(&noZones, self, []*manifests.ExternalDnsConfig{privateConfig(&noZones)}),
+					action:    clean,
+				},
+			},
+		},
+		{
+			name: "private deploy",
+			conf: &onlyPrivZones,
+			expected: []instance{
+				{
+					config:    publicConfig(&onlyPrivZones),
+					resources: manifests.ExternalDnsResources(&onlyPrivZones, self, []*manifests.ExternalDnsConfig{publicConfig(&onlyPrivZones)}),
+					action:    clean,
+				},
+				{
+					config:    privateConfig(&onlyPrivZones),
+					resources: manifests.ExternalDnsResources(&onlyPrivZones, self, []*manifests.ExternalDnsConfig{privateConfig(&onlyPrivZones)}),
+					action:    deploy,
+				},
+			},
+		},
+		{
+			name: "public deploy",
+			conf: &onlyPubZones,
+			expected: []instance{
+				{
+					config:    publicConfig(&onlyPubZones),
+					resources: manifests.ExternalDnsResources(&onlyPubZones, self, []*manifests.ExternalDnsConfig{publicConfig(&onlyPubZones)}),
+					action:    deploy,
+				},
+				{
+					config:    privateConfig(&onlyPubZones),
+					resources: manifests.ExternalDnsResources(&onlyPubZones, self, []*manifests.ExternalDnsConfig{privateConfig(&onlyPubZones)}),
+					action:    clean,
+				},
+			},
+		},
+		{
+			name: "all deploy",
+			conf: &allZones,
+			expected: []instance{
+				{
+					config:    publicConfig(&allZones),
+					resources: manifests.ExternalDnsResources(&allZones, self, []*manifests.ExternalDnsConfig{publicConfig(&allZones)}),
+					action:    deploy,
+				},
+				{
+					config:    privateConfig(&allZones),
+					resources: manifests.ExternalDnsResources(&allZones, self, []*manifests.ExternalDnsConfig{privateConfig(&allZones)}),
+					action:    deploy,
+				},
+			},
+		},
+	}
 
-	require.Equal(t, 1, len(zoneConfigs))
-	require.Equal(t, privateConfig.PrivateZoneConfig.ZoneIds, zoneConfigs[0].DnsZoneResourceIDs)
-	require.Equal(t, manifests.Provider(manifests.PrivateProvider), zoneConfigs[0].Provider)
-	require.Equal(t, privateConfig.PrivateZoneConfig.Subscription, zoneConfigs[0].Subscription)
-}
-
-func TestGenerateZoneConfigs_All(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(fullConfig)
-
-	require.Equal(t, len(zoneConfigs), 2)
-
-	prConfig := zoneConfigs[0]
-	pbConfig := zoneConfigs[1]
-
-	require.Equal(t, fullConfig.PrivateZoneConfig.ZoneIds, prConfig.DnsZoneResourceIDs)
-	require.Equal(t, fullConfig.PublicZoneConfig.ZoneIds, pbConfig.DnsZoneResourceIDs)
-
-	require.Equal(t, manifests.Provider(manifests.PrivateProvider), prConfig.Provider)
-	require.Equal(t, manifests.Provider(manifests.PublicProvider), pbConfig.Provider)
-
-	require.Equal(t, fullConfig.PrivateZoneConfig.Subscription, prConfig.Subscription)
-	require.Equal(t, fullConfig.PublicZoneConfig.Subscription, pbConfig.Subscription)
-
-}
-
-func TestGenerateZoneConfigs_zoneless(t *testing.T) {
-	zoneConfigs, _ := generateZoneConfigs(zoneless)
-	require.Equal(t, len(zoneConfigs), 0)
+	for _, test := range tests {
+		instances := instances(test.conf, self)
+		if !reflect.DeepEqual(instances, test.expected) {
+			t.Error(
+				"For", test.name,
+				"expected", test.expected,
+				"got", instances,
+			)
+		}
+	}
 }

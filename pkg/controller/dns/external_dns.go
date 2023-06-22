@@ -30,51 +30,22 @@ func addExternalDnsCleaner(manager ctrl.Manager, toClean []client.Object, labels
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Deployment) error {
-	if len(conf.PublicZoneConfig.ZoneIds) == 0 && len(conf.PrivateZoneConfig.ZoneIds) == 0 {
-		return nil
-	}
+	instances := instances(conf, self)
 
-	var needed []*manifests.ExternalDnsConfig
-	var toClean []*manifests.ExternalDnsConfig
-
-	publicConfig := &manifests.ExternalDnsConfig{
-		TenantId:           conf.TenantID,
-		Subscription:       conf.PublicZoneConfig.Subscription,
-		ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
-		Provider:           manifests.PublicProvider,
-		DnsZoneResourceIDs: conf.PublicZoneConfig.ZoneIds,
-	}
-	if len(conf.PublicZoneConfig.ZoneIds) > 0 {
-		needed = append(needed, publicConfig)
-	} else {
-		toClean = append(toClean, publicConfig)
-	}
-
-	privateConfig := &manifests.ExternalDnsConfig{
-		TenantId:           conf.TenantID,
-		Subscription:       conf.PrivateZoneConfig.Subscription,
-		ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
-		Provider:           manifests.PrivateProvider,
-		DnsZoneResourceIDs: conf.PrivateZoneConfig.ZoneIds,
-	}
-	if len(conf.PrivateZoneConfig.ZoneIds) > 0 {
-		needed = append(needed, privateConfig)
-	} else {
-		toClean = append(toClean, privateConfig)
-	}
-
-	res := manifests.ExternalDnsResources(conf, self, needed)
-	if err := addExternalDnsReconciler(manager, res); err != nil {
+	deployInstances := filterAction(instances, deploy)
+	deployRes := getResources(deployInstances)
+	if err := addExternalDnsReconciler(manager, deployRes); err != nil {
 		return err
 	}
 
-	cleanRes := manifests.ExternalDnsResources(conf, self, toClean)
-	cleanLabels := map[string]string{}
+	cleanInstances := filterAction(instances, clean)
+	cleanRes := getResources(cleanInstances)
+	cleanLabels := getLabels(cleanInstances)
 	for k, v := range manifests.TopLevelLabels {
 		cleanLabels[k] = v
 	}
-	for _, c := range toClean {
-		for k, v := range c.Provider.Labels() {
+	for _, c := range cleanInstances {
+		for k, v := range c.config.Provider.Labels() {
 			cleanLabels[k] = v
 		}
 	}
@@ -84,4 +55,89 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 	}
 
 	return nil
+}
+
+func instances(conf *config.Config, self *appsv1.Deployment) []instance {
+	// public
+	publicConfig := publicConfig(conf)
+	publicAction := deploy
+	if len(conf.PublicZoneConfig.ZoneIds) == 0 {
+		publicAction = clean
+	}
+	publicResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{publicConfig})
+
+	// private
+	privateConfig := privateConfig(conf)
+	privateAction := deploy
+	if len(conf.PrivateZoneConfig.ZoneIds) == 0 {
+		privateAction = clean
+	}
+	privateResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{privateConfig})
+
+	return []instance{
+		{
+			config:    publicConfig,
+			resources: publicResources,
+			action:    publicAction,
+		},
+		{
+			config:    privateConfig,
+			resources: privateResources,
+			action:    privateAction,
+		},
+	}
+}
+
+func publicConfig(conf *config.Config) *manifests.ExternalDnsConfig {
+	return &manifests.ExternalDnsConfig{
+		TenantId:           conf.TenantID,
+		Subscription:       conf.PublicZoneConfig.Subscription,
+		ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
+		Provider:           manifests.PublicProvider,
+		DnsZoneResourceIDs: conf.PublicZoneConfig.ZoneIds,
+	}
+}
+
+func privateConfig(conf *config.Config) *manifests.ExternalDnsConfig {
+	return &manifests.ExternalDnsConfig{
+		TenantId:           conf.TenantID,
+		Subscription:       conf.PrivateZoneConfig.Subscription,
+		ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
+		Provider:           manifests.PrivateProvider,
+		DnsZoneResourceIDs: conf.PrivateZoneConfig.ZoneIds,
+	}
+}
+
+func filterAction(instances []instance, action action) []instance {
+	var ret []instance
+	for _, i := range instances {
+		if i.action == action {
+			ret = append(ret, i)
+		}
+	}
+
+	return ret
+}
+
+func getResources(instances []instance) []client.Object {
+	var ret []client.Object
+	for _, i := range instances {
+		ret = append(ret, i.resources...)
+	}
+	return ret
+}
+
+func getLabels(instances []instance) map[string]string {
+	l := map[string]string{}
+	for k, v := range manifests.TopLevelLabels {
+		l[k] = v
+	}
+
+	for _, i := range instances {
+		for k, v := range i.config.Provider.Labels() {
+			l[k] = v
+		}
+	}
+
+	return l
 }
