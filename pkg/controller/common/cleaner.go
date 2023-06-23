@@ -18,11 +18,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 type cleaner struct {
 	name       string
 	client     client.Client
+	mapper     meta.RESTMapper
 	clientset  kubernetes.Interface
 	dynamic    dynamic.Interface
 	logger     logr.Logger
@@ -43,8 +45,14 @@ func NewCleaner(manager ctrl.Manager, name string, gvrRetriever CleanTypeRetriev
 		return fmt.Errorf("creating clientset: %w", err)
 	}
 
+	mapper, err := apiutil.NewDynamicRESTMapper(manager.GetConfig(), apiutil.WithLazyDiscovery)
+	if err != nil {
+		return fmt.Errorf("creating dynamic rest mapper: %w", err)
+	}
+
 	c := &cleaner{
 		name:       name,
+		mapper:     mapper,
 		client:     manager.GetClient(),
 		dynamic:    d,
 		logger:     manager.GetLogger().WithName(name),
@@ -86,7 +94,7 @@ func (c *cleaner) Clean(ctx context.Context) error {
 		return errors.New("CleanTypeRetriever is nil")
 	}
 
-	types, err := c.retriever(c.client)
+	types, err := c.retriever(c.mapper)
 	if err != nil {
 		return fmt.Errorf("retrieving gvr types: %w", err)
 	}

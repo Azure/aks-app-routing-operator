@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -14,7 +15,7 @@ type cleanType struct {
 }
 
 // CleanTypeRetriever returns types and labels for the cleaner to remove
-type CleanTypeRetriever func(client client.Client) ([]cleanType, error) // getter function because manager client isn't usable until manager starts
+type CleanTypeRetriever func(mapper meta.RESTMapper) ([]cleanType, error) // getter function because manager client isn't usable until manager starts
 
 type RemoveOpt struct {
 	CompareStrat CompareStrategy
@@ -27,8 +28,9 @@ const (
 	IgnoreLabels                        // ignore labels when comparing
 )
 
-func gvrsFromGK(client client.Client, gk schema.GroupKind) ([]schema.GroupVersionResource, error) {
-	mappings, err := client.RESTMapper().RESTMappings(gk) // retrieve all mappings because versions might be auto updated (by conversion webhooks)
+func gvrsFromGk(mapper meta.RESTMapper, gk schema.GroupKind) ([]schema.GroupVersionResource, error) {
+	// get potential group version resource for group kind
+	mappings, err := mapper.RESTMappings(gk) // retrieve all mappings because versions might be auto updated (by conversion webhooks)
 	if err != nil {
 		return nil, fmt.Errorf("getting rest mappings for %s: %w", gk.String(), err)
 	}
@@ -54,10 +56,10 @@ func addLabels(gvrs []schema.GroupVersionResource, labels map[string]string) []c
 
 // RetrieverFromObjs retrieves a list of group version resources based on supplied object types
 func RetrieverFromObjs(objs []client.Object, labels map[string]string) CleanTypeRetriever {
-	return func(client client.Client) ([]cleanType, error) {
+	return func(mapper meta.RESTMapper) ([]cleanType, error) {
 		var ret []schema.GroupVersionResource
 		for _, obj := range objs {
-			gvrs, err := gvrsFromGK(client, obj.GetObjectKind().GroupVersionKind().GroupKind())
+			gvrs, err := gvrsFromGk(mapper, obj.GetObjectKind().GroupVersionKind().GroupKind())
 			if err != nil {
 				return nil, err
 			}
@@ -71,10 +73,10 @@ func RetrieverFromObjs(objs []client.Object, labels map[string]string) CleanType
 
 // RetrieverFromGk retrieves a list of group version resources based on group kinds
 func RetrieverFromGk(labels map[string]string, gks ...schema.GroupKind) CleanTypeRetriever {
-	return func(client client.Client) ([]cleanType, error) {
+	return func(mapper meta.RESTMapper) ([]cleanType, error) {
 		var gvrs []schema.GroupVersionResource
 		for _, gk := range gks {
-			new, err := gvrsFromGK(client, gk)
+			new, err := gvrsFromGk(mapper, gk)
 			if err != nil {
 				return nil, fmt.Errorf("getting gvrs for %s: %w", gk.String(), err)
 			}
@@ -88,19 +90,19 @@ func RetrieverFromGk(labels map[string]string, gks ...schema.GroupKind) CleanTyp
 
 // RetrieverEmpty is commonly used to start a chain of retriever functions
 func RetrieverEmpty() CleanTypeRetriever {
-	return func(_ client.Client) ([]cleanType, error) {
+	return func(_ meta.RESTMapper) ([]cleanType, error) {
 		return make([]cleanType, 0), nil
 	}
 }
 
 func (g CleanTypeRetriever) Add(retriever CleanTypeRetriever) CleanTypeRetriever {
-	return func(client client.Client) ([]cleanType, error) {
-		old, err := g(client)
+	return func(mapper meta.RESTMapper) ([]cleanType, error) {
+		old, err := g(mapper)
 		if err != nil {
 			return nil, err
 		}
 
-		add, err := retriever(client)
+		add, err := retriever(mapper)
 		if err != nil {
 			return nil, err
 		}
@@ -110,13 +112,13 @@ func (g CleanTypeRetriever) Add(retriever CleanTypeRetriever) CleanTypeRetriever
 }
 
 func (g CleanTypeRetriever) Remove(retriever CleanTypeRetriever, opt RemoveOpt) CleanTypeRetriever {
-	return func(client client.Client) ([]cleanType, error) {
-		existing, err := g(client)
+	return func(mapper meta.RESTMapper) ([]cleanType, error) {
+		existing, err := g(mapper)
 		if err != nil {
 			return nil, err
 		}
 
-		filters, err := retriever(client)
+		filters, err := retriever(mapper)
 		if err != nil {
 			return nil, err
 		}

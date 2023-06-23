@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,6 +40,7 @@ func init() {
 }
 
 func registerSchemes(s *runtime.Scheme) {
+	utilruntime.Must(clientgoscheme.AddToScheme(s))
 	utilruntime.Must(secv1.Install(s))
 	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))

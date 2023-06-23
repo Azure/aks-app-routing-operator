@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,7 @@ func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
 	retriever = retriever.Remove(common.RetrieverFromGk(
 		nil, // our compare strat is ignore labels
 		schema.GroupKind{
-			Group: "v1",
+			Group: corev1.GroupName,
 			Kind:  "Namespace",
 		}),
 		common.RemoveOpt{
