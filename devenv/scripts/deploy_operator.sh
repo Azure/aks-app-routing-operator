@@ -8,7 +8,7 @@ export CLUSTER_CLIENT_ID=$(cat devenv/state/deployment-auth-info.json | jq '.Clu
 export ARM_CLIENT_TENANT_ID=$(cat devenv/state/deployment-auth-info.json | jq '.ArmTenantId' | tr -d '"')
 export RG_LOCATION=$(cat devenv/state/deployment-auth-info.json | jq '.ResourceGroupLocation' | tr -d '"')
 export DNS_ZONE_IDS=$(cat devenv/state/deployment-auth-info.json | jq '.DnsZones' | tr -d '"')
-export CLUSTER_FQDN=$(cat devenv/state/deployment-auth-info.json | jq '.ClusterFqdn' | tr -d '"')
+export CLUSTER_UID=$(cat devenv/state/deployment-auth-info.json | jq '.ClusterUid' | tr -d '"')
 
 # move into state before envsubst
 mkdir -p devenv/state/kustomize/operator-deployment

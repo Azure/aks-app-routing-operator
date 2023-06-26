@@ -18,17 +18,17 @@ DELETE_APPLY_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP "kubectl 
 cd ../.. # go back to root as working dir
 
 # wait until cluster has reached terminated status, keep checking until terminated result is not null
-RESULT="null"
-while [ "$RESULT" = "null" ]
+NUM_ACTIVE="1"
+while [ "$NUM_ACTIVE" = "1" ]
 do
   # use az cli to get status from pod JSON
-  STATUS=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP 'kubectl get pods --selector=app=app-routing-operator-e2e --output="jsonpath={.items[0].status.containerStatuses[?(@.name==\"tester\")].state}" -n kube-system' | jq ".logs" | tr -d '\\' )
+  STATUS=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP 'kubectl get jobs --selector=app=app-routing-operator-e2e --output="jsonpath={.items[0].status}" -n kube-system' | jq ".logs" | tr -d '\\' )
 
   # remove quotes at prefix and suffix from output to be able to use jquery
   STATUSNOQUOTES=${STATUS#"\""}
   STATUSNOQUOTES=${STATUSNOQUOTES%"\""}
 
-  RESULT=$(echo $STATUSNOQUOTES | jq '.terminated')
+  NUM_ACTIVE=$(echo $STATUSNOQUOTES | jq '.active')
   echo "test status is currently $STATUSNOQUOTES"
 
   sleep 5
@@ -37,18 +37,18 @@ done
 
 echo "exited loop with status $STATUSNOQUOTES"
 
-FINALSTATUS=$(echo $RESULT | jq ".exitCode")
+SUCCEEDED=$(echo $STATUSNOQUOTES | jq ".succeeded")
 
 echo "Test finished, echoing test pod logs..."
 POD_LOGS_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP 'kubectl logs jobs/app-routing-operator-e2e -n kube-system' | tr -d '\n\r' | jq ".logs")
 echo $POD_LOGS_RESULT
 
 
-if [[ $FINALSTATUS == "0" ]]
+if [[ $SUCCEEDED == "1" ]]
 then
   echo "TEST PASSED"
   exit 0
 fi
 
-echo "TEST FAILED"
+echo "TEST FAILED WITH STATUS $STATUSNOQUOTES"
 exit 1

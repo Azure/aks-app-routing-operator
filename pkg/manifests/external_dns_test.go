@@ -1,7 +1,6 @@
 package manifests
 
 import (
-	"net/url"
 	"path"
 	"testing"
 
@@ -19,7 +18,7 @@ var (
 	privateZoneTwo = "/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-four.com"
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
-	fqdn, _ = url.Parse("testcluster-ba5ec521.hcp.eastus.azmk8s.io")
+	clusterUid = "test-cluster-uid"
 
 	publicDnsConfig = &ExternalDnsConfig{
 		TenantId:           "test-tenant-id",
@@ -45,7 +44,7 @@ var (
 	}{
 		{
 			Name: "full",
-			Conf: &config.Config{NS: "test-namespace", ClusterFqdn: fqdn},
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",
@@ -56,12 +55,12 @@ var (
 		},
 		{
 			Name:       "no-ownership",
-			Conf:       &config.Config{NS: "test-namespace", ClusterFqdn: fqdn},
+			Conf:       &config.Config{NS: "test-namespace", ClusterUid: clusterUid},
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
 		},
 		{
 			Name: "private",
-			Conf: &config.Config{NS: "test-namespace", ClusterFqdn: fqdn},
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",

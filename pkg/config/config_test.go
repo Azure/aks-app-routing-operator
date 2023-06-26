@@ -27,7 +27,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "cluster-uid",
 		},
 	},
 	{
@@ -41,7 +41,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 	},
 	{
@@ -54,7 +54,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--namespace is required",
 	},
@@ -68,7 +68,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--registry is required",
 	},
@@ -82,7 +82,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--msi is required",
 	},
@@ -96,7 +96,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--tenant-id is required",
 	},
@@ -110,7 +110,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--cloud is required",
 	},
@@ -124,7 +124,7 @@ var validateTestCases = []struct {
 			Cloud:                    "test-cloud",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--location is required",
 	},
@@ -139,7 +139,7 @@ var validateTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 100,
 			ConcurrencyWatchdogVotes: 2,
-			clusterFqdnString:        "test-fqdn.com",
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--concurrency-watchdog-threshold must be greater than 100",
 	},
@@ -157,7 +157,7 @@ var validateTestCases = []struct {
 		Error: "--concurrency-watchdog-votes must be a positive number",
 	},
 	{
-		Name: "missing-cluster-fqdn",
+		Name: "missing-cluster-uid",
 		Conf: &Config{
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
@@ -168,7 +168,7 @@ var validateTestCases = []struct {
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
 		},
-		Error: "--cluster-fqdn is required",
+		Error: "--cluster-uid is required",
 	},
 }
 
@@ -190,8 +190,8 @@ var (
 	privateZoneTwo = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
-	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-one.com"
-	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-two.com"
+	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-one.com"
+	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com"
 	publicZones   = []string{publicZoneOne, publicZoneTwo}
 
 	parseTestCases = []struct {
