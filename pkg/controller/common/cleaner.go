@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/hashicorp/go-multierror"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,13 +18,11 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 type cleaner struct {
 	name       string
-	client     client.Client
 	mapper     meta.RESTMapper
 	clientset  kubernetes.Interface
 	dynamic    dynamic.Interface
@@ -34,7 +33,6 @@ type cleaner struct {
 
 // NewCleaner creates a cleaner that attempts to delete resources with the labels specified and of the types returned by CleanTypeRetriever
 func NewCleaner(manager ctrl.Manager, name string, gvrRetriever CleanTypeRetriever) error {
-	// TODO: we should use the manager client for caching purposes if possible?
 	d, err := dynamic.NewForConfig(manager.GetConfig())
 	if err != nil {
 		return fmt.Errorf("creating dynamic client: %w", err)
@@ -53,7 +51,6 @@ func NewCleaner(manager ctrl.Manager, name string, gvrRetriever CleanTypeRetriev
 	c := &cleaner{
 		name:       name,
 		mapper:     mapper,
-		client:     manager.GetClient(),
 		dynamic:    d,
 		logger:     manager.GetLogger().WithName(name),
 		clientset:  cs,
@@ -91,7 +88,7 @@ func (c *cleaner) Start(ctx context.Context) error {
 
 func (c *cleaner) Clean(ctx context.Context) error {
 	if c.retriever == nil {
-		return errors.New("CleanTypeRetriever is nil")
+		return errors.New("retriever is nil")
 	}
 
 	types, err := c.retriever(c.mapper)
@@ -99,13 +96,14 @@ func (c *cleaner) Clean(ctx context.Context) error {
 		return fmt.Errorf("retrieving gvr types: %w", err)
 	}
 
+	var result *multierror.Error
 	for _, t := range types {
 		if err := c.CleanType(ctx, t); err != nil {
-			return fmt.Errorf("cleaning type %s with labels %s: %w", t.gvr.String(), t.labels, err)
+			result = multierror.Append(result, fmt.Errorf("cleaning type %s with labels %s: %w", t.gvr.String(), t.labels, err))
 		}
 	}
 
-	return nil
+	return result.ErrorOrNil()
 }
 
 func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
@@ -167,9 +165,9 @@ func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
 }
 
 func isNamespaced(clientset kubernetes.Interface, gvr schema.GroupVersionResource) (bool, error) {
-	res, err := clientset.Discovery().ServerResourcesForGroupVersion(gvr.String())
+	res, err := clientset.Discovery().ServerResourcesForGroupVersion(gvr.GroupVersion().String())
 	if err != nil {
-		return false, fmt.Errorf("getting server resources for group version")
+		return false, fmt.Errorf("getting server resources for group version: %w", err)
 	}
 
 	namespaced := false

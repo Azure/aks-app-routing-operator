@@ -24,6 +24,8 @@ func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 }
 
 func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
+	return nil // holding off on actually using this until e2e added in future pr
+
 	retriever := common.RetrieverEmpty()
 	for _, obj := range objs {
 		retriever = retriever.Add(common.RetrieverFromObjs(obj.resources, obj.labels)) // clean up entire unused external dns applications
