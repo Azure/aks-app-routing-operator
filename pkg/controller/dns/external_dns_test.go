@@ -1,28 +1,28 @@
 package dns
 
 import (
-	"net/url"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	fqdn, _ = url.Parse("fqdn.com")
+	uid = uuid.New().String()
 
 	noZones = config.Config{
-		ClusterFqdn:       fqdn,
+		ClusterUid:        uid,
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig:  config.DnsZoneConfig{},
 	}
 	onlyPubZones = config.Config{
-		ClusterFqdn:       fqdn,
+		ClusterUid:        uid,
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
@@ -31,7 +31,7 @@ var (
 		},
 	}
 	onlyPrivZones = config.Config{
-		ClusterFqdn:      fqdn,
+		ClusterUid:       uid,
 		PublicZoneConfig: config.DnsZoneConfig{},
 		PrivateZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
@@ -40,7 +40,7 @@ var (
 		},
 	}
 	allZones = config.Config{
-		ClusterFqdn: fqdn,
+		ClusterUid: uid,
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
