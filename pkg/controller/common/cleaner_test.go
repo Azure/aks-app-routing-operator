@@ -1,53 +1,223 @@
 package common
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
 
-func TestIsNamespaced(t *testing.T) {
+var (
+	gvk               = gvk2
+	namespacedGvr     = gvr2a
+	nonNamespacedGvr  = gvr2b
+	namespacedList    = gvk.Kind + "List"
+	nonNamespacedList = gvk.Kind + "List"
+
+	unstructuredNamespaced   = unstructured.Unstructured{}
+	unstucturedNonNamespaced = unstructured.Unstructured{}
+	namespace                = "test-namespace"
+)
+
+func init() {
+	unstructuredNamespaced.SetGroupVersionKind(gvk)
+	unstructuredNamespaced.SetName("namespaced-resource-1")
+	unstructuredNamespaced.SetNamespace(namespace)
+	unstructuredNamespaced.SetLabels(labels1)
+
+	unstucturedNonNamespaced.SetGroupVersionKind(gvk)
+	unstucturedNonNamespaced.SetName("non-namespaced-resource-1")
+	unstucturedNonNamespaced.SetLabels(labels1)
+}
+
+func fakeClientset() *fake.Clientset {
 	clientset := fake.NewSimpleClientset()
 	clientset.Resources = []*metav1.APIResourceList{
 		{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       gvk2.Kind,
-				APIVersion: gvk2.Version,
+				Kind:       gvk.Kind,
+				APIVersion: gvk.Version,
 			},
-			GroupVersion: gvk2.GroupVersion().String(),
+			GroupVersion: gvk.GroupVersion().String(),
 			APIResources: []metav1.APIResource{
 				{
-					Name:       gvr2a.Resource,
-					Group:      gvk2.Group,
-					Version:    gvk2.Version,
-					Kind:       gvk2.Kind,
+					Name:       namespacedGvr.Resource,
+					Group:      gvk.Group,
+					Version:    gvk.Version,
+					Kind:       gvk.Kind,
 					Namespaced: true,
 				},
 				{
-					Name:       gvr2b.Resource,
-					Group:      gvk2.Group,
-					Version:    gvk2.Version,
-					Kind:       gvk2.Kind,
+					Name:       nonNamespacedGvr.Resource,
+					Group:      gvk.Group,
+					Version:    gvk.Version,
+					Kind:       gvk.Kind,
 					Namespaced: false,
 				},
 			},
 		},
 	}
+	return clientset
+}
 
-	got, err := isNamespaced(clientset, gvr2a)
+func TestIsNamespaced(t *testing.T) {
+	clientset := fakeClientset()
+
+	got, err := isNamespaced(clientset, namespacedGvr)
 	require.NoError(t, err, "should not error when fetching valid resource")
 	require.True(t, got, "should return true when resource is namespaced")
 
-	got, err = isNamespaced(clientset, gvr2b)
+	got, err = isNamespaced(clientset, nonNamespacedGvr)
 	require.NoError(t, err, "should not error when fetching valid resource")
 	require.False(t, got, "should return false when resource is not namespaced")
 
 	got, err = isNamespaced(clientset, gvr1)
 	require.Error(t, err, "should error when fetching invalid resource")
+}
+
+func TestCleanType(t *testing.T) {
+	type reactor struct {
+		verb, resource string
+		fn             k8stesting.ReactionFunc
+	}
+
+	tests := []struct {
+		name            string
+		cleanType       cleanType
+		reactors        []reactor
+		expectedActions []k8stesting.Action
+		expectedErr     error
+	}{
+		{
+			name: "with collection method",
+			cleanType: cleanType{
+				labels: labels1,
+				gvr:    gvr1,
+			},
+			expectedActions: []k8stesting.Action{DeleteCollectionAction(gvr1, "", labels1)},
+			expectedErr:     nil,
+		},
+		{
+			name: "without collection method, namespaced resource",
+			cleanType: cleanType{
+				labels: labels1,
+				gvr:    namespacedGvr,
+			},
+			reactors: []reactor{
+				{
+					verb:     "delete-collection",
+					resource: namespacedGvr.Resource,
+					fn: func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+						return true, nil, errors.NewMethodNotSupported(gvr1.GroupResource(), "delete-collection")
+					},
+				},
+				{
+					verb:     "list",
+					resource: "*",
+					fn: func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+						return true,
+							&unstructured.UnstructuredList{
+								Items: []unstructured.Unstructured{unstructuredNamespaced},
+							},
+							nil
+					},
+				},
+			},
+			expectedActions: []k8stesting.Action{
+				DeleteCollectionAction(namespacedGvr, "", labels1),
+				ListAction(namespacedGvr, gvk, "", labels1),
+				DeleteAction(namespacedGvr, unstructuredNamespaced.GetNamespace(), unstructuredNamespaced.GetName()),
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "without collection method, nonnamespaced resource",
+			cleanType: cleanType{
+				labels: labels1,
+				gvr:    nonNamespacedGvr,
+			},
+			reactors: []reactor{
+				{
+					verb:     "delete-collection",
+					resource: nonNamespacedGvr.Resource,
+					fn: func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+						return true, nil, errors.NewMethodNotSupported(gvr1.GroupResource(), "delete-collection")
+					},
+				},
+				{
+					verb:     "list",
+					resource: "*",
+					fn: func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+						return true,
+							&unstructured.UnstructuredList{
+								Items: []unstructured.Unstructured{unstucturedNonNamespaced},
+							},
+							nil
+					},
+				},
+			},
+			expectedActions: []k8stesting.Action{
+				DeleteCollectionAction(nonNamespacedGvr, "", labels1),
+				ListAction(nonNamespacedGvr, gvk, "", labels1),
+				DeleteAction(nonNamespacedGvr, "", unstucturedNonNamespaced.GetName()),
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for _, test := range tests {
+		d := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			namespacedGvr:    namespacedList,
+			nonNamespacedGvr: nonNamespacedList,
+		})
+		for _, reactor := range test.reactors {
+			d.PrependReactor(reactor.verb, reactor.resource, reactor.fn)
+		}
+
+		c := &cleaner{
+			name:      "test-name",
+			dynamic:   d,
+			clientset: fakeClientset(),
+			logger:    logr.Discard(),
+		}
+		require.Equal(t, test.expectedErr, c.CleanType(context.Background(), test.cleanType), "should return expected error")
+
+		for _, action := range test.expectedActions {
+			AssertAction(t, d.Actions(), action)
+		}
+		require.Equal(t, len(test.expectedActions), len(d.Actions()), "should have expected number of actions")
+	}
+}
+
+func DeleteCollectionAction(gvr schema.GroupVersionResource, namespace string, ls map[string]string) k8stesting.DeleteCollectionAction {
+	l := labels.Set(ls)
+	return k8stesting.NewDeleteCollectionAction(gvr, namespace, metav1.ListOptions{LabelSelector: l.String()})
+}
+
+func DeleteAction(gvr schema.GroupVersionResource, namespace, name string) k8stesting.DeleteAction {
+	return k8stesting.NewDeleteAction(gvr, namespace, name)
+}
+
+func ListAction(gvr schema.GroupVersionResource, gvk schema.GroupVersionKind, namespace string, ls map[string]string) k8stesting.ListAction {
+	l := labels.Set(ls)
+
+	return k8stesting.NewListAction(
+		gvr,
+		gvk,
+		namespace,
+		metav1.ListOptions{LabelSelector: l.String()},
+	)
 }
 
 func AssertAction(t *testing.T, got []k8stesting.Action, expected k8stesting.Action) {
