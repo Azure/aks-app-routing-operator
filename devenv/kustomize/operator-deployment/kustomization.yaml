@@ -11,7 +11,7 @@ patches:
             "--tenant-id", $ARM_CLIENT_TENANT_ID,
             "--location", $RG_LOCATION,
             "--dns-zone-ids", "$DNS_ZONE_IDS",
-            "--cluster-fqdn", "$CLUSTER_FQDN"
+            "--cluster-uid", "$CLUSTER_UID"
           ]
     target:
       kind: Deployment

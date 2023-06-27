@@ -239,7 +239,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
 							"--interval=3m0s",
-							"--txt-owner-id=" + conf.ClusterFqdn.String(),
+							"--txt-owner-id=" + conf.ClusterUid,
 						}, domainFilters...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",

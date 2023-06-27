@@ -37,7 +37,6 @@ var Purge = func(ctx context.Context, cfg *envconf.Config) (context.Context, err
 		return ctx, err
 	}
 	for _, item := range list.Items {
-		fmt.Printf("cleaning up namespace from previous run %q\n", item.Name)
 		err = client.Resources().Delete(ctx, &item)
 		if err != nil {
 			fmt.Printf("error while cleaning up namespace %q: %s\n", item.Name, err)
