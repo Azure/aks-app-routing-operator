@@ -385,3 +385,38 @@ func TestCleanObjs(t *testing.T) {
 		require.Equal(t, test.expected, got)
 	}
 }
+
+func TestActionFromConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     *manifests.ExternalDnsConfig
+		expected action
+	}{
+		{
+			name: "empty dns",
+			conf: &manifests.ExternalDnsConfig{
+				DnsZoneResourceIDs: []string{},
+			},
+			expected: clean,
+		},
+		{
+			name: "one dns",
+			conf: &manifests.ExternalDnsConfig{
+				DnsZoneResourceIDs: []string{"one"},
+			},
+			expected: deploy,
+		},
+		{
+			name: "multiple dns",
+			conf: &manifests.ExternalDnsConfig{
+				DnsZoneResourceIDs: []string{"one", "two"},
+			},
+			expected: deploy,
+		},
+	}
+
+	for _, test := range tests {
+		got := actionFromConfig(test.conf)
+		require.Equal(t, test.expected, got)
+	}
+}

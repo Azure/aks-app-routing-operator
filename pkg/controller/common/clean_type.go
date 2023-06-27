@@ -15,12 +15,14 @@ type cleanType struct {
 }
 
 // CleanTypeRetriever returns types and labels for the cleaner to remove
-type CleanTypeRetriever func(mapper meta.RESTMapper) ([]cleanType, error) // getter function because manager client isn't usable until manager starts
+type CleanTypeRetriever func(mapper meta.RESTMapper) ([]cleanType, error)
 
+// RemoveOpt is used to configure the removal
 type RemoveOpt struct {
 	CompareStrat CompareStrategy
 }
 
+// CompareStrategy determines the comparison strategy between cleanTypes
 type CompareStrategy int
 
 const (
@@ -95,6 +97,7 @@ func RetrieverEmpty() CleanTypeRetriever {
 	}
 }
 
+// Add merges the results of two retrievers
 func (g CleanTypeRetriever) Add(retriever CleanTypeRetriever) CleanTypeRetriever {
 	return func(mapper meta.RESTMapper) ([]cleanType, error) {
 		old, err := g(mapper)
@@ -111,6 +114,7 @@ func (g CleanTypeRetriever) Add(retriever CleanTypeRetriever) CleanTypeRetriever
 	}
 }
 
+// Remove removes results from the receiver that are present in the supplied retriever
 func (g CleanTypeRetriever) Remove(retriever CleanTypeRetriever, opt RemoveOpt) CleanTypeRetriever {
 	return func(mapper meta.RESTMapper) ([]cleanType, error) {
 		existing, err := g(mapper)

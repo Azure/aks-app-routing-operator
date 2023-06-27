@@ -58,8 +58,8 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 		return err
 	}
 
-	cleanObjs := cleanObjs(instances)
-	if err := addExternalDnsCleaner(manager, cleanObjs); err != nil {
+	objs := cleanObjs(instances)
+	if err := addExternalDnsCleaner(manager, objs); err != nil {
 		return err
 	}
 
@@ -68,29 +68,23 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 
 func instances(conf *config.Config, self *appsv1.Deployment) []instance {
 	// public
-	publicConfig := publicConfig(conf)
-	publicAction := deploy
-	if len(conf.PublicZoneConfig.ZoneIds) == 0 {
-		publicAction = clean
-	}
-	publicResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{publicConfig})
+	publicCfg := publicConfig(conf)
+	publicAction := actionFromConfig(publicCfg)
+	publicResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{publicCfg})
 
 	// private
-	privateConfig := privateConfig(conf)
-	privateAction := deploy
-	if len(conf.PrivateZoneConfig.ZoneIds) == 0 {
-		privateAction = clean
-	}
-	privateResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{privateConfig})
+	privateCfg := privateConfig(conf)
+	privateAction := actionFromConfig(privateCfg)
+	privateResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{privateCfg})
 
 	return []instance{
 		{
-			config:    publicConfig,
+			config:    publicCfg,
 			resources: publicResources,
 			action:    publicAction,
 		},
 		{
-			config:    privateConfig,
+			config:    privateCfg,
 			resources: privateResources,
 			action:    privateAction,
 		},
@@ -164,4 +158,12 @@ func cleanObjs(instances []instance) []cleanObj {
 	}
 
 	return cleanObjs
+}
+
+func actionFromConfig(conf *manifests.ExternalDnsConfig) action {
+	if len(conf.DnsZoneResourceIDs) == 0 {
+		return clean
+	}
+
+	return deploy
 }
