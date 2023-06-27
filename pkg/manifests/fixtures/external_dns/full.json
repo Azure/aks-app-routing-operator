@@ -6,7 +6,8 @@
         "name": "test-namespace",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
         },
         "ownerReferences": [
           {
@@ -20,16 +21,16 @@
       "spec": {},
       "status": {}
     },
-
     {
       "kind": "ServiceAccount",
       "apiVersion": "v1",
       "metadata": {
-        "name": "external-dns-public",
+        "name": "external-dns",
         "namespace": "test-namespace",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
         },
         "ownerReferences": [
           {
@@ -45,10 +46,11 @@
       "kind": "ClusterRole",
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "metadata": {
-        "name": "external-dns-public",
+        "name": "external-dns",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
         },
         "ownerReferences": [
           {
@@ -109,10 +111,11 @@
       "kind": "ClusterRoleBinding",
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "metadata": {
-        "name": "external-dns-public",
+        "name": "external-dns",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
         },
         "ownerReferences": [
           {
@@ -126,25 +129,26 @@
       "subjects": [
         {
           "kind": "ServiceAccount",
-          "name": "external-dns-public",
+          "name": "external-dns",
           "namespace": "test-namespace"
         }
       ],
       "roleRef": {
         "apiGroup": "rbac.authorization.k8s.io",
         "kind": "ClusterRole",
-        "name": "external-dns-public"
+        "name": "external-dns"
       }
     },
     {
       "kind": "ConfigMap",
       "apiVersion": "v1",
       "metadata": {
-        "name": "external-dns-public",
+        "name": "external-dns",
         "namespace": "test-namespace",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
         },
         "ownerReferences": [
           {
@@ -163,11 +167,12 @@
       "kind": "Deployment",
       "apiVersion": "apps/v1",
       "metadata": {
-        "name": "external-dns-public",
+        "name": "external-dns",
         "namespace": "test-namespace",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
         },
         "ownerReferences": [
           {
@@ -182,14 +187,14 @@
         "replicas": 1,
         "selector": {
           "matchLabels": {
-            "app": "external-dns-public"
+            "app": "external-dns"
           }
         },
         "template": {
           "metadata": {
             "creationTimestamp": null,
             "labels": {
-              "app": "external-dns-public",
+              "app": "external-dns",
               "checksum/configmap": "6fc415798cf89a5f"
             }
           },
@@ -198,7 +203,7 @@
               {
                 "name": "azure-config",
                 "configMap": {
-                  "name": "external-dns-public"
+                  "name": "external-dns"
                 }
               }
             ],
@@ -257,7 +262,7 @@
                 }
               }
             ],
-            "serviceAccountName": "external-dns-public",
+            "serviceAccountName": "external-dns",
             "affinity": {
               "nodeAffinity": {
                 "requiredDuringSchedulingIgnoredDuringExecution": {
@@ -318,306 +323,306 @@
       },
       "status": {}
     },
-
-
-
-  {
-    "kind": "ServiceAccount",
-    "apiVersion": "v1",
-    "metadata": {
-      "name": "external-dns-private",
-      "namespace": "test-namespace",
-      "creationTimestamp": null,
-      "labels": {
-        "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-      },
-      "ownerReferences": [
-        {
-          "apiVersion": "apps/v1",
-          "kind": "Deployment",
-          "name": "test-operator-deploy",
-          "uid": "test-operator-deploy-uid"
-        }
-      ]
-    }
-  },
-  {
-    "kind": "ClusterRole",
-    "apiVersion": "rbac.authorization.k8s.io/v1",
-    "metadata": {
-      "name": "external-dns-private",
-      "creationTimestamp": null,
-      "labels": {
-        "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-      },
-      "ownerReferences": [
-        {
-          "apiVersion": "apps/v1",
-          "kind": "Deployment",
-          "name": "test-operator-deploy",
-          "uid": "test-operator-deploy-uid"
-        }
-      ]
-    },
-    "rules": [
-      {
-        "verbs": [
-          "get",
-          "watch",
-          "list"
-        ],
-        "apiGroups": [
-          ""
-        ],
-        "resources": [
-          "endpoints",
-          "pods",
-          "services",
-          "configmaps"
-        ]
-      },
-      {
-        "verbs": [
-          "get",
-          "watch",
-          "list"
-        ],
-        "apiGroups": [
-          "extensions",
-          "networking.k8s.io"
-        ],
-        "resources": [
-          "ingresses"
-        ]
-      },
-      {
-        "verbs": [
-          "get",
-          "watch",
-          "list"
-        ],
-        "apiGroups": [
-          ""
-        ],
-        "resources": [
-          "nodes"
-        ]
-      }
-    ]
-  },
-  {
-    "kind": "ClusterRoleBinding",
-    "apiVersion": "rbac.authorization.k8s.io/v1",
-    "metadata": {
-      "name": "external-dns-private",
-      "creationTimestamp": null,
-      "labels": {
-        "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-      },
-      "ownerReferences": [
-        {
-          "apiVersion": "apps/v1",
-          "kind": "Deployment",
-          "name": "test-operator-deploy",
-          "uid": "test-operator-deploy-uid"
-        }
-      ]
-    },
-    "subjects": [
-      {
-        "kind": "ServiceAccount",
+    {
+      "kind": "ServiceAccount",
+      "apiVersion": "v1",
+      "metadata": {
         "name": "external-dns-private",
-        "namespace": "test-namespace"
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "test-operator-deploy",
+            "uid": "test-operator-deploy-uid"
+          }
+        ]
       }
-    ],
-    "roleRef": {
-      "apiGroup": "rbac.authorization.k8s.io",
+    },
+    {
       "kind": "ClusterRole",
-      "name": "external-dns-private"
-    }
-  },
-  {
-    "kind": "ConfigMap",
-    "apiVersion": "v1",
-    "metadata": {
-      "name": "external-dns-private",
-      "namespace": "test-namespace",
-      "creationTimestamp": null,
-      "labels": {
-        "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "metadata": {
+        "name": "external-dns-private",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "test-operator-deploy",
+            "uid": "test-operator-deploy-uid"
+          }
+        ]
       },
-      "ownerReferences": [
+      "rules": [
         {
-          "apiVersion": "apps/v1",
-          "kind": "Deployment",
-          "name": "test-operator-deploy",
-          "uid": "test-operator-deploy-uid"
+          "verbs": [
+            "get",
+            "watch",
+            "list"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "endpoints",
+            "pods",
+            "services",
+            "configmaps"
+          ]
+        },
+        {
+          "verbs": [
+            "get",
+            "watch",
+            "list"
+          ],
+          "apiGroups": [
+            "extensions",
+            "networking.k8s.io"
+          ],
+          "resources": [
+            "ingresses"
+          ]
+        },
+        {
+          "verbs": [
+            "get",
+            "watch",
+            "list"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "nodes"
+          ]
         }
       ]
     },
-    "data": {
-      "azure.json": "{\"cloud\":\"\",\"location\":\"\",\"resourceGroup\":\"test-resource-group-private\",\"subscriptionId\":\"test-subscription-id\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"\"}"
-    }
-  },
-  {
-    "kind": "Deployment",
-    "apiVersion": "apps/v1",
-    "metadata": {
-      "name": "external-dns-private",
-      "namespace": "test-namespace",
-      "creationTimestamp": null,
-      "labels": {
-        "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+    {
+      "kind": "ClusterRoleBinding",
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "metadata": {
+        "name": "external-dns-private",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "test-operator-deploy",
+            "uid": "test-operator-deploy-uid"
+          }
+        ]
       },
-      "ownerReferences": [
+      "subjects": [
         {
-          "apiVersion": "apps/v1",
-          "kind": "Deployment",
-          "name": "test-operator-deploy",
-          "uid": "test-operator-deploy-uid"
+          "kind": "ServiceAccount",
+          "name": "external-dns-private",
+          "namespace": "test-namespace"
         }
-      ]
+      ],
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "external-dns-private"
+      }
     },
-    "spec": {
-      "replicas": 1,
-      "selector": {
-        "matchLabels": {
-          "app": "external-dns-private"
-        }
+    {
+      "kind": "ConfigMap",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "external-dns-private",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "test-operator-deploy",
+            "uid": "test-operator-deploy-uid"
+          }
+        ]
       },
-      "template": {
-        "metadata": {
-          "creationTimestamp": null,
-          "labels": {
-            "app": "external-dns-private",
-            "checksum/configmap": "620b97bffe28961e"
+      "data": {
+        "azure.json": "{\"cloud\":\"\",\"location\":\"\",\"resourceGroup\":\"test-resource-group-private\",\"subscriptionId\":\"test-subscription-id\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"\"}"
+      }
+    },
+    {
+      "kind": "Deployment",
+      "apiVersion": "apps/v1",
+      "metadata": {
+        "name": "external-dns-private",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "external-dns-private"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "test-operator-deploy",
+            "uid": "test-operator-deploy-uid"
+          }
+        ]
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "external-dns-private"
           }
         },
-        "spec": {
-          "volumes": [
-            {
-              "name": "azure-config",
-              "configMap": {
-                "name": "external-dns-private"
-              }
-            }
-          ],
-          "containers": [
-            {
-              "name": "controller",
-              "image": "/oss/kubernetes/external-dns:v0.11.0.2",
-              "args": [
-                "--provider=azure-private-dns",
-                "--source=ingress",
-                "--interval=3m0s",
-                "--txt-owner-id=test-cluster-uid",
-                "--domain-filter=test-three.com",
-                "--domain-filter=test-four.com"
-              ],
-              "resources": {
-                "limits": {
-                  "cpu": "100m",
-                  "memory": "250Mi"
-                },
-                "requests": {
-                  "cpu": "100m",
-                  "memory": "250Mi"
-                }
-              },
-              "volumeMounts": [
-                {
-                  "name": "azure-config",
-                  "readOnly": true,
-                  "mountPath": "/etc/kubernetes"
-                }
-              ],
-              "livenessProbe": {
-                "httpGet": {
-                  "path": "/healthz",
-                  "port": 7979,
-                  "scheme": "HTTP"
-                },
-                "initialDelaySeconds": 10,
-                "timeoutSeconds": 1,
-                "periodSeconds": 5,
-                "successThreshold": 1,
-                "failureThreshold": 3
-              },
-              "readinessProbe": {
-                "httpGet": {
-                  "path": "/healthz",
-                  "port": 7979,
-                  "scheme": "HTTP"
-                },
-                "initialDelaySeconds": 10,
-                "timeoutSeconds": 1,
-                "periodSeconds": 5,
-                "successThreshold": 1,
-                "failureThreshold": 3
-              }
-            }
-          ],
-          "serviceAccountName": "external-dns-private",
-          "affinity": {
-            "nodeAffinity": {
-              "requiredDuringSchedulingIgnoredDuringExecution": {
-                "nodeSelectorTerms": [
-                  {
-                    "matchExpressions": [
-                      {
-                        "key": "kubernetes.azure.com/cluster",
-                        "operator": "Exists"
-                      },
-                      {
-                        "key": "type",
-                        "operator": "NotIn",
-                        "values": [
-                          "virtual-kubelet"
-                        ]
-                      },
-                      {
-                        "key": "kubernetes.io/os",
-                        "operator": "In",
-                        "values": [
-                          "linux"
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              },
-              "preferredDuringSchedulingIgnoredDuringExecution": [
-                {
-                  "weight": 100,
-                  "preference": {
-                    "matchExpressions": [
-                      {
-                        "key": "kubernetes.azure.com/mode",
-                        "operator": "In",
-                        "values": [
-                          "system"
-                        ]
-                      }
-                    ]
-                  }
-                }
-              ]
+        "template": {
+          "metadata": {
+            "creationTimestamp": null,
+            "labels": {
+              "app": "external-dns-private",
+              "checksum/configmap": "620b97bffe28961e"
             }
           },
-          "tolerations": [
-            {
-              "key": "CriticalAddonsOnly",
-              "operator": "Exists"
-            }
-          ],
-          "priorityClassName": "system-node-critical"
-        }
+          "spec": {
+            "volumes": [
+              {
+                "name": "azure-config",
+                "configMap": {
+                  "name": "external-dns-private"
+                }
+              }
+            ],
+            "containers": [
+              {
+                "name": "controller",
+                "image": "/oss/kubernetes/external-dns:v0.11.0.2",
+                "args": [
+                  "--provider=azure-private-dns",
+                  "--source=ingress",
+                  "--interval=3m0s",
+                  "--txt-owner-id=test-cluster-uid",
+                  "--domain-filter=test-three.com",
+                  "--domain-filter=test-four.com"
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "100m",
+                    "memory": "250Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "250Mi"
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "azure-config",
+                    "readOnly": true,
+                    "mountPath": "/etc/kubernetes"
+                  }
+                ],
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": 7979,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "timeoutSeconds": 1,
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "failureThreshold": 3
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": 7979,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "timeoutSeconds": 1,
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "failureThreshold": 3
+                }
+              }
+            ],
+            "serviceAccountName": "external-dns-private",
+            "affinity": {
+              "nodeAffinity": {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                  "nodeSelectorTerms": [
+                    {
+                      "matchExpressions": [
+                        {
+                          "key": "kubernetes.azure.com/cluster",
+                          "operator": "Exists"
+                        },
+                        {
+                          "key": "type",
+                          "operator": "NotIn",
+                          "values": [
+                            "virtual-kubelet"
+                          ]
+                        },
+                        {
+                          "key": "kubernetes.io/os",
+                          "operator": "In",
+                          "values": [
+                            "linux"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "preferredDuringSchedulingIgnoredDuringExecution": [
+                  {
+                    "weight": 100,
+                    "preference": {
+                      "matchExpressions": [
+                        {
+                          "key": "kubernetes.azure.com/mode",
+                          "operator": "In",
+                          "values": [
+                            "system"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "tolerations": [
+              {
+                "key": "CriticalAddonsOnly",
+                "operator": "Exists"
+              }
+            ],
+            "priorityClassName": "system-node-critical"
+          }
+        },
+        "strategy": {},
+        "revisionHistoryLimit": 2
       },
-      "strategy": {},
-      "revisionHistoryLimit": 2
-    },
-    "status": {}
-  }
-
-
+      "status": {}
+    }
   ]
