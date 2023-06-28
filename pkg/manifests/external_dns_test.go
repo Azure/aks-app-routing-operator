@@ -21,7 +21,6 @@ var (
 	clusterUid = "test-cluster-uid"
 
 	publicDnsConfig = &ExternalDnsConfig{
-		ResourceName:       "external-dns-public",
 		TenantId:           "test-tenant-id",
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-public",
@@ -30,7 +29,6 @@ var (
 	}
 
 	privateDnsConfig = &ExternalDnsConfig{
-		ResourceName:       "external-dns-private",
 		TenantId:           "test-tenant-id",
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-private",
