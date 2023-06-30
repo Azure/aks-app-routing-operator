@@ -34,8 +34,8 @@ import (
 )
 
 var (
-	conf    = &testConfig{}
-	testEnv env.Environment
+	conf                    = &testConfig{}
+	testEnv env.Environment = env.NewInClusterConfig()
 )
 
 type zoneConfig struct {
@@ -47,6 +47,27 @@ type zoneConfig struct {
 }
 
 var zoneConfigs []*zoneConfig
+
+func init() {
+	// Load configuration
+	rawConf := os.Getenv("E2E_JSON_CONTENTS")
+	if rawConf == "" {
+		panic(errors.New("failed to get e2e contents from env"))
+	}
+	if err := json.Unmarshal([]byte(rawConf), conf); err != nil {
+		panic(err)
+	}
+
+	// Load config
+	zoneConfigs = generateZoneConfigs(conf)
+	promClientImage := strings.TrimSpace(os.Getenv("PROM_CLIENT_IMAGE"))
+	if promClientImage == "" {
+		panic(errors.New("failed to get prometheus client image from env"))
+	}
+	conf.PromClientImage = promClientImage
+
+	util.UseServerSideApply()
+}
 
 type testConfig struct {
 	RandomPrefix      string
@@ -61,31 +82,7 @@ type testConfig struct {
 }
 
 func TestMain(m *testing.M) {
-	// Load configuration
-	rawConf := os.Getenv("E2E_JSON_CONTENTS")
-	if rawConf == "" {
-		panic(errors.New("failed to get e2e contents from env"))
-	}
-	if err := json.Unmarshal([]byte(rawConf), conf); err != nil {
-		panic(err)
-	}
-
-	// Load zone configs
-	zoneConfigs = generateZoneConfigs(conf)
-
-	promClientImage := strings.TrimSpace(os.Getenv("PROM_CLIENT_IMAGE"))
-	if promClientImage == "" {
-		panic(errors.New("failed to get prometheus client image from env"))
-	}
-	conf.PromClientImage = promClientImage
-
-	testEnv = env.NewInClusterConfig()
-
-	testEnv.Setup(
-		e2eutil.Purge)
-
-	util.UseServerSideApply()
-
+	testEnv.Setup(e2eutil.Purge)
 	testEnv.BeforeEachTest(func(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
 		return e2eutil.CreateNSForTest(ctx, cfg, t)
 	})

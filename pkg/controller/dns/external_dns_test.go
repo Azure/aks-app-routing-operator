@@ -216,6 +216,7 @@ func TestInstances(t *testing.T) {
 
 	for _, test := range tests {
 		instances := instances(test.conf, self)
+
 		if !reflect.DeepEqual(instances, test.expected) {
 			t.Error(
 				"For", test.name,
