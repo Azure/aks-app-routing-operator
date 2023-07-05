@@ -108,8 +108,6 @@ func (c *cleaner) Clean(ctx context.Context) error {
 
 func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
 	l := labels.Set(t.labels)
-	// get an exact match selector
-
 	selector, err := l.AsValidatedSelector()
 	if err != nil {
 		return fmt.Errorf("validating label selector: %w", err)
