@@ -5,6 +5,9 @@ on:
       version:
         description: 'Version to release. Must be in the CHANGELOG.md file. Example: 1.0.0'
         required: true
+      sha:
+        description: 'Commit SHA to release. Example: 7dec363daaca95c59f68607ac1f29a12bc0b195b'
+        required: true
 
 permissions:
       id-token: write
@@ -14,13 +17,21 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # always read the changelog in main
       - uses: actions/checkout@v3
+        with:
+          - ref: 'main'
 
       - name: Read changelog
         id: changelog
         uses: mindsers/changelog-reader-action@b97ce03a10d9bdbb07beb491c76a5a01d78cd3ef # v2.2.2
         with:
           version: ${{ inputs.version }}
+
+        # build image from sha input
+      - uses: actions/checkout@v3
+        with:
+          - ref: ${{ inputs.sha }}
 
       - name: Set up Docker Buildx
         id: buildx
@@ -45,6 +56,9 @@ jobs:
           name: v${{ steps.changelog.outputs.version }}
           tag: v${{ steps.changelog.outputs.version }}
           body: ${{ steps.changelog.outputs.body }}
+          commit: ${{ inputs.sha }}
           prerelease: false
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
+# TODO: how do we handle commit sha?
