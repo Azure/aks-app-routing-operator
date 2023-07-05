@@ -18,7 +18,7 @@ require (
 	k8s.io/klog/v2 v2.90.1
 	sigs.k8s.io/controller-runtime v0.14.5
 	sigs.k8s.io/e2e-framework v0.2.0
-	sigs.k8s.io/secrets-store-csi-driver v1.2.4
+	sigs.k8s.io/secrets-store-csi-driver v1.3.3
 )
 
 require (
