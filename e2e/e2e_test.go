@@ -17,13 +17,12 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/klient/k8s"
 	"sigs.k8s.io/e2e-framework/klient/wait"
@@ -33,9 +32,15 @@ import (
 	"sigs.k8s.io/e2e-framework/pkg/features"
 )
 
+const (
+	// must match value in /devenv/kustomize/operator-deployment/operator.yaml
+	operatorName = "app-routing-operator"
+	operatorNs   = "kube-system"
+)
+
 var (
-	conf                    = &testConfig{}
-	testEnv env.Environment = env.NewInClusterConfig()
+	conf    = &testConfig{}
+	testEnv = env.NewInClusterConfig()
 )
 
 type zoneConfig struct {
@@ -46,7 +51,30 @@ type zoneConfig struct {
 	Id                        string
 }
 
-var zoneConfigs []*zoneConfig
+type testConfig struct {
+	RandomPrefix      string
+	PublicNameservers map[string][]string
+	PrivateNameserver string
+
+	PublicCertIDs, PublicCertVersionlessIDs   map[string]string
+	PrivateCertIDs, PrivateCertVersionlessIDs map[string]string
+
+	PrivateDNSZoneIDs, PublicDNSZoneIDs []string
+	Zones                               []*zoneConfig
+	PromClientImage                     string
+}
+
+func (testConfig *testConfig) Validate() error {
+	if len(testConfig.PrivateDNSZoneIDs) == 0 {
+		return errors.New("missing private dns zone ids")
+	}
+
+	if len(testConfig.PublicDNSZoneIDs) == 0 {
+		return errors.New("missing public dns zone ids")
+	}
+
+	return nil
+}
 
 func init() {
 	// Load configuration
@@ -59,7 +87,7 @@ func init() {
 	}
 
 	// Load config
-	zoneConfigs = generateZoneConfigs(conf)
+	conf.Zones = generateZoneConfigs(conf)
 	promClientImage := strings.TrimSpace(os.Getenv("PROM_CLIENT_IMAGE"))
 	if promClientImage == "" {
 		panic(errors.New("failed to get prometheus client image from env"))
@@ -67,18 +95,10 @@ func init() {
 	conf.PromClientImage = promClientImage
 
 	util.UseServerSideApply()
-}
 
-type testConfig struct {
-	RandomPrefix      string
-	PublicNameservers map[string][]string
-	PrivateNameserver string
-
-	PublicCertIDs, PublicCertVersionlessIDs   map[string]string
-	PrivateCertIDs, PrivateCertVersionlessIDs map[string]string
-
-	PrivateDNSZoneIDs, PublicDNSZoneIDs []string
-	PromClientImage                     string
+	if err := conf.Validate(); err != nil {
+		panic(fmt.Errorf("validating config: %w", err))
+	}
 }
 
 func TestMain(m *testing.M) {
@@ -131,8 +151,8 @@ func TestBasicService(t *testing.T) {
 			}).Feature()
 	}
 
-	for _, config := range zoneConfigs {
-		testEnv.Test(t, genBasicFeature(config))
+	for _, zone := range conf.Zones {
+		testEnv.Test(t, genBasicFeature(zone))
 	}
 }
 
@@ -172,8 +192,8 @@ func TestBasicServiceVersionlessCert(t *testing.T) {
 			}).Feature()
 	}
 
-	for _, config := range zoneConfigs {
-		testEnv.Test(t, genVersionlessFeature(config))
+	for _, zone := range conf.Zones {
+		testEnv.Test(t, genVersionlessFeature(zone))
 	}
 }
 
@@ -218,8 +238,8 @@ func TestBasicServiceNoOSM(t *testing.T) {
 			Feature()
 	}
 
-	for _, config := range zoneConfigs {
-		testEnv.Test(t, genNoOSMFeature(config))
+	for _, zone := range conf.Zones {
+		testEnv.Test(t, genNoOSMFeature(zone))
 	}
 
 }
@@ -271,6 +291,193 @@ func TestPrometheus(t *testing.T) {
 
 }
 
+func TestCleanup(t *testing.T) {
+	// this cannot be a parallel test because it manipulates the operator deployment which affects other tests
+	testEnv.Test(t, features.New("cleanup").
+		WithSetup("get initial deployent", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			// get initial operator deployment so we can restore it later
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(fmt.Errorf("creating client: %w", err))
+			}
+
+			deployment := &appsv1.Deployment{}
+			if err := client.Resources().Get(ctx, operatorName, operatorNs, deployment); err != nil {
+				t.Fatal(fmt.Errorf("getting operator deployment: %w", err))
+			}
+
+			return e2eutil.SetDeployment(ctx, deployment)
+		}).
+		Assess("all dns deployed", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			deployment, err := e2eutil.GetDeployment(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(fmt.Errorf("creating client: %w", err))
+			}
+
+			containers, err := e2eutil.UpdateContainerDnsZoneIds(deployment, append(conf.PrivateDNSZoneIDs, conf.PublicDNSZoneIDs...))
+			if err != nil {
+				t.Fatal(fmt.Errorf("updating container dns zone ids: %w", err))
+			}
+
+			if err := e2eutil.UpdateContainers(ctx, client, deployment, containers); err != nil {
+				t.Fatal(fmt.Errorf("updating containers: %w", err))
+			}
+
+			// this uses retry backoff because it takes time for operator to clean and create resources
+			if err := e2eutil.RetryBackoff(3, time.Second*10, func() error {
+				if err := e2eutil.EnsureExternalDns(ctx, client, manifests.PublicProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring public external dns: %w", err)
+				}
+
+				if err := e2eutil.EnsureExternalDns(ctx, client, manifests.PrivateProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring private external dns: %w", err)
+				}
+
+				return nil
+			}); err != nil {
+				t.Fatal(fmt.Errorf("ensuring external dns exists: %w", err))
+			}
+
+			return ctx
+		}).
+		Assess("private dns only", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			deployment, err := e2eutil.GetDeployment(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(fmt.Errorf("creating client: %w", err))
+			}
+
+			containers, err := e2eutil.UpdateContainerDnsZoneIds(deployment, conf.PrivateDNSZoneIDs)
+			if err != nil {
+				t.Fatal(fmt.Errorf("updating container dns zone ids: %w", err))
+			}
+
+			if err := e2eutil.UpdateContainers(ctx, client, deployment, containers); err != nil {
+				t.Fatal(fmt.Errorf("updating containers: %w", err))
+			}
+
+			// this uses retry backoff because it takes time for operator to clean and create resources
+			if err := e2eutil.RetryBackoff(3, time.Second*10, func() error {
+				if err := e2eutil.EnsureExternalDnsCleaned(ctx, client, manifests.PublicProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring public external dns: %w", err)
+				}
+
+				if err := e2eutil.EnsureExternalDns(ctx, client, manifests.PrivateProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring private external dns: %w", err)
+				}
+
+				return nil
+			}); err != nil {
+				t.Fatal(fmt.Errorf("ensuring external dns exists: %w", err))
+			}
+
+			return ctx
+		}).
+		Assess("public dns only", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			deployment, err := e2eutil.GetDeployment(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(fmt.Errorf("creating client: %w", err))
+			}
+
+			containers, err := e2eutil.UpdateContainerDnsZoneIds(deployment, conf.PublicDNSZoneIDs)
+			if err != nil {
+				t.Fatal(fmt.Errorf("updating container dns zone ids: %w", err))
+			}
+
+			if err := e2eutil.UpdateContainers(ctx, client, deployment, containers); err != nil {
+				t.Fatal(fmt.Errorf("updating containers: %w", err))
+			}
+
+			// this uses retry backoff because it takes time for operator to clean and create resources
+			if err := e2eutil.RetryBackoff(3, time.Second*10, func() error {
+				if err := e2eutil.EnsureExternalDnsCleaned(ctx, client, manifests.PrivateProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring public external dns: %w", err)
+				}
+
+				if err := e2eutil.EnsureExternalDns(ctx, client, manifests.PublicProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring private external dns: %w", err)
+				}
+
+				return nil
+			}); err != nil {
+				t.Fatal(fmt.Errorf("ensuring external dns exists: %w", err))
+			}
+
+			return ctx
+		}).
+		Assess("no dns", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			deployment, err := e2eutil.GetDeployment(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(fmt.Errorf("creating client: %w", err))
+			}
+
+			containers, err := e2eutil.UpdateContainerDnsZoneIds(deployment, []string{})
+			if err != nil {
+				t.Fatal(fmt.Errorf("updating container dns zone ids: %w", err))
+			}
+
+			if err := e2eutil.UpdateContainers(ctx, client, deployment, containers); err != nil {
+				t.Fatal(fmt.Errorf("updating containers: %w", err))
+			}
+
+			// this uses retry backoff because it takes time for operator to clean and create resources
+			if err := e2eutil.RetryBackoff(3, time.Second*10, func() error {
+				if err := e2eutil.EnsureExternalDnsCleaned(ctx, client, manifests.PublicProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring public external dns: %w", err)
+				}
+
+				if err := e2eutil.EnsureExternalDnsCleaned(ctx, client, manifests.PrivateProvider.ResourceName()); err != nil {
+					return fmt.Errorf("ensuring private external dns: %w", err)
+				}
+
+				return nil
+			}); err != nil {
+				t.Fatal(fmt.Errorf("ensuring external dns exists: %w", err))
+			}
+
+			return ctx
+
+			return ctx
+		}).
+		WithTeardown("restore deployment", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+			deployment, err := e2eutil.GetDeployment(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			client, err := config.NewClient()
+			if err != nil {
+				t.Fatal(fmt.Errorf("creating client: %w", err))
+			}
+
+			if err := e2eutil.UpdateContainers(ctx, client, deployment, deployment.Spec.Template.Spec.Containers); err != nil {
+				t.Fatal(fmt.Errorf("updating containers: %w", err))
+			}
+
+			return ctx
+		}).Feature(),
+	)
+}
+
 func generateTestingObjects(t *testing.T, namespace, keyvaultURI string, config *zoneConfig) (clientDeployment *appsv1.Deployment, serverDeployment *appsv1.Deployment, service *corev1.Service) {
 	hostname := e2eutil.GetHostname(namespace, config.DNSZoneId)
 	clientDeployment = fixtures.NewClientDeployment(t, hostname, config.NameServer, namespace, config.Id)
@@ -289,7 +496,7 @@ func deployObjects(t *testing.T, ctx context.Context, client klient.Client, objs
 }
 
 func generateZoneConfigs(conf *testConfig) []*zoneConfig {
-	ret := []*zoneConfig{}
+	var ret []*zoneConfig
 
 	// generate private zone configs
 	for i, privateZoneId := range conf.PrivateDNSZoneIDs {
