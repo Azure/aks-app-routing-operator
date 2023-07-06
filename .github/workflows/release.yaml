@@ -1,0 +1,71 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release. Must be in the CHANGELOG.md file. Example: 1.0.0'
+        required: true
+      sha:
+        description: 'Commit SHA to release. Example: 7dec363daaca95c59f68607ac1f29a12bc0b195b'
+        required: true
+      update:
+        description: 'Update the release'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs: 
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # always read the changelog in main
+      - uses: actions/checkout@v3
+        with:
+          ref: 'main'
+
+      - name: Read changelog
+        id: changelog
+        uses: mindsers/changelog-reader-action@b97ce03a10d9bdbb07beb491c76a5a01d78cd3ef # v2.2.2
+        with:
+          validation_level: warn
+          version: ${{ inputs.version }}
+
+        # build image from sha input
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@16c0bc4a6e6ada2cfd8afd41d22d95379cf7c32a # v2.8.0
+
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push image
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:sha-$SHA"
+          az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
+          docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
+
+      - name: Create or update release
+        uses: ncipollo/release-action@a2e71bdd4e7dab70ca26a852f29600c98b33153e # v1.12.0
+        with:
+          name: ${{ steps.changelog.outputs.version }}
+          tag: v${{ steps.changelog.outputs.version }}
+          body: ${{ steps.changelog.outputs.changes }}
+          commit: ${{ inputs.sha }}
+          prerelease: false
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: ${{ inputs.update }}
