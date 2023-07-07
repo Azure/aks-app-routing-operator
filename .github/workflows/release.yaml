@@ -8,11 +8,6 @@ on:
       sha:
         description: 'Commit SHA to release. Example: 7dec363daaca95c59f68607ac1f29a12bc0b195b'
         required: true
-      update:
-        description: 'Update the release'
-        type: boolean
-        required: false
-        default: false
 
 permissions:
   id-token: write
@@ -50,14 +45,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build and push image
-        env:
-          SHA: ${{ inputs.sha }}
-        run: |
-          TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:sha-$SHA"
-          az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
-          docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
-
       - name: Create or update release
         uses: ncipollo/release-action@a2e71bdd4e7dab70ca26a852f29600c98b33153e # v1.12.0
         with:
@@ -68,4 +55,15 @@ jobs:
           prerelease: false
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: ${{ inputs.update }}
+          allowUpdates: false
+
+        # Push happens after creating GitHub release so we don't overwrite an image.
+        # Create release step doesn't allow for tag updates so we will never push
+        # to an image that already exists.
+      - name: Build and push image
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:$VERSION"
+          az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
+          docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
