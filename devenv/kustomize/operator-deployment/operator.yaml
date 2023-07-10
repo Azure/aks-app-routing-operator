@@ -14,6 +14,7 @@ roleRef:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  # these should match values in e2e/e2e_test.go
   name: app-routing-operator
   namespace: kube-system
 spec:

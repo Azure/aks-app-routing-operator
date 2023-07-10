@@ -114,10 +114,7 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
 
 	for _, obj := range objs {
-		l := obj.GetLabels()
-		for k, v := range externalDnsConfig.Provider.Labels() {
-			l[k] = v
-		}
+		l := util.MergeMaps(obj.GetLabels(), externalDnsConfig.Provider.Labels())
 		obj.SetLabels(l)
 	}
 

@@ -68,7 +68,7 @@ func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConf
 			Kind:       "IngressClass",
 			APIVersion: "networking.k8s.io/v1",
 		},
-		ObjectMeta: metav1.ObjectMeta{Name: ingressConfig.IcName},
+		ObjectMeta: metav1.ObjectMeta{Name: ingressConfig.IcName, Labels: TopLevelLabels},
 		Spec: netv1.IngressClassSpec{
 			Controller: ingressConfig.ControllerClass,
 		},
