@@ -38,6 +38,7 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
+	flag.StringVar(&Flags.OperatorNamespace, "operator-ns", "kube-system", "namespace of the operator's k8s deployment")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 }
 
@@ -59,6 +60,7 @@ type Config struct {
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
 	OperatorDeployment                  string
+	OperatorNamespace                   string
 	ClusterUid                          string
 }
 

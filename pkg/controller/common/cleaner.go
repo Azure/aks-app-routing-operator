@@ -164,6 +164,10 @@ func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
 	return nil
 }
 
+func (c *cleaner) NeedLeaderElection() bool {
+	return true
+}
+
 func isNamespaced(clientset kubernetes.Interface, gvr schema.GroupVersionResource) (bool, error) {
 	res, err := clientset.Discovery().ServerResourcesForGroupVersion(gvr.GroupVersion().String())
 	if err != nil {

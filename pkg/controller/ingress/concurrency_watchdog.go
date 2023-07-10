@@ -244,6 +244,10 @@ func (c *ConcurrencyWatchdog) processVotes(list *corev1.PodList, connectionCount
 	return ""
 }
 
+func (c *ConcurrencyWatchdog) NeedLeaderElection() bool {
+	return true
+}
+
 type evictionVote struct {
 	Time    time.Time
 	PodName string

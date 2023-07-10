@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func TestResourceReconcilerEmpty(t *testing.T) {
@@ -68,4 +69,9 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 	require.NoError(t,
 		c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual),
 		"expected resource to exist")
+}
+
+func TestResourceReconcilerLeaderElection(t *testing.T) {
+	var ler manager.LeaderElectionRunnable = &resourceReconciler{}
+	require.True(t, ler.NeedLeaderElection(), "should need leader election")
 }

@@ -16,6 +16,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
@@ -198,6 +199,11 @@ func TestCleanType(t *testing.T) {
 		}
 		require.Equal(t, len(test.expectedActions), len(d.Actions()), "should have expected number of actions")
 	}
+}
+
+func TestCleanerLeaderElection(t *testing.T) {
+	var ler manager.LeaderElectionRunnable = &cleaner{}
+	require.True(t, ler.NeedLeaderElection(), "should need leader election")
 }
 
 func DeleteCollectionAction(gvr schema.GroupVersionResource, namespace string, ls map[string]string) k8stesting.DeleteCollectionAction {

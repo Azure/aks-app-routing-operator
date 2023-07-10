@@ -56,12 +56,14 @@ func NewManager(conf *config.Config) (ctrl.Manager, error) {
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
 	m, err := ctrl.NewManager(rc, ctrl.Options{
+		MetricsBindAddress:     conf.MetricsAddr,
+		HealthProbeBindAddress: conf.ProbeAddr,
+		Scheme:                 scheme,
+
+		// we use an active-passive HA model meaning only the leader performs actions
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
-		MetricsBindAddress:      conf.MetricsAddr,
-		HealthProbeBindAddress:  conf.ProbeAddr,
-		Scheme:                  scheme,
 	})
 	if err != nil {
 		return nil, err
@@ -133,7 +135,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
-	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
+	deploy, err := kcs.AppsV1().Deployments(conf.OperatorNamespace).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		// It's okay if we don't find the deployment - just skip setting ownership references latter
 		log.Info("self deploy not found")
