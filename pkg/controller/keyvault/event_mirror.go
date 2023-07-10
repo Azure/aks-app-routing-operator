@@ -37,7 +37,6 @@ func NewEventMirror(manager ctrl.Manager, conf *config.Config) error {
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
 	}
 
-	// TODO: how does leader election work with this?
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&corev1.Event{}).
