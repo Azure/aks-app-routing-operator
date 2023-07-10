@@ -36,7 +36,6 @@ func NewEventMirror(manager ctrl.Manager, conf *config.Config) error {
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
 	}
-
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&corev1.Event{}).
