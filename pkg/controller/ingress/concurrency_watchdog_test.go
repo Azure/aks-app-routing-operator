@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
@@ -259,6 +260,11 @@ func TestConcurrencyWatchdogProcessVotesMissingPod(t *testing.T) {
 	// The pod would have been evicted if both votes were considered
 	pod = c.processVotes(list, connectionCountByPod, avgConnectionCount)
 	assert.Empty(t, pod, "no pod was evicted")
+}
+
+func TestConcurrencyWatchdogLeaderElection(t *testing.T) {
+	var ler manager.LeaderElectionRunnable = &ConcurrencyWatchdog{}
+	assert.True(t, ler.NeedLeaderElection(), "should need leader election")
 }
 
 func buildTestPods(n int) *corev1.PodList {

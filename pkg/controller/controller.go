@@ -56,12 +56,14 @@ func NewManager(conf *config.Config) (ctrl.Manager, error) {
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
 	m, err := ctrl.NewManager(rc, ctrl.Options{
+		MetricsBindAddress:     conf.MetricsAddr,
+		HealthProbeBindAddress: conf.ProbeAddr,
+		Scheme:                 scheme,
+
+		// we use an active-passive HA model meaning only the leader performs actions
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
-		MetricsBindAddress:      conf.MetricsAddr,
-		HealthProbeBindAddress:  conf.ProbeAddr,
-		Scheme:                  scheme,
 	})
 	if err != nil {
 		return nil, err
