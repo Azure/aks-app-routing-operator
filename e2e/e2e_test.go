@@ -152,7 +152,7 @@ func TestOperatorLogging(t *testing.T) {
 			if err := e2eutil.RetryBackoff(3, time.Second*10, func() error {
 				pods, err := clientset.CoreV1().Pods(operatorNs).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
 				if err != nil {
-					t.Fatal(err)
+					return fmt.Errorf("listing pods: %w", err)
 				}
 
 				checkedLines := 0
@@ -164,7 +164,7 @@ func TestOperatorLogging(t *testing.T) {
 					req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
 					logs, err := req.Stream(context.Background())
 					if err != nil {
-						t.Fatal(err)
+						return fmt.Errorf("streaming logs: %w", err)
 					}
 					defer logs.Close()
 
