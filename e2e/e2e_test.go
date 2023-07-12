@@ -119,7 +119,7 @@ func TestMain(m *testing.M) {
 // TestOperatorLogging ensures that the operator logs are being emitted correctly.
 func TestOperatorLogging(t *testing.T) {
 	testEnv.Test(t, features.New("operator-logging").
-		Assess("operator logs", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
+		Assess("operator logs are json", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
 			client, err := config.NewClient()
 			if err != nil {
 				t.Fatal(err)
