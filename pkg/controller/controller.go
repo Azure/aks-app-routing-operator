@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -35,7 +35,9 @@ var (
 )
 
 func init() {
-	ctrl.SetLogger(klogr.New())
+	// zap is the default recommended logger for controller-runtime when wanting json structured output
+	ctrl.SetLogger(zap.New())
+
 	registerSchemes(scheme)
 }
 
