@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -33,8 +34,12 @@ import (
 var scheme = runtime.NewScheme()
 
 func init() {
-	ctrl.SetLogger(getLogger())
 	registerSchemes(scheme)
+	ctrl.SetLogger(getLogger())
+	// need to set klog logger to same logger to get consistent logging format for all logs.
+	// without this things like leader election that use klog will not have the same format.
+	// https://github.com/kubernetes/client-go/blob/560efb3b8995da3adcec09865ca78c1ddc917cc9/tools/leaderelection/leaderelection.go#L250
+	klog.SetLogger(getLogger())
 }
 
 func getLogger(opts ...zap.Opts) logr.Logger {
