@@ -30,19 +30,16 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
-var (
-	scheme  = runtime.NewScheme()
-	logOpts []zap.Opts
-)
+var scheme = runtime.NewScheme()
 
 func init() {
-	setLogger()
+	ctrl.SetLogger(getLogger())
 	registerSchemes(scheme)
 }
 
-func setLogger() {
+func getLogger(opts ...zap.Opts) logr.Logger {
 	// zap is the default recommended logger for controller-runtime when wanting json structured output
-	ctrl.SetLogger(zap.New(logOpts...))
+	return zap.New(opts...)
 }
 
 func registerSchemes(s *runtime.Scheme) {
