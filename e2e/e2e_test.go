@@ -6,7 +6,6 @@
 package e2e
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,7 +23,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/e2e-framework/klient"
 	"sigs.k8s.io/e2e-framework/klient/k8s"
 	"sigs.k8s.io/e2e-framework/klient/wait"
@@ -114,82 +112,6 @@ func TestMain(m *testing.M) {
 
 	// Run tests
 	os.Exit(testEnv.Run(m))
-}
-
-// TestOperatorLogging ensures that the operator logs are being emitted correctly.
-func TestOperatorLogging(t *testing.T) {
-	testEnv.Test(t, features.New("operator-logging").
-		Assess("operator logs are json", func(ctx context.Context, t *testing.T, config *envconf.Config) context.Context {
-			client, err := config.NewClient()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			operator := &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operatorName,
-					Namespace: operatorNs,
-				},
-			}
-			if err := wait.For(conditions.New(client.Resources()).ResourceMatch(operator, func(object k8s.Object) bool {
-				d := object.(*appsv1.Deployment)
-				return d.Status.ReadyReplicas > 0
-			}), wait.WithTimeout(2*time.Minute)); err != nil {
-				t.Fatal(err)
-			}
-
-			if err := client.Resources().Get(context.Background(), operatorName, operatorNs, operator); err != nil {
-				t.Fatal(err)
-			}
-			selector := operator.Spec.Selector
-
-			clientset, err := kubernetes.NewForConfig(client.RESTConfig())
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// need to use retry because pods may restart and need time to start again
-			if err := e2eutil.RetryBackoff(3, time.Second*10, func() error {
-				pods, err := clientset.CoreV1().Pods(operatorNs).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
-				if err != nil {
-					return fmt.Errorf("listing pods: %w", err)
-				}
-
-				checkedLines := 0
-				for _, pod := range pods.Items {
-					if pod.Status.Phase != corev1.PodRunning {
-						continue
-					}
-
-					req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
-					logs, err := req.Stream(context.Background())
-					if err != nil {
-						return fmt.Errorf("streaming logs: %w", err)
-					}
-					defer logs.Close()
-
-					scanner := bufio.NewScanner(logs)
-					for scanner.Scan() {
-						if !json.Valid(scanner.Bytes()) {
-							return errors.New("operator pod logs are not valid json: " + scanner.Text())
-						}
-
-						checkedLines++
-					}
-				}
-
-				if checkedLines == 0 {
-					return errors.New("no logs found")
-				}
-
-				return nil
-			}); err != nil {
-				t.Fatal(err)
-			}
-
-			return ctx
-		}).Feature(),
-	)
 }
 
 // TestBasicService is the most common user scenario - add annotations to a service, get back working

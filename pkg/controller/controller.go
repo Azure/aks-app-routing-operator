@@ -31,14 +31,18 @@ import (
 )
 
 var (
-	scheme = runtime.NewScheme()
+	scheme  = runtime.NewScheme()
+	logOpts []zap.Opts
 )
 
 func init() {
-	// zap is the default recommended logger for controller-runtime when wanting json structured output
-	ctrl.SetLogger(zap.New())
-
+	setLogger()
 	registerSchemes(scheme)
+}
+
+func setLogger() {
+	// zap is the default recommended logger for controller-runtime when wanting json structured output
+	ctrl.SetLogger(zap.New(logOpts...))
 }
 
 func registerSchemes(s *runtime.Scheme) {
