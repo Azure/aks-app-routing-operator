@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"github.com/go-logr/zapr"
 	"net/http"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
+	ubzap "go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +38,7 @@ var scheme = runtime.NewScheme()
 func init() {
 	registerSchemes(scheme)
 	ctrl.SetLogger(getLogger())
+	getLogger()
 	// need to set klog logger to same logger to get consistent logging format for all logs.
 	// without this things like leader election that use klog will not have the same format.
 	// https://github.com/kubernetes/client-go/blob/560efb3b8995da3adcec09865ca78c1ddc917cc9/tools/leaderelection/leaderelection.go#L250
@@ -43,8 +46,14 @@ func init() {
 }
 
 func getLogger(opts ...zap.Opts) logr.Logger {
-	// zap is the default recommended logger for controller-runtime when wanting json structured output
-	return zap.New(opts...)
+
+	// make raw logger object from options in original zap pkg
+	rawOpts := zap.RawZapOpts(ubzap.AddCaller())
+
+	// append k8s zap options to raw options
+	rawLogger := zap.NewRaw(append(opts, rawOpts)...)
+
+	return zapr.NewLogger(rawLogger)
 }
 
 func registerSchemes(s *runtime.Scheme) {
