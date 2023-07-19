@@ -5,13 +5,13 @@ package controller
 
 import (
 	"context"
-	"github.com/go-logr/zapr"
 	"net/http"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
