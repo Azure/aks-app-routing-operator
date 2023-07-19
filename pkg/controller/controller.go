@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/go-logr/logr"
-	"github.com/go-logr/zapr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
@@ -48,11 +47,8 @@ func getLogger(opts ...zap.Opts) logr.Logger {
 	// make raw logger object from options in original zap pkg
 	rawOpts := zap.RawZapOpts(ubzap.AddCaller())
 
-	// append k8s zap options to raw options
-	rawLogger := zap.NewRaw(append(opts, rawOpts)...)
-
 	// zap is the default recommended logger for controller-runtime when wanting json structured output
-	return zapr.NewLogger(rawLogger)
+	return zap.New(append(opts, rawOpts)...)
 }
 
 func registerSchemes(s *runtime.Scheme) {
