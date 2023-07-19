@@ -4,9 +4,13 @@
 package controller
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,9 +18,31 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+func TestLogger(t *testing.T) {
+	t.Run("logs are json structured", func(t *testing.T) {
+		logOut := new(bytes.Buffer)
+		logger := getLogger(zap.WriteTo(logOut))
+
+		logger.Info("test info log", "key", "value", "key2", "value2")
+		logger.Error(errors.New("test error log"), "msg", "key3", "values3")
+
+		out := logOut.Bytes()
+		checked := 0
+		for _, line := range bytes.SplitAfter(out, []byte("}")) {
+			if bytes.TrimSpace(line) == nil {
+				continue
+			}
+
+			assert.True(t, json.Valid(line), "line is not valid json", string(line))
+			checked++
+		}
+
+		assert.True(t, checked > 0, "no logs validated")
+	})
+}
 
 func TestGetSelfDeploy(t *testing.T) {
 	t.Run("deploy exists", func(t *testing.T) {

@@ -29,11 +29,13 @@ func NewResourceReconciler(manager ctrl.Manager, name string, resources []client
 		retryInterval: time.Second,
 		resources:     resources,
 	}
-
 	return manager.Add(rr)
 }
 
 func (r *resourceReconciler) Start(ctx context.Context) error {
+	r.logger.Info("starting resource reconciler")
+	defer r.logger.Info("stopping resource reconciler")
+
 	interval := time.Nanosecond // run immediately when starting up
 	for {
 		select {
@@ -74,4 +76,8 @@ func (r *resourceReconciler) tick(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (r *resourceReconciler) NeedLeaderElection() bool {
+	return true
 }

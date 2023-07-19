@@ -455,7 +455,7 @@
               "args": [
                 "--source=ingress",
                 "--interval=3m0s",
-                "--txt-owner-id=",
+                "--txt-owner-id=test-cluster-uid",
                 "--domain-filter=test-dns-zone-domain",
                 "--provider=azure-private-dns",
                 "--azure-subscription-id=test-dns-zone-sub"

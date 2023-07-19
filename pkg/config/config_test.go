@@ -4,12 +4,14 @@
 package config
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-var configTestCases = []struct {
+var validateTestCases = []struct {
 	Name  string
 	Conf  *Config
 	Error string
@@ -25,6 +27,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
 		},
 	},
 	{
@@ -36,11 +39,9 @@ var configTestCases = []struct {
 			TenantID:                 "test-tenant-id",
 			Cloud:                    "test-cloud",
 			Location:                 "test-location",
-			DNSZoneRG:                "test-dns-zone-rg",
-			DNSZoneSub:               "test-dns-zone-sub",
-			DNSZoneDomain:            "test-dns-zone-domain",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 	},
 	{
@@ -53,6 +54,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--namespace is required",
 	},
@@ -66,6 +68,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--registry is required",
 	},
@@ -79,6 +82,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--msi is required",
 	},
@@ -92,6 +96,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--tenant-id is required",
 	},
@@ -105,6 +110,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--cloud is required",
 	},
@@ -118,56 +124,9 @@ var configTestCases = []struct {
 			Cloud:                    "test-cloud",
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--location is required",
-	},
-	{
-		Name: "missing-dns-zone-rg",
-		Conf: &Config{
-			NS:                       "test-namespace",
-			Registry:                 "test-registry",
-			MSIClientID:              "test-msi-client-id",
-			TenantID:                 "test-tenant-id",
-			Cloud:                    "test-cloud",
-			Location:                 "test-location",
-			DNSZoneSub:               "test-dns-zone-sub",
-			DNSZoneDomain:            "test-dns-zone-domain",
-			ConcurrencyWatchdogThres: 101,
-			ConcurrencyWatchdogVotes: 2,
-		},
-		Error: "--dns-zone-resource-group is required",
-	},
-	{
-		Name: "missing-dns-zone-sub",
-		Conf: &Config{
-			NS:                       "test-namespace",
-			Registry:                 "test-registry",
-			MSIClientID:              "test-msi-client-id",
-			TenantID:                 "test-tenant-id",
-			Cloud:                    "test-cloud",
-			Location:                 "test-location",
-			DNSZoneRG:                "test-dns-zone-rg",
-			DNSZoneDomain:            "test-dns-zone-domain",
-			ConcurrencyWatchdogThres: 101,
-			ConcurrencyWatchdogVotes: 2,
-		},
-		Error: "--dns-zone-subscription is required",
-	},
-	{
-		Name: "missing-dns-zone-domain",
-		Conf: &Config{
-			NS:                       "test-namespace",
-			Registry:                 "test-registry",
-			MSIClientID:              "test-msi-client-id",
-			TenantID:                 "test-tenant-id",
-			Cloud:                    "test-cloud",
-			Location:                 "test-location",
-			DNSZoneRG:                "test-dns-zone-rg",
-			DNSZoneSub:               "test-dns-zone-sub",
-			ConcurrencyWatchdogThres: 101,
-			ConcurrencyWatchdogVotes: 2,
-		},
-		Error: "--dns-zone-domain is required",
 	},
 	{
 		Name: "low-concurrency-watchdog-thres",
@@ -180,6 +139,7 @@ var configTestCases = []struct {
 			Location:                 "test-location",
 			ConcurrencyWatchdogThres: 100,
 			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
 		},
 		Error: "--concurrency-watchdog-threshold must be greater than 100",
 	},
@@ -196,10 +156,24 @@ var configTestCases = []struct {
 		},
 		Error: "--concurrency-watchdog-votes must be a positive number",
 	},
+	{
+		Name: "missing-cluster-uid",
+		Conf: &Config{
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+		},
+		Error: "--cluster-uid is required",
+	},
 }
 
 func TestConfigValidate(t *testing.T) {
-	for _, tc := range configTestCases {
+	for _, tc := range validateTestCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			err := tc.Conf.Validate()
 			if tc.Error == "" {
@@ -209,4 +183,76 @@ func TestConfigValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+var (
+	privateZoneOne = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-one.com"
+	privateZoneTwo = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
+	privateZones   = []string{privateZoneOne, privateZoneTwo}
+
+	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-one.com"
+	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com"
+	publicZones   = []string{publicZoneOne, publicZoneTwo}
+
+	parseTestCases = []struct {
+		name                 string
+		zonesString          string
+		expectedError        error
+		expectedPrivateZones []string
+		expectedPublicZones  []string
+	}{
+		{
+			name:                 "full",
+			zonesString:          strings.Join(append(privateZones, publicZones...), ","),
+			expectedPrivateZones: privateZones,
+			expectedPublicZones:  publicZones,
+		},
+		{
+			name:                 "private-only",
+			zonesString:          strings.Join(privateZones, ","),
+			expectedPrivateZones: privateZones,
+			expectedPublicZones:  nil,
+		},
+		{
+			name:                 "public-only",
+			zonesString:          strings.Join(publicZones, ","),
+			expectedPrivateZones: nil,
+			expectedPublicZones:  publicZones,
+		},
+		{
+			name:          "bad-provider",
+			zonesString:   strings.Join(publicZones, ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com",
+			expectedError: errors.New("invalid resource provider Microsoft.FakeRP from zone /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network"),
+		},
+		{
+			name:          "bad-resource-type",
+			zonesString:   strings.Join(publicZones, ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com",
+			expectedError: errors.New("while parsing dns zone resource ID /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com: detected invalid resource type hybriddnszones"),
+		},
+		{
+			name:          "bad-resource-group",
+			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/another-rg-private/providers/Microsoft.Network/privatednszones/test-two.com",
+			expectedError: errors.New("while parsing resource IDs for privatednszones: detected multiple resource groups another-rg-private and test-rg-private"),
+		},
+		{
+			name:          "bad-subscription",
+			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/another-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com",
+			expectedError: errors.New("while parsing resource IDs for dnszones: detected multiple subscriptions another-public-subscription and test-public-subscription"),
+		},
+	}
+)
+
+func TestConfigParse(t *testing.T) {
+	for _, tc := range parseTestCases {
+		conf := &Config{}
+		err := conf.ParseAndValidateZoneIDs(tc.zonesString)
+		if tc.expectedError != nil {
+			require.EqualError(t, err, tc.expectedError.Error())
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedPrivateZones, conf.PrivateZoneConfig.ZoneIds)
+			require.Equal(t, tc.expectedPublicZones, conf.PublicZoneConfig.ZoneIds)
+		}
+	}
+
 }

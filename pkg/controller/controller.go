@@ -16,10 +16,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -27,8 +31,27 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
+var scheme = runtime.NewScheme()
+
 func init() {
-	ctrl.SetLogger(klogr.New())
+	registerSchemes(scheme)
+	ctrl.SetLogger(getLogger())
+	// need to set klog logger to same logger to get consistent logging format for all logs.
+	// without this things like leader election that use klog will not have the same format.
+	// https://github.com/kubernetes/client-go/blob/560efb3b8995da3adcec09865ca78c1ddc917cc9/tools/leaderelection/leaderelection.go#L250
+	klog.SetLogger(getLogger())
+}
+
+func getLogger(opts ...zap.Opts) logr.Logger {
+	// zap is the default recommended logger for controller-runtime when wanting json structured output
+	return zap.New(opts...)
+}
+
+func registerSchemes(s *runtime.Scheme) {
+	utilruntime.Must(clientgoscheme.AddToScheme(s))
+	utilruntime.Must(secv1.Install(s))
+	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
+	utilruntime.Must(policyv1alpha1.AddToScheme(s))
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
@@ -41,18 +64,18 @@ func NewManager(conf *config.Config) (ctrl.Manager, error) {
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
 	m, err := ctrl.NewManager(rc, ctrl.Options{
+		MetricsBindAddress:     conf.MetricsAddr,
+		HealthProbeBindAddress: conf.ProbeAddr,
+		Scheme:                 scheme,
+
+		// we use an active-passive HA model meaning only the leader performs actions
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
-		MetricsBindAddress:      conf.MetricsAddr,
-		HealthProbeBindAddress:  conf.ProbeAddr,
 	})
 	if err != nil {
 		return nil, err
 	}
-	secv1.Install(m.GetScheme())
-	cfgv1alpha2.AddToScheme(m.GetScheme())
-	policyv1alpha1.AddToScheme(m.GetScheme())
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 

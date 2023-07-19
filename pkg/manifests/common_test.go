@@ -41,6 +41,7 @@ func TestNamespaceResources(t *testing.T) {
 
 // AssertFixture checks the fixture path and compares it to the provided objects, failing if they are not equal
 func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
+	t.Logf("Testing fixture %s", fixturePath)
 	actual, err := json.MarshalIndent(&objs, "  ", "  ")
 	require.NoError(t, err)
 

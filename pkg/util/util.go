@@ -58,3 +58,13 @@ func Jitter(base time.Duration, ratio float64) time.Duration {
 	jitter := (rand.Float64() * float64(base) * ratio) - (float64(base) * (ratio / 2))
 	return base + time.Duration(jitter)
 }
+
+func MergeMaps[M ~map[K]V, K comparable, V any](src ...M) M {
+	merged := make(M)
+	for _, m := range src {
+		for k, v := range m {
+			merged[k] = v
+		}
+	}
+	return merged
+}

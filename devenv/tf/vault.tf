@@ -1,4 +1,3 @@
-# identical across all scenarios
 resource "azurerm_key_vault" "keyvault" {
   name                     = "dev-${random_string.random.result}a"
   location                 = azurerm_resource_group.rg.location
@@ -21,6 +20,8 @@ resource "azurerm_key_vault_access_policy" "allowtesteraccess" {
     "Create",
     "Delete",
     "Import",
+    "Purge",
+    "Recover",
   ]
 
 }
@@ -39,8 +40,9 @@ resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
   ]
 }
 
-resource "azurerm_key_vault_certificate" "testcert" {
-  name         = "generated-cert"
+resource "azurerm_key_vault_certificate" "testcert-private" {
+  for_each = { for i,d in azurerm_private_dns_zone.dnszone : i => d }
+  name         = "generated-cert-private-${index(tolist(var.privatezones) , each.key)}"
   key_vault_id = azurerm_key_vault.keyvault.id
   depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
 
@@ -81,7 +83,59 @@ resource "azurerm_key_vault_certificate" "testcert" {
       ]
 
       subject_alternative_names {
-        dns_names = ["*.${var.domain}"]
+        dns_names = ["*.${each.value.name}"]
+      }
+
+      subject            = "CN=testcert"
+      validity_in_months = 12
+    }
+  }
+}
+
+resource "azurerm_key_vault_certificate" "testcert-public" {
+  for_each = { for i,d in azurerm_dns_zone.dnszone : i => d }
+  name         = "generated-cert-public-${index(tolist(var.publiczones) , each.key)}"
+  key_vault_id = azurerm_key_vault.keyvault.id
+  depends_on = [azurerm_key_vault_access_policy.allowtesteraccess]
+
+  certificate_policy {
+    issuer_parameters {
+      name = "Self"
+    }
+
+    key_properties {
+      exportable = true
+      key_size   = 2048
+      key_type   = "RSA"
+      reuse_key  = true
+    }
+
+    lifetime_action {
+      action {
+        action_type = "AutoRenew"
+      }
+
+      trigger {
+        days_before_expiry = 30
+      }
+    }
+
+    secret_properties {
+      content_type = "application/x-pem-file"
+    }
+
+    x509_certificate_properties {
+      key_usage = [
+        "cRLSign",
+        "dataEncipherment",
+        "digitalSignature",
+        "keyAgreement",
+        "keyCertSign",
+        "keyEncipherment",
+      ]
+
+      subject_alternative_names {
+        dns_names = ["*.${each.value.name}"]
       }
 
       subject            = "CN=testcert"

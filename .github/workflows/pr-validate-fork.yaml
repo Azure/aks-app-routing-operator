@@ -1,0 +1,112 @@
+# File inspired by https://github.com/Azure/azure-service-operator/blob/main/.github/workflows/pr-validation-fork.yml
+name: Validate PR (fork)
+on:
+  repository_dispatch:
+    types: [ok-to-test-command]
+
+env:
+  validate_job_name: validation-tests # must match env of same name in pr-validate
+
+jobs:
+  setup:
+    permissions:
+      checks: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: set-check-run-in-progress
+        uses: actions/github-script@v6
+        id: set-check-run-in-progress
+        env:
+          number: ${{ github.event.client_payload.pull_request.number }}
+          job: ${{ github.job }}
+          server_url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          run_id: ${{ github.run_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = `${process.env.server_url}/${process.env.repo}/actions/runs/${process.env.run_id}`
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: process.env.number
+            });
+            const ref = pull.head.sha;
+            const { data: result } = await github.rest.checks.create({
+              ...context.repo,
+              name: process.env.validate_job_name,
+              head_sha: ref,
+              status: 'in_progress',
+              details_url: url,
+            });
+            return result;
+  e2e:
+    needs: setup
+    if:
+      github.event_name == 'repository_dispatch' &&
+      github.event.client_payload.slash_command.args.named.sha != '' &&
+      contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+      skipRefCheck: false
+    secrets: inherit
+  unit:
+    needs: setup
+    if:
+      github.event_name == 'repository_dispatch' &&
+      github.event.client_payload.slash_command.args.named.sha != '' &&
+      contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)
+    uses: ./.github/workflows/unit.yaml
+    with:
+      ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+      skipRefCheck: false
+  status:
+    permissions:
+      checks: write
+      pull-requests: read
+    needs: [e2e, unit]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Update status
+        uses: actions/github-script@v6
+        id: update-check-run
+        if: ${{ always() }}
+        env:
+          number: ${{ github.event.client_payload.pull_request.number }}
+          conclusion: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) && 'failure' || 'success' }}
+          server_url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          run_id: ${{ github.run_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = `${process.env.server_url}/${process.env.repo}/actions/runs/${process.env.run_id}`
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: process.env.number
+            });
+            console.log('retrieved pull request')
+            
+            const ref = pull.head.sha;
+            const { data: checks } = await github.rest.checks.listForRef({
+              ...context.repo,
+              ref
+            });
+            console.log('listed checks for ref')
+            
+            const check = checks.check_runs.filter(c => c.name === process.env.validate_job_name);
+            if (check.length === 0) {
+              core.setFailed('check not found. new commit may have been pushed')
+              return
+            }
+            const { data: result } = await github.rest.checks.update({
+              ...context.repo,
+              check_run_id: check[0].id,
+              status: 'completed',
+              conclusion: process.env.conclusion,
+              details_url: url,
+            });
+            console.log('updated check')
+            
+            return result;

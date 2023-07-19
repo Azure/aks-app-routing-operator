@@ -5,7 +5,6 @@ package fixtures
 
 import (
 	_ "embed"
-	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -33,15 +32,15 @@ func (d DeploymentType) String() string {
 	return []string{"client", "server"}[d]
 }
 
-func NewClientDeployment(t *testing.T, host string, nameservers []string, namespace string) *appsv1.Deployment {
-	deploy := NewGoDeployment(t, Client, namespace)
+func NewClientDeployment(t *testing.T, host string, nameserver, namespace, id string) *appsv1.Deployment {
+	deploy := NewGoDeployment(t, Client, namespace, id)
 	deploy.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	deploy.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{
 		Name:  "URL",
 		Value: "https://" + host,
 	}, {
-		Name:  "NAMESERVERS",
-		Value: strings.Join(nameservers, ","),
+		Name:  "NAMESERVER",
+		Value: nameserver,
 	}, {
 		Name:      "POD_IP",
 		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
@@ -63,7 +62,7 @@ func NewClientDeployment(t *testing.T, host string, nameservers []string, namesp
 	return deploy
 }
 
-func NewGoDeployment(t testing.TB, d DeploymentType, namespace string) *appsv1.Deployment {
+func NewGoDeployment(t testing.TB, d DeploymentType, namespace, id string) *appsv1.Deployment {
 	var source string
 	switch d {
 	case Client:
@@ -74,7 +73,7 @@ func NewGoDeployment(t testing.TB, d DeploymentType, namespace string) *appsv1.D
 		t.Fatalf("test failed: invalid deployment name given")
 	}
 
-	name := d.String()
+	name := d.String() + id
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

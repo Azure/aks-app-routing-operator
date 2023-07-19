@@ -14,10 +14,11 @@ roleRef:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  # these should match values in e2e/e2e_test.go
   name: app-routing-operator
   namespace: kube-system
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: app-routing-operator
@@ -31,3 +32,13 @@ spec:
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
           command: ["/aks-app-routing-operator"]
           args: []
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: app-routing-operator
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: app-routing-operator
