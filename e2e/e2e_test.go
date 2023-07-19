@@ -109,6 +109,7 @@ func TestMain(m *testing.M) {
 	testEnv.AfterEachTest(func(ctx context.Context, cfg *envconf.Config, t *testing.T) (context.Context, error) {
 		return e2eutil.DeleteNSForTest(ctx, cfg, t)
 	})
+	testEnv.Setup()
 
 	// Run tests
 	os.Exit(testEnv.Run(m))
