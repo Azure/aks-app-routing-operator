@@ -38,7 +38,6 @@ var scheme = runtime.NewScheme()
 func init() {
 	registerSchemes(scheme)
 	ctrl.SetLogger(getLogger())
-	getLogger()
 	// need to set klog logger to same logger to get consistent logging format for all logs.
 	// without this things like leader election that use klog will not have the same format.
 	// https://github.com/kubernetes/client-go/blob/560efb3b8995da3adcec09865ca78c1ddc917cc9/tools/leaderelection/leaderelection.go#L250
@@ -46,13 +45,13 @@ func init() {
 }
 
 func getLogger(opts ...zap.Opts) logr.Logger {
-
 	// make raw logger object from options in original zap pkg
 	rawOpts := zap.RawZapOpts(ubzap.AddCaller())
 
 	// append k8s zap options to raw options
 	rawLogger := zap.NewRaw(append(opts, rawOpts)...)
 
+	// zap is the default recommended logger for controller-runtime when wanting json structured output
 	return zapr.NewLogger(rawLogger)
 }
 
