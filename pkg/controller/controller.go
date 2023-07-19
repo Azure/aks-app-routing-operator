@@ -44,7 +44,7 @@ func init() {
 }
 
 func getLogger(opts ...zap.Opts) logr.Logger {
-	// make raw logger object from options in original zap pkg
+	// use raw opts to add caller info to logs
 	rawOpts := zap.RawZapOpts(ubzap.AddCaller())
 
 	// zap is the default recommended logger for controller-runtime when wanting json structured output
