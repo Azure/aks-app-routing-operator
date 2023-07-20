@@ -13,6 +13,7 @@ import (
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
+	ubzap "go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,8 +44,11 @@ func init() {
 }
 
 func getLogger(opts ...zap.Opts) logr.Logger {
+	// use raw opts to add caller info to logs
+	rawOpts := zap.RawZapOpts(ubzap.AddCaller())
+
 	// zap is the default recommended logger for controller-runtime when wanting json structured output
-	return zap.New(opts...)
+	return zap.New(append(opts, rawOpts)...)
 }
 
 func registerSchemes(s *runtime.Scheme) {
