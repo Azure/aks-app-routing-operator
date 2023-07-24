@@ -67,6 +67,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 // we probably need to run inside clusters to support private clusters
 // todo: in test build and push test image to cluster, then run test inside cluster
+// todo: what if this ran in the same vnet as the cluster?
+// https://learn.microsoft.com/en-us/azure/aks/private-clusters#options-for-connecting-to-the-private-cluster
+// what if we use a self hosted runner on github?
 func (a *aks) GetKubeconfig(ctx context.Context) ([]byte, error) {
 	resp, err := a.factory.NewManagedClustersClient().ListClusterUserCredentials(ctx, a.resourceGroup, a.name, nil)
 	if err != nil {
@@ -79,4 +82,13 @@ func (a *aks) GetKubeconfig(ctx context.Context) ([]byte, error) {
 	}
 
 	return kubeconfigs[0].Value, nil
+}
+
+func (a *aks) GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error) {
+	result, err := a.factory.NewManagedClustersClient().Get(ctx, a.resourceGroup, a.name, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting cluster: %w", err)
+	}
+
+	return &result.ManagedCluster, nil
 }

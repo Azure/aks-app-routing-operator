@@ -57,6 +57,3 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 func (a *acr) GetName() string {
 	return a.name
 }
-
-func (a *acr) CreateCertificate() error {
-}
