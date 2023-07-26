@@ -65,7 +65,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	for idx := 0; idx < lenZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
-				zone, err := clients.NewZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix), i.Location)
+				zone, err := clients.NewZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
 				if err != nil {
 					return fmt.Errorf("creating zone: %w", err)
 				}
@@ -77,7 +77,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	for idx := 0; idx < lenPrivateZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
-				privateZone, err := clients.NewPrivateZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix), i.Location)
+				privateZone, err := clients.NewPrivateZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix))
 				if err != nil {
 					return fmt.Errorf("creating private zone: %w", err)
 				}

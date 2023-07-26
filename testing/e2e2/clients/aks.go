@@ -62,9 +62,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("starting create cluster: %w", err)
 	}
 
-	result, err := poll.PollUntilDone(ctx, nil)
+	result, err := pollWithLog(ctx, poll, "still creating aks "+name)
 	if err != nil {
-		return nil, fmt.Errorf("polling create operation: %w", err)
+		return nil, fmt.Errorf("creating cluster: %w", err)
 	}
 
 	return &aks{

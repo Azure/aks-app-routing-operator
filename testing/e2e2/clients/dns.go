@@ -32,7 +32,10 @@ func privateZoneOpt(z *armdns.Zone) error {
 	return nil
 }
 
-func NewZone(ctx context.Context, subscriptionId, resourceGroup, name, location string, zoneOpts ...ZoneOpt) (*zone, error) {
+func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zoneOpts ...ZoneOpt) (*zone, error) {
+	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+	name = name + ".com"
+
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting to create zone")
 	defer lgr.Info("finished creating zone")
@@ -48,7 +51,7 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name, location 
 	}
 
 	new := &armdns.Zone{
-		Location: to.Ptr(location),
+		Location: to.Ptr("global"), // https://github.com/Azure/azure-cli/issues/6052 this must be global because DNS zones are global resources
 		Name:     to.Ptr(name),
 	}
 	for _, opt := range zoneOpts {
@@ -95,8 +98,8 @@ func (z *zone) GetName() string {
 	return z.name
 }
 
-func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*privateZone, error) {
-	z, err := NewZone(ctx, subscriptionId, resourceGroup, name, location, privateZoneOpt)
+func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name string) (*privateZone, error) {
+	z, err := NewZone(ctx, subscriptionId, resourceGroup, name, privateZoneOpt)
 	if err != nil {
 		return nil, fmt.Errorf("creating private zone: %w", err)
 	}
