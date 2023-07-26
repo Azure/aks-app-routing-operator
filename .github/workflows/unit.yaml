@@ -15,13 +15,13 @@ jobs:
       with:
         go-version: ~1.20.0
 
-    - name: Run Unit Tests
-      # if:
-      #   (github.event_name == 'repository_dispatch' &&
-      #   github.event.client_payload.slash_command.args.named.sha != '' &&
-      #   contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
-      #   inputs.skipRefCheck
-      run: go test -race -v ./...
+    # - name: Run Unit Tests
+    #   if:
+    #     (github.event_name == 'repository_dispatch' &&
+    #     github.event.client_payload.slash_command.args.named.sha != '' &&
+    #     contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+    #     inputs.skipRefCheck
+    #   run: go test -race -v ./...
 
     # - name: Ensure ref
     #   uses: actions/github-script@v6
@@ -33,6 +33,7 @@ jobs:
       id: get_release
       uses: actions/github-script@v6
       with:
+        result-encoding: string
         script: |
           const { data } = await github.rest.repos.getLatestRelease({
             owner: 'Azure',
@@ -40,17 +41,12 @@ jobs:
           });
           console.log(`Latest tag is ${data.tag_name}`);
           console.log(`Assests count is ${data.assets.length}`);
-          data.assets.filter(asset => {
-            if (asset.name.includes('linux_amd64')) {
-              console.log(`Asset name is ${asset.name}`);
-              console.log(`Asset url is ${asset.browser_download_url}`);
-              return asset.browser_download_url;
-            }
-          });
+          const linuxAssetUrl = data.assets.filter(asset => asset.name.includes('linux_amd64'));
+          return linuxAssetUrl[0].browser_download_url;
     - name: Download and run gocover
       shell: bash
       run: |
-        echo "download asset url from previous step is" ${{ steps.get_release.outputs.result }}
+        echo "download asset url from previous step is ${{ steps.get_release.outputs.result }}"
         wget -q -O gocover.tar.gz ${{ steps.get_release.outputs.result }}
         tar -xzf gocover.tar.gz
         chmod +x gocover
