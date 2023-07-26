@@ -20,12 +20,12 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal v1.1.2 h1:mLY+pNL
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.2.0 h1:8d4U82r7ItT1Es91x3eUcAQweih36KWvUha8AZ9X0Rs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.2.0/go.mod h1:/1bkGperHinQbAHMWivoec/Ucu6//iXo6jn5mhmqCVU=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.0.0 h1:pPvTJ1dY0sA35JOeFq6TsY2xj6Z85Yo23Pj4wCCvu4o=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0 h1:QM6sE5k2ZT/vI5BEe0r7mqjsUSnhVBFbOsVkEuaEfiA=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0/go.mod h1:243D9iHbcQXoFUtgHJwL7gl2zx1aDuDMjvBZVGr2uW0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.1.0 h1:rR8ZW79lE/ppfXTfiYSnMFv5EzmVuY4pfZWIkscIJ64=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.1.0/go.mod h1:y2zXtLSMM/X5Mfawq0lOftpWn3f4V6OCsRdINsvWBPI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.1 h1:7CBQ+Ei8SP2c6ydQTGCCrS35bDxgTMfoP2miAwK++OU=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.1/go.mod h1:c/wcGeGx5FUPbM/JltUYHZcKmigwyVLJlDq+4HdtXaw=
-github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azadmin v1.0.0 h1:a1r1BXx2qubApsA6Mkhnn4N8tTJ6xUZ5GMxdp31S7wM=
-github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azadmin v1.0.0/go.mod h1:9h2F3qBFyIYqyjWIC33RjpnWSr87BQdbmvcfyjeMHNw=
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v0.11.0 h1:gTHF2LPEPSA8FxDveS39K0HDrwuU4XjxYaiFl43HiqY=
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v0.11.0/go.mod h1:bvmRiW3fDkweB1flbAcgBDUSmNOjQFU/X1LmLrZFR6M=
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v0.8.0 h1:T028gtTPiYt/RMUfs8nVsAL7FDQrfLlrm/NnRG/zcC4=

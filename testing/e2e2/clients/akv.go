@@ -13,10 +13,15 @@ import (
 
 type akv struct {
 	uri string
+	id  string
 }
 
 // CertOpt specifies what kind of certificate to create
 type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
+
+type Cert struct {
+	name string
+}
 
 func NewAkv(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*akv, error) {
 	lgr := logger.FromContext(ctx)
@@ -48,22 +53,27 @@ func NewAkv(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 	return &akv{
 		uri: *result.Properties.VaultURI,
+		id:  *result.ID,
 	}, nil
 }
 
-func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) error {
+func (a *akv) GetId() string {
+	return a.id
+}
+
+func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting to create certificate")
 	defer lgr.Info("finished creating certificate")
 
 	cred, err := GetAzCred()
 	if err != nil {
-		return fmt.Errorf("getting az credentials: %w", err)
+		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
 
 	client, err := azcertificates.NewClient(a.uri, cred, nil)
 	if err != nil {
-		return fmt.Errorf("creating client: %w", err)
+		return nil, fmt.Errorf("creating client: %w", err)
 	}
 
 	dnsnamesPtr := make([]*string, len(dnsnames))
@@ -117,14 +127,18 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 	}
 	for _, opt := range certOpts {
 		if err := opt(new); err != nil {
-			return fmt.Errorf("applying certificate option: %w", err)
+			return nil, fmt.Errorf("applying certificate option: %w", err)
 		}
 	}
 
 	_, err = client.CreateCertificate(ctx, name, *new, nil)
 	if err != nil {
-		return fmt.Errorf("creating certificate: %w", err)
+		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
-	return nil
+	return &Cert{name: name}, nil
+}
+
+func (c *Cert) GetName() string {
+	return c.name
 }

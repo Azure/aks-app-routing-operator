@@ -11,6 +11,7 @@ import (
 )
 
 type acr struct {
+	id            string
 	name          string
 	resourceGroup string
 }
@@ -49,6 +50,7 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	return &acr{
+		id:            *result.ID,
 		name:          *result.Name,
 		resourceGroup: resourceGroup,
 	}, nil
@@ -56,4 +58,8 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 func (a *acr) GetName() string {
 	return a.name
+}
+
+func (a *acr) GetId() string {
+	return a.id
 }

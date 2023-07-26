@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	if err := infras.Provision(); err != nil {
+	if _, err := infras.Provision(); err != nil {
 		panic(fmt.Errorf("provisioning infrastructure: %w", err))
 	}
 

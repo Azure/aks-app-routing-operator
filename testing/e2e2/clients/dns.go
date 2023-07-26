@@ -24,6 +24,10 @@ type privateZone struct {
 type ZoneOpt func(z *armdns.Zone) error
 
 func privateZoneOpt(z *armdns.Zone) error {
+	if z.Properties == nil {
+		z.Properties = &armdns.ZoneProperties{}
+	}
+
 	z.Properties.ZoneType = to.Ptr(armdns.ZoneTypePrivate)
 	return nil
 }
@@ -62,6 +66,33 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name, location 
 		resourceGroup:  resourceGroup,
 		subscriptionId: subscriptionId,
 	}, nil
+}
+
+func (z *zone) GetDns(ctx context.Context) (*armdns.Zone, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting to get dns")
+	defer lgr.Info("finished getting dns")
+
+	cred, err := GetAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armdns.NewZonesClient(z.subscriptionId, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	resp, err := client.Get(ctx, z.resourceGroup, z.name, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting dns: %w", err)
+	}
+
+	return &resp.Zone, nil
+}
+
+func (z *zone) GetName() string {
+	return z.name
 }
 
 func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*privateZone, error) {

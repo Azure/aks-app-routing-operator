@@ -8,11 +8,12 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 )
 
 type aks struct {
-	factory             *armcontainerservice.ClientFactory
-	name, resourceGroup string
+	factory                             *armcontainerservice.ClientFactory
+	name, subscriptionId, resourceGroup string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -40,6 +41,14 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
 			DNSPrefix: to.Ptr("approutinge2e"),
+			AddonProfiles: map[string]*armcontainerservice.ManagedClusterAddonProfile{
+				"azureKeyvaultSecretsProvider": {
+					Enabled: to.Ptr(true),
+					Config: map[string]*string{
+						"enableSecretRotation": to.Ptr("true"),
+					},
+				},
+			},
 		},
 	}
 	for _, opt := range mcOpts {
@@ -59,9 +68,10 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	return &aks{
-		factory:       factory,
-		name:          *result.ManagedCluster.Name,
-		resourceGroup: resourceGroup,
+		factory:        factory,
+		name:           *result.ManagedCluster.Name,
+		subscriptionId: subscriptionId,
+		resourceGroup:  resourceGroup,
 	}, nil
 }
 
@@ -85,10 +95,48 @@ func (a *aks) GetKubeconfig(ctx context.Context) ([]byte, error) {
 }
 
 func (a *aks) GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting to get aks " + a.name)
+	defer lgr.Info("finished getting aks " + a.name)
+
 	result, err := a.factory.NewManagedClustersClient().Get(ctx, a.resourceGroup, a.name, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting cluster: %w", err)
 	}
 
 	return &result.ManagedCluster, nil
+}
+
+func (a *aks) GetVnetId(ctx context.Context) (string, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting to get vnet id for aks " + a.name)
+	defer lgr.Info("finished getting vnet id for aks " + a.name)
+
+	cred, err := GetAzCred()
+	if err != nil {
+		return "", fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armnetwork.NewVirtualNetworksClient(a.subscriptionId, cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating network client: %w", err)
+	}
+
+	cluster, err := a.GetCluster(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting cluster: %w", err)
+	}
+
+	pager := client.NewListPager(*cluster.Properties.NodeResourceGroup, nil)
+	page, err := pager.NextPage(ctx)
+	if err != nil {
+		return "", fmt.Errorf("listing vnet : %w", err)
+	}
+
+	vnets := page.Value
+	if len(vnets) == 0 {
+		return "", fmt.Errorf("no vnets found")
+	}
+
+	return *vnets[0].ID, nil
 }
