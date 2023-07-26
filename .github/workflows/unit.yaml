@@ -52,7 +52,7 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const assetUrl = github.context.payload.outputs.get_release;
+          const assetUrl = steps.get_release.outputs.result;
           console.log(`Asset url is ${assetUrl}`);
           const result = await github.request(assetUrl)
           tar -xzf result -o gocover;
