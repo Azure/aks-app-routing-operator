@@ -51,8 +51,8 @@ jobs:
     - name: Download and run gocover
       shell: bash
       run: |
-        echo "download asset url from previous step is ${{ steps.get_release.outputs.result }}"
-        wget -q -O gocover.tar.gz $(echo "${{ steps.get_release.outputs.result }}" | tr -d '"')
+        echo "download asset url from previous step is" ${{ steps.get_release.outputs.result }}
+        wget -q -O gocover.tar.gz ${{ steps.get_release.outputs.result }}
         tar -xzf gocover.tar.gz
         chmod +x gocover
         ./gocover test --coverprofile=coverage.out --coverage-mode=full ./...
