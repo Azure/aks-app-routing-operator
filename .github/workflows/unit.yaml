@@ -32,8 +32,8 @@ jobs:
     - name: Get gocover latest release asset url
       id: get_release
       uses: actions/github-script@v6
-      result-encoding: string
       with:
+        result-encoding: string
         script: |
           const { data } = await github.rest.repos.getLatestRelease({
             owner: 'Azure',
