@@ -50,6 +50,6 @@ jobs:
         wget -q -O gocover.tar.gz ${{ steps.get_release.outputs.result }}
         tar -xzf gocover.tar.gz
         chmod +x gocover
-        ./gocover test --coverprofile=coverage.out --coverage-mode=full ./...
+        ./gocover test --cover-profile=coverage.out --coverage-mode=full ./...
         
 
