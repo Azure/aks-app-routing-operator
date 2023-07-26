@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -37,6 +38,7 @@ func TestLogger(t *testing.T) {
 			}
 
 			assert.True(t, json.Valid(line), "line is not valid json", string(line))
+			assert.True(t, strings.Contains(string(line), "\"caller\":\"controller/controller_test.go"))
 			checked++
 		}
 
