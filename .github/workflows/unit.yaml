@@ -33,7 +33,6 @@ jobs:
       id: get_release
       uses: actions/github-script@v6
       with:
-        result-encoding: string
         script: |
           const { data } = await github.rest.repos.getLatestRelease({
             owner: 'Azure',
