@@ -48,17 +48,12 @@ jobs:
               return asset.browser_download_url;
             }
           });
-    - name: Download gocover latest release assets
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const assetUrl = steps.get_release.outputs.result;
-          console.log(`Asset url is ${assetUrl}`);
-          const result = await github.request(assetUrl)
-          tar -xzf result -o gocover;
-          ls -al;
-          chmod +x gocover;
-          ls -al;
-          ./gocover --help;
+    - name: Download and run gocover
+      shell: bash
+      run: |
+        wget -q -O gocover.tar.gz $(echo "${{ steps.get_release.outputs.result }}" | tr -d '"')
+        tar -xzf gocover.tar.gz
+        chmod +x gocover
+        ./gocover test --coverprofile=coverage.out --coverage-mode=full ./...
         
 
