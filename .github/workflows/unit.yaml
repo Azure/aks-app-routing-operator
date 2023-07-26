@@ -1,13 +1,6 @@
 name: Unit Tests
 
-on:
-  workflow_call:
-    inputs:
-      ref:
-        type: string
-      skipRefCheck:
-        type: boolean
-        default: true
+on: [workflow_dispatch]
 
 jobs:
   unit-test:
@@ -35,3 +28,33 @@ jobs:
       if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
       with:
         script: core.setFailed('Ref is not latest')
+
+    - name: Get gocover latest release and tag
+      id: get_release
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { data } = await github.repos.getLatestRelease({
+            owner: 'Azure',
+            repo: 'gocover'
+          });
+          console.log(`Latest tag is ${data.tag_name}`);
+          return data;
+    - name: Download gocover latest release assets
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const release = context.payload.outputs.get_release;
+          for (const asset of release.assets) {
+            const response = await fetch(asset.browser_download_url);
+            await fs.promises.writeFile(asset.name, await response.buffer());
+          }
+    - name: Run gocover
+      shell: bash
+      run: |
+        tag_name=context.payload.outputs.get_release.tag_name;
+        file_name="gocover_${tag_name}_linux_amd64.tar.gz";
+        tar -xzf $file_name;
+        ./gocover test --coverprofile=coverage.out --coverage-mode=full ./...
+        
+
