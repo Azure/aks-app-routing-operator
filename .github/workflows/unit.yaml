@@ -34,7 +34,7 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const { data } = await github.repos.getLatestRelease({
+          const { data } = await github.rest.repos.getLatestRelease({
             owner: 'Azure',
             repo: 'gocover'
           });
