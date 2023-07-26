@@ -29,9 +29,10 @@ jobs:
     #   with:
     #     script: core.setFailed('Ref is not latest')
 
-    - name: Get gocover latest release and tag
+    - name: Get gocover latest release asset url
       id: get_release
       uses: actions/github-script@v6
+      result-encoding: string
       with:
         script: |
           const { data } = await github.rest.repos.getLatestRelease({
@@ -39,22 +40,25 @@ jobs:
             repo: 'gocover'
           });
           console.log(`Latest tag is ${data.tag_name}`);
-          return data;
+          console.log(`Assests count is ${data.assets.length}`);
+          data.assets.filter(asset => {
+            if (asset.name.includes('linux_amd64')) {
+              console.log(`Asset name is ${asset.name}`);
+              console.log(`Asset url is ${asset.browser_download_url}`);
+              return asset.browser_download_url;
+            }
+          });
     - name: Download gocover latest release assets
       uses: actions/github-script@v6
       with:
         script: |
-          const release = context.payload.outputs.get_release;
-          for (const asset of release.assets) {
-            const response = await fetch(asset.browser_download_url);
-            await fs.promises.writeFile(asset.name, await response.buffer());
-          }
-    - name: Run gocover
-      shell: bash
-      run: |
-        tag_name=context.payload.outputs.get_release.tag_name;
-        file_name="gocover_${tag_name}_linux_amd64.tar.gz";
-        tar -xzf $file_name;
-        ./gocover test --coverprofile=coverage.out --coverage-mode=full ./...
+          const assetUrl = github.context.payload.outputs.get_release;
+          console.log(`Asset url is ${assetUrl}`);
+          const result = await github.request(assetUrl)
+          tar -xzf result -o gocover;
+          ls -al;
+          chmod +x gocover;
+          ls -al;
+          ./gocover --help;
         
 
