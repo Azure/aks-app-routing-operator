@@ -101,6 +101,45 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+func (c *Config) Validate2() error {
+	if c.NS == "" {
+		return errors.New("--namespace is required")
+	}
+	if c.Registry == "" {
+		return errors.New("--registry is required")
+	}
+	if c.MSIClientID == "" {
+		return errors.New("--msi is required")
+	}
+	if c.TenantID == "" {
+		return errors.New("--tenant-id is required")
+	}
+	if c.Cloud == "" {
+		return errors.New("--cloud is required")
+	}
+	if c.Location == "" {
+		return errors.New("--location is required")
+	}
+	if c.ConcurrencyWatchdogThres <= 100 {
+		return errors.New("--concurrency-watchdog-threshold must be greater than 100")
+	}
+	if c.ConcurrencyWatchdogVotes < 1 {
+		return errors.New("--concurrency-watchdog-votes must be a positive number")
+	}
+
+	if c.ClusterUid == "" {
+		return errors.New("--cluster-uid is required")
+	}
+
+	if dnsZonesString != "" {
+		if err := c.ParseAndValidateZoneIDs(dnsZonesString); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 	c.PrivateZoneConfig = DnsZoneConfig{}

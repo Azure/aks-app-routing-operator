@@ -31,6 +31,10 @@ func run() error {
 		return err
 	}
 
+	if err := config.Flags.Validate2(); err != nil {
+		return err
+	}
+
 	mgr, err := controller.NewManager(config.Flags)
 	if err != nil {
 		return err
