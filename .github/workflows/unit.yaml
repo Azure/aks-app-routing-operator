@@ -39,6 +39,15 @@ jobs:
     needs: unit-test
     runs-on: ubuntu-latest
     steps:
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ~1.20.0
     - name: Get gocover latest release asset url
       id: get_release
       uses: actions/github-script@v6
