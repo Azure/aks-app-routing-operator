@@ -39,7 +39,6 @@ jobs:
     needs: unit-test
     runs-on: ubuntu-latest
     steps:
-    steps:
     - uses: actions/checkout@v3
       with:
         ref: ${{ inputs.ref }}
