@@ -13,8 +13,8 @@ type roleAssignment struct{}
 
 func NewRoleAssignment(ctx context.Context, subscriptionId, scope, assignmentName, principalId string) (*roleAssignment, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create role assignment")
-	defer lgr.Info("finished creating role assignment")
+	lgr.Info("starting to create role assignment " + assignmentName)
+	defer lgr.Info("finished creating role assignment " + assignmentName)
 
 	cred, err := GetAzCred()
 	if err != nil {

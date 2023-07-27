@@ -62,6 +62,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("starting create cluster: %w", err)
 	}
 
+	lgr.Info(fmt.Sprintf("waiting for aks %s to be created", name))
 	result, err := pollWithLog(ctx, poll, "still creating aks "+name)
 	if err != nil {
 		return nil, fmt.Errorf("creating cluster: %w", err)

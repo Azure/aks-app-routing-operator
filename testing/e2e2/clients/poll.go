@@ -18,7 +18,7 @@ func pollWithLog[T any](ctx context.Context, p *runtime.Poller[T], msg string) (
 
 	resCh := make(chan errorCh[T], 1)
 	go func() {
-		result, err := p.PollUntilDone(nil, nil)
+		result, err := p.PollUntilDone(ctx, nil)
 		resCh <- errorCh[T]{
 			err:  err,
 			data: result,

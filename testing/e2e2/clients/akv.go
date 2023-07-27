@@ -23,7 +23,9 @@ type Cert struct {
 	name string
 }
 
-func NewAkv(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*akv, error) {
+func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string) (*akv, error) {
+	name = truncate(name, 24)
+
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting to create akv " + name)
 	defer lgr.Info("finished creating akv " + name)
@@ -40,6 +42,13 @@ func NewAkv(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 	new := &armkeyvault.VaultCreateOrUpdateParameters{
 		Location: util.StringPtr(location),
+		Properties: &armkeyvault.VaultProperties{
+			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
+			TenantID: to.Ptr(tenantId),
+			SKU: &armkeyvault.SKU{
+				Name: to.Ptr(armkeyvault.SKUNameStandard),
+			},
+		},
 	}
 	poller, err := factory.NewVaultsClient().BeginCreateOrUpdate(ctx, resourceGroup, name, *new, nil)
 	if err != nil {

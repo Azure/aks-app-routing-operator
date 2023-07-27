@@ -37,8 +37,8 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 	name = name + ".com"
 
 	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create zone")
-	defer lgr.Info("finished creating zone")
+	lgr.Info("starting to create zone " + name)
+	defer lgr.Info("finished creating zone" + name)
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -99,18 +99,49 @@ func (z *zone) GetName() string {
 }
 
 func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name string) (*privateZone, error) {
-	z, err := NewZone(ctx, subscriptionId, resourceGroup, name, privateZoneOpt)
+	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+	name = name + ".com"
+
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting to create private zone " + name)
+	defer lgr.Info("finished creating private zone " + name)
+
+	cred, err := GetAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armprivatedns.NewPrivateZonesClient(subscriptionId, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	new := armprivatedns.PrivateZone{
+		Location: to.Ptr("global"),
+		Name:     to.Ptr(name),
+	}
+
+	poller, err := client.BeginCreateOrUpdate(ctx, resourceGroup, name, new, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating private zone: %w", err)
 	}
 
-	return &privateZone{zone: *z}, nil
+	result, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating private zone: %w", err)
+	}
+
+	return &privateZone{zone{
+		name:           *result.PrivateZone.Name,
+		subscriptionId: subscriptionId,
+		resourceGroup:  resourceGroup,
+	}}, nil
 }
 
 func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) error {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to link vnet")
-	defer lgr.Info("finished linking vnet")
+	lgr.Info("starting to link vnet" + linkName)
+	defer lgr.Info("finished linking vnet" + linkName)
 
 	cred, err := GetAzCred()
 	if err != nil {

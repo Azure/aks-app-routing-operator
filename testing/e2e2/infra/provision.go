@@ -53,7 +53,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	})
 
 	resEg.Go(func() error {
-		ret.KeyVault, err = clients.NewAkv(ctx, config.Flags.SubscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
+		ret.KeyVault, err = clients.NewAkv(ctx, config.Flags.TenantId, config.Flags.SubscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
 		if err != nil {
 			return fmt.Errorf("creating key vault: %w", err)
 		}
