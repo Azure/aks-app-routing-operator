@@ -50,6 +50,11 @@ jobs:
         wget -q -O gocover.tar.gz ${{ steps.get_release.outputs.result }}
         tar -xzf gocover.tar.gz
         chmod +x gocover
-        ./gocover test --cover-profile=coverage.out --coverage-mode=full ./...
+        ./gocover full --cover-profile=coverage.out  --repository-path=./ --report-name=aks-app-routing-operator.report --outputdir=/tmp
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-report.html
+        path: /tmp/aks-app-routing-operator.report.html
         
 
