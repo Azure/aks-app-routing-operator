@@ -1,6 +1,13 @@
 name: Unit Tests
 
-on: [workflow_dispatch]
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+      skipRefCheck:
+        type: boolean
+        default: true
 
 jobs:
   unit-test:
@@ -15,21 +22,25 @@ jobs:
       with:
         go-version: ~1.20.0
 
-    # - name: Run Unit Tests
-    #   if:
-    #     (github.event_name == 'repository_dispatch' &&
-    #     github.event.client_payload.slash_command.args.named.sha != '' &&
-    #     contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
-    #     inputs.skipRefCheck
-    #   run: go test -race -v ./...
+    - name: Run Unit Tests
+      if:
+        (github.event_name == 'repository_dispatch' &&
+        github.event.client_payload.slash_command.args.named.sha != '' &&
+        contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+        inputs.skipRefCheck
+      run: go test -race -v ./...
 
-    # - name: Ensure ref
-    #   uses: actions/github-script@v6
-    #   if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
-    #   with:
-    #     script: core.setFailed('Ref is not latest')
-
+    - name: Ensure ref
+      uses: actions/github-script@v6
+      if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
+      with:
+        script: core.setFailed('Ref is not latest')
+  go-cover:
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
     - name: Get gocover latest release asset url
+      depends-on: Run Unit Tests
       id: get_release
       uses: actions/github-script@v6
       with:
