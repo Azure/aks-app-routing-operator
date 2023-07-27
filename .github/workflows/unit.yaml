@@ -40,7 +40,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Get gocover latest release asset url
-      depends-on: Run Unit Tests
       id: get_release
       uses: actions/github-script@v6
       with:
