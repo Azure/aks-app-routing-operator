@@ -16,58 +16,12 @@ jobs:
     - name: Run Unit Tests
       run: go test -race -v ./... -coverprofile=coverage.out
 
-    - name: Upload coverage.out
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage.out
-        path: |
-          ${{ github.workspace }}/coverage.out
-  go-cover:
-    needs: unit-test
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        ref: ${{ inputs.ref }}
+    - name: Convert coverage to lcov
+      uses: jandelgado/gcov2lcov-action@v1
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
+    - name: Coveralls
+      uses: coverallsapp/github-action@v2
       with:
-        go-version: ~1.20.0
-
-    - name: Download coverage.out
-      uses: actions/download-artifact@v3
-
-    - name: Get gocover latest release asset url
-      id: get_release
-      uses: actions/github-script@v6
-      with:
-        result-encoding: string
-        script: |
-          const { data } = await github.rest.repos.getLatestRelease({
-            owner: 'Azure',
-            repo: 'gocover'
-          });
-          console.log(`Latest tag is ${data.tag_name}`);
-          console.log(`Assests count is ${data.assets.length}`);
-          const linuxAssetUrl = data.assets.filter(asset => asset.name.includes('linux_amd64'));
-          return linuxAssetUrl[0].browser_download_url;
-
-    - name: Download and run gocover
-      shell: bash
-      run: |
-        echo "download asset url from previous step is ${{ steps.get_release.outputs.result }}"
-        wget -q -O gocover.tar.gz ${{ steps.get_release.outputs.result }}
-        tar -xzf gocover.tar.gz
-        chmod +x gocover
-        echo $(pwd)
-        echo $(git branch)
-        echo $(git fetch --all)
-        ./gocover diff --cover-profile=coverage.out  --repository-path=./ --report-name=aks-app-routing-operator.report --outputdir=/tmp --compare-branch=origin/main  --coverage-baseline=80
-        
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage-report
-        path: /tmp/aks-app-routing-operator.report.html
+        flag-name: unit-test
+        path-to-lcov: coverage.lcov
         
