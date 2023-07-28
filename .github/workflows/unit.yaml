@@ -69,8 +69,8 @@ jobs:
         chmod +x gocover
         echo $(pwd)
         echo $(git branch)
-        echo "commit hash of main branch" ${{ github.event.before }}
-        ./gocover diff --cover-profile=coverage.out  --repository-path=./ --report-name=aks-app-routing-operator.report --outputdir=/tmp --compare-branch=${{ github.event.before }} --coverage-baseline=91
+        echo "commit hash of main branch" ${{ git ls-remote origin main | awk '{ print $1 }' }}
+        ./gocover diff --cover-profile=coverage.out  --repository-path=./ --report-name=aks-app-routing-operator.report --outputdir=/tmp --compare-branch=5e28e4fbc255681eeae565441db327576c3e9f52 --coverage-baseline=91
     - name: Upload coverage report
       uses: actions/upload-artifact@v3
       with:
