@@ -40,8 +40,6 @@ jobs:
             });
             return result;
   e2e:
-    permissions:
-      id-token: write
     needs: setup
     if:
       github.event_name == 'repository_dispatch' &&
