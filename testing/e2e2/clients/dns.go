@@ -17,7 +17,9 @@ type zone struct {
 }
 
 type privateZone struct {
-	zone
+	name           string
+	subscriptionId string
+	resourceGroup  string
 }
 
 // ZoneOpt specifies what kind of zone to create
@@ -73,8 +75,8 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 
 func (z *zone) GetDns(ctx context.Context) (*armdns.Zone, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to get dns")
-	defer lgr.Info("finished getting dns")
+	lgr.Info("starting to get dns " + z.name)
+	defer lgr.Info("finished getting dns" + z.name)
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -131,11 +133,38 @@ func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name str
 		return nil, fmt.Errorf("creating private zone: %w", err)
 	}
 
-	return &privateZone{zone{
+	return &privateZone{
 		name:           *result.PrivateZone.Name,
 		subscriptionId: subscriptionId,
 		resourceGroup:  resourceGroup,
-	}}, nil
+	}, nil
+}
+
+func (p *privateZone) GetName() string {
+	return p.name
+}
+
+func (p *privateZone) GetDns(ctx context.Context) (*armprivatedns.PrivateZone, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting to get private dns " + p.name)
+	defer lgr.Info("finished getting private dns " + p.name)
+
+	cred, err := GetAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armprivatedns.NewPrivateZonesClient(p.subscriptionId, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	resp, err := client.Get(ctx, p.resourceGroup, p.name, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting dns: %w", err)
+	}
+
+	return &resp.PrivateZone, nil
 }
 
 func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) error {
@@ -148,7 +177,7 @@ func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) err
 		return fmt.Errorf("getting az credentials: %w", err)
 	}
 
-	factory, err := armprivatedns.NewClientFactory(p.zone.subscriptionId, cred, nil)
+	factory, err := armprivatedns.NewClientFactory(p.subscriptionId, cred, nil)
 	if err != nil {
 		return fmt.Errorf("creating client factory: %w", err)
 	}
@@ -161,7 +190,7 @@ func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) err
 		},
 		Name: to.Ptr(linkName),
 	}
-	_, err = factory.NewVirtualNetworkLinksClient().BeginCreateOrUpdate(ctx, p.zone.resourceGroup, p.zone.name, linkName, new, nil)
+	_, err = factory.NewVirtualNetworkLinksClient().BeginCreateOrUpdate(ctx, p.resourceGroup, p.name, linkName, new, nil)
 	if err != nil {
 		return fmt.Errorf("creating virtual network link: %w", err)
 	}

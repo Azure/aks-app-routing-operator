@@ -12,8 +12,12 @@ import (
 )
 
 type akv struct {
-	uri string
-	id  string
+	uri            string
+	id             string
+	tenantId       string
+	subscriptionId string
+	resourceGroup  string
+	name           string
 }
 
 // CertOpt specifies what kind of certificate to create
@@ -44,7 +48,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		Location: util.StringPtr(location),
 		Properties: &armkeyvault.VaultProperties{
 			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
-			TenantID: to.Ptr(tenantId),
+			TenantID:       to.Ptr(tenantId),
 			SKU: &armkeyvault.SKU{
 				Name: to.Ptr(armkeyvault.SKUNameStandard),
 			},
@@ -61,13 +65,50 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 	}
 
 	return &akv{
-		uri: *result.Properties.VaultURI,
-		id:  *result.ID,
+		uri:            *result.Properties.VaultURI,
+		id:             *result.ID,
+		resourceGroup:  resourceGroup,
+		name:           *result.Name,
+		subscriptionId: subscriptionId,
+		tenantId:       tenantId,
 	}, nil
 }
 
 func (a *akv) GetId() string {
 	return a.id
+}
+
+func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions armkeyvault.Permissions) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting to add access policy")
+	defer lgr.Info("finished adding access policy")
+
+	cred, err := GetAzCred()
+	if err != nil {
+		return fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armkeyvault.NewVaultsClient(a.subscriptionId, cred, nil)
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
+	addition := armkeyvault.VaultAccessPolicyParameters{
+		Properties: &armkeyvault.VaultAccessPolicyProperties{
+			AccessPolicies: []*armkeyvault.AccessPolicyEntry{
+				{
+					TenantID:    to.Ptr(a.tenantId),
+					ObjectID:    to.Ptr(objectId),
+					Permissions: &permissions,
+				},
+			},
+		},
+	}
+	if _, err := client.UpdateAccessPolicy(ctx, a.resourceGroup, a.name, armkeyvault.AccessPolicyUpdateKindAdd, addition, nil); err != nil {
+		return fmt.Errorf("adding access policy: %w", err)
+	}
+
+	return nil
 }
 
 func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {

@@ -6,6 +6,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 )
 
 type Infras []Infra
@@ -36,7 +38,7 @@ type zone interface {
 }
 
 type privateZone interface {
-	GetDns(ctx context.Context) (*armdns.Zone, error)
+	GetDns(ctx context.Context) (*armprivatedns.PrivateZone, error)
 	LinkVnet(ctx context.Context, linkName, vnetId string) error
 	GetName() string
 }
@@ -48,6 +50,7 @@ type resourceGroup interface {
 type keyVault interface {
 	GetId() string
 	CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...clients.CertOpt) (*clients.Cert, error)
+	AddAccessPolicy(ctx context.Context, objectId string, permissions armkeyvault.Permissions) error
 }
 
 type cert interface {

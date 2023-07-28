@@ -8,6 +8,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/config"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -108,8 +110,9 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 				}
 
 				principalId := cluster.Identity.PrincipalID
-				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, "Private DNS Zone Contributor", *principalId); err != nil {
-					return fmt.Errorf("creating Private DNS Zone Contributor role assignment: %w", err)
+				role := clients.PrivateDnsContributorRole
+				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, *principalId, role); err != nil {
+					return fmt.Errorf("creating %s role assignment: %w", role.Name, err)
 				}
 
 				vnet, err := ret.Cluster.GetVnetId(ctx)
@@ -139,8 +142,9 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 				}
 
 				principalId := cluster.Identity.PrincipalID
-				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, "DNS Zone Contributor", *principalId); err != nil {
-					return fmt.Errorf("creating DNS Zone Contributor role assignment: %w", err)
+				role := clients.DnsContributorRole
+				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, *principalId, role); err != nil {
+					return fmt.Errorf("creating %s role assignment: %w", role.Name, err)
 				}
 
 				return nil
@@ -160,8 +164,9 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 		}
 		principalId := kubelet.ObjectID
 
-		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, ret.ContainerRegistry.GetId(), "AcrPull", *principalId); err != nil {
-			return fmt.Errorf("creating AcrPull role assignment: %w", err)
+		role := clients.AcrPullRole
+		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, ret.ContainerRegistry.GetId(), *principalId, role); err != nil {
+			return fmt.Errorf("creating %s role assignment: %w", role.Name, err)
 		}
 
 		return nil
@@ -174,8 +179,12 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 			return fmt.Errorf("getting cluster: %w", err)
 		}
 
-		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, ret.KeyVault.GetId(), "Key Vault Secrets User", *cluster.Identity.PrincipalID); err != nil {
-			return fmt.Errorf("creating Key Vault Secrets User role assignment: %w", err)
+		principalId := cluster.Identity.PrincipalID
+		if err := ret.KeyVault.AddAccessPolicy(ctx, *principalId, armkeyvault.Permissions{
+			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
+			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
+		}); err != nil {
+			return fmt.Errorf("adding access policy: %w", err)
 		}
 
 		return nil
