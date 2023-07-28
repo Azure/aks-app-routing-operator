@@ -1,37 +1,31 @@
 name: Unit Tests
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        type: string
-      skipRefCheck:
-        type: boolean
-        default: true
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   unit-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-      with:
-        ref: ${{ inputs.ref }}
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
         go-version: ~1.20.0
 
     - name: Run Unit Tests
-      if:
-        (github.event_name == 'repository_dispatch' &&
-        github.event.client_payload.slash_command.args.named.sha != '' &&
-        contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
-        inputs.skipRefCheck
-      run: go test -race -v ./...
+      run: go test -race -v ./... -coverprofile=coverage.out
 
-    - name: Ensure ref
-      uses: actions/github-script@v6
-      if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
+    - name: Convert coverage to lcov
+      uses: jandelgado/gcov2lcov-action@c680c0f7c7442485f1749eb2a13e54a686e76eb5 #v1.0.8
+
+    - name: Coveralls
+      uses: coverallsapp/github-action@95b1a2355bd0e526ad2fd62da9fd386ad4c98474 #v2.2.1
       with:
-        script: core.setFailed('Ref is not latest')
+        flag-name: unit-test
+        path-to-lcov: coverage.lcov
+        
