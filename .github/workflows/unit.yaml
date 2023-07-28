@@ -1,6 +1,10 @@
 name: Unit Tests
 
-on: ["pull_request"]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   unit-test:
@@ -17,10 +21,10 @@ jobs:
       run: go test -race -v ./... -coverprofile=coverage.out
 
     - name: Convert coverage to lcov
-      uses: jandelgado/gcov2lcov-action@v1
+      uses: jandelgado/gcov2lcov-action@c680c0f7c7442485f1749eb2a13e54a686e76eb5 #v1.0.8
 
     - name: Coveralls
-      uses: coverallsapp/github-action@v2
+      uses: coverallsapp/github-action@95b1a2355bd0e526ad2fd62da9fd386ad4c98474 #v2.2.1
       with:
         flag-name: unit-test
         path-to-lcov: coverage.lcov
