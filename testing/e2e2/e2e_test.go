@@ -16,7 +16,7 @@ var infras = infra.Infras{
 	{
 		Name:          "basic cluster",
 		ResourceGroup: "kingolivere2emadethis",
-		Location:      "eastus2",
+		Location:      "South Central US",
 		Suffix:        uuid.New().String(),
 	},
 }

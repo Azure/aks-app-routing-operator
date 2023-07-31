@@ -41,6 +41,13 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
 			DNSPrefix: to.Ptr("approutinge2e"),
+			AgentPoolProfiles: []*armcontainerservice.ManagedClusterAgentPoolProfile{
+				{
+					Name:   to.Ptr("default"),
+					VMSize: to.Ptr("Standard_DS4_v2"),
+					Count:  to.Ptr(int32(2)),
+				},
+			},
 			AddonProfiles: map[string]*armcontainerservice.ManagedClusterAddonProfile{
 				"azureKeyvaultSecretsProvider": {
 					Enabled: to.Ptr(true),
