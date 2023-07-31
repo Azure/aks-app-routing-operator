@@ -10,9 +10,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
-// when creating a resource group mark it for deletion after 2 hours
-// https://github.com/Azure/aks-app-routing-operator/blob/731d6232b8f1485fe085becbe36948719ddf735f/devenv/main.tf#L31
-
 type rg struct {
 	name string
 }
