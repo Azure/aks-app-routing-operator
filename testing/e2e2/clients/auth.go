@@ -6,7 +6,8 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/google/uuid"
 )
 
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
@@ -19,19 +20,15 @@ type Role struct {
 var (
 	DnsContributorRole = Role{
 		Name: "DNS Zone Contributor",
-		Id:   "befefa01-2a29-4197-83a8-272ff33ce314",
+		Id:   "/subscriptions/8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8/providers/Microsoft.Authorization/roleDefinitions/befefa01-2a29-4197-83a8-272ff33ce314",
 	}
 	PrivateDnsContributorRole = Role{
 		Name: "Private DNS Zone Contributor",
-		Id:   "b12aa53e-6015-4669-85d0-8515ebb3ae7f",
+		Id:   "/subscriptions/8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8/providers/Microsoft.Authorization/roleDefinitions/b12aa53e-6015-4669-85d0-8515ebb3ae7f",
 	}
 	AcrPullRole = Role{
 		Name: "AcrPull",
-		Id:   "7f951dda-4ed3-4680-a7ca-43fe172d538d",
-	}
-	KeyVaultSecretsUserRole = Role{
-		Name: "Key Vault Secrets User",
-		Id:   "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6",
+		Id:   "/subscriptions/8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d",
 	}
 )
 
@@ -52,7 +49,7 @@ func NewRoleAssignment(ctx context.Context, subscriptionId, scope, principalId s
 		return nil, fmt.Errorf("creating client: %w", err)
 	}
 
-	_, err = client.Create(ctx, scope, role.Id, armauthorization.RoleAssignmentCreateParameters{
+	_, err = client.Create(ctx, scope, uuid.New().String(), armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
 			RoleDefinitionID: to.Ptr(role.Id),
 			PrincipalID:      to.Ptr(principalId),

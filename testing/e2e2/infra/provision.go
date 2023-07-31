@@ -165,8 +165,9 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 		principalId := kubelet.ObjectID
 
 		role := clients.AcrPullRole
-		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, ret.ContainerRegistry.GetId(), *principalId, role); err != nil {
-			return fmt.Errorf("creating %s role assignment: %w", role.Name, err)
+		scope := ret.ContainerRegistry.GetId()
+		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, scope, *principalId, role); err != nil {
+			return fmt.Errorf("creating %s role assignment%s: %w", role.Name, err)
 		}
 
 		return nil
