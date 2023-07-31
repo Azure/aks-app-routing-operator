@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e2/logger"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 

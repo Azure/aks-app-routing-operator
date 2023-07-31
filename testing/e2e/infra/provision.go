@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/testing/e2e2/clients"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e2/config"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e2/logger"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/config"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"golang.org/x/sync/errgroup"
@@ -20,7 +20,7 @@ const (
 	lenPrivateZones = 2
 )
 
-func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
+func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.LoggedError) {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("provisioning infrastructure " + i.Name)
 	defer lgr.Info("finished provisioning infrastructure " + i.Name)
@@ -32,8 +32,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	var err error
 	ret.ResourceGroup, err = clients.NewResourceGroup(ctx, config.Flags.SubscriptionId, i.ResourceGroup, i.Location, clients.DeleteAfterOpt(2*time.Hour))
 	if err != nil {
-		lgr.Error("failed to create resource group", "error", err)
-		return ProvisionedInfra{}, fmt.Errorf("creating resource group %s: %w", i.ResourceGroup, err)
+		return ProvisionedInfra{}, logger.Error(lgr, fmt.Errorf("creating resource group %s: %w", i.ResourceGroup, err))
 	}
 
 	// create resources
@@ -41,7 +40,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	resEg.Go(func() error {
 		ret.ContainerRegistry, err = clients.NewAcr(ctx, config.Flags.SubscriptionId, i.ResourceGroup, "registry"+i.Suffix, i.Location)
 		if err != nil {
-			return fmt.Errorf("creating container registry: %w", err)
+			return logger.Error(lgr, fmt.Errorf("creating container registry: %w", err))
 		}
 		return nil
 	})
@@ -49,7 +48,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	resEg.Go(func() error {
 		ret.Cluster, err = clients.NewAks(ctx, config.Flags.SubscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.McOpts...)
 		if err != nil {
-			return fmt.Errorf("creating managed cluster: %w", err)
+			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}
 		return nil
 	})
@@ -57,7 +56,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	resEg.Go(func() error {
 		ret.KeyVault, err = clients.NewAkv(ctx, config.Flags.TenantId, config.Flags.SubscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
 		if err != nil {
-			return fmt.Errorf("creating key vault: %w", err)
+			return logger.Error(lgr, fmt.Errorf("creating key vault: %w", err))
 		}
 
 		ret.Cert, err = ret.KeyVault.CreateCertificate(ctx, "cert"+i.Suffix, []string{"" + i.Suffix})
@@ -69,7 +68,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 			resEg.Go(func() error {
 				zone, err := clients.NewZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
 				if err != nil {
-					return fmt.Errorf("creating zone: %w", err)
+					return logger.Error(lgr, fmt.Errorf("creating zone: %w", err))
 				}
 				ret.Zones = append(ret.Zones, zone)
 				return nil
@@ -81,7 +80,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 			resEg.Go(func() error {
 				privateZone, err := clients.NewPrivateZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix))
 				if err != nil {
-					return fmt.Errorf("creating private zone: %w", err)
+					return logger.Error(lgr, fmt.Errorf("creating private zone: %w", err))
 				}
 				ret.PrivateZones = append(ret.PrivateZones, privateZone)
 				return nil
@@ -90,7 +89,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	}
 
 	if err := resEg.Wait(); err != nil {
-		return ProvisionedInfra{}, err
+		return ProvisionedInfra{}, logger.Error(lgr, err)
 	}
 
 	// connect permissions
@@ -101,26 +100,26 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 			permEg.Go(func() error {
 				cluster, err := ret.Cluster.GetCluster(ctx)
 				if err != nil {
-					return fmt.Errorf("getting cluster: %w", err)
+					return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
 				}
 
 				dns, err := pz.GetDns(ctx)
 				if err != nil {
-					return fmt.Errorf("getting dns: %w", err)
+					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
 				principalId := cluster.Identity.PrincipalID
 				role := clients.PrivateDnsContributorRole
 				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, *principalId, role); err != nil {
-					return fmt.Errorf("creating %s role assignment: %w", role.Name, err)
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
 				vnet, err := ret.Cluster.GetVnetId(ctx)
 				if err != nil {
-					return fmt.Errorf("getting vnet id: %w", err)
+					return logger.Error(lgr, fmt.Errorf("getting vnet id: %w", err))
 				}
 				if err := pz.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", pz.GetName(), i.Suffix), vnet); err != nil {
-					return fmt.Errorf("linking vnet: %w", err)
+					return logger.Error(lgr, fmt.Errorf("linking vnet: %w", err))
 				}
 
 				return nil
@@ -133,18 +132,18 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 			permEg.Go(func() error {
 				cluster, err := ret.Cluster.GetCluster(ctx)
 				if err != nil {
-					return fmt.Errorf("getting cluster: %w", err)
+					return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
 				}
 
 				dns, err := z.GetDns(ctx)
 				if err != nil {
-					return fmt.Errorf("getting dns: %w", err)
+					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
 				principalId := cluster.Identity.PrincipalID
 				role := clients.DnsContributorRole
 				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, *principalId, role); err != nil {
-					return fmt.Errorf("creating %s role assignment: %w", role.Name, err)
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
 				return nil
@@ -155,26 +154,25 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 	permEg.Go(func() error {
 		cluster, err := ret.Cluster.GetCluster(ctx)
 		if err != nil {
-			return fmt.Errorf("getting cluster: %w", err)
+			return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
 		}
 
 		kubelet, ok := cluster.Properties.IdentityProfile["kubeletidentity"]
 		if !ok {
-			return fmt.Errorf("kubelet identity not found")
+			return logger.Error(lgr, fmt.Errorf("kubelet identity not found"))
 		}
 		principalId := kubelet.ObjectID
 
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
 		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, scope, *principalId, role); err != nil {
-			return fmt.Errorf("creating %s role assignment%s: %w", role.Name, err)
+			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
 
 		return nil
 	})
 
 	permEg.Go(func() error {
-		// todo: which identity to give vault permissions to? should be the same as dns but they are different?
 		cluster, err := ret.Cluster.GetCluster(ctx)
 		if err != nil {
 			return fmt.Errorf("getting cluster: %w", err)
@@ -185,14 +183,14 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, error) {
 			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
 			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
 		}); err != nil {
-			return fmt.Errorf("adding access policy: %w", err)
+			return logger.Error(lgr, fmt.Errorf("adding access policy: %w", err))
 		}
 
 		return nil
 	})
 
 	if err := permEg.Wait(); err != nil {
-		return ProvisionedInfra{}, err
+		return ProvisionedInfra{}, logger.Error(lgr, err)
 	}
 
 	return ret, nil

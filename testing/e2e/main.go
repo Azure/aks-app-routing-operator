@@ -1,26 +1,29 @@
-package e2e2
+package main
 
 import (
 	"flag"
 	"fmt"
-	"os"
-	"testing"
 
-	"github.com/Azure/aks-app-routing-operator/testing/e2e2/config"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e2/infra"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/config"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/google/uuid"
+)
+
+var (
+	rg       = "app-routing-e2e" + uuid.New().String()
+	location = "South Central US"
 )
 
 var infras = infra.Infras{
 	{
 		Name:          "basic cluster",
-		ResourceGroup: "app-routing-e2e" + uuid.New().String(),
-		Location:      "South Central US",
+		ResourceGroup: rg,
+		Location:      location,
 		Suffix:        uuid.New().String(),
 	},
 }
 
-func TestMain(m *testing.M) {
+func main() {
 	flag.Parse()
 	if err := config.Flags.Validate(); err != nil {
 		panic(err)
@@ -30,5 +33,4 @@ func TestMain(m *testing.M) {
 		panic(fmt.Errorf("provisioning infrastructure: %w", err))
 	}
 
-	os.Exit(m.Run())
 }
