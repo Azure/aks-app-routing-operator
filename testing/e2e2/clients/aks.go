@@ -40,11 +40,12 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
 		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
-			DNSPrefix: to.Ptr("approutinge2e"),
+			DNSPrefix:         to.Ptr("approutinge2e"),
+			NodeResourceGroup: to.Ptr(truncate("MC_"+name, 80)),
 			AgentPoolProfiles: []*armcontainerservice.ManagedClusterAgentPoolProfile{
 				{
 					Name:   to.Ptr("default"),
-					VMSize: to.Ptr("Standard_DS4_v2"),
+					VMSize: to.Ptr("Standard_DS3_v2"),
 					Count:  to.Ptr(int32(2)),
 				},
 			},

@@ -168,9 +168,12 @@ func (p *privateZone) GetDns(ctx context.Context) (*armprivatedns.PrivateZone, e
 }
 
 func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) error {
+	linkName = nonAlphanumericRegex.ReplaceAllString(linkName, "")
+	linkName = truncate(linkName, 80)
+
 	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to link vnet" + linkName)
-	defer lgr.Info("finished linking vnet" + linkName)
+	lgr.Info("starting to link vnet " + linkName)
+	defer lgr.Info("finished linking vnet " + linkName)
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -183,7 +186,9 @@ func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) err
 	}
 
 	new := armprivatedns.VirtualNetworkLink{
+		Location: to.Ptr("global"),
 		Properties: &armprivatedns.VirtualNetworkLinkProperties{
+			RegistrationEnabled: to.Ptr(false),
 			VirtualNetwork: &armprivatedns.SubResource{
 				ID: to.Ptr(vnetId),
 			},

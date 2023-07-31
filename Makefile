@@ -29,8 +29,9 @@ push-tester-images:
 	docker build -t `cat devenv/state/e2e-image-tag.txt` -f e2e/Dockerfile .
 	docker push `cat devenv/state/e2e-image-tag.txt`
 
-e2e:
-	go test --tags=e2e -v ./e2e2 -args --subscription=8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8 --infra=test
+# deploy e2e job
+e2e: push-tester-images
+	./devenv/scripts/deploy_e2e_tester.sh
 
 # to be run by e2e job inside the cluster
 run-e2e:

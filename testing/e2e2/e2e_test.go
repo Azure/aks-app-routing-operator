@@ -9,13 +9,12 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/config"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e2/infra"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 var infras = infra.Infras{
 	{
 		Name:          "basic cluster",
-		ResourceGroup: "kingolivere2emadethis",
+		ResourceGroup: "app-routing-e2e" + uuid.New().String(),
 		Location:      "South Central US",
 		Suffix:        uuid.New().String(),
 	},
@@ -32,8 +31,4 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
-}
-
-func TestSomethingElse(t *testing.T) {
-	assert.Equal(t, false, true)
 }
