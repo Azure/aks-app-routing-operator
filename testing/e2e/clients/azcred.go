@@ -14,11 +14,11 @@ func GetAzCred() (azcore.TokenCredential, error) {
 		return cred, nil
 	}
 
-	new, err := azidentity.NewDefaultAzureCredential(nil)
+	c, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting default credential: %w", err)
 	}
 
-	cred = new
+	cred = c
 	return cred, nil
 }
