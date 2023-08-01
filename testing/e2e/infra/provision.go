@@ -60,10 +60,18 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 		}
 
 		ret.Cert, err = ret.KeyVault.CreateCertificate(ctx, "cert"+i.Suffix, []string{"" + i.Suffix})
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating certificate: %w", err))
+		}
+
 		return nil
 	})
 
 	for idx := 0; idx < lenZones; idx++ {
+		// need to perform loop variable capture on the index.
+		// https://github.com/golang/go/wiki/LoopvarExperiment
+		// there is a proposed change for 1.21 https://tip.golang.org/blog/go1.21rc
+		// that will change the loop variable capture to be the standard way loops work.
 		func(idx int) {
 			resEg.Go(func() error {
 				zone, err := clients.NewZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
