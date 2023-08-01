@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
@@ -22,17 +22,18 @@ func DeleteAfterOpt(d time.Duration) RgOpt {
 			rg.Tags = map[string]*string{}
 		}
 
-		rg.Tags["deletion_marked_by"] = util.StringPtr("gc")
-		rg.Tags["deletion_due_time"] = util.StringPtr(fmt.Sprint(time.Now().Add(d).Unix()))
+		rg.Tags["deletion_marked_by"] = to.Ptr("gc")
+		rg.Tags["deletion_due_time"] = to.Ptr(fmt.Sprint(time.Now().Add(d).Unix()))
 
 		return nil
 	}
 }
 
 func NewResourceGroup(ctx context.Context, subscriptionId, name, location string, rgOpts ...RgOpt) (*rg, error) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create resource group " + name)
-	defer lgr.Info("finished creating resource group " + name)
+	lgr := logger.FromContext(ctx).With("name", name, "location", location, "subscriptionId", subscriptionId)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to create resource group")
+	defer lgr.Info("finished creating resource group")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -45,7 +46,7 @@ func NewResourceGroup(ctx context.Context, subscriptionId, name, location string
 	}
 
 	new := armresources.ResourceGroup{
-		Location: util.StringPtr(location),
+		Location: to.Ptr(location),
 	}
 	for _, opt := range rgOpts {
 		if err := opt(&new); err != nil {

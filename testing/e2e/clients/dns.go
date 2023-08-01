@@ -38,9 +38,10 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 	name = name + ".com"
 
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create zone " + name)
-	defer lgr.Info("finished creating zone" + name)
+	lgr := logger.FromContext(ctx).With("name", name, "subscriptionId", subscriptionId, "resourceGroup", resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to create zone")
+	defer lgr.Info("finished creating zone")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -74,9 +75,10 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 }
 
 func (z *zone) GetDns(ctx context.Context) (*armdns.Zone, error) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to get dns " + z.name)
-	defer lgr.Info("finished getting dns" + z.name)
+	lgr := logger.FromContext(ctx).With("name", z.name, "subscriptionId", z.subscriptionId, "resourceGroup", z.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get dns")
+	defer lgr.Info("finished getting dns")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -104,9 +106,10 @@ func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name str
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 	name = name + ".com"
 
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create private zone " + name)
-	defer lgr.Info("finished creating private zone " + name)
+	lgr := logger.FromContext(ctx).With("name", name, "subscriptionId", subscriptionId, "resourceGroup", resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to create private zone")
+	defer lgr.Info("finished creating private zone")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -145,9 +148,10 @@ func (p *privateZone) GetName() string {
 }
 
 func (p *privateZone) GetDns(ctx context.Context) (*armprivatedns.PrivateZone, error) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to get private dns " + p.name)
-	defer lgr.Info("finished getting private dns " + p.name)
+	lgr := logger.FromContext(ctx).With("name", p.name, "subscriptionId", p.subscriptionId, "resourceGroup", p.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get private dns")
+	defer lgr.Info("finished getting private dns")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -171,9 +175,10 @@ func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) err
 	linkName = nonAlphanumericRegex.ReplaceAllString(linkName, "")
 	linkName = truncate(linkName, 80)
 
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to link vnet " + linkName)
-	defer lgr.Info("finished linking vnet " + linkName)
+	lgr := logger.FromContext(ctx).With("name", p.name, "subscriptionId", p.subscriptionId, "resourceGroup", p.resourceGroup, "linkName", linkName, "vnetId", vnetId)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to link vnet")
+	defer lgr.Info("finished linking vnet")
 
 	cred, err := GetAzCred()
 	if err != nil {

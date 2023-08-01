@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
@@ -20,9 +19,10 @@ type aks struct {
 type McOpt func(mc *armcontainerservice.ManagedCluster) error
 
 func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, mcOpts ...McOpt) (*aks, error) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create aks " + name)
-	defer lgr.Info("finished creating aks " + name)
+	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to create aks")
+	defer lgr.Info("finished creating aks")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -35,7 +35,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	new := armcontainerservice.ManagedCluster{
-		Location: util.StringPtr(location),
+		Location: to.Ptr(location),
 		Identity: &armcontainerservice.ManagedClusterIdentity{
 			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
 		},
@@ -99,9 +99,10 @@ func (a *aks) GetKubeconfig(ctx context.Context) ([]byte, error) {
 }
 
 func (a *aks) GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to get aks " + a.name)
-	defer lgr.Info("finished getting aks " + a.name)
+	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get aks")
+	defer lgr.Info("finished getting aks")
 
 	result, err := a.factory.NewManagedClustersClient().Get(ctx, a.resourceGroup, a.name, nil)
 	if err != nil {
@@ -112,9 +113,10 @@ func (a *aks) GetCluster(ctx context.Context) (*armcontainerservice.ManagedClust
 }
 
 func (a *aks) GetVnetId(ctx context.Context) (string, error) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to get vnet id for aks " + a.name)
-	defer lgr.Info("finished getting vnet id for aks " + a.name)
+	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get vnet id for aks")
+	defer lgr.Info("finished getting vnet id for aks")
 
 	cred, err := GetAzCred()
 	if err != nil {

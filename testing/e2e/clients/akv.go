@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
@@ -30,9 +29,10 @@ type Cert struct {
 func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string) (*akv, error) {
 	name = truncate(name, 24)
 
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create akv " + name)
-	defer lgr.Info("finished creating akv " + name)
+	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location, "subscriptionId", subscriptionId)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to create akv")
+	defer lgr.Info("finished creating akv")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -45,7 +45,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 	}
 
 	new := &armkeyvault.VaultCreateOrUpdateParameters{
-		Location: util.StringPtr(location),
+		Location: to.Ptr(location),
 		Properties: &armkeyvault.VaultProperties{
 			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
 			TenantID:       to.Ptr(tenantId),
@@ -79,7 +79,8 @@ func (a *akv) GetId() string {
 }
 
 func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions armkeyvault.Permissions) error {
-	lgr := logger.FromContext(ctx)
+	lgr := logger.FromContext(ctx).With("objectId", objectId, "name", a.name, "resourceGroup", a.resourceGroup, "subscriptionId", a.subscriptionId)
+	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to add access policy")
 	defer lgr.Info("finished adding access policy")
 
@@ -112,7 +113,8 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 }
 
 func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {
-	lgr := logger.FromContext(ctx)
+	lgr := logger.FromContext(ctx).With("name", name, "dnsnames", dnsnames, "resourceGroup", a.resourceGroup, "subscriptionId", a.subscriptionId)
+	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create certificate")
 	defer lgr.Info("finished creating certificate")
 

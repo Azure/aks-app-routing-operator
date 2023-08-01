@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
@@ -19,9 +18,11 @@ type acr struct {
 func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*acr, error) {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting to create acr " + name)
-	defer lgr.Info("finished creating acr " + name)
+	// TODO: add relevant fields on each logger
+	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to create acr")
+	defer lgr.Info("finished creating acr")
 
 	cred, err := GetAzCred()
 	if err != nil {
@@ -34,7 +35,7 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	new := &armcontainerregistry.Registry{
-		Location: util.StringPtr(location),
+		Location: to.Ptr(location),
 		SKU: &armcontainerregistry.SKU{
 			Name: to.Ptr(armcontainerregistry.SKUNameBasic),
 		},
