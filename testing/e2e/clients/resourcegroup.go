@@ -45,16 +45,16 @@ func NewResourceGroup(ctx context.Context, subscriptionId, name, location string
 		return nil, fmt.Errorf("creating resource group client: %w", err)
 	}
 
-	new := armresources.ResourceGroup{
+	r := armresources.ResourceGroup{
 		Location: to.Ptr(location),
 	}
 	for _, opt := range rgOpts {
-		if err := opt(&new); err != nil {
+		if err := opt(&r); err != nil {
 			return nil, fmt.Errorf("applying resource group option: %w", err)
 		}
 	}
 
-	resp, err := client.CreateOrUpdate(ctx, name, new, nil)
+	resp, err := client.CreateOrUpdate(ctx, name, r, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource group: %w", err)
 	}

@@ -44,7 +44,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("creating client factory: %w", err)
 	}
 
-	new := &armkeyvault.VaultCreateOrUpdateParameters{
+	v := &armkeyvault.VaultCreateOrUpdateParameters{
 		Location: to.Ptr(location),
 		Properties: &armkeyvault.VaultProperties{
 			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
@@ -54,7 +54,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 			},
 		},
 	}
-	poller, err := factory.NewVaultsClient().BeginCreateOrUpdate(ctx, resourceGroup, name, *new, nil)
+	poller, err := factory.NewVaultsClient().BeginCreateOrUpdate(ctx, resourceGroup, name, *v, nil)
 	if err != nil {
 		return nil, fmt.Errorf("starting to create vault: %w", err)
 	}
@@ -128,11 +128,8 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		return nil, fmt.Errorf("creating client: %w", err)
 	}
 
-	dnsnamesPtr := make([]*string, len(dnsnames))
-	for i, dnsname := range dnsnames {
-		dnsnamesPtr[i] = to.Ptr(dnsname)
-	}
-	new := &azcertificates.CreateCertificateParameters{
+	dnsnamesPtr := to.SliceOfPtrs[string](dnsnames...)
+	c := &azcertificates.CreateCertificateParameters{
 		CertificateAttributes: nil,
 		CertificatePolicy: &azcertificates.CertificatePolicy{
 			Attributes: nil,
@@ -178,12 +175,12 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		Tags: nil,
 	}
 	for _, opt := range certOpts {
-		if err := opt(new); err != nil {
+		if err := opt(c); err != nil {
 			return nil, fmt.Errorf("applying certificate option: %w", err)
 		}
 	}
 
-	_, err = client.CreateCertificate(ctx, name, *new, nil)
+	_, err = client.CreateCertificate(ctx, name, *c, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}

@@ -33,13 +33,13 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("creating client factory: %w", err)
 	}
 
-	new := &armcontainerregistry.Registry{
+	r := &armcontainerregistry.Registry{
 		Location: to.Ptr(location),
 		SKU: &armcontainerregistry.SKU{
 			Name: to.Ptr(armcontainerregistry.SKUNameBasic),
 		},
 	}
-	poller, err := factory.NewRegistriesClient().BeginCreate(ctx, resourceGroup, name, *new, nil)
+	poller, err := factory.NewRegistriesClient().BeginCreate(ctx, resourceGroup, name, *r, nil)
 	if err != nil {
 		return nil, fmt.Errorf("starting to create registry: %w", err)
 	}

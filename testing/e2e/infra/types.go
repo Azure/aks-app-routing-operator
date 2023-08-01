@@ -33,12 +33,12 @@ type containerRegistry interface {
 }
 
 type zone interface {
-	GetDns(ctx context.Context) (*armdns.Zone, error)
+	GetDnsZone(ctx context.Context) (*armdns.Zone, error)
 	GetName() string
 }
 
 type privateZone interface {
-	GetDns(ctx context.Context) (*armprivatedns.PrivateZone, error)
+	GetDnsZone(ctx context.Context) (*armprivatedns.PrivateZone, error)
 	LinkVnet(ctx context.Context, linkName, vnetId string) error
 	GetName() string
 }

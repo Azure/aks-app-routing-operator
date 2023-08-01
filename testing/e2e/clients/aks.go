@@ -48,7 +48,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("creating aks client factory: %w", err)
 	}
 
-	new := armcontainerservice.ManagedCluster{
+	mc := armcontainerservice.ManagedCluster{
 		Location: to.Ptr(location),
 		Identity: &armcontainerservice.ManagedClusterIdentity{
 			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
@@ -74,12 +74,12 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		},
 	}
 	for _, opt := range mcOpts {
-		if err := opt(&new); err != nil {
+		if err := opt(&mc); err != nil {
 			return nil, fmt.Errorf("applying cluster option: %w", err)
 		}
 	}
 
-	poll, err := factory.NewManagedClustersClient().BeginCreateOrUpdate(ctx, resourceGroup, name, new, nil)
+	poll, err := factory.NewManagedClustersClient().BeginCreateOrUpdate(ctx, resourceGroup, name, mc, nil)
 	if err != nil {
 		return nil, fmt.Errorf("starting create cluster: %w", err)
 	}

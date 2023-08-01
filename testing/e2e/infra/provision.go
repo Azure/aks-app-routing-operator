@@ -103,7 +103,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 					return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
 				}
 
-				dns, err := pz.GetDns(ctx)
+				dns, err := pz.GetDnsZone(ctx)
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
@@ -135,7 +135,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 					return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
 				}
 
-				dns, err := z.GetDns(ctx)
+				dns, err := z.GetDnsZone(ctx)
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
