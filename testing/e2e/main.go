@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/config"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/google/uuid"
@@ -20,6 +21,13 @@ var infras = infra.Infras{
 		ResourceGroup: rg,
 		Location:      location,
 		Suffix:        uuid.New().String(),
+	},
+	{
+		Name:          "private cluster",
+		ResourceGroup: rg,
+		Location:      location,
+		Suffix:        uuid.New().String(),
+		McOpts:        []clients.McOpt{clients.PrivateClusterOpt},
 	},
 }
 

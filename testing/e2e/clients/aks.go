@@ -18,6 +18,20 @@ type aks struct {
 // McOpt specifies what kind of managed cluster to create
 type McOpt func(mc *armcontainerservice.ManagedCluster) error
 
+// PrivateClusterOpt specifies that the cluster should be private
+func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
+	if mc.Properties == nil {
+		mc.Properties = &armcontainerservice.ManagedClusterProperties{}
+	}
+
+	if mc.Properties.APIServerAccessProfile == nil {
+		mc.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{}
+	}
+
+	mc.Properties.APIServerAccessProfile.EnablePrivateCluster = to.Ptr(true)
+	return nil
+}
+
 func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, mcOpts ...McOpt) (*aks, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
