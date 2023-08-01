@@ -18,7 +18,6 @@ type acr struct {
 func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*acr, error) {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
-	// TODO: add relevant fields on each logger
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create acr")
