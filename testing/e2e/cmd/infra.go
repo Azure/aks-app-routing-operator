@@ -7,13 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	infraNames []string
-)
-
 func init() {
 	setupSubTenantFlags(infraCmd)
-	infraCmd.Flags().StringArrayVar(&infraNames, "names", []string{}, "infrastructure names to provision, if empty will provision all")
+	setupInfraNamesFlag(infraCmd)
 	rootCmd.AddCommand(infraCmd)
 }
 
@@ -22,7 +18,6 @@ var infraCmd = &cobra.Command{
 	Short: "Sets up infrastructure for e2e tests",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		infras := infra.Infras
-		fmt.Println(infraNames)
 		if len(infraNames) > 0 {
 			infras = infras.FilterNames(infraNames)
 		}

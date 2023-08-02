@@ -30,6 +30,8 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/sethvargo/go-envconfig v0.8.0 // indirect
+	github.com/sethvargo/go-githubactions v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
