@@ -10,9 +10,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 )
 
-type Infras []Infra
+type infras []infra
 
-type Infra struct {
+type infra struct {
 	Name   string
 	Suffix string
 	// ResourceGroup is a unique new resource group name
@@ -57,7 +57,7 @@ type cert interface {
 	GetName() string
 }
 
-type ProvisionedInfra struct {
+type Provisioned struct {
 	Name              string
 	Cluster           cluster
 	ContainerRegistry containerRegistry

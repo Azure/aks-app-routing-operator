@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/config"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
@@ -20,25 +19,25 @@ const (
 	lenPrivateZones = 2
 )
 
-func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.LoggedError) {
+func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) (Provisioned, *logger.LoggedError) {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("provisioning infrastructure " + i.Name)
 	defer lgr.Info("finished provisioning infrastructure " + i.Name)
 
-	ret := ProvisionedInfra{
+	ret := Provisioned{
 		Name: i.Name,
 	}
 
 	var err error
-	ret.ResourceGroup, err = clients.NewResourceGroup(ctx, config.Flags.SubscriptionId, i.ResourceGroup, i.Location, clients.DeleteAfterOpt(2*time.Hour))
+	ret.ResourceGroup, err = clients.NewResourceGroup(ctx, subscriptionId, i.ResourceGroup, i.Location, clients.DeleteAfterOpt(2*time.Hour))
 	if err != nil {
-		return ProvisionedInfra{}, logger.Error(lgr, fmt.Errorf("creating resource group %s: %w", i.ResourceGroup, err))
+		return Provisioned{}, logger.Error(lgr, fmt.Errorf("creating resource group %s: %w", i.ResourceGroup, err))
 	}
 
 	// create resources
 	var resEg errgroup.Group
 	resEg.Go(func() error {
-		ret.ContainerRegistry, err = clients.NewAcr(ctx, config.Flags.SubscriptionId, i.ResourceGroup, "registry"+i.Suffix, i.Location)
+		ret.ContainerRegistry, err = clients.NewAcr(ctx, subscriptionId, i.ResourceGroup, "registry"+i.Suffix, i.Location)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating container registry: %w", err))
 		}
@@ -46,7 +45,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 	})
 
 	resEg.Go(func() error {
-		ret.Cluster, err = clients.NewAks(ctx, config.Flags.SubscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.McOpts...)
+		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.McOpts...)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}
@@ -54,7 +53,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 	})
 
 	resEg.Go(func() error {
-		ret.KeyVault, err = clients.NewAkv(ctx, config.Flags.TenantId, config.Flags.SubscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
+		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating key vault: %w", err))
 		}
@@ -74,7 +73,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 		// that will change the loop variable capture to be the standard way loops work.
 		func(idx int) {
 			resEg.Go(func() error {
-				zone, err := clients.NewZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
+				zone, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating zone: %w", err))
 				}
@@ -86,7 +85,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 	for idx := 0; idx < lenPrivateZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
-				privateZone, err := clients.NewPrivateZone(ctx, config.Flags.SubscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix))
+				privateZone, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix))
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating private zone: %w", err))
 				}
@@ -97,7 +96,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 	}
 
 	if err := resEg.Wait(); err != nil {
-		return ProvisionedInfra{}, logger.Error(lgr, err)
+		return Provisioned{}, logger.Error(lgr, err)
 	}
 
 	// connect permissions
@@ -118,7 +117,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 
 				principalId := cluster.Identity.PrincipalID
 				role := clients.PrivateDnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, *principalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, *principalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -150,7 +149,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 
 				principalId := cluster.Identity.PrincipalID
 				role := clients.DnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, *dns.ID, *principalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, *principalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -173,7 +172,7 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
-		if _, err := clients.NewRoleAssignment(ctx, config.Flags.SubscriptionId, scope, *principalId, role); err != nil {
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, *principalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
 
@@ -198,36 +197,36 @@ func (i *Infra) Provision(ctx context.Context) (ProvisionedInfra, *logger.Logged
 	})
 
 	if err := permEg.Wait(); err != nil {
-		return ProvisionedInfra{}, logger.Error(lgr, err)
+		return Provisioned{}, logger.Error(lgr, err)
 	}
 
 	return ret, nil
 }
 
-func (is Infras) Provision() ([]ProvisionedInfra, error) {
+func (is infras) Provision(tenantId, subscriptionId string) ([]Provisioned, error) {
 	lgr := logger.FromContext(context.Background())
 	lgr.Info("starting to provision all infrastructure")
 	defer lgr.Info("finished provisioning all infrastructure")
 
 	var eg errgroup.Group
-	provisioned := make([]ProvisionedInfra, len(is))
+	provisioned := make([]Provisioned, len(is))
 
-	for idx, infra := range is {
-		func(idx int, infra Infra) {
+	for idx, inf := range is {
+		func(idx int, inf infra) {
 			eg.Go(func() error {
 				ctx := context.Background()
 				lgr := logger.FromContext(ctx)
-				ctx = logger.WithContext(ctx, lgr.With("infra", infra.Name))
+				ctx = logger.WithContext(ctx, lgr.With("infra", inf.Name))
 
-				provisionedInfra, err := infra.Provision(ctx)
+				provisionedInfra, err := inf.Provision(ctx, tenantId, subscriptionId)
 				if err != nil {
-					return fmt.Errorf("provisioning infrastructure %s: %w", infra.Name, err)
+					return fmt.Errorf("provisioning infrastructure %s: %w", inf.Name, err)
 				}
 
 				provisioned[idx] = provisionedInfra
 				return nil
 			})
-		}(idx, infra)
+		}(idx, inf)
 	}
 
 	if err := eg.Wait(); err != nil {
