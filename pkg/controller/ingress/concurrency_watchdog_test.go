@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -265,6 +266,20 @@ func TestConcurrencyWatchdogProcessVotesMissingPod(t *testing.T) {
 func TestConcurrencyWatchdogLeaderElection(t *testing.T) {
 	var ler manager.LeaderElectionRunnable = &ConcurrencyWatchdog{}
 	assert.True(t, ler.NeedLeaderElection(), "should need leader election")
+}
+
+func TestNewConcurrencyWatchdog(t *testing.T) {
+	m := getManager()
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err := NewConcurrencyWatchdog(m, conf, nil)
+	require.NoError(t, err)
+}
+
+func getManager() manager.Manager {
+	testenv := &envtest.Environment{}
+	cfg, _ := testenv.Start()
+	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	return m
 }
 
 func buildTestPods(n int) *corev1.PodList {

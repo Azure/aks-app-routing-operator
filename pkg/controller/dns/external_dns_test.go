@@ -10,7 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
@@ -51,6 +55,16 @@ var (
 			ResourceGroup: "resourcegroup",
 			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com"},
 		},
+	}
+	gvr1 = schema.GroupVersionResource{
+		Group:    "group",
+		Version:  "v1",
+		Resource: "resources",
+	}
+	gvk1 = schema.GroupVersionKind{
+		Group:   gvr1.Group,
+		Version: gvr1.Version,
+		Kind:    "Resource",
 	}
 )
 
@@ -419,4 +433,41 @@ func TestActionFromConfig(t *testing.T) {
 		got := actionFromConfig(test.conf)
 		require.Equal(t, test.expected, got)
 	}
+}
+
+func TestAddExternalDnsReconciler(t *testing.T) {
+	m := getManager()
+	err := addExternalDnsReconciler(m, []client.Object{obj(gvk1, nil)})
+	require.NoError(t, err)
+}
+
+func TestAddExternalDnsCleaner(t *testing.T) {
+	m := getManager()
+	err := addExternalDnsCleaner(m, []cleanObj{
+		{
+			resources: instances(&noZones, self)[0].resources,
+			labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+		}})
+	require.NoError(t, err)
+}
+
+func TestNewExternalDns(t *testing.T) {
+	m := getManager()
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err := NewExternalDns(m, conf, self)
+	require.NoError(t, err)
+}
+
+func getManager() manager.Manager {
+	testenv := &envtest.Environment{}
+	cfg, _ := testenv.Start()
+	m, _ := manager.New(cfg, manager.Options{})
+	return m
+}
+
+func obj(gvk schema.GroupVersionKind, labels map[string]string) client.Object {
+	o := &unstructured.Unstructured{}
+	o.SetLabels(labels)
+	o.SetGroupVersionKind(gvk)
+	return o
 }

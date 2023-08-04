@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
@@ -74,4 +75,20 @@ func TestGetSelfDeploy(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, self)
 	})
+}
+
+// func TestNewManager(t *testing.T) {
+// 	testenv := &envtest.Environment{}
+// 	testenv.Start()
+// 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator-test", MetricsAddr: "0"}
+// 	_, err := NewManager(conf)
+// 	require.NoError(t, err)
+// }
+
+func TestNewManagerForRestConfig(t *testing.T) {
+	testenv := &envtest.Environment{}
+	restConf, _ := testenv.Start()
+	conf := &config.Config{NS: "app-routing-system2", OperatorDeployment: "operator-test2", MetricsAddr: "0"}
+	_, err := NewManagerForRestConfig(conf, restConf)
+	require.NoError(t, err)
 }

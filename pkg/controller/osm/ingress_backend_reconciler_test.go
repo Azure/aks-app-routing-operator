@@ -19,12 +19,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 )
 
-func TestIngressBackendReconcilerIntegration(t *testing.T) {
-	ing := &netv1.Ingress{
+var (
+	ing = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
 			Namespace:   "test-ns",
@@ -48,7 +50,9 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 			}},
 		},
 	}
+)
 
+func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -92,4 +96,20 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	// Cover no-op deletions
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+}
+
+func TestNewIngressBackendReconciler(t *testing.T) {
+	m := getManager()
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	ingressControllerName := NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"})
+	err := NewIngressBackendReconciler(m, conf, ingressControllerName)
+	require.NoError(t, err, "should not error")
+
+}
+
+func getManager() manager.Manager {
+	testenv := &envtest.Environment{}
+	cfg, _ := testenv.Start()
+	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	return m
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -112,4 +115,18 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Service,apiVersion=v1}", <-recorder.Events)
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Ingress,apiVersion=networking.k8s.io/v1}", <-recorder.Events)
+}
+
+func TestNewEventMirror(t *testing.T) {
+	m := getManager()
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err := NewEventMirror(m, conf)
+	require.NoError(t, err, "should not error")
+}
+
+func getManager() manager.Manager {
+	testenv := &envtest.Environment{}
+	cfg, _ := testenv.Start()
+	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	return m
 }

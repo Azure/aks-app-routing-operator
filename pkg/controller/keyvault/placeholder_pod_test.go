@@ -140,3 +140,11 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	// Prove idempotence
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
+
+func TestNewPlaceholderPodController(t *testing.T) {
+	m := getManager()
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	ingressManager := NewIngressManager(map[string]struct{}{"webapprouting.kubernetes.azure.com": {}})
+	err := NewPlaceholderPodController(m, conf, ingressManager)
+	require.NoError(t, err)
+}

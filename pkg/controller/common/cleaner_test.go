@@ -16,6 +16,8 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -236,4 +238,111 @@ func AssertAction(t *testing.T, got []k8stesting.Action, expected k8stesting.Act
 	}
 
 	require.True(t, found, "expected to find action", expected)
+}
+
+func TestNewCleaner(t *testing.T) {
+	m := getManager()
+
+	err := NewCleaner(m, "test-new-cleaner", RetrieverEmpty())
+	require.NoError(t, err)
+}
+
+func TestClean(t *testing.T) {
+	d := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+		namespacedGvr:    namespacedList,
+		nonNamespacedGvr: nonNamespacedList,
+	})
+	m := getManager()
+	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), apiutil.WithLazyDiscovery)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		c              *cleaner
+		expectedErrMsg string
+	}{
+		{
+			name: "nil retriver",
+			c: &cleaner{
+				name:      "test-name",
+				dynamic:   d,
+				clientset: fakeClientset(),
+				logger:    logr.Discard(),
+			},
+			expectedErrMsg: "retriever is nil",
+		},
+		{
+			name: "rest mapper err",
+			c: &cleaner{
+				name:      "test-name",
+				dynamic:   d,
+				clientset: fakeClientset(),
+				logger:    logr.Discard(),
+				mapper:    mapper,
+				retriever: RetrieverEmpty(),
+			},
+			expectedErrMsg: "",
+		},
+	}
+
+	for _, test := range tests {
+		err := test.c.Clean(context.Background())
+		if err != nil {
+			require.Equal(t, test.expectedErrMsg, err.Error(), "should return expected error msg")
+		}
+	}
+}
+
+func TestCleanerStart(t *testing.T) {
+	d := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+		namespacedGvr:    namespacedList,
+		nonNamespacedGvr: nonNamespacedList,
+	})
+	m := getManager()
+	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), apiutil.WithLazyDiscovery)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		c              *cleaner
+		expectedErrMsg string
+	}{
+		{
+			name: "failing to start",
+			c: &cleaner{
+				name:       "test-name",
+				dynamic:    d,
+				clientset:  fakeClientset(),
+				logger:     logr.Discard(),
+				maxRetries: 1,
+			},
+			expectedErrMsg: "retriever is nil",
+		},
+		{
+			name: "starts cleaner",
+			c: &cleaner{
+				name:       "test-name",
+				dynamic:    d,
+				clientset:  fakeClientset(),
+				logger:     logr.Discard(),
+				mapper:     mapper,
+				retriever:  RetrieverEmpty(),
+				maxRetries: 1,
+			},
+			expectedErrMsg: "",
+		},
+	}
+	for _, test := range tests {
+		err := test.c.Start(context.Background())
+		if err != nil {
+			require.Equal(t, test.expectedErrMsg, err.Error(), "should return expected error msg")
+		}
+	}
+}
+
+func getManager() manager.Manager {
+	testenv := &envtest.Environment{}
+	cfg, _ := testenv.Start()
+	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	return m
 }
