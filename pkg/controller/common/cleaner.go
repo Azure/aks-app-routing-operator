@@ -58,6 +58,8 @@ func NewCleaner(manager ctrl.Manager, name string, gvrRetriever CleanTypeRetriev
 		retriever:  gvrRetriever,
 		maxRetries: 2,
 	}
+
+	metrics.InitControllerMetrics(c.controllerName())
 	return manager.Add(c)
 }
 

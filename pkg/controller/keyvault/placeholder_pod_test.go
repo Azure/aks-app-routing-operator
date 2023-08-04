@@ -5,6 +5,8 @@ package keyvault
 
 import (
 	"context"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -55,8 +57,12 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	// Create placeholder pod deployment
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
 	_, err := p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	dep := &appsv1.Deployment{}
 	dep.Name = spc.Name
@@ -112,16 +118,24 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	assert.Equal(t, expected, dep.Spec)
 
 	// Prove idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Update the secret class generation
 	spc.Generation = 234
 	expected.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
 	require.NoError(t, c.Update(ctx, spc))
 
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the generation annotation was updated
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
@@ -131,8 +145,12 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	ing.Spec.IngressClassName = nil
 	require.NoError(t, c.Update(ctx, ing))
 
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the deployment was deleted
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))

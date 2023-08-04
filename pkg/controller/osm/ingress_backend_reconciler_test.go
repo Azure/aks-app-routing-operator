@@ -5,6 +5,8 @@ package osm
 
 import (
 	"context"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -62,8 +64,12 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	}
 
 	// Initial reconcile
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
 	_, err := e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove config is correct
 	actual := &policyv1alpha1.IngressBackend{}
@@ -77,12 +83,22 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	}, actual.Spec.Backends[0])
 
 	// Cover no-op updates
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Remove the annotation
 	ing.Annotations = map[string]string{}
 	require.NoError(t, c.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
+	_, err = e.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
 
@@ -90,6 +106,10 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	require.True(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(actual), actual)))
 
 	// Cover no-op deletions
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
 }

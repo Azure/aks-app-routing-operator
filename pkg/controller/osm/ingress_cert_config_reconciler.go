@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	osmNamespace          = "kube-system"
-	osmMeshConfigName     = "osm-mesh-config"
-	osmNginxSAN           = "ingress-nginx.ingress.cluster.local"
-	osmClientCertValidity = "24h"
-	osmClientCertName     = "osm-ingress-client-cert"
-	controllerName        = "ingress_cert_config"
+	osmNamespace                    = "kube-system"
+	osmMeshConfigName               = "osm-mesh-config"
+	osmNginxSAN                     = "ingress-nginx.ingress.cluster.local"
+	osmClientCertValidity           = "24h"
+	osmClientCertName               = "osm-ingress-client-cert"
+	ingressCertConfigControllerName = "ingress_cert_config"
 )
 
 // IngressCertConfigReconciler updates the Open Service Mesh configuration to generate a client cert
@@ -31,7 +31,7 @@ type IngressCertConfigReconciler struct {
 }
 
 func NewIngressCertConfigReconciler(manager ctrl.Manager, conf *config.Config) error {
-	metrics.InitControllerMetrics(controllerName)
+	metrics.InitControllerMetrics(ingressCertConfigControllerName)
 	if conf.DisableOSM {
 		return nil
 	}
@@ -49,9 +49,9 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	defer func() {
 		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
 		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//just calling defer metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err) would bind
 		//the values of result and err to their zero values, since they were just instantiated
-		metrics.HandleControllerReconcileMetrics(controllerName, result, err)
+		metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err)
 	}()
 
 	logger, err := logr.FromContext(ctx)

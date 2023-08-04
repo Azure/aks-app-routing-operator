@@ -82,7 +82,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	defer func() {
 		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
 		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//just calling defer metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err) would bind
 		//the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(ingressBackendControllerName, result, err)
 	}()
