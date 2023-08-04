@@ -184,7 +184,7 @@ func (c *cleaner) NeedLeaderElection() bool {
 }
 
 func (c *cleaner) controllerName() string {
-	return fmt.Sprintf("%s_cleaner", c.name)
+	return c.name
 }
 
 func isNamespaced(clientset kubernetes.Interface, gvr schema.GroupVersionResource) (bool, error) {
