@@ -23,6 +23,7 @@ type akv struct {
 type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
 
 type Cert struct {
+	id   string
 	name string
 }
 
@@ -34,7 +35,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 	lgr.Info("starting to create akv")
 	defer lgr.Info("finished creating akv")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -44,11 +45,27 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("creating client factory: %w", err)
 	}
 
+	clientObjectId, err := getObjectId(ctx, cred)
+	if err != nil {
+		return nil, fmt.Errorf("getting client object id: %w", err)
+	}
+
 	v := &armkeyvault.VaultCreateOrUpdateParameters{
 		Location: to.Ptr(location),
 		Properties: &armkeyvault.VaultProperties{
-			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
-			TenantID:       to.Ptr(tenantId),
+			AccessPolicies: []*armkeyvault.AccessPolicyEntry{
+				{
+					ObjectID: to.Ptr(clientObjectId),
+					Permissions: &armkeyvault.Permissions{
+						Certificates: []*armkeyvault.CertificatePermissions{
+							to.Ptr(armkeyvault.CertificatePermissionsCreate),
+						},
+					},
+					TenantID:      to.Ptr(tenantId),
+					ApplicationID: nil,
+				},
+			},
+			TenantID: to.Ptr(tenantId),
 			SKU: &armkeyvault.SKU{
 				Name: to.Ptr(armkeyvault.SKUNameStandard),
 			},
@@ -84,7 +101,7 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	lgr.Info("starting to add access policy")
 	defer lgr.Info("finished adding access policy")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -118,7 +135,7 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 	lgr.Info("starting to create certificate")
 	defer lgr.Info("finished creating certificate")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -180,14 +197,21 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		}
 	}
 
-	_, err = client.CreateCertificate(ctx, name, *c, nil)
+	result, err := client.CreateCertificate(ctx, name, *c, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
-	return &Cert{name: name}, nil
+	return &Cert{
+		name: name,
+		id:   string(*result.ID),
+	}, nil
 }
 
 func (c *Cert) GetName() string {
 	return c.name
+}
+
+func (c *Cert) GetId() string {
+	return c.id
 }

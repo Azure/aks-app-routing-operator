@@ -11,8 +11,8 @@ import (
 )
 
 type aks struct {
-	factory                             *armcontainerservice.ClientFactory
 	name, subscriptionId, resourceGroup string
+	id                                  string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -38,7 +38,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	lgr.Info("starting to create aks")
 	defer lgr.Info("finished creating aks")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -91,7 +91,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	return &aks{
-		factory:        factory,
+		id:             *result.ManagedCluster.ID,
 		name:           *result.ManagedCluster.Name,
 		subscriptionId: subscriptionId,
 		resourceGroup:  resourceGroup,
@@ -99,7 +99,22 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 }
 
 func (a *aks) GetKubeconfig(ctx context.Context) ([]byte, error) {
-	resp, err := a.factory.NewManagedClustersClient().ListClusterUserCredentials(ctx, a.resourceGroup, a.name, nil)
+	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get kubeconfig")
+	defer lgr.Info("finished getting kubeconfig")
+
+	cred, err := getAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armcontainerservice.NewManagedClustersClient(a.subscriptionId, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating aks client: %w", err)
+	}
+
+	resp, err := client.ListClusterUserCredentials(ctx, a.resourceGroup, a.name, nil)
 	if err != nil {
 		return nil, fmt.Errorf("listing user credentials: %w", err)
 	}
@@ -118,7 +133,17 @@ func (a *aks) GetCluster(ctx context.Context) (*armcontainerservice.ManagedClust
 	lgr.Info("starting to get aks")
 	defer lgr.Info("finished getting aks")
 
-	result, err := a.factory.NewManagedClustersClient().Get(ctx, a.resourceGroup, a.name, nil)
+	cred, err := getAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armcontainerservice.NewManagedClustersClient(a.subscriptionId, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating aks client: %w", err)
+	}
+
+	result, err := client.Get(ctx, a.resourceGroup, a.name, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting cluster: %w", err)
 	}
@@ -132,7 +157,7 @@ func (a *aks) GetVnetId(ctx context.Context) (string, error) {
 	lgr.Info("starting to get vnet id for aks")
 	defer lgr.Info("finished getting vnet id for aks")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return "", fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -159,4 +184,8 @@ func (a *aks) GetVnetId(ctx context.Context) (string, error) {
 	}
 
 	return *vnets[0].ID, nil
+}
+
+func (a *aks) GetId() string {
+	return a.id
 }

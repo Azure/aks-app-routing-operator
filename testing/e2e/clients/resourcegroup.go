@@ -12,6 +12,7 @@ import (
 
 type rg struct {
 	name string
+	id   string
 }
 
 type RgOpt func(rg *armresources.ResourceGroup) error
@@ -35,7 +36,7 @@ func NewResourceGroup(ctx context.Context, subscriptionId, name, location string
 	lgr.Info("starting to create resource group")
 	defer lgr.Info("finished creating resource group")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -61,9 +62,14 @@ func NewResourceGroup(ctx context.Context, subscriptionId, name, location string
 
 	return &rg{
 		name: *resp.Name,
+		id:   *resp.ID,
 	}, nil
 }
 
 func (r *rg) GetName() string {
 	return r.name
+}
+
+func (r *rg) GetId() string {
+	return r.id
 }
