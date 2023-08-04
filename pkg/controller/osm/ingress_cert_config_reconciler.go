@@ -8,11 +8,11 @@ import (
 
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
-	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 )
 
 const (
@@ -21,6 +21,7 @@ const (
 	osmNginxSAN           = "ingress-nginx.ingress.cluster.local"
 	osmClientCertValidity = "24h"
 	osmClientCertName     = "osm-ingress-client-cert"
+	controllerName        = "ingress_cert_config"
 )
 
 // IngressCertConfigReconciler updates the Open Service Mesh configuration to generate a client cert
@@ -30,6 +31,7 @@ type IngressCertConfigReconciler struct {
 }
 
 func NewIngressCertConfigReconciler(manager ctrl.Manager, conf *config.Config) error {
+	metrics.InitControllerMetrics(controllerName)
 	if conf.DisableOSM {
 		return nil
 	}
@@ -40,23 +42,32 @@ func NewIngressCertConfigReconciler(manager ctrl.Manager, conf *config.Config) e
 }
 
 func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var err error
+	result := ctrl.Result{}
+
+	// do metrics
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(controllerName, result, err)
+	}()
+
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithName("ingressCertConfigReconciler")
 
 	if req.Name != osmMeshConfigName || req.Namespace != osmNamespace {
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
 	conf := &cfgv1alpha2.MeshConfig{}
 	err = i.client.Get(ctx, req.NamespacedName, conf)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 
 	var dirty bool
@@ -81,9 +92,10 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		conf.Spec.Certificate.IngressGateway.SubjectAltNames = []string{osmNginxSAN}
 	}
 	if !dirty {
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
 	logger.Info("updating OSM ingress client cert configuration")
-	return ctrl.Result{}, i.client.Update(ctx, conf)
+	err = i.client.Update(ctx, conf)
+	return result, err
 }

@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -87,23 +88,35 @@ func (c *cleaner) Start(ctx context.Context) error {
 }
 
 func (c *cleaner) Clean(ctx context.Context) error {
+	var err error
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after tick executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(c.controllerName(), ctrl.Result{}, err)
+	}()
 	if c.retriever == nil {
-		return errors.New("retriever is nil")
+		err = errors.New("retriever is nil")
+		return err
 	}
 
 	types, err := c.retriever(c.mapper)
 	if err != nil {
-		return fmt.Errorf("retrieving gvr types: %w", err)
+		err = fmt.Errorf("retrieving gvr types: %w", err)
+		return err
 	}
 
 	var result *multierror.Error
 	for _, t := range types {
-		if err := c.CleanType(ctx, t); err != nil {
-			result = multierror.Append(result, fmt.Errorf("cleaning type %s with labels %s: %w", t.gvr.String(), t.labels, err))
+		if cleanTypeErr := c.CleanType(ctx, t); cleanTypeErr != nil {
+			result = multierror.Append(result, fmt.Errorf("cleaning type %s with labels %s: %w", t.gvr.String(), t.labels, cleanTypeErr))
 		}
 	}
 
-	return result.ErrorOrNil()
+	err = result.ErrorOrNil()
+	return err
+
 }
 
 func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
@@ -166,6 +179,10 @@ func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
 
 func (c *cleaner) NeedLeaderElection() bool {
 	return true
+}
+
+func (c *cleaner) controllerName() string {
+	return fmt.Sprintf("%s_cleaner", c.name)
 }
 
 func isNamespaced(clientset kubernetes.Interface, gvr schema.GroupVersionResource) (bool, error) {

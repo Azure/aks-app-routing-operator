@@ -107,6 +107,7 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 		events: recorder,
 	}
 
+	beforeErrCount := getErrMetricBeforeCount(t)
 	_, err := e.Reconcile(ctx, req)
 	require.NoError(t, err)
 
