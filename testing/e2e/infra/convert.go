@@ -3,6 +3,7 @@ package infra
 import (
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -54,10 +55,12 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		KeyVault:          *keyVault,
 		CertName:          p.Cert.GetName(),
 		ResourceGroup:     *resourceGroup,
+		SubscriptionId:    p.SubscriptionId,
+		TenantId:          p.TenantId,
 	}, nil
 }
 
-func Loadable(p []Provisioned) ([]LoadableProvisioned, error) {
+func ToLoadable(p []Provisioned) ([]LoadableProvisioned, error) {
 	ret := make([]LoadableProvisioned, len(p))
 	for i, provisioned := range p {
 		loadable, err := provisioned.Loadable()
@@ -67,4 +70,40 @@ func Loadable(p []Provisioned) ([]LoadableProvisioned, error) {
 		ret[i] = loadable
 	}
 	return ret, nil
+}
+
+func ToProvisioned(l []LoadableProvisioned) ([]Provisioned, error) {
+	ret := make([]Provisioned, len(l))
+	for i, loadable := range l {
+		provisioned, err := loadable.Provisioned()
+		if err != nil {
+			return nil, fmt.Errorf("parsing loadable %s: %w", loadable.Name, err)
+		}
+		ret[i] = provisioned
+	}
+	return ret, nil
+}
+
+func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
+	zs := make([]zone, len(l.Zones))
+	for _, z := range l.Zones {
+		zs = append(zs, clients.LoadZone(z))
+	}
+	pzs := make([]privateZone, len(l.PrivateZones))
+	for _, pz := range l.PrivateZones {
+		pzs = append(pzs, clients.LoadPrivateZone(pz))
+	}
+
+	return Provisioned{
+		Name:              l.Name,
+		Cluster:           clients.LoadAks(l.Cluster),
+		ContainerRegistry: clients.LoadAcr(l.ContainerRegistry),
+		Zones:             zs,
+		PrivateZones:      pzs,
+		KeyVault:          clients.LoadAkv(l.KeyVault),
+		Cert:              clients.LoadCert(l.CertName),
+		ResourceGroup:     clients.LoadRg(l.ResourceGroup),
+		SubscriptionId:    l.SubscriptionId,
+		TenantId:          l.TenantId,
+	}, nil
 }

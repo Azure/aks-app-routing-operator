@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
@@ -27,6 +28,13 @@ func DeleteAfterOpt(d time.Duration) RgOpt {
 		rg.Tags["deletion_due_time"] = to.Ptr(fmt.Sprint(time.Now().Add(d).Unix()))
 
 		return nil
+	}
+}
+
+func LoadRg(id arm.ResourceID) *rg {
+	return &rg{
+		id:   id.String(),
+		name: id.Name,
 	}
 }
 

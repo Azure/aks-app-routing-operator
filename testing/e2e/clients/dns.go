@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
@@ -29,6 +30,15 @@ type ZoneOpt func(z *armdns.Zone) error
 
 // PrivateZoneOpt specifies what kind of private zone to create
 type PrivateZoneOpt func(z *armprivatedns.PrivateZone) error
+
+func LoadZone(id arm.ResourceID) *zone {
+	return &zone{
+		id:             id.String(),
+		name:           id.Name,
+		subscriptionId: id.SubscriptionID,
+		resourceGroup:  id.ResourceGroupName,
+	}
+}
 
 func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zoneOpts ...ZoneOpt) (*zone, error) {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
@@ -101,6 +111,15 @@ func (z *zone) GetName() string {
 
 func (z *zone) GetId() string {
 	return z.id
+}
+
+func LoadPrivateZone(id arm.ResourceID) *privateZone {
+	return &privateZone{
+		id:             id.String(),
+		name:           id.Name,
+		subscriptionId: id.SubscriptionID,
+		resourceGroup:  id.ResourceGroupName,
+	}
 }
 
 func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name string, opts ...PrivateZoneOpt) (*privateZone, error) {

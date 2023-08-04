@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
@@ -23,8 +24,16 @@ type akv struct {
 type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
 
 type Cert struct {
-	id   string
 	name string
+}
+
+func LoadAkv(id arm.ResourceID) *akv {
+	return &akv{
+		id:             id.String(),
+		name:           id.Name,
+		resourceGroup:  id.ResourceGroupName,
+		subscriptionId: id.SubscriptionID,
+	}
 }
 
 func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string) (*akv, error) {
@@ -129,6 +138,12 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	return nil
 }
 
+func LoadCert(name string) *Cert {
+	return &Cert{
+		name: name,
+	}
+}
+
 func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "dnsnames", dnsnames, "resourceGroup", a.resourceGroup, "subscriptionId", a.subscriptionId)
 	ctx = logger.WithContext(ctx, lgr)
@@ -197,21 +212,16 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		}
 	}
 
-	result, err := client.CreateCertificate(ctx, name, *c, nil)
+	_, err = client.CreateCertificate(ctx, name, *c, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
 	return &Cert{
 		name: name,
-		id:   string(*result.ID),
 	}, nil
 }
 
 func (c *Cert) GetName() string {
 	return c.name
-}
-
-func (c *Cert) GetId() string {
-	return c.id
 }

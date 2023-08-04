@@ -25,7 +25,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	defer lgr.Info("finished provisioning infrastructure " + i.Name)
 
 	ret := Provisioned{
-		Name: i.Name,
+		Name:           i.Name,
+		SubscriptionId: subscriptionId,
+		TenantId:       tenantId,
 	}
 
 	var err error

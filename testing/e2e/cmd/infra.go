@@ -30,7 +30,7 @@ var infraCmd = &cobra.Command{
 			return fmt.Errorf("provisioning infrastructure: %w", err)
 		}
 
-		loadable, err := infra.Loadable(provisioned)
+		loadable, err := infra.ToLoadable(provisioned)
 		if err != nil {
 			return fmt.Errorf("generating loadable infrastructure: %w", err)
 		}

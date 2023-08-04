@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 )
@@ -13,6 +14,14 @@ type acr struct {
 	id            string
 	name          string
 	resourceGroup string
+}
+
+func LoadAcr(id arm.ResourceID) *acr {
+	return &acr{
+		id:            id.String(),
+		name:          id.Name,
+		resourceGroup: id.ResourceGroupName,
+	}
 }
 
 func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location string) (*acr, error) {

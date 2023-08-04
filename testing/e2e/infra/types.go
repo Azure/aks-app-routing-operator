@@ -65,7 +65,6 @@ type keyVault interface {
 
 type cert interface {
 	GetName() string
-	Identifier
 }
 
 type Provisioned struct {
@@ -77,6 +76,8 @@ type Provisioned struct {
 	KeyVault          keyVault
 	Cert              cert
 	ResourceGroup     resourceGroup
+	SubscriptionId    string
+	TenantId          string
 }
 
 type LoadableProvisioned struct {
@@ -88,4 +89,6 @@ type LoadableProvisioned struct {
 	KeyVault          arm.ResourceID
 	CertName          string
 	ResourceGroup     arm.ResourceID
+	SubscriptionId    string
+	TenantId          string
 }

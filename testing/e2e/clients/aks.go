@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
@@ -30,6 +31,15 @@ func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
 
 	mc.Properties.APIServerAccessProfile.EnablePrivateCluster = to.Ptr(true)
 	return nil
+}
+
+func LoadAks(id arm.ResourceID) *aks {
+	return &aks{
+		id:             id.String(),
+		name:           id.Name,
+		resourceGroup:  id.ResourceGroupName,
+		subscriptionId: id.SubscriptionID,
+	}
 }
 
 func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, mcOpts ...McOpt) (*aks, error) {
