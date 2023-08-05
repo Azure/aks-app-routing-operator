@@ -5,6 +5,8 @@ package service
 
 import (
 	"context"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
@@ -46,8 +48,12 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 
 	// No ingress is created for service without any of our annotations
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: svc.Namespace, Name: svc.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess)
 	_, err := p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	assert.Equal(t, testutils.GetErrMetricCount(t, ingressControllerName), beforeErrCount)
+	assert.Greater(t, testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	ing := &netv1.Ingress{}
 	ing.Name = svc.Name
@@ -60,8 +66,13 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "test-cert-uri",
 	}
 	require.NoError(t, c.Update(ctx, svc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	assert.Equal(t, testutils.GetErrMetricCount(t, ingressControllerName), beforeErrCount)
+	assert.Greater(t, testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	pt := netv1.PathTypePrefix
 	expected := &netv1.Ingress{
@@ -120,8 +131,13 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	// Override the default service account name
 	svc.Annotations["kubernetes.azure.com/service-account-name"] = "test-sa"
 	require.NoError(t, c.Update(ctx, svc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess)
 	_, err = p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	assert.Equal(t, testutils.GetErrMetricCount(t, ingressControllerName), beforeErrCount)
+	assert.Greater(t, testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	expected.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = "\nproxy_ssl_name \"test-sa.test-ns.cluster.local\";"
 	expected.ResourceVersion = "2"
@@ -154,8 +170,12 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: svc.Namespace, Name: svc.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess)
 	_, err := p.Reconcile(ctx, req)
 	require.NoError(t, err)
+	assert.Equal(t, testutils.GetErrMetricCount(t, ingressControllerName), beforeErrCount)
+	assert.Greater(t, testutils.GetReconcileMetricCount(t, ingressControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	pt := netv1.PathTypePrefix
 	expected := &netv1.Ingress{
