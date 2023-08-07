@@ -25,7 +25,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+)
+
+const (
+	concurrencyWatchdogControllerName = "concurrency_watchdog"
 )
 
 // ScrapeFn returns the connection count for the given pod
@@ -94,6 +99,7 @@ type ConcurrencyWatchdog struct {
 }
 
 func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, targets []*WatchdogTarget) error {
+	metrics.InitControllerMetrics(concurrencyWatchdogControllerName)
 	clientset, err := kubernetes.NewForConfig(manager.GetConfig())
 	if err != nil {
 		return err
@@ -135,11 +141,17 @@ func (c *ConcurrencyWatchdog) Start(ctx context.Context) error {
 
 func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 	start := time.Now()
+	var retErr *multierror.Error
 	defer func() {
 		c.logger.Info("finished checking on ingress controller pods", "latencySec", time.Since(start).Seconds())
+
+		//placing this call inside a closure allows for result and err to be bound after tick executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(concurrencyWatchdogControllerName, ctrl.Result{}, retErr.ErrorOrNil())
 	}()
 
-	var retErr *multierror.Error
 	for _, target := range c.targets {
 		c.logger.Info("starting checking on ingress controller pods", "labels", target.PodLabels())
 

@@ -10,7 +10,6 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,7 +17,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+)
+
+const (
+	eventMirrorControllerName = "event_mirror"
 )
 
 // EventMirror copies events published to pod resources by the Keyvault CSI driver into ingress events.
@@ -29,6 +33,7 @@ type EventMirror struct {
 }
 
 func NewEventMirror(manager ctrl.Manager, conf *config.Config) error {
+	metrics.InitControllerMetrics(eventMirrorControllerName)
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -44,19 +49,28 @@ func NewEventMirror(manager ctrl.Manager, conf *config.Config) error {
 }
 
 func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var err error
+	result := ctrl.Result{}
+
+	// do metrics
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(eventMirrorControllerName, result, err)
+	}()
+
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithName("eventMirror")
 
 	event := &corev1.Event{}
 	err = e.client.Get(ctx, req.NamespacedName, event)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 
 	// Filter to include only keyvault mounting errors
@@ -64,7 +78,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		event.Reason != "FailedMount" ||
 		!strings.HasPrefix(event.InvolvedObject.Name, "keyvault-") ||
 		!strings.Contains(event.Message, "keyvault") {
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
 	// Get the owner (pod)
@@ -72,14 +86,11 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	pod.Name = event.InvolvedObject.Name
 	pod.Namespace = event.InvolvedObject.Namespace
 	err = e.client.Get(ctx, client.ObjectKeyFromObject(pod), pod)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 	if pod.Annotations == nil {
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
 	// Get the owner (ingress)
@@ -87,11 +98,8 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	ingress.Namespace = pod.Namespace
 	ingress.Name = pod.Annotations["kubernetes.azure.com/ingress-owner"]
 	err = e.client.Get(ctx, client.ObjectKeyFromObject(ingress), ingress)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 
 	// Publish to the service also if ingress is owned by a service
@@ -100,17 +108,14 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		svc.Namespace = pod.Namespace
 		svc.Name = name
 		err = e.client.Get(ctx, client.ObjectKeyFromObject(svc), svc)
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
 		if err != nil {
-			return ctrl.Result{}, err
+			return result, client.IgnoreNotFound(err)
 		}
 		e.events.Event(svc, "Warning", "FailedMount", event.Message)
 	}
 
 	e.events.Event(ingress, "Warning", "FailedMount", event.Message)
-	return ctrl.Result{}, nil
+	return result, nil
 }
 
 func (e *EventMirror) newPredicates() predicate.Predicate {

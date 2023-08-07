@@ -6,6 +6,7 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"net/url"
 	"testing"
 
@@ -23,6 +24,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
@@ -52,8 +54,13 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err := i.Reconcile(ctx, req)
 	require.NoError(t, err)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove it exists
 	spc := &secv1.SecretProviderClass{}
@@ -84,16 +91,24 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Remove the cert's version from the ingress
 	ing.Annotations = map[string]string{
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
 	}
 	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove the objectVersion property was removed
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
@@ -103,15 +118,23 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	// Remove the cert annotation from the ingress
 	ing.Annotations = map[string]string{}
 	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Prove secret class was removed
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 
 	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 }
 
 func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
@@ -140,11 +163,23 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
+	metrics.InitControllerMetrics(ingressSecretProviderControllerName)
+
+	// get the before value of the error metrics
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, metrics.LabelError, ingressSecretProviderControllerName)
+
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	_, err := i.Reconcile(ctx, req)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Warning InvalidInput error while processing Keyvault reference: invalid secret uri: inv@lid URL", <-recorder.Events)
+	//even though no error was returned, we should expect the error count to be incremented
+	afterErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	afterRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
+
+	assert.Greater(t, afterErrCount, beforeErrCount)
+	assert.Greater(t, afterRequestCount, beforeRequestCount)
 }
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
