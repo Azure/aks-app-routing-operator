@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -20,8 +19,13 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
+)
+
+const (
+	ingressSecretProviderControllerName = "ingress_secret_provider"
 )
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
@@ -35,6 +39,7 @@ type IngressSecretProviderClassReconciler struct {
 }
 
 func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+	metrics.InitControllerMetrics(ingressSecretProviderControllerName)
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -50,19 +55,28 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 }
 
 func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var err error
+	result := ctrl.Result{}
+
+	// do metrics
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(ingressSecretProviderControllerName, result, err)
+	}()
+
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithName("secretProviderClassReconciler")
 
 	ing := &netv1.Ingress{}
 	err = i.client.Get(ctx, req.NamespacedName, ing)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
 
@@ -86,23 +100,22 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	ok, err := i.buildSPC(ing, spc)
 	if err != nil {
 		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 	if ok {
 		logger.Info("reconciling secret provider class for ingress")
-		return ctrl.Result{}, util.Upsert(ctx, i.client, spc)
+		err = util.Upsert(ctx, i.client, spc)
+		return result, err
 	}
 
 	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 
 	logger.Info("removing secret provider class for ingress")
-	return ctrl.Result{}, i.client.Delete(ctx, spc)
+	err = i.client.Delete(ctx, spc)
+	return result, err
 }
 
 func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {

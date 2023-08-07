@@ -2,6 +2,8 @@ package common
 
 import (
 	"context"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"testing"
 	"time"
 
@@ -24,7 +26,12 @@ func TestResourceReconcilerEmpty(t *testing.T) {
 		logger:    logr.Discard(),
 		resources: []client.Object{},
 	}
+	beforeErrCount := testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
 	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
 }
 
 func TestResourceReconcilerIntegration(t *testing.T) {
@@ -54,7 +61,12 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 		"expected not found error")
 
 	// create resource
+	beforeErrCount := testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
 	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
 	require.NoError(t,
 		c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual),
 		"expected resource to exist")
@@ -66,7 +78,12 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 		"expected not found error")
 
 	// prove the resource is recreated
+	beforeErrCount = testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
 	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
 	require.NoError(t,
 		c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual),
 		"expected resource to exist")
