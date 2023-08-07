@@ -24,12 +24,14 @@ func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 }
 
 func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
+	return nil // disable cleaner until we have better test coverage
+
 	retriever := common.RetrieverEmpty()
 	for _, obj := range objs {
 		retriever = retriever.Add(common.RetrieverFromObjs(obj.resources, obj.labels)) // clean up entire unused external dns applications
 	}
 	for _, provider := range manifests.Providers {
-		labels := util.MergeMaps(provider.Labels(), manifests.TopLevelLabels)
+		labels := util.MergeMaps(provider.Labels(), manifests.GetTopLevelLabels())
 		retriever = retriever.Add(common.RetrieverFromGk(labels, manifests.OldExternalDnsGks...)) // clean up unused types from previous versions of app routing
 	}
 
@@ -130,7 +132,7 @@ func getResources(instances []instance) []client.Object {
 
 func getLabels(instances ...instance) map[string]string {
 	l := map[string]string{}
-	for k, v := range manifests.TopLevelLabels {
+	for k, v := range manifests.GetTopLevelLabels() {
 		l[k] = v
 	}
 

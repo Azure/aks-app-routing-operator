@@ -10,10 +10,10 @@ import (
 
 const operatorName = "aks-app-routing-operator"
 
-var (
-	// TopLevelLabels are labels that every resource App Routing manages have
-	TopLevelLabels = map[string]string{"app.kubernetes.io/managed-by": operatorName}
-)
+// GetTopLevelLabels returns labels that every resource App Routing manages have
+func GetTopLevelLabels() map[string]string { // this is a function to avoid any accidental mutation due to maps being reference types
+	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
+}
 
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 	if deploy == nil {
@@ -35,7 +35,7 @@ func namespace(conf *config.Config) *corev1.Namespace {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        conf.NS,
-			Labels:      TopLevelLabels,
+			Labels:      GetTopLevelLabels(),
 			Annotations: map[string]string{},
 		},
 	}
