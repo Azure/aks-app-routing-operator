@@ -17,6 +17,16 @@ jobs:
       with:
         go-version: ~1.20.0
 
+    - name: Create kubebuilder directory
+      run: sudo mkdir -p /usr/local/kubebuilder/bin
+
+    - name: Install etcd
+      run: |
+        # Download and extract etcd binary
+        wget -q https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz
+        tar xzf etcd-v3.5.0-linux-amd64.tar.gz
+        sudo mv etcd-v3.5.0-linux-amd64/etcd /usr/local/kubebuilder/bin/
+
     - name: Run Unit Tests
       run: go test -race -v ./... -coverprofile=coverage.out
 
@@ -28,4 +38,4 @@ jobs:
       with:
         flag-name: unit-test
         path-to-lcov: coverage.lcov
-        
+
