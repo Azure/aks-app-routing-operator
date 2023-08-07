@@ -27,6 +27,13 @@ jobs:
         tar xzf etcd-v3.5.0-linux-amd64.tar.gz
         sudo mv etcd-v3.5.0-linux-amd64/etcd /usr/local/kubebuilder/bin/
 
+    - name: Install kube-apiserver
+      run: |
+        # Download and extract kube-apiserver binary
+        wget -q https://storage.googleapis.com/kubernetes-release/release/v1.22.2/bin/linux/amd64/kube-apiserver
+        chmod +x kube-apiserver
+        sudo mv kube-apiserver /usr/local/kubebuilder/bin/
+
     - name: Run Unit Tests
       run: go test -race -v ./... -coverprofile=coverage.out
 
