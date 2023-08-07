@@ -16,7 +16,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+)
+
+const (
+	ingressControllerName = "ingress"
 )
 
 // NginxIngressReconciler manages an opinionated ingress resource for services that define certain annotations.
@@ -37,6 +42,8 @@ type NginxIngressReconciler struct {
 }
 
 func NewNginxIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxIngressConfig) error {
+	metrics.InitControllerMetrics(ingressControllerName)
+
 	return ctrl.
 		NewControllerManagedBy(manager).
 		For(&corev1.Service{}).
@@ -44,26 +51,38 @@ func NewNginxIngressReconciler(manager ctrl.Manager, ingConfig *manifests.NginxI
 }
 
 func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var err error
+	result := ctrl.Result{}
+
+	// do metrics
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(ingressControllerName, result, err)
+	}()
+
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithName("ingressReconciler")
 
 	svc := &corev1.Service{}
 	err = i.client.Get(ctx, req.NamespacedName, svc)
 	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithValues("name", svc.Name, "namespace", svc.Namespace, "generation", svc.Generation)
 
 	if svc.Annotations == nil || svc.Annotations["kubernetes.azure.com/ingress-host"] == "" || svc.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] == "" || len(svc.Spec.Ports) == 0 {
 		// Give users a migration path away from managed ingress, etc. resources by not cleaning them up if annotations are removed.
 		// Users can remove the annotations, remove the owner references from managed resources, and take ownership of them.
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
 	serviceAccount := "default"
@@ -125,5 +144,6 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("reconciling ingress for service")
-	return ctrl.Result{}, util.Upsert(ctx, i.client, ing)
+	err = util.Upsert(ctx, i.client, ing)
+	return result, err
 }

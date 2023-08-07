@@ -9,13 +9,17 @@ import (
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+)
+
+const (
+	ingressBackendControllerName = "ingress_backend"
 )
 
 // IngressControllerNamer returns the controller name that an Ingress consumes and a boolean indicating whether it's managed by web app routing.
@@ -60,6 +64,7 @@ type IngressBackendReconciler struct {
 }
 
 func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingressControllerNamer IngressControllerNamer) error {
+	metrics.InitControllerMetrics(ingressBackendControllerName)
 	if conf.DisableOSM {
 		return nil
 	}
@@ -70,19 +75,28 @@ func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingr
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var err error
+	result := ctrl.Result{}
+
+	// do metrics
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(ingressBackendControllerName, result, err)
+	}()
+
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithName("ingressBackendReconciler")
 
 	ing := &netv1.Ingress{}
 	err = i.client.Get(ctx, req.NamespacedName, ing)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
 
@@ -108,13 +122,11 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	logger = logger.WithValues("controller", controllerName)
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
 		if err != nil {
-			return ctrl.Result{}, err
+			return result, client.IgnoreNotFound(err)
 		}
-		return ctrl.Result{}, i.client.Delete(ctx, backend)
+		err = i.client.Delete(ctx, backend)
+		return result, err
 	}
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{
@@ -151,5 +163,6 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	logger.Info("reconciling OSM ingress backend for ingress")
-	return ctrl.Result{}, util.Upsert(ctx, i.client, backend)
+	err = util.Upsert(ctx, i.client, backend)
+	return result, err
 }
