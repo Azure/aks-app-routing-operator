@@ -80,7 +80,7 @@ func TestGetSelfDeploy(t *testing.T) {
 func TestNewManagerForRestConfig(t *testing.T) {
 	testenv := &envtest.Environment{}
 	restConf, _ := testenv.Start()
-	conf := &config.Config{NS: "app-routing-system2", OperatorDeployment: "operator-test2", MetricsAddr: "0"}
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator-test", MetricsAddr: "0"}
 	_, err := NewManagerForRestConfig(conf, restConf)
 	require.NoError(t, err)
 }
