@@ -1,10 +1,12 @@
 package dns
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/google/uuid"
@@ -12,13 +14,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
-	uid = uuid.New().String()
+	restConfig *rest.Config
+	uid        = uuid.New().String()
 
 	noZones = config.Config{
 		ClusterUid:        uid,
@@ -67,6 +70,15 @@ var (
 		Kind:    "Resource",
 	}
 )
+
+func TestMain(m *testing.M) {
+	restConfig, _ = testutils.StartTestingEnv()
+
+	exitCode := m.Run()
+
+	testutils.CleanupTestingEnv()
+	os.Exit(exitCode)
+}
 
 var (
 	self *appsv1.Deployment = nil
@@ -436,14 +448,17 @@ func TestActionFromConfig(t *testing.T) {
 }
 
 func TestAddExternalDnsReconciler(t *testing.T) {
-	m := getManager()
-	err := addExternalDnsReconciler(m, []client.Object{obj(gvk1, nil)})
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	err = addExternalDnsReconciler(m, []client.Object{obj(gvk1, nil)})
 	require.NoError(t, err)
 }
 
 func TestAddExternalDnsCleaner(t *testing.T) {
-	m := getManager()
-	err := addExternalDnsCleaner(m, []cleanObj{
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
+	err = addExternalDnsCleaner(m, []cleanObj{
 		{
 			resources: instances(&noZones, self)[0].resources,
 			labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
@@ -452,17 +467,12 @@ func TestAddExternalDnsCleaner(t *testing.T) {
 }
 
 func TestNewExternalDns(t *testing.T) {
-	m := getManager()
-	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
-	err := NewExternalDns(m, conf, self)
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
 	require.NoError(t, err)
-}
 
-func getManager() manager.Manager {
-	testenv := &envtest.Environment{}
-	cfg, _ := testenv.Start()
-	m, _ := manager.New(cfg, manager.Options{})
-	return m
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err = NewExternalDns(m, conf, self)
+	require.NoError(t, err)
 }
 
 func obj(gvk schema.GroupVersionKind, labels map[string]string) client.Object {

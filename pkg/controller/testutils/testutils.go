@@ -1,11 +1,16 @@
 package testutils
 
 import (
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	promDTO "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
-	"testing"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
+
+var env *envtest.Environment
 
 func GetErrMetricCount(t *testing.T, controllerName string) float64 {
 	errMetric, err := metrics.AppRoutingReconcileErrors.GetMetricWithLabelValues(controllerName)
@@ -31,4 +36,13 @@ func GetReconcileMetricCount(t *testing.T, controllerName, label string) float64
 
 	beforeCount := metricProto.GetCounter().GetValue()
 	return beforeCount
+}
+
+func StartTestingEnv() (*rest.Config, error) {
+	env = &envtest.Environment{}
+	return env.Start()
+}
+
+func CleanupTestingEnv() error {
+	return env.Stop()
 }

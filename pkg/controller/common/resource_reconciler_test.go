@@ -2,21 +2,34 @@ package common
 
 import (
 	"context"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+var restConfig *rest.Config
+
+func TestMain(m *testing.M) {
+	restConfig, _ = testutils.StartTestingEnv()
+
+	exitCode := m.Run()
+
+	testutils.CleanupTestingEnv()
+	os.Exit(exitCode)
+}
 func TestResourceReconcilerEmpty(t *testing.T) {
 	c := fake.NewClientBuilder().Build()
 
@@ -95,7 +108,8 @@ func TestResourceReconcilerLeaderElection(t *testing.T) {
 }
 
 func TestNewResourceReconciler(t *testing.T) {
-	m := getManager()
-	err := NewResourceReconciler(m, "test-rr", nil, 1*time.Nanosecond)
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	err = NewResourceReconciler(m, "test-rr", nil, 1*time.Nanosecond)
 	require.NoError(t, err)
 }

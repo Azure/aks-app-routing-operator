@@ -17,7 +17,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -241,9 +240,9 @@ func AssertAction(t *testing.T, got []k8stesting.Action, expected k8stesting.Act
 }
 
 func TestNewCleaner(t *testing.T) {
-	m := getManager()
-
-	err := NewCleaner(m, "test-new-cleaner", RetrieverEmpty())
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	err = NewCleaner(m, "test-new-cleaner", RetrieverEmpty())
 	require.NoError(t, err)
 }
 
@@ -252,7 +251,10 @@ func TestClean(t *testing.T) {
 		namespacedGvr:    namespacedList,
 		nonNamespacedGvr: nonNamespacedList,
 	})
-	m := getManager()
+
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
 	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), apiutil.WithLazyDiscovery)
 	require.NoError(t, err)
 
@@ -298,7 +300,10 @@ func TestCleanerStart(t *testing.T) {
 		namespacedGvr:    namespacedList,
 		nonNamespacedGvr: nonNamespacedList,
 	})
-	m := getManager()
+
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
 	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), apiutil.WithLazyDiscovery)
 	require.NoError(t, err)
 
@@ -338,11 +343,4 @@ func TestCleanerStart(t *testing.T) {
 			require.Equal(t, test.expectedErrMsg, err.Error(), "should return expected error msg")
 		}
 	}
-}
-
-func getManager() manager.Manager {
-	testenv := &envtest.Environment{}
-	cfg, _ := testenv.Start()
-	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
-	return m
 }

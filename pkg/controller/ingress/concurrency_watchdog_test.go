@@ -7,15 +7,17 @@ import (
 	"container/ring"
 	"context"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -28,23 +30,34 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
-var testIngConf = &manifests.NginxIngressConfig{
-	ControllerClass: "test-controller-class",
-	ResourceName:    "test-resource-name",
-	IcName:          "test-ic-name",
-}
+var (
+	testIngConf = &manifests.NginxIngressConfig{
+		ControllerClass: "test-controller-class",
+		ResourceName:    "test-resource-name",
+		IcName:          "test-ic-name",
+	}
+	restConfig *rest.Config
+)
 
 type testLabelGetter struct{}
 
 func (t testLabelGetter) PodLabels() map[string]string {
 	return map[string]string{}
+}
+
+func TestMain(m *testing.M) {
+	restConfig, _ = testutils.StartTestingEnv()
+
+	exitCode := m.Run()
+
+	testutils.CleanupTestingEnv()
+	os.Exit(exitCode)
 }
 
 func TestConcurrencyWatchdogPositive(t *testing.T) {
@@ -292,17 +305,11 @@ func TestConcurrencyWatchdogLeaderElection(t *testing.T) {
 }
 
 func TestNewConcurrencyWatchdog(t *testing.T) {
-	m := getManager()
-	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
-	err := NewConcurrencyWatchdog(m, conf, nil)
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
 	require.NoError(t, err)
-}
-
-func getManager() manager.Manager {
-	testenv := &envtest.Environment{}
-	cfg, _ := testenv.Start()
-	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
-	return m
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err = NewConcurrencyWatchdog(m, conf, nil)
+	require.NoError(t, err)
 }
 
 func buildTestPods(n int) *corev1.PodList {

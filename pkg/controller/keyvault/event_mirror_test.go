@@ -5,9 +5,11 @@ package keyvault
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/go-logr/logr"
@@ -17,13 +19,24 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
+
+var restConfig *rest.Config
+
+func TestMain(m *testing.M) {
+	restConfig, _ = testutils.StartTestingEnv()
+
+	exitCode := m.Run()
+
+	testutils.CleanupTestingEnv()
+	os.Exit(exitCode)
+}
 
 func TestEventMirrorHappyPath(t *testing.T) {
 	owner1 := &netv1.Ingress{}
@@ -130,15 +143,9 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 }
 
 func TestNewEventMirror(t *testing.T) {
-	m := getManager()
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
-	err := NewEventMirror(m, conf)
+	err = NewEventMirror(m, conf)
 	require.NoError(t, err, "should not error")
-}
-
-func getManager() manager.Manager {
-	testenv := &envtest.Environment{}
-	cfg, _ := testenv.Start()
-	m, _ := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
-	return m
 }

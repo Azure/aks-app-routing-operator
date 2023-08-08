@@ -5,9 +5,10 @@ package keyvault
 
 import (
 	"context"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
@@ -25,6 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -160,9 +162,11 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 }
 
 func TestNewPlaceholderPodController(t *testing.T) {
-	m := getManager()
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
 	ingressManager := NewIngressManager(map[string]struct{}{"webapprouting.kubernetes.azure.com": {}})
-	err := NewPlaceholderPodController(m, conf, ingressManager)
+	err = NewPlaceholderPodController(m, conf, ingressManager)
 	require.NoError(t, err)
 }
