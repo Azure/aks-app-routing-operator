@@ -20,9 +20,7 @@ import (
 )
 
 var (
-	restConfig *rest.Config
-	uid        = uuid.New().String()
-
+	uid     = uuid.New().String()
 	noZones = config.Config{
 		ClusterUid:        uid,
 		PrivateZoneConfig: config.DnsZoneConfig{},
@@ -81,7 +79,8 @@ func TestMain(m *testing.M) {
 }
 
 var (
-	self *appsv1.Deployment = nil
+	restConfig *rest.Config
+	self       *appsv1.Deployment = nil
 )
 
 func TestPublicConfig(t *testing.T) {
