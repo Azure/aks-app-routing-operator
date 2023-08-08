@@ -313,22 +313,22 @@ func TestGetLabels(t *testing.T) {
 		{
 			name:      "always returns top level",
 			instances: []instance{},
-			expected:  manifests.TopLevelLabels,
+			expected:  manifests.GetTopLevelLabels(),
 		},
 		{
 			name:      "top level and private",
 			instances: filterAction(instances(&onlyPrivZones, self), deploy),
-			expected:  util.MergeMaps(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
 		},
 		{
 			name:      "top level and public",
 			instances: filterAction(instances(&onlyPubZones, self), deploy),
-			expected:  util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 		},
 		{
 			name:      "all labels",
 			instances: instances(&allZones, self),
-			expected:  util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
+			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
 		},
 	}
 
@@ -349,7 +349,7 @@ func TestCleanObjs(t *testing.T) {
 			instances: instances(&onlyPubZones, self),
 			expected: []cleanObj{{
 				resources: instances(&onlyPubZones, self)[1].resources,
-				labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
 			}},
 		},
 		{
@@ -357,7 +357,7 @@ func TestCleanObjs(t *testing.T) {
 			instances: instances(&onlyPrivZones, self),
 			expected: []cleanObj{{
 				resources: instances(&onlyPrivZones, self)[0].resources,
-				labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 			}},
 		},
 		{
@@ -366,11 +366,11 @@ func TestCleanObjs(t *testing.T) {
 			expected: []cleanObj{
 				{
 					resources: instances(&noZones, self)[0].resources,
-					labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 				},
 				{
 					resources: instances(&noZones, self)[1].resources,
-					labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PrivateProvider.Labels()),
+					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
 				}},
 		},
 		{
