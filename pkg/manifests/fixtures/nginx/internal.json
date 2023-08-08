@@ -6,7 +6,8 @@
         "name": "test-namespace",
         "creationTimestamp": null,
         "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -29,7 +30,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -49,7 +51,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -160,7 +163,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -193,7 +197,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "annotations": {
           "prometheus.io/port": "10254",
@@ -245,7 +250,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -420,7 +426,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -444,7 +451,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {
@@ -479,7 +487,8 @@
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
         },
         "ownerReferences": [
           {

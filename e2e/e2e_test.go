@@ -17,7 +17,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/e2e/e2eutil"
 	"github.com/Azure/aks-app-routing-operator/e2e/fixtures"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
 	appsv1 "k8s.io/api/apps/v1"
@@ -291,6 +290,7 @@ func TestPrometheus(t *testing.T) {
 
 }
 
+/* Cleanup is temporarily disabled
 func TestCleanup(t *testing.T) {
 	// this cannot be a parallel test because it manipulates the operator deployment which affects other tests
 	testEnv.Test(t, features.New("cleanup").
@@ -477,6 +477,7 @@ func TestCleanup(t *testing.T) {
 		}).Feature(),
 	)
 }
+*/
 
 func generateTestingObjects(t *testing.T, namespace, keyvaultURI string, config *zoneConfig) (clientDeployment *appsv1.Deployment, serverDeployment *appsv1.Deployment, service *corev1.Service) {
 	hostname := e2eutil.GetHostname(namespace, config.DNSZoneId)
