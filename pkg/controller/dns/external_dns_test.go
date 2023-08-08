@@ -460,7 +460,7 @@ func TestAddExternalDnsCleaner(t *testing.T) {
 	err = addExternalDnsCleaner(m, []cleanObj{
 		{
 			resources: instances(&noZones, self)[0].resources,
-			labels:    util.MergeMaps(manifests.TopLevelLabels, manifests.PublicProvider.Labels()),
+			labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 		}})
 	require.NoError(t, err)
 }
