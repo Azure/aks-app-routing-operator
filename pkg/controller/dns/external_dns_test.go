@@ -20,8 +20,11 @@ import (
 )
 
 var (
-	uid     = uuid.New().String()
-	noZones = config.Config{
+	restConfig *rest.Config
+	err        error
+	self       *appsv1.Deployment = nil
+	uid                           = uuid.New().String()
+	noZones                       = config.Config{
 		ClusterUid:        uid,
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig:  config.DnsZoneConfig{},
@@ -70,19 +73,14 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	restConfig, _ = testutils.StartTestingEnv()
+	restConfig, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+	defer testutils.CleanupTestingEnv()
 
-	exitCode := m.Run()
-
-	testutils.CleanupTestingEnv()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
-
-var (
-	restConfig *rest.Config
-	self       *appsv1.Deployment = nil
-)
-
 func TestPublicConfig(t *testing.T) {
 	tests := []struct {
 		name     string

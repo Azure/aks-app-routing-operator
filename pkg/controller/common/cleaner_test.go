@@ -274,7 +274,7 @@ func TestClean(t *testing.T) {
 			expectedErrMsg: "retriever is nil",
 		},
 		{
-			name: "rest mapper err",
+			name: "runs clean without err",
 			c: &cleaner{
 				name:      "test-name",
 				dynamic:   d,

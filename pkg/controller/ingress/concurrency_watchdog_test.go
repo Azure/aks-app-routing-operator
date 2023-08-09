@@ -43,6 +43,7 @@ var (
 		IcName:          "test-ic-name",
 	}
 	restConfig *rest.Config
+	err        error
 )
 
 type testLabelGetter struct{}
@@ -52,12 +53,13 @@ func (t testLabelGetter) PodLabels() map[string]string {
 }
 
 func TestMain(m *testing.M) {
-	restConfig, _ = testutils.StartTestingEnv()
+	restConfig, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+	defer testutils.CleanupTestingEnv()
 
-	exitCode := m.Run()
-
-	testutils.CleanupTestingEnv()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestConcurrencyWatchdogPositive(t *testing.T) {

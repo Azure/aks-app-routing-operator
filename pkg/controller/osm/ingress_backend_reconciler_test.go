@@ -31,6 +31,7 @@ import (
 
 var (
 	restConfig *rest.Config
+	err        error
 	ing        = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
@@ -58,12 +59,13 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	restConfig, _ = testutils.StartTestingEnv()
+	restConfig, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+	defer testutils.CleanupTestingEnv()
 
-	exitCode := m.Run()
-
-	testutils.CleanupTestingEnv()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestIngressBackendReconcilerIntegration(t *testing.T) {

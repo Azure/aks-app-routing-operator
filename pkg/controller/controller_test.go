@@ -25,15 +25,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-var restConfig *rest.Config
+var (
+	restConfig *rest.Config
+	err        error
+)
 
 func TestMain(m *testing.M) {
-	restConfig, _ = testutils.StartTestingEnv()
+	restConfig, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+	defer testutils.CleanupTestingEnv()
 
-	exitCode := m.Run()
-
-	testutils.CleanupTestingEnv()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestLogger(t *testing.T) {
