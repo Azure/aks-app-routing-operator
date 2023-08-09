@@ -27,15 +27,21 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-var restConfig *rest.Config
+var (
+	err        error
+	restConfig *rest.Config
+)
 
 func TestMain(m *testing.M) {
-	restConfig, _ = testutils.StartTestingEnv()
+	restConfig, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
 
-	exitCode := m.Run()
-
+	code := m.Run()
 	testutils.CleanupTestingEnv()
-	os.Exit(exitCode)
+
+	os.Exit(code)
 }
 
 func TestEventMirrorHappyPath(t *testing.T) {

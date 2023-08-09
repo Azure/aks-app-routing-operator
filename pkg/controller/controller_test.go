@@ -35,9 +35,11 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	defer testutils.CleanupTestingEnv()
 
-	os.Exit(m.Run())
+	code := m.Run()
+	testutils.CleanupTestingEnv()
+
+	os.Exit(code)
 }
 
 func TestLogger(t *testing.T) {
