@@ -10,8 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-var env *envtest.Environment
-
 func GetErrMetricCount(t *testing.T, controllerName string) float64 {
 	errMetric, err := metrics.AppRoutingReconcileErrors.GetMetricWithLabelValues(controllerName)
 	require.NoError(t, err)
@@ -39,7 +37,7 @@ func GetReconcileMetricCount(t *testing.T, controllerName, label string) float64
 }
 
 func StartTestingEnv() (*rest.Config, *envtest.Environment, error) {
-	env = &envtest.Environment{}
+	env := &envtest.Environment{}
 	restConfig, err := env.Start()
 	if err != nil {
 		return nil, nil, err
