@@ -35,6 +35,7 @@ type cluster interface {
 
 type containerRegistry interface {
 	GetName() string
+	BuildAndPush(ctx context.Context, imageName string) error
 	Identifier
 }
 
@@ -78,6 +79,7 @@ type Provisioned struct {
 	ResourceGroup     resourceGroup
 	SubscriptionId    string
 	TenantId          string
+	Image             string
 }
 
 type LoadableProvisioned struct {
@@ -91,4 +93,5 @@ type LoadableProvisioned struct {
 	ResourceGroup     arm.ResourceID
 	SubscriptionId    string
 	TenantId          string
+	Image             string
 }

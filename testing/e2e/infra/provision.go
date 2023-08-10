@@ -43,6 +43,11 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating container registry: %w", err))
 		}
+
+		ret.Image = "e2e:" + i.Suffix
+		if err := ret.ContainerRegistry.BuildAndPush(ctx, ret.Image); err != nil {
+			return logger.Error(lgr, fmt.Errorf("building and pushing image: %w", err))
+		}
 		return nil
 	})
 

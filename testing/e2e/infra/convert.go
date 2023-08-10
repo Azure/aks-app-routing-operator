@@ -57,6 +57,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		ResourceGroup:     *resourceGroup,
 		SubscriptionId:    p.SubscriptionId,
 		TenantId:          p.TenantId,
+		Image:             p.Image,
 	}, nil
 }
 
@@ -105,5 +106,6 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 		ResourceGroup:     clients.LoadRg(l.ResourceGroup),
 		SubscriptionId:    l.SubscriptionId,
 		TenantId:          l.TenantId,
+		Image:             l.Image,
 	}, nil
 }
