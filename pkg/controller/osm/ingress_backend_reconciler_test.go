@@ -5,9 +5,11 @@ package osm
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
@@ -18,15 +20,21 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 )
 
-func TestIngressBackendReconcilerIntegration(t *testing.T) {
-	ing := &netv1.Ingress{
+var (
+	env        *envtest.Environment
+	restConfig *rest.Config
+	err        error
+	ing        = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
 			Namespace:   "test-ns",
@@ -50,7 +58,21 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 			}},
 		},
 	}
+)
 
+func TestMain(m *testing.M) {
+	restConfig, env, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+	testutils.CleanupTestingEnv(env)
+
+	os.Exit(code)
+}
+
+func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -112,4 +134,15 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+}
+
+func TestNewIngressBackendReconciler(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	ingressControllerName := NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"})
+	err = NewIngressBackendReconciler(m, conf, ingressControllerName)
+	require.NoError(t, err, "should not error")
+
 }

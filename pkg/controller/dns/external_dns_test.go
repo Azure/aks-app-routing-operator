@@ -1,22 +1,32 @@
 package dns
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
-	uid = uuid.New().String()
-
-	noZones = config.Config{
+	env        *envtest.Environment
+	restConfig *rest.Config
+	err        error
+	self       *appsv1.Deployment = nil
+	uid                           = uuid.New().String()
+	noZones                       = config.Config{
 		ClusterUid:        uid,
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig:  config.DnsZoneConfig{},
@@ -52,12 +62,29 @@ var (
 			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com"},
 		},
 	}
+	gvr1 = schema.GroupVersionResource{
+		Group:    "group",
+		Version:  "v1",
+		Resource: "resources",
+	}
+	gvk1 = schema.GroupVersionKind{
+		Group:   gvr1.Group,
+		Version: gvr1.Version,
+		Kind:    "Resource",
+	}
 )
 
-var (
-	self *appsv1.Deployment = nil
-)
+func TestMain(m *testing.M) {
+	restConfig, env, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
 
+	code := m.Run()
+	testutils.CleanupTestingEnv(env)
+
+	os.Exit(code)
+}
 func TestPublicConfig(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -419,4 +446,39 @@ func TestActionFromConfig(t *testing.T) {
 		got := actionFromConfig(test.conf)
 		require.Equal(t, test.expected, got)
 	}
+}
+
+func TestAddExternalDnsReconciler(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	err = addExternalDnsReconciler(m, []client.Object{obj(gvk1, nil)})
+	require.NoError(t, err)
+}
+
+func TestAddExternalDnsCleaner(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
+	err = addExternalDnsCleaner(m, []cleanObj{
+		{
+			resources: instances(&noZones, self)[0].resources,
+			labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
+		}})
+	require.NoError(t, err)
+}
+
+func TestNewExternalDns(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err = NewExternalDns(m, conf, self)
+	require.NoError(t, err)
+}
+
+func obj(gvk schema.GroupVersionKind, labels map[string]string) client.Object {
+	o := &unstructured.Unstructured{}
+	o.SetLabels(labels)
+	o.SetGroupVersionKind(gvk)
+	return o
 }

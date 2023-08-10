@@ -2,9 +2,11 @@ package common
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"testing"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
@@ -91,4 +93,11 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 func TestResourceReconcilerLeaderElection(t *testing.T) {
 	var ler manager.LeaderElectionRunnable = &resourceReconciler{}
 	require.True(t, ler.NeedLeaderElection(), "should need leader election")
+}
+
+func TestNewResourceReconciler(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	err = NewResourceReconciler(m, "test-rr", nil, 1*time.Nanosecond)
+	require.NoError(t, err)
 }

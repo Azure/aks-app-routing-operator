@@ -17,6 +17,22 @@ jobs:
       with:
         go-version: ~1.20.0
 
+    - name: Create kubebuilder directory
+    # The default location for the etcd and kube-apiserver binaries is /kubebuilder/bin
+      run: sudo mkdir -p /usr/local/kubebuilder/bin
+
+    - name: Install etcd
+      run: |
+        wget -q https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz
+        tar xzf etcd-v3.5.0-linux-amd64.tar.gz
+        sudo mv etcd-v3.5.0-linux-amd64/etcd /usr/local/kubebuilder/bin/
+
+    - name: Install kube-apiserver
+      run: |
+        wget -q https://storage.googleapis.com/kubernetes-release/release/v1.22.2/bin/linux/amd64/kube-apiserver
+        chmod +x kube-apiserver
+        sudo mv kube-apiserver /usr/local/kubebuilder/bin/
+
     - name: Run Unit Tests
       run: go test -race -v ./... -coverprofile=coverage.out
 
@@ -28,4 +44,3 @@ jobs:
       with:
         flag-name: unit-test
         path-to-lcov: coverage.lcov
-        
