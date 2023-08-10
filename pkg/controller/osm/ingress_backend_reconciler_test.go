@@ -24,12 +24,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 )
 
 var (
+	env        *envtest.Environment
 	restConfig *rest.Config
 	err        error
 	ing        = &netv1.Ingress{
@@ -59,13 +61,13 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	restConfig, err = testutils.StartTestingEnv()
+	restConfig, env, err = testutils.StartTestingEnv()
 	if err != nil {
 		panic(err)
 	}
 
 	code := m.Run()
-	testutils.CleanupTestingEnv()
+	testutils.CleanupTestingEnv(env)
 
 	os.Exit(code)
 }

@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -30,16 +31,17 @@ import (
 var (
 	err        error
 	restConfig *rest.Config
+	env        *envtest.Environment
 )
 
 func TestMain(m *testing.M) {
-	restConfig, err = testutils.StartTestingEnv()
+	restConfig, env, err = testutils.StartTestingEnv()
 	if err != nil {
 		panic(err)
 	}
 
 	code := m.Run()
-	testutils.CleanupTestingEnv()
+	testutils.CleanupTestingEnv(env)
 
 	os.Exit(code)
 }

@@ -38,11 +38,15 @@ func GetReconcileMetricCount(t *testing.T, controllerName, label string) float64
 	return beforeCount
 }
 
-func StartTestingEnv() (*rest.Config, error) {
+func StartTestingEnv() (*rest.Config, *envtest.Environment, error) {
 	env = &envtest.Environment{}
-	return env.Start()
+	restConfig, err := env.Start()
+	if err != nil {
+		return nil, nil, err
+	}
+	return restConfig, env, nil
 }
 
-func CleanupTestingEnv() error {
+func CleanupTestingEnv(env *envtest.Environment) error {
 	return env.Stop()
 }

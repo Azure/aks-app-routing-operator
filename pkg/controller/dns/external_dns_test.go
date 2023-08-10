@@ -16,10 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 var (
+	env        *envtest.Environment
 	restConfig *rest.Config
 	err        error
 	self       *appsv1.Deployment = nil
@@ -73,13 +75,13 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	restConfig, err = testutils.StartTestingEnv()
+	restConfig, env, err = testutils.StartTestingEnv()
 	if err != nil {
 		panic(err)
 	}
 
 	code := m.Run()
-	testutils.CleanupTestingEnv()
+	testutils.CleanupTestingEnv(env)
 
 	os.Exit(code)
 }

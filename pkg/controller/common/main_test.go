@@ -6,21 +6,23 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
 var (
 	restConfig *rest.Config
 	err        error
+	env        *envtest.Environment
 )
 
 func TestMain(m *testing.M) {
-	restConfig, err = testutils.StartTestingEnv()
+	restConfig, env, err = testutils.StartTestingEnv()
 	if err != nil {
 		panic(err)
 	}
 
 	code := m.Run()
-	testutils.CleanupTestingEnv()
+	testutils.CleanupTestingEnv(env)
 
 	os.Exit(code)
 }
