@@ -1,14 +1,19 @@
 package clients
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type aks struct {
@@ -108,33 +113,64 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}, nil
 }
 
-func (a *aks) GetKubeconfig(ctx context.Context) ([]byte, error) {
+func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup)
 	ctx = logger.WithContext(ctx, lgr)
-	lgr.Info("starting to get kubeconfig")
-	defer lgr.Info("finished getting kubeconfig")
+	lgr.Info("starting to deploy resources")
+	defer lgr.Info("finished deploying resources")
 
 	cred, err := getAzCred()
 	if err != nil {
-		return nil, fmt.Errorf("getting az credentials: %w", err)
+		return fmt.Errorf("getting az credentials: %w", err)
 	}
 
 	client, err := armcontainerservice.NewManagedClustersClient(a.subscriptionId, cred, nil)
 	if err != nil {
-		return nil, fmt.Errorf("creating aks client: %w", err)
+		return fmt.Errorf("creating aks client: %w", err)
 	}
 
-	resp, err := client.ListClusterUserCredentials(ctx, a.resourceGroup, a.name, nil)
+	// wrap manifests into base64 zip file.
+	// this is specified by the AKS ARM API.
+	// https://github.com/FumingZhang/azure-cli/blob/aefcf3948ed4207bfcf5d53064e5dac8ea8f19ca/src/azure-cli/azure/cli/command_modules/acs/custom.py#L2750
+	b := &bytes.Buffer{}
+	zipWriter := zip.NewWriter(b)
+	for i, obj := range objs {
+		json, err := manifests.MarshalJson(obj)
+		if err != nil {
+			return fmt.Errorf("marshaling json for object: %w", err)
+		}
+
+		f, err := zipWriter.Create(fmt.Sprintf("manifests/%d.json", i))
+		if err != nil {
+			return fmt.Errorf("creating zip entry: %w", err)
+		}
+
+		if _, err := f.Write(json); err != nil {
+			return fmt.Errorf("writing zip entry: %w", err)
+		}
+	}
+	zipWriter.Close()
+	encoded := base64.StdEncoding.EncodeToString(b.Bytes())
+
+	poller, err := client.BeginRunCommand(ctx, a.resourceGroup, a.name, armcontainerservice.RunCommandRequest{
+		Command: to.Ptr("kubectl apply -f manifests/"),
+		Context: &encoded,
+	}, nil)
 	if err != nil {
-		return nil, fmt.Errorf("listing user credentials: %w", err)
+		return fmt.Errorf("starting run command: %w", err)
 	}
 
-	kubeconfigs := resp.Kubeconfigs
-	if kubeconfigs == nil || len(kubeconfigs) == 0 {
-		return nil, fmt.Errorf("no kubeconfig returned")
+	result, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("running command: %w", err)
 	}
 
-	return kubeconfigs[0].Value, nil
+	lgr.Info("kubectl apply output: " + *result.Properties.Logs)
+	if *result.Properties.ExitCode != 0 {
+		return fmt.Errorf("kubectl apply failed with exit code %d", *result.Properties.ExitCode)
+	}
+
+	return nil
 }
 
 func (a *aks) GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error) {

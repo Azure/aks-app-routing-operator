@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type infras []infra
@@ -27,9 +28,9 @@ type Identifier interface {
 }
 
 type cluster interface {
-	GetKubeconfig(ctx context.Context) ([]byte, error)
 	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	GetVnetId(ctx context.Context) (string, error)
+	Deploy(ctx context.Context, objs []client.Object) error
 	Identifier
 }
 

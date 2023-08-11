@@ -20,9 +20,9 @@ const (
 )
 
 func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) (Provisioned, *logger.LoggedError) {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("provisioning infrastructure " + i.Name)
-	defer lgr.Info("finished provisioning infrastructure " + i.Name)
+	lgr := logger.FromContext(ctx).With("infra", i.Name)
+	lgr.Info("provisioning infrastructure")
+	defer lgr.Info("finished provisioning infrastructure")
 
 	ret := Provisioned{
 		Name:           i.Name,

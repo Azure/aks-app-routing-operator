@@ -11,6 +11,7 @@ const (
 	tenantIdFlag       = "tenant"
 	infraNamesFlag     = "names"
 	infraFileFlag      = "infra-file"
+	infraNameFlag      = "infra-name"
 )
 
 var (
@@ -51,4 +52,13 @@ var (
 func setupInfraFileFlag(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&infraFile, infraFileFlag, "./infra-config.json", "file to load infrastructure from")
 	cmd.MarkFlagRequired(infraFileFlag)
+}
+
+var (
+	infraName string
+)
+
+func setupInfraNameFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&infraName, infraNameFlag, "", "infrastructure name that was provisioned")
+	cmd.MarkFlagRequired(infraNameFlag)
 }

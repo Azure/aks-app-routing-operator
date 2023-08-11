@@ -18,9 +18,11 @@ func getAzCred() (azcore.TokenCredential, error) {
 		return cred, nil
 	}
 
-	c, err := azidentity.NewDefaultAzureCredential(nil)
+	// this is CLI instead of DefaultCredential to ensure we are using the same credential as the CLI
+	// and authed through the cli. We use the az cli directly when pushing an image to ACR for now.
+	c, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
-		return nil, fmt.Errorf("getting default credential: %w", err)
+		return nil, fmt.Errorf("getting az cli credential: %w", err)
 	}
 
 	cred = c
