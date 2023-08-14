@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"net/http"
+	"regexp"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
@@ -144,6 +145,15 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	return m, nil
+}
+
+// IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name
+func IsPrometheusBestPracticeName(controllerName string) bool {
+	pattern := "[a-z]+(_[a-z]+)*"
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(controllerName)
+
+	return match != nil && match[0] == controllerName
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
