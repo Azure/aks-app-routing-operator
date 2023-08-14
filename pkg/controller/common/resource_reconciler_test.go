@@ -3,6 +3,10 @@ package common
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
@@ -23,7 +27,12 @@ func TestResourceReconcilerEmpty(t *testing.T) {
 		logger:    logr.Discard(),
 		resources: []client.Object{},
 	}
+	beforeErrCount := testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
 	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
 }
 
 func TestResourceReconcilerIntegration(t *testing.T) {
@@ -53,7 +62,12 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 		"expected not found error")
 
 	// create resource
+	beforeErrCount := testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
 	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
 	require.NoError(t,
 		c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual),
 		"expected resource to exist")
@@ -65,7 +79,12 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 		"expected not found error")
 
 	// prove the resource is recreated
+	beforeErrCount = testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
 	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
 	require.NoError(t,
 		c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual),
 		"expected resource to exist")
@@ -74,4 +93,11 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 func TestResourceReconcilerLeaderElection(t *testing.T) {
 	var ler manager.LeaderElectionRunnable = &resourceReconciler{}
 	require.True(t, ler.NeedLeaderElection(), "should need leader election")
+}
+
+func TestNewResourceReconciler(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	err = NewResourceReconciler(m, "test-rr", nil, 1*time.Nanosecond)
+	require.NoError(t, err)
 }

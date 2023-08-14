@@ -11,9 +11,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -26,22 +30,40 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
-var testIngConf = &manifests.NginxIngressConfig{
-	ControllerClass: "test-controller-class",
-	ResourceName:    "test-resource-name",
-	IcName:          "test-ic-name",
-}
+var (
+	testIngConf = &manifests.NginxIngressConfig{
+		ControllerClass: "test-controller-class",
+		ResourceName:    "test-resource-name",
+		IcName:          "test-ic-name",
+	}
+	restConfig *rest.Config
+	err        error
+	env        *envtest.Environment
+)
 
 type testLabelGetter struct{}
 
 func (t testLabelGetter) PodLabels() map[string]string {
 	return map[string]string{}
+}
+
+func TestMain(m *testing.M) {
+	restConfig, env, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+	testutils.CleanupTestingEnv(env)
+
+	os.Exit(code)
 }
 
 func TestConcurrencyWatchdogPositive(t *testing.T) {
@@ -64,12 +86,22 @@ func TestConcurrencyWatchdogPositive(t *testing.T) {
 	}}
 
 	// No eviction after first tick of the loop
+	beforeErrCount := testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
 	require.NoError(t, c.tick(ctx))
 	assert.Len(t, cs.Fake.Actions(), 0)
 
+	require.Equal(t, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
 	// Eviction after second tick of the loop
+	beforeErrCount = testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
 	require.NoError(t, c.tick(ctx))
 	assert.Len(t, cs.Fake.Actions(), 1)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess), beforeReconcileCount)
 }
 
 func TestConcurrencyWatchdogPodNotReady(t *testing.T) {
@@ -93,13 +125,24 @@ func TestConcurrencyWatchdogPodNotReady(t *testing.T) {
 	}
 
 	// No eviction after first tick of the loop
+	beforeErrCount := testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
 	require.NoError(t, c.tick(ctx))
 	eviction := &policyv1beta1.Eviction{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}}
 	assert.True(t, errors.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(eviction), eviction)))
 
+	require.Equal(t, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
 	// No eviction after first tick of the loop because only two pods are ready
+	beforeErrCount = testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
 	require.NoError(t, c.tick(ctx))
 	assert.True(t, errors.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(eviction), eviction)))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
 }
 
 func TestConcurrencyWatchdogProcessVotesNegative(t *testing.T) {
@@ -265,6 +308,14 @@ func TestConcurrencyWatchdogProcessVotesMissingPod(t *testing.T) {
 func TestConcurrencyWatchdogLeaderElection(t *testing.T) {
 	var ler manager.LeaderElectionRunnable = &ConcurrencyWatchdog{}
 	assert.True(t, ler.NeedLeaderElection(), "should need leader election")
+}
+
+func TestNewConcurrencyWatchdog(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err = NewConcurrencyWatchdog(m, conf, nil)
+	require.NoError(t, err)
 }
 
 func buildTestPods(n int) *corev1.PodList {

@@ -5,6 +5,8 @@ package osm
 
 import (
 	"context"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -38,8 +40,12 @@ func TestIngressCertConfigReconcilerIntegration(t *testing.T) {
 	e := &IngressCertConfigReconciler{client: c}
 
 	// Initial reconcile
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressCertConfigControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, ingressCertConfigControllerName, metrics.LabelSuccess)
 	_, err := e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressCertConfigControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressCertConfigControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove config is correct
 	actual := &cfgv1alpha2.MeshConfig{}
@@ -56,16 +62,25 @@ func TestIngressCertConfigReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected, actual.Spec.Certificate.IngressGateway)
 
 	// Cover no-op updates
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressCertConfigControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressCertConfigControllerName, metrics.LabelSuccess)
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressCertConfigControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressCertConfigControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Update the resource to incorrect values and reconcile back
 	actual.Spec.Certificate.IngressGateway.SubjectAltNames = []string{"incorrect"}
 	actual.Spec.Certificate.IngressGateway.ValidityDuration = "12h"
 	actual.Spec.Certificate.IngressGateway.Secret.Name = "foo"
 	actual.Spec.Certificate.IngressGateway.Secret.Namespace = "bar"
+
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressCertConfigControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, ingressCertConfigControllerName, metrics.LabelSuccess)
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressCertConfigControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressCertConfigControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(conf), actual))
 	assert.Equal(t, expected, actual.Spec.Certificate.IngressGateway)

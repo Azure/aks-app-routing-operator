@@ -12,7 +12,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -20,8 +19,13 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+)
+
+const (
+	placeholderPodControllerName = "placeholder_pod"
 )
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
@@ -36,6 +40,7 @@ type PlaceholderPodController struct {
 }
 
 func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+	metrics.InitControllerMetrics(placeholderPodControllerName)
 	if conf.DisableKeyvault {
 		return nil
 	}
@@ -46,19 +51,28 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var err error
+	result := ctrl.Result{}
+
+	// do metrics
+	defer func() {
+		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		//this makes sure they have the proper value
+		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		//the values of result and err to their zero values, since they were just instantiated
+		metrics.HandleControllerReconcileMetrics(placeholderPodControllerName, result, err)
+	}()
+
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 	logger = logger.WithName("placeholderPodController")
 
 	spc := &secv1.SecretProviderClass{}
 	err = p.client.Get(ctx, req.NamespacedName, spc)
-	if errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	}
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("name", spc.Name, "namespace", spc.Namespace, "generation", spc.Generation)
 
@@ -84,17 +98,18 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
 	ing.Namespace = req.Namespace
 	if ing.Name != "" {
-		if err := p.client.Get(ctx, client.ObjectKeyFromObject(ing), ing); err != nil {
-			return ctrl.Result{}, err
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(ing), ing); err != nil {
+			return result, err
 		}
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
-		if err := p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
-			return ctrl.Result{}, err
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
+			return result, err
 		}
-		return ctrl.Result{}, p.client.Delete(ctx, dep)
+		err = p.client.Delete(ctx, dep)
+		return result, err
 	}
 
 	logger.Info("reconciling placeholder deployment for secret provider class")
@@ -102,10 +117,10 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	// Manage a deployment resource
 	p.buildDeployment(dep, spc, ing)
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 
-	return ctrl.Result{}, nil
+	return result, nil
 }
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {

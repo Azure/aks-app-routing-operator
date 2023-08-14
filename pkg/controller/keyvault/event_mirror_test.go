@@ -5,8 +5,13 @@ package keyvault
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,11 +19,32 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
+
+var (
+	err        error
+	restConfig *rest.Config
+	env        *envtest.Environment
+)
+
+func TestMain(m *testing.M) {
+	restConfig, env, err = testutils.StartTestingEnv()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+	testutils.CleanupTestingEnv(env)
+
+	os.Exit(code)
+}
 
 func TestEventMirrorHappyPath(t *testing.T) {
 	owner1 := &netv1.Ingress{}
@@ -56,8 +82,13 @@ func TestEventMirrorHappyPath(t *testing.T) {
 		events: recorder,
 	}
 
+	beforeErrCount := testutils.GetErrMetricCount(t, eventMirrorControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess)
 	_, err := e.Reconcile(ctx, req)
 	require.NoError(t, err)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, eventMirrorControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Ingress,apiVersion=networking.k8s.io/v1}", <-recorder.Events)
 }
@@ -107,9 +138,22 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 		events: recorder,
 	}
 
+	beforeErrCount := testutils.GetErrMetricCount(t, eventMirrorControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess)
 	_, err := e.Reconcile(ctx, req)
 	require.NoError(t, err)
 
+	require.Equal(t, testutils.GetErrMetricCount(t, eventMirrorControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Service,apiVersion=v1}", <-recorder.Events)
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Ingress,apiVersion=networking.k8s.io/v1}", <-recorder.Events)
+}
+
+func TestNewEventMirror(t *testing.T) {
+	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	require.NoError(t, err)
+	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
+	err = NewEventMirror(m, conf)
+	require.NoError(t, err, "should not error")
 }
