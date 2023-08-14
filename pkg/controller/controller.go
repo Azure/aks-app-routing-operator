@@ -147,7 +147,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	return m, nil
 }
 
-// IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name
+// IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
 func IsPrometheusBestPracticeName(controllerName string) bool {
 	pattern := "[a-z]+(_[a-z]+)*"
 	re := regexp.MustCompile(pattern)
