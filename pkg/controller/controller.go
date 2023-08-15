@@ -149,11 +149,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 // IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
 func IsPrometheusBestPracticeName(controllerName string) bool {
-	pattern := "[a-z]+(_[a-z]+)*"
-	re := regexp.MustCompile(pattern)
-	match := re.FindStringSubmatch(controllerName)
+	pattern := "^[a-z]+(_[a-z]+)*$"
+	match, _ := regexp.MatchString(pattern, controllerName)
 
-	return match != nil && match[0] == controllerName
+	return match
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
