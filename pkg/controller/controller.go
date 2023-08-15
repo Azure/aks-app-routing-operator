@@ -5,6 +5,8 @@ package controller
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
@@ -21,7 +23,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-	"net/http"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
