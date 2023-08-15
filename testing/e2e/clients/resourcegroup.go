@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 type rg struct {
 	name string
+	id   string
 }
 
 type RgOpt func(rg *armresources.ResourceGroup) error
@@ -29,13 +31,20 @@ func DeleteAfterOpt(d time.Duration) RgOpt {
 	}
 }
 
+func LoadRg(id arm.ResourceID) *rg {
+	return &rg{
+		id:   id.String(),
+		name: id.Name,
+	}
+}
+
 func NewResourceGroup(ctx context.Context, subscriptionId, name, location string, rgOpts ...RgOpt) (*rg, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "location", location, "subscriptionId", subscriptionId)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create resource group")
 	defer lgr.Info("finished creating resource group")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -61,9 +70,14 @@ func NewResourceGroup(ctx context.Context, subscriptionId, name, location string
 
 	return &rg{
 		name: *resp.Name,
+		id:   *resp.ID,
 	}, nil
 }
 
 func (r *rg) GetName() string {
 	return r.name
+}
+
+func (r *rg) GetId() string {
+	return r.id
 }
