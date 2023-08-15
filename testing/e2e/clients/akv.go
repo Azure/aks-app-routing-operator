@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
@@ -26,6 +27,15 @@ type Cert struct {
 	name string
 }
 
+func LoadAkv(id arm.ResourceID) *akv {
+	return &akv{
+		id:             id.String(),
+		name:           id.Name,
+		resourceGroup:  id.ResourceGroupName,
+		subscriptionId: id.SubscriptionID,
+	}
+}
+
 func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string) (*akv, error) {
 	name = truncate(name, 24)
 
@@ -34,7 +44,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 	lgr.Info("starting to create akv")
 	defer lgr.Info("finished creating akv")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -44,11 +54,27 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("creating client factory: %w", err)
 	}
 
+	clientObjectId, err := getObjectId(ctx, cred)
+	if err != nil {
+		return nil, fmt.Errorf("getting client object id: %w", err)
+	}
+
 	v := &armkeyvault.VaultCreateOrUpdateParameters{
 		Location: to.Ptr(location),
 		Properties: &armkeyvault.VaultProperties{
-			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
-			TenantID:       to.Ptr(tenantId),
+			AccessPolicies: []*armkeyvault.AccessPolicyEntry{
+				{
+					ObjectID: to.Ptr(clientObjectId),
+					Permissions: &armkeyvault.Permissions{
+						Certificates: []*armkeyvault.CertificatePermissions{
+							to.Ptr(armkeyvault.CertificatePermissionsCreate),
+						},
+					},
+					TenantID:      to.Ptr(tenantId),
+					ApplicationID: nil,
+				},
+			},
+			TenantID: to.Ptr(tenantId),
 			SKU: &armkeyvault.SKU{
 				Name: to.Ptr(armkeyvault.SKUNameStandard),
 			},
@@ -84,7 +110,7 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	lgr.Info("starting to add access policy")
 	defer lgr.Info("finished adding access policy")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -112,13 +138,19 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	return nil
 }
 
+func LoadCert(name string) *Cert {
+	return &Cert{
+		name: name,
+	}
+}
+
 func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "dnsnames", dnsnames, "resourceGroup", a.resourceGroup, "subscriptionId", a.subscriptionId)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create certificate")
 	defer lgr.Info("finished creating certificate")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -185,7 +217,9 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
-	return &Cert{name: name}, nil
+	return &Cert{
+		name: name,
+	}, nil
 }
 
 func (c *Cert) GetName() string {
