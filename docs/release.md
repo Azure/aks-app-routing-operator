@@ -13,4 +13,4 @@ You can ensure the release workflow ran successfully by watching the workflow th
 
 ## Hotfix
 
-In the unlikely event that a hotfix is needed, you can create a hotfix release through the same steps detailed above. The semantic version will include a meta suffix of `+hotfix-<number>`. For example, the first hotfix of version `1.0.0` would be `1.0.0+hotfix.1`. The hotfix number should be incremented for each hotfix release.
+In the unlikely event that a hotfix is needed, you can create a hotfix release through the same steps detailed above. The semantic version should be bumped at the minor version level for the hotfix. For example, a hotfix for `1.0.0` would be released as `1.0.1`. You can note that this is a hotfix in the `CHANGELOG.md`.
