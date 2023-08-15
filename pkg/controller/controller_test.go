@@ -111,10 +111,10 @@ func TestIsPrometheusBestPracticeName(t *testing.T) {
 	leadingSlash := "_leading_slash"
 	trailingSlash := "trailing_slash_"
 
-	require.False(t, IsPrometheusBestPracticeName(notSnakeCase))
-	require.True(t, IsPrometheusBestPracticeName(simpleSnakeCase))
-	require.True(t, IsPrometheusBestPracticeName(complexSnakeCase))
-	require.False(t, IsPrometheusBestPracticeName(leadingSlash))
-	require.False(t, IsPrometheusBestPracticeName(trailingSlash))
+	require.False(t, testutils.IsPrometheusBestPracticeName(notSnakeCase))
+	require.True(t, testutils.IsPrometheusBestPracticeName(simpleSnakeCase))
+	require.True(t, testutils.IsPrometheusBestPracticeName(complexSnakeCase))
+	require.False(t, testutils.IsPrometheusBestPracticeName(leadingSlash))
+	require.False(t, testutils.IsPrometheusBestPracticeName(trailingSlash))
 
 }

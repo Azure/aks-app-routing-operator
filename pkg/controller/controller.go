@@ -5,9 +5,6 @@ package controller
 
 import (
 	"context"
-	"net/http"
-	"regexp"
-
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
@@ -24,6 +21,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"net/http"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -145,14 +143,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	return m, nil
-}
-
-// IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
-func IsPrometheusBestPracticeName(controllerName string) bool {
-	pattern := "^[a-z]+(_[a-z]+)*$"
-	match, _ := regexp.MatchString(pattern, controllerName)
-
-	return match
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
