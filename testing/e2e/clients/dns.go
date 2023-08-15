@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
@@ -14,12 +15,14 @@ type zone struct {
 	name           string
 	subscriptionId string
 	resourceGroup  string
+	id             string
 }
 
 type privateZone struct {
 	name           string
 	subscriptionId string
 	resourceGroup  string
+	id             string
 }
 
 // ZoneOpt specifies what kind of zone to create
@@ -27,6 +30,15 @@ type ZoneOpt func(z *armdns.Zone) error
 
 // PrivateZoneOpt specifies what kind of private zone to create
 type PrivateZoneOpt func(z *armprivatedns.PrivateZone) error
+
+func LoadZone(id arm.ResourceID) *zone {
+	return &zone{
+		id:             id.String(),
+		name:           id.Name,
+		subscriptionId: id.SubscriptionID,
+		resourceGroup:  id.ResourceGroupName,
+	}
+}
 
 func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zoneOpts ...ZoneOpt) (*zone, error) {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
@@ -37,7 +49,7 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 	lgr.Info("starting to create zone")
 	defer lgr.Info("finished creating zone")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -65,6 +77,7 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 		name:           *resp.Name,
 		resourceGroup:  resourceGroup,
 		subscriptionId: subscriptionId,
+		id:             *resp.ID,
 	}, nil
 }
 
@@ -74,7 +87,7 @@ func (z *zone) GetDnsZone(ctx context.Context) (*armdns.Zone, error) {
 	lgr.Info("starting to get dns")
 	defer lgr.Info("finished getting dns")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -96,6 +109,19 @@ func (z *zone) GetName() string {
 	return z.name
 }
 
+func (z *zone) GetId() string {
+	return z.id
+}
+
+func LoadPrivateZone(id arm.ResourceID) *privateZone {
+	return &privateZone{
+		id:             id.String(),
+		name:           id.Name,
+		subscriptionId: id.SubscriptionID,
+		resourceGroup:  id.ResourceGroupName,
+	}
+}
+
 func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name string, opts ...PrivateZoneOpt) (*privateZone, error) {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 	name = name + ".com"
@@ -105,7 +131,7 @@ func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name str
 	lgr.Info("starting to create private zone")
 	defer lgr.Info("finished creating private zone")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -138,6 +164,7 @@ func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name str
 		name:           *result.PrivateZone.Name,
 		subscriptionId: subscriptionId,
 		resourceGroup:  resourceGroup,
+		id:             *result.ID,
 	}, nil
 }
 
@@ -151,7 +178,7 @@ func (p *privateZone) GetDnsZone(ctx context.Context) (*armprivatedns.PrivateZon
 	lgr.Info("starting to get private dns")
 	defer lgr.Info("finished getting private dns")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return nil, fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -178,7 +205,7 @@ func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) err
 	lgr.Info("starting to link vnet")
 	defer lgr.Info("finished linking vnet")
 
-	cred, err := GetAzCred()
+	cred, err := getAzCred()
 	if err != nil {
 		return fmt.Errorf("getting az credentials: %w", err)
 	}
@@ -204,4 +231,8 @@ func (p *privateZone) LinkVnet(ctx context.Context, linkName, vnetId string) err
 	}
 
 	return nil
+}
+
+func (p *privateZone) GetId() string {
+	return p.id
 }
