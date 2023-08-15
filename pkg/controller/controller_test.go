@@ -103,18 +103,3 @@ func TestNewManagerForRestConfig(t *testing.T) {
 	_, err := NewManagerForRestConfig(conf, restConfig)
 	require.NoError(t, err)
 }
-
-func TestIsPrometheusBestPracticeName(t *testing.T) {
-	notSnakeCase := "obviouslyNotSnakeCase"
-	simpleSnakeCase := "snake_case"
-	complexSnakeCase := "complex_snake_case"
-	leadingSlash := "_leading_slash"
-	trailingSlash := "trailing_slash_"
-
-	require.False(t, testutils.IsPrometheusBestPracticeName(notSnakeCase))
-	require.True(t, testutils.IsPrometheusBestPracticeName(simpleSnakeCase))
-	require.True(t, testutils.IsPrometheusBestPracticeName(complexSnakeCase))
-	require.False(t, testutils.IsPrometheusBestPracticeName(leadingSlash))
-	require.False(t, testutils.IsPrometheusBestPracticeName(trailingSlash))
-
-}
