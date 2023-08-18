@@ -42,7 +42,6 @@ func TestMain(m *testing.M) {
 	testutils.CleanupTestingEnv(env)
 
 	os.Exit(code)
-
 }
 
 func TestLogger(t *testing.T) {
