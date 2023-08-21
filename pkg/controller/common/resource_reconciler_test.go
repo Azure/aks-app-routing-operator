@@ -7,7 +7,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -100,4 +99,76 @@ func TestNewResourceReconciler(t *testing.T) {
 	require.NoError(t, err)
 	err = NewResourceReconciler(m, "test-rr", nil, 1*time.Nanosecond)
 	require.NoError(t, err)
+}
+
+func TestResourceReconciler_DeletionTimestamp(t *testing.T) {
+	deletionTimeStamp := metav1.Time{time.Now().Add(1 * time.Second)}
+	obj := &corev1.Namespace{
+
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test",
+			DeletionTimestamp: &deletionTimeStamp,
+		},
+	}
+
+	c := fake.NewClientBuilder().WithObjects(obj).Build()
+
+	rr := &resourceReconciler{
+		name:      "test-name",
+		client:    c,
+		logger:    logr.Discard(),
+		resources: []client.Object{obj},
+	}
+
+	beforeErrCount := testutils.GetErrMetricCount(t, rr.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
+	require.NoError(t, rr.tick(context.Background()))
+
+	require.Equal(t, testutils.GetErrMetricCount(t, rr.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess), beforeReconcileCount)
+
+	// prove object got deleted
+	actual := &corev1.Namespace{}
+	require.True(t,
+		errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)),
+		"expected not found error")
+}
+
+func TestResourceReconciler_Start(t *testing.T) {
+	deletionTimeStamp := metav1.NewTime(time.Now().Add(1 * time.Second))
+	obj := &corev1.Namespace{
+
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test",
+			DeletionTimestamp: &deletionTimeStamp,
+		},
+	}
+
+	c := fake.NewClientBuilder().WithObjects(obj).Build()
+
+	rr := &resourceReconciler{
+		name:      "test-name",
+		client:    c,
+		logger:    logr.Discard(),
+		resources: []client.Object{obj},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	// err in this case will be "context deadline exceeded"
+	_ = rr.Start(ctx)
+
+	// resource should be removed
+	actual := &corev1.Namespace{}
+	require.True(t,
+		errors.IsNotFound(c.Get(context.Background(), client.ObjectKeyFromObject(obj), actual)),
+		"expected not found error")
 }
