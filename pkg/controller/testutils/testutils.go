@@ -58,6 +58,7 @@ func IsPrometheusBestPracticeName(controllerName string) bool {
 	return match
 }
 
+
 // IsBestPracticeLoggerName - function returns true if the name given matches best practices for prometheus name, i.e. kebab-case
 func IsBestPracticeLoggerName(controllerName string) bool {
 	pattern := "^[a-z]+(-[a-z]+)*$"
@@ -65,3 +66,4 @@ func IsBestPracticeLoggerName(controllerName string) bool {
 
 	return match
 }
+

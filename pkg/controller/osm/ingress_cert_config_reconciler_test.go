@@ -5,10 +5,11 @@ package osm
 
 import (
 	"context"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func TestNewIngressCertConfigReconciler(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, cfgv1alpha2.AddToScheme(scheme))
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	manager := &testutils.FakeManager{Client: client, Scheme: scheme}
+
+	err := NewIngressCertConfigReconciler(manager, &config.Config{})
+	require.NoError(t, err)
+}
 
 func TestIngressCertConfigReconcilerIntegration(t *testing.T) {
 	conf := &cfgv1alpha2.MeshConfig{}
