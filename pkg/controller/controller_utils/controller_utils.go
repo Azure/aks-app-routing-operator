@@ -21,7 +21,7 @@ func (c ControllerName) clean(delimiter string) ControllerName {
 	for i := range c {
 		// replace spaces with _
 		space := regexp.MustCompile(`\s+`)
-		c[i] = strings.TrimSpace(space.ReplaceAllString(c[i], delimiter))
+		c[i] = space.ReplaceAllString(strings.TrimSpace(c[i]), delimiter)
 	}
 	return c
 }
