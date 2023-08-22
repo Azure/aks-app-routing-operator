@@ -19,3 +19,17 @@ func TestMetricsName(t *testing.T) {
 	require.True(t, testutils.IsPrometheusBestPracticeName(metricName2))
 	require.True(t, testutils.IsPrometheusBestPracticeName(metricName3))
 }
+
+func TestLoggerName(t *testing.T) {
+	cn1 := ControllerName{"SomeFakeControllerName"}
+	cn2 := ControllerName{"Some", "Controller", "Name"}
+	cn3 := ControllerName{" SomeName", "Entered  ", "poorly"}
+
+	metricName1 := cn1.LoggerName()
+	metricName2 := cn2.LoggerName()
+	metricName3 := cn3.LoggerName()
+
+	require.True(t, testutils.IsBestPracticeLoggerName(metricName1))
+	require.True(t, testutils.IsBestPracticeLoggerName(metricName2))
+	require.True(t, testutils.IsBestPracticeLoggerName(metricName3))
+}
