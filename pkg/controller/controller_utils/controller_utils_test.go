@@ -51,7 +51,7 @@ func TestIsPrometheusBestPracticeName(t *testing.T) {
 
 func TestIsBestLoggerName(t *testing.T) {
 	notSnakeCase := "obviouslyNotKebabCase"
-	simpleSnakeCase := "snake-case"
+	simpleSnakeCase := "kebab-case"
 	complexSnakeCase := "complex-kebab-case"
 	leadingSlash := "-leading-slash"
 	trailingSlash := "trailing-slash-"
