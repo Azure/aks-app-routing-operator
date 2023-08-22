@@ -7,9 +7,10 @@ import (
 )
 
 func TestMetricsName(t *testing.T) {
-	cn1 := ControllerName{"SomeFakeControllerName"}
-	cn2 := ControllerName{"Some", "Controller", "Name"}
-	cn3 := ControllerName{" SomeName", "Entered  ", "poorly"}
+
+	cn1 := NewControllerName([]string{"SomeFakeControllerName"})
+	cn2 := NewControllerName([]string{"Some", "Controller", "Name"})
+	cn3 := NewControllerName([]string{" SomeName", "Entered  ", "poorly"})
 
 	metricName1 := cn1.MetricsName()
 	metricName2 := cn2.MetricsName()
@@ -21,17 +22,17 @@ func TestMetricsName(t *testing.T) {
 }
 
 func TestLoggerName(t *testing.T) {
-	cn1 := ControllerName{"SomeFakeControllerName"}
-	cn2 := ControllerName{"Some", "Controller", "Name"}
-	cn3 := ControllerName{" SomeName", "Entered  ", "poorly"}
+	cn1 := NewControllerName([]string{"SomeFakeControllerName"})
+	cn2 := NewControllerName([]string{"Some", "Controller", "Name"})
+	cn3 := NewControllerName([]string{" SomeName", "Entered  ", "poorly"})
 
-	metricName1 := cn1.LoggerName()
-	metricName2 := cn2.LoggerName()
-	metricName3 := cn3.LoggerName()
+	loggerName1 := cn1.LoggerName()
+	loggerName2 := cn2.LoggerName()
+	loggerName3 := cn3.LoggerName()
 
-	require.True(t, isBestPracticeLoggerName(metricName1))
-	require.True(t, isBestPracticeLoggerName(metricName2))
-	require.True(t, isBestPracticeLoggerName(metricName3))
+	require.True(t, isBestPracticeLoggerName(loggerName1))
+	require.True(t, isBestPracticeLoggerName(loggerName2))
+	require.True(t, isBestPracticeLoggerName(loggerName3))
 }
 
 func TestIsPrometheusBestPracticeName(t *testing.T) {
