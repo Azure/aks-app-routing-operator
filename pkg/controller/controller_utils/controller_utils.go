@@ -1,6 +1,7 @@
 package controller_utils
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -19,7 +20,8 @@ type ControllerName []string
 func (c ControllerName) clean(delimiter string) ControllerName {
 	for i := range c {
 		// replace spaces with _
-		c[i] = strings.ReplaceAll(c[i], " ", delimiter)
+		space := regexp.MustCompile(`\s+`)
+		c[i] = strings.TrimSpace(space.ReplaceAllString(c[i], delimiter))
 	}
 	return c
 }
