@@ -1,4 +1,4 @@
-package controller_utils
+package controllername
 
 import (
 	"github.com/stretchr/testify/require"

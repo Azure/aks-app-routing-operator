@@ -1,4 +1,4 @@
-package controller_utils
+package controllername
 
 import (
 	"strings"
@@ -15,12 +15,13 @@ type ControllerNamer interface {
 	LoggerName() string
 }
 
-type ControllerName []string
+// controllerName ex. {"My","Controller", "Name"} ->  MyControllerName
+type controllerName []string
 
-func NewControllerName(controllerName []string) ControllerName {
-	cn := make(ControllerName, len(controllerName))
+func NewControllerName(name []string) controllerName {
+	cn := make(controllerName, len(name))
 
-	for i, w := range controllerName {
+	for i, w := range name {
 		cn[i] = removeSpace(strings.ToLower(w))
 
 	}
@@ -37,17 +38,10 @@ func removeSpace(s string) string {
 	return string(rr)
 }
 
-func (c ControllerName) lowercase() ControllerName {
-	for i := range c {
-		c[i] = strings.ToLower(c[i])
-	}
-	return c
-}
-
-func (c ControllerName) MetricsName() string {
+func (c controllerName) MetricsName() string {
 	return strings.Join(c, metricsNameDelimiter)
 }
 
-func (c ControllerName) LoggerName() string {
+func (c controllerName) LoggerName() string {
 	return strings.Join(c, loggerNameDelimiter)
 }
