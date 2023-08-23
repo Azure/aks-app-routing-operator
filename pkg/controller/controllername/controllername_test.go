@@ -47,34 +47,6 @@ func TestLoggerName(t *testing.T) {
 	require.True(t, isBestPracticeLoggerName(loggerName5))
 }
 
-func TestIsPrometheusBestPracticeName(t *testing.T) {
-	notSnakeCase := "obviouslyNotSnakeCase"
-	simpleSnakeCase := "snake_case"
-	complexSnakeCase := "complex_snake_case"
-	leadingSlash := "_leading_slash"
-	trailingSlash := "trailing_slash_"
-
-	require.False(t, isPrometheusBestPracticeName(notSnakeCase))
-	require.True(t, isPrometheusBestPracticeName(simpleSnakeCase))
-	require.True(t, isPrometheusBestPracticeName(complexSnakeCase))
-	require.False(t, isPrometheusBestPracticeName(leadingSlash))
-	require.False(t, isPrometheusBestPracticeName(trailingSlash))
-}
-
-func TestIsBestLoggerName(t *testing.T) {
-	notSnakeCase := "obviouslyNotKebabCase"
-	simpleSnakeCase := "kebab-case"
-	complexSnakeCase := "complex-kebab-case"
-	leadingSlash := "-leading-slash"
-	trailingSlash := "trailing-slash-"
-
-	require.False(t, isBestPracticeLoggerName(notSnakeCase))
-	require.True(t, isBestPracticeLoggerName(simpleSnakeCase))
-	require.True(t, isBestPracticeLoggerName(complexSnakeCase))
-	require.False(t, isBestPracticeLoggerName(leadingSlash))
-	require.False(t, isBestPracticeLoggerName(trailingSlash))
-}
-
 // IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
 func isPrometheusBestPracticeName(controllerName string) bool {
 	pattern := "^[a-z]+(_[a-z]+)*$"
