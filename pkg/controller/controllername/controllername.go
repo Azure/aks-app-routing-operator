@@ -22,16 +22,17 @@ func NewControllerName(name []string) controllerName {
 	cn := make(controllerName, len(name))
 
 	for i, w := range name {
-		cn[i] = removeSpace(strings.ToLower(w))
+		cn[i] = strip(strings.ToLower(w))
 
 	}
 	return cn
 }
 
-func removeSpace(s string) string {
+// strip removes spaces and non letters
+func strip(s string) string {
 	rr := make([]rune, 0, len(s))
 	for _, r := range s {
-		if !unicode.IsSpace(r) {
+		if !unicode.IsSpace(r) && unicode.IsLetter(r) {
 			rr = append(rr, r)
 		}
 	}
