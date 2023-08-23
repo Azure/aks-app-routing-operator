@@ -32,7 +32,7 @@ func NewControllerName(name []string) controllerName {
 func strip(s string) string {
 	rr := make([]rune, 0, len(s))
 	for _, r := range s {
-		if !unicode.IsSpace(r) && unicode.IsLetter(r) {
+		if unicode.IsLetter(r) {
 			rr = append(rr, r)
 		}
 	}
