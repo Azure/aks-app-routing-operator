@@ -56,11 +56,11 @@ func TestIsBestLoggerName(t *testing.T) {
 	leadingSlash := "-leading-slash"
 	trailingSlash := "trailing-slash-"
 
-	require.False(t, isPrometheusBestPracticeName(notSnakeCase))
-	require.True(t, isPrometheusBestPracticeName(simpleSnakeCase))
-	require.True(t, isPrometheusBestPracticeName(complexSnakeCase))
-	require.False(t, isPrometheusBestPracticeName(leadingSlash))
-	require.False(t, isPrometheusBestPracticeName(trailingSlash))
+	require.False(t, isBestPracticeLoggerName(notSnakeCase))
+	require.True(t, isBestPracticeLoggerName(simpleSnakeCase))
+	require.True(t, isBestPracticeLoggerName(complexSnakeCase))
+	require.False(t, isBestPracticeLoggerName(leadingSlash))
+	require.False(t, isBestPracticeLoggerName(trailingSlash))
 }
 
 // IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
