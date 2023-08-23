@@ -48,9 +48,9 @@ func TestLoggerName(t *testing.T) {
 }
 
 func TestStrip(t *testing.T) {
-	str := "a *&b    "
-	striped := Strip(str)
-	
+	str := "a *&b   c "
+	striped := strip(str)
+
 	require.Equal(t, striped, "abc")
 }
 
