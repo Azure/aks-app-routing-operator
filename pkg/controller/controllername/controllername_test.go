@@ -47,6 +47,13 @@ func TestLoggerName(t *testing.T) {
 	require.True(t, isBestPracticeLoggerName(loggerName5))
 }
 
+func TestStrip(t *testing.T) {
+	str := "a *&b    "
+	striped := Strip(str)
+	
+	require.Equal(t, striped, "abc")
+}
+
 // IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
 func isPrometheusBestPracticeName(controllerName string) bool {
 	pattern := "^[a-z]+(_[a-z]+)*$"
