@@ -8,12 +8,13 @@ import (
 )
 
 func TestMetricsName(t *testing.T) {
-	cn1 := NewControllerName([]string{"SomeFakeControllerName"})
-	cn2 := NewControllerName([]string{"Some", "Controller", "Name"})
-	cn3 := NewControllerName([]string{" SomeName", "Entered  ", "poorly"})
-	cn4 := NewControllerName([]string{"Some Spaces"})
-	cn5 := NewControllerName([]string{"Too  Many       Spaces"})
-	cn6 := NewControllerName([]string{"special!@characters"})
+
+	cn1 := New("SomeFakeControllerName")
+	cn2 := New("Some", "Controller", "Name")
+	cn3 := New(" SomeName", "Entered  ", "poorly")
+	cn4 := New("Some Spaces")
+	cn5 := New("Too  Many       Spaces")
+	cn6 := New("special!@characters")
 
 	metricName1 := cn1.MetricsName()
 	metricName2 := cn2.MetricsName()
@@ -32,12 +33,12 @@ func TestMetricsName(t *testing.T) {
 }
 
 func TestLoggerName(t *testing.T) {
-	cn1 := NewControllerName([]string{"SomeFakeControllerName"})
-	cn2 := NewControllerName([]string{"Some", "Controller", "Name"})
-	cn3 := NewControllerName([]string{" SomeName", "Entered  ", "poorly"})
-	cn4 := NewControllerName([]string{"Some Spaces"})
-	cn5 := NewControllerName([]string{"Too  Many       Spaces"})
-	cn6 := NewControllerName([]string{"special!@characters"})
+	cn1 := New("SomeFakeControllerName")
+	cn2 := New("Some", "Controller", "Name")
+	cn3 := New(" SomeName", "Entered  ", "poorly")
+	cn4 := New("Some Spaces")
+	cn5 := New("Too  Many       Spaces")
+	cn6 := New("special!@characters")
 
 	loggerName1 := cn1.LoggerName()
 	loggerName2 := cn2.LoggerName()
@@ -84,7 +85,7 @@ func TestControllerNameString(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cn := NewControllerName(test.input)
+			cn := New(test.input[0], test.input[1:]...)
 			require.Equal(t, test.expected, cn.String())
 		})
 	}
@@ -92,7 +93,7 @@ func TestControllerNameString(t *testing.T) {
 
 func TestStrip(t *testing.T) {
 	str := "a *&b   c "
-	striped := strip(str)
+	striped := clean(str)
 
 	require.Equal(t, striped, "abc")
 }

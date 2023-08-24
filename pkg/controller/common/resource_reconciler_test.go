@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
@@ -21,7 +22,7 @@ func TestResourceReconcilerEmpty(t *testing.T) {
 	c := fake.NewClientBuilder().Build()
 
 	rr := &resourceReconciler{
-		name:      "test-name",
+		name:      controllername.New("test", "resource", "reconciler"),
 		client:    c,
 		logger:    logr.Discard(),
 		resources: []client.Object{},
@@ -48,7 +49,7 @@ func TestResourceReconcilerIntegration(t *testing.T) {
 	}
 
 	rr := &resourceReconciler{
-		name:      "test-name",
+		name:      controllername.New("test"),
 		client:    c,
 		logger:    logr.Discard(),
 		resources: []client.Object{obj},
@@ -97,7 +98,7 @@ func TestResourceReconcilerLeaderElection(t *testing.T) {
 func TestNewResourceReconciler(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
 	require.NoError(t, err)
-	err = NewResourceReconciler(m, "test-rr", nil, 1*time.Nanosecond)
+	err = NewResourceReconciler(m, controllername.New("test"), nil, 1*time.Nanosecond)
 	require.NoError(t, err)
 }
 
@@ -118,7 +119,7 @@ func TestResourceReconciler_DeletionTimestamp(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(obj).Build()
 
 	rr := &resourceReconciler{
-		name:      "test-name",
+		name:      controllername.New("test", "name"),
 		client:    c,
 		logger:    logr.Discard(),
 		resources: []client.Object{obj},
@@ -155,7 +156,7 @@ func TestResourceReconciler_Start(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(obj).Build()
 
 	rr := &resourceReconciler{
-		name:      "test-name",
+		name:      controllername.New("test", "name"),
 		client:    c,
 		logger:    logr.Discard(),
 		resources: []client.Object{obj},

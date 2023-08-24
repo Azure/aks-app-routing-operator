@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
@@ -20,7 +21,7 @@ const (
 
 // addExternalDnsReconciler creates a reconciler that manages external dns resources
 func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) error {
-	return common.NewResourceReconciler(manager, "externalDnsReconciler", resources, reconcileInterval)
+	return common.NewResourceReconciler(manager, controllername.New("external", "dns", "reconciler"), resources, reconcileInterval)
 }
 
 func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
@@ -45,7 +46,7 @@ func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
 			CompareStrat: common.IgnoreLabels, // ignore labels, we never want to clean namespaces
 		})
 
-	return common.NewCleaner(manager, "externalDnsCleaner", retriever)
+	return common.NewCleaner(manager, controllername.New("external", "dns", "cleaner"), retriever)
 }
 
 // NewExternalDns starts all resources required for external dns

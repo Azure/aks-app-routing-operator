@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -21,8 +22,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const (
-	eventMirrorControllerName = "event_mirror"
+var (
+	eventMirrorControllerName = controllername.New("keyvault", "event", "mirror")
 )
 
 // EventMirror copies events published to pod resources by the Keyvault CSI driver into ingress events.
@@ -65,7 +66,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	if err != nil {
 		return result, err
 	}
-	logger = logger.WithName("eventMirror")
+	logger = eventMirrorControllerName.AddToLogger(logger)
 
 	event := &corev1.Event{}
 	err = e.client.Get(ctx, req.NamespacedName, event)
