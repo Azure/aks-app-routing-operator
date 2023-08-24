@@ -6,9 +6,10 @@ package keyvault
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"net/url"
 	"testing"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -167,7 +168,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 
 	// get the before value of the error metrics
 	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount := testutils.GetReconcileMetricCount(t, metrics.LabelError, ingressSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	_, err := i.Reconcile(ctx, req)

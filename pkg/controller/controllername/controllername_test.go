@@ -1,19 +1,20 @@
 package controllername
 
 import (
-	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMetricsName(t *testing.T) {
 
-	cn1 := NewControllerName([]string{"SomeFakeControllerName"})
-	cn2 := NewControllerName([]string{"Some", "Controller", "Name"})
-	cn3 := NewControllerName([]string{" SomeName", "Entered  ", "poorly"})
-	cn4 := NewControllerName([]string{"Some Spaces"})
-	cn5 := NewControllerName([]string{"Too  Many       Spaces"})
-	cn6 := NewControllerName([]string{"special!@characters"})
+	cn1 := New("SomeFakeControllerName")
+	cn2 := New("Some", "Controller", "Name")
+	cn3 := New(" SomeName", "Entered  ", "poorly")
+	cn4 := New("Some Spaces")
+	cn5 := New("Too  Many       Spaces")
+	cn6 := New("special!@characters")
 
 	metricName1 := cn1.MetricsName()
 	metricName2 := cn2.MetricsName()
@@ -32,12 +33,12 @@ func TestMetricsName(t *testing.T) {
 }
 
 func TestLoggerName(t *testing.T) {
-	cn1 := NewControllerName([]string{"SomeFakeControllerName"})
-	cn2 := NewControllerName([]string{"Some", "Controller", "Name"})
-	cn3 := NewControllerName([]string{" SomeName", "Entered  ", "poorly"})
-	cn4 := NewControllerName([]string{"Some Spaces"})
-	cn5 := NewControllerName([]string{"Too  Many       Spaces"})
-	cn6 := NewControllerName([]string{"special!@characters"})
+	cn1 := New("SomeFakeControllerName")
+	cn2 := New("Some", "Controller", "Name")
+	cn3 := New(" SomeName", "Entered  ", "poorly")
+	cn4 := New("Some Spaces")
+	cn5 := New("Too  Many       Spaces")
+	cn6 := New("special!@characters")
 
 	loggerName1 := cn1.LoggerName()
 	loggerName2 := cn2.LoggerName()
@@ -52,17 +53,52 @@ func TestLoggerName(t *testing.T) {
 	require.True(t, isBestPracticeLoggerName(loggerName4))
 	require.True(t, isBestPracticeLoggerName(loggerName5))
 	require.True(t, isBestPracticeLoggerName(loggerName6))
+}
 
+func TestControllerNameString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected string
+	}{
+		{
+			name:     "single word",
+			input:    []string{"SomeFakeControllerName"},
+			expected: "somefakecontrollername",
+		},
+		{
+			name:     "multiple words",
+			input:    []string{"Some", "Controller", "Name"},
+			expected: "some controller name",
+		},
+		{
+			name:     "multiple words with spaces",
+			input:    []string{" SomeName", "Entered  ", "poorly"},
+			expected: "somename entered poorly",
+		},
+		{
+			name:     "multiple words with characters",
+			input:    []string{"special!@characters", "and", "numbers123"},
+			expected: "specialcharacters and numbers",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cn := New(test.input[0], test.input[1:]...)
+			require.Equal(t, test.expected, cn.String())
+		})
+	}
 }
 
 func TestStrip(t *testing.T) {
 	str := "a *&b   c "
-	striped := strip(str)
+	striped := clean(str)
 
 	require.Equal(t, striped, "abc")
 }
 
-// IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
+// isPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
 func isPrometheusBestPracticeName(controllerName string) bool {
 	pattern := "^[a-z]+(_[a-z]+)*$"
 	match, _ := regexp.MatchString(pattern, controllerName)
@@ -70,7 +106,7 @@ func isPrometheusBestPracticeName(controllerName string) bool {
 	return match
 }
 
-// IsBestPracticeLoggerName - function returns true if the name given matches best practices for prometheus name, i.e. kebab-case
+// isBestPracticeLoggerName - function returns true if the name given matches best practices for prometheus name, i.e. kebab-case
 func isBestPracticeLoggerName(controllerName string) bool {
 	pattern := "^[a-z]+(-[a-z]+)*$"
 	match, _ := regexp.MatchString(pattern, controllerName)

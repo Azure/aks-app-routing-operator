@@ -6,6 +6,7 @@ package osm
 import (
 	"context"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,12 +17,15 @@ import (
 )
 
 const (
-	osmNamespace                    = "kube-system"
-	osmMeshConfigName               = "osm-mesh-config"
-	osmNginxSAN                     = "ingress-nginx.ingress.cluster.local"
-	osmClientCertValidity           = "24h"
-	osmClientCertName               = "osm-ingress-client-cert"
-	ingressCertConfigControllerName = "ingress_cert_config"
+	osmNamespace          = "kube-system"
+	osmMeshConfigName     = "osm-mesh-config"
+	osmNginxSAN           = "ingress-nginx.ingress.cluster.local"
+	osmClientCertValidity = "24h"
+	osmClientCertName     = "osm-ingress-client-cert"
+)
+
+var (
+	ingressCertConfigControllerName = controllername.New("osm", "ingress", "cert", "config")
 )
 
 // IngressCertConfigReconciler updates the Open Service Mesh configuration to generate a client cert
@@ -58,7 +62,7 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err != nil {
 		return result, err
 	}
-	logger = logger.WithName("ingressCertConfigReconciler")
+	logger = ingressCertConfigControllerName.AddToLogger(logger)
 
 	if req.Name != osmMeshConfigName || req.Namespace != osmNamespace {
 		return result, nil

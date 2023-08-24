@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,8 +25,8 @@ import (
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
-const (
-	ingressSecretProviderControllerName = "ingress_secret_provider"
+var (
+	ingressSecretProviderControllerName = controllername.New("keyvault", "ingress", "secret", "provider")
 )
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
@@ -71,7 +72,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	if err != nil {
 		return result, err
 	}
-	logger = logger.WithName("secretProviderClassReconciler")
+	logger = ingressSecretProviderControllerName.AddToLogger(logger)
 
 	ing := &netv1.Ingress{}
 	err = i.client.Get(ctx, req.NamespacedName, ing)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -20,8 +21,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const (
-	ingressControllerName = "ingress"
+var (
+	ingressControllerName = controllername.New("service", "ingress", "reconciler")
 )
 
 // NginxIngressReconciler manages an opinionated ingress resource for services that define certain annotations.
@@ -67,7 +68,7 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return result, err
 	}
-	logger = logger.WithName("ingressReconciler")
+	logger = ingressControllerName.AddToLogger(logger)
 
 	svc := &corev1.Service{}
 	err = i.client.Get(ctx, req.NamespacedName, svc)
