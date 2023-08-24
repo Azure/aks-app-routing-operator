@@ -29,9 +29,8 @@ type controllerName []string
 
 // New returns a new controllerName after taking each word of the controller name as a separate argument
 func New(firstWord string, additionalWords ...string) controllerName { // using a non-variadic for the first word makes it impossible to accidentally pass no arguments in. Accepting variadic versus slices also helps with not accepting empty slices and is easier to use
-	cn := controllerName{clean(firstWord)}
-
-	for _, w := range additionalWords {
+	cn := make(controllerName, 0, len(additionalWords)+1)
+	for _, w := range append([]string{firstWord}, additionalWords...) {
 		cleaned := clean(w)
 		if cleaned != "" {
 			cn = append(cn, cleaned)
