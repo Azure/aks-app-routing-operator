@@ -13,7 +13,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"golang.org/x/exp/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	// https://kubernetes.io/docs/concepts/workloads/
+	// more specifically, these are compatible with kubectl rollout status
+	workloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet"}
 )
 
 type aks struct {
@@ -119,16 +126,6 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 	lgr.Info("starting to deploy resources")
 	defer lgr.Info("finished deploying resources")
 
-	cred, err := getAzCred()
-	if err != nil {
-		return fmt.Errorf("getting az credentials: %w", err)
-	}
-
-	client, err := armcontainerservice.NewManagedClustersClient(a.subscriptionId, cred, nil)
-	if err != nil {
-		return fmt.Errorf("creating aks client: %w", err)
-	}
-
 	// wrap manifests into base64 zip file.
 	// this is specified by the AKS ARM API.
 	// https://github.com/FumingZhang/azure-cli/blob/aefcf3948ed4207bfcf5d53064e5dac8ea8f19ca/src/azure-cli/azure/cli/command_modules/acs/custom.py#L2750
@@ -152,10 +149,87 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 	zipWriter.Close()
 	encoded := base64.StdEncoding.EncodeToString(b.Bytes())
 
-	poller, err := client.BeginRunCommand(ctx, a.resourceGroup, a.name, armcontainerservice.RunCommandRequest{
+	if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
 		Command: to.Ptr("kubectl apply -f manifests/"),
 		Context: &encoded,
-	}, nil)
+	}); err != nil {
+		return fmt.Errorf("running kubectl apply: %w", err)
+	}
+
+	if err := a.waitStable(ctx, objs); err != nil {
+		return fmt.Errorf("waiting for resources to be stable: %w", err)
+	}
+
+	return nil
+}
+
+func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
+	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to wait for resources to be stable")
+	defer lgr.Info("finished waiting for resources to be stable")
+
+	for _, obj := range objs {
+		kind := obj.GetObjectKind().GroupVersionKind().GroupKind().Kind
+		ns := obj.GetNamespace()
+		if ns == "" {
+			ns = "default"
+		}
+
+		lgr := lgr.With("kind", kind, "name", obj.GetName(), "namespace", ns)
+		lgr.Info("checking stability of " + kind + "/" + obj.GetName())
+
+		switch {
+		case slices.Contains(workloadKinds, kind):
+			lgr.Info("checking rollout status")
+			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+				Command: to.Ptr(fmt.Sprintf("kubectl rollout status %s/%s -n %s", kind, obj.GetName(), ns)),
+			}); err != nil {
+				return fmt.Errorf("waiting for %s/%s to be stable: %w", kind, obj.GetName(), err)
+			}
+		case kind == "Pod":
+			lgr.Info("waiting for pod to be ready")
+			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+				Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=Ready pod/%s -n %s", obj.GetName(), ns)),
+			}); err != nil {
+				return fmt.Errorf("waiting for pod/%s to be stable: %w", obj.GetName(), err)
+			}
+		case kind == "Job":
+			lgr.Info("waiting for job complete")
+			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+				Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=ready pod --selector=job-name=%s -n %s", obj.GetName(), ns)),
+			}); err != nil {
+				return fmt.Errorf("waiting for job %s to start: %w", obj.GetName(), err)
+			}
+
+			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+				Command: to.Ptr(fmt.Sprintf("kubectl logs --follow job/%s -n %s", obj.GetName(), ns)),
+			}); err != nil {
+				return fmt.Errorf("waiting for job/%s to be stable: %w", obj.GetName(), err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCommandRequest) error {
+	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup, "command", *request.Command)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to run command")
+	defer lgr.Info("finished running command")
+
+	cred, err := getAzCred()
+	if err != nil {
+		return fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armcontainerservice.NewManagedClustersClient(a.subscriptionId, cred, nil)
+	if err != nil {
+		return fmt.Errorf("creating aks client: %w", err)
+	}
+
+	poller, err := client.BeginRunCommand(ctx, a.resourceGroup, a.name, request, nil)
 	if err != nil {
 		return fmt.Errorf("starting run command: %w", err)
 	}
@@ -165,9 +239,9 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 		return fmt.Errorf("running command: %w", err)
 	}
 
-	lgr.Info("kubectl apply output: " + *result.Properties.Logs)
+	lgr.Info("command output: " + *result.Properties.Logs)
 	if *result.Properties.ExitCode != 0 {
-		return fmt.Errorf("kubectl apply failed with exit code %d", *result.Properties.ExitCode)
+		return fmt.Errorf("command failed with exit code %d", *result.Properties.ExitCode)
 	}
 
 	return nil

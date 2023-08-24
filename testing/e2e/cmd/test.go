@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/spf13/cobra"
@@ -18,7 +19,8 @@ var testCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lgr := logger.FromContext(context.Background())
 		lgr.Info("Hello World from " + infraName)
-
+		time.Sleep(30 * time.Second)
+		lgr.Info("Goodbye World from " + infraName)
 		return nil
 	},
 }
