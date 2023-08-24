@@ -1,7 +1,6 @@
 package testutils
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -48,12 +47,4 @@ func StartTestingEnv() (*rest.Config, *envtest.Environment, error) {
 
 func CleanupTestingEnv(env *envtest.Environment) error {
 	return env.Stop()
-}
-
-// IsPrometheusBestPracticeName - function returns true if the name given matches best practices for prometheus name, i.e. snake_case
-func IsPrometheusBestPracticeName(controllerName string) bool {
-	pattern := "^[a-z]+(_[a-z]+)*$"
-	match, _ := regexp.MatchString(pattern, controllerName)
-
-	return match
 }
