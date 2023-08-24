@@ -69,10 +69,12 @@ func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingr
 	if conf.DisableOSM {
 		return nil
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&netv1.Ingress{}).
-		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamer: ingressControllerNamer})
+	return ingressBackendControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&netv1.Ingress{}),
+		manager.GetLogger(),
+	).Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamer: ingressControllerNamer})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -5,6 +5,8 @@ import (
 	"unicode"
 
 	"github.com/go-logr/logr"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -22,6 +24,8 @@ type ControllerNamer interface {
 	LoggerName() string
 	// AddToLogger adds controller name fields to the logger then returns the logger with the added fields
 	AddToLogger(l logr.Logger) logr.Logger
+	// AddToController adds the controller name to the controller builder then returns the builder with the added name. This is useful for naming managed controllers from controller-runtime
+	AddToController(blder *builder.Builder, l logr.Logger) *builder.Builder
 }
 
 // controllerName ex. {"My","Controller", "Name"} ->  MyControllerName
@@ -68,4 +72,19 @@ func (c controllerName) AddToLogger(l logr.Logger) logr.Logger {
 		WithName(c.LoggerName()).
 		WithValues("controller", c.String()).
 		WithValues("controllerMetricsName", c.MetricsName()) // include metrics name, so we can automate creating queries that check Logs based on alerts
+}
+
+func (c controllerName) AddToController(blder *builder.Builder, l logr.Logger) *builder.Builder {
+	return blder.
+		Named(c.MetricsName()).
+		WithLogConstructor(func(req *reconcile.Request) logr.Logger {
+			logger := c.AddToLogger(l)
+			if req != nil {
+				logger.WithValues(
+					"namespace", req.Namespace,
+					"name", req.Name,
+				)
+			}
+			return logger
+		})
 }
