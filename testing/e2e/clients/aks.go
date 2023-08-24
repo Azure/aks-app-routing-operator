@@ -197,15 +197,9 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 		case kind == "Job":
 			lgr.Info("waiting for job complete")
 			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-				Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=ready pod --selector=job-name=%s -n %s", obj.GetName(), ns)),
+				Command: to.Ptr(fmt.Sprintf("kubectl logs --pod-running-timeout=20s --follow job/%s -n %s", obj.GetName(), ns)),
 			}); err != nil {
-				return fmt.Errorf("waiting for job %s to start: %w", obj.GetName(), err)
-			}
-
-			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-				Command: to.Ptr(fmt.Sprintf("kubectl logs --follow job/%s -n %s", obj.GetName(), ns)),
-			}); err != nil {
-				return fmt.Errorf("waiting for job/%s to be stable: %w", obj.GetName(), err)
+				return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
 			}
 		}
 	}

@@ -21,9 +21,9 @@ func E2e(image, infraName string) []client.Object {
 						RestartPolicy: corev1.RestartPolicyNever,
 						Containers: []corev1.Container{
 							{
-								Name:    "app-routing-operator-e2e",
-								Image:   image,
-								Command: []string{"test", "--infra-name", infraName},
+								Name:  "app-routing-operator-e2e",
+								Image: image,
+								Args:  []string{"test", "--infra-name", infraName},
 							},
 						},
 					},
