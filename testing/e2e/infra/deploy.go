@@ -13,7 +13,7 @@ func (p Provisioned) Deploy(ctx context.Context) error {
 	lgr.Info("deploying tests")
 	defer lgr.Info("finished deploying tests")
 
-	objs := manifests.E2e(p.Image, p.Name)
+	objs := manifests.E2e(p.E2eImage, p.Name)
 	if err := p.Cluster.Deploy(ctx, objs); err != nil {
 		return logger.Error(lgr, err)
 	}
