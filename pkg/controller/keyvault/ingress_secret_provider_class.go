@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	ingressSecretProviderControllerName = controllername.New("keyvault", "ingress", "secret", " provider")
+	ingressSecretProviderControllerName = controllername.New("keyvault", "ingress", "secret", "provider")
 )
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
