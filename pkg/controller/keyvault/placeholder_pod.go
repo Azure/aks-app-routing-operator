@@ -45,10 +45,11 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 	if conf.DisableKeyvault {
 		return nil
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingressManager: ingressManager})
+	return placeholderPodControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&secv1.SecretProviderClass{}), manager.GetLogger(),
+	).Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingressManager: ingressManager})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

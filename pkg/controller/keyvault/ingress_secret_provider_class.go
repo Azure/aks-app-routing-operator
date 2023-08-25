@@ -44,15 +44,16 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 	if conf.DisableKeyvault {
 		return nil
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&netv1.Ingress{}).
-		Complete(&IngressSecretProviderClassReconciler{
-			client:         manager.GetClient(),
-			events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
-			config:         conf,
-			ingressManager: ingressManager,
-		})
+	return ingressSecretProviderControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&netv1.Ingress{}), manager.GetLogger(),
+	).Complete(&IngressSecretProviderClassReconciler{
+		client:         manager.GetClient(),
+		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
+		config:         conf,
+		ingressManager: ingressManager,
+	})
 }
 
 func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

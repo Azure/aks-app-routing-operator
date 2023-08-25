@@ -39,10 +39,11 @@ func NewIngressCertConfigReconciler(manager ctrl.Manager, conf *config.Config) e
 	if conf.DisableOSM {
 		return nil
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&cfgv1alpha2.MeshConfig{}).
-		Complete(&IngressCertConfigReconciler{client: manager.GetClient()})
+	return ingressCertConfigControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&cfgv1alpha2.MeshConfig{}), manager.GetLogger(),
+	).Complete(&IngressCertConfigReconciler{client: manager.GetClient()})
 }
 
 func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

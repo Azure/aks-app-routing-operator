@@ -42,11 +42,12 @@ func NewEventMirror(manager ctrl.Manager, conf *config.Config) error {
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&corev1.Event{}).
-		WithEventFilter(e.newPredicates()).
-		Complete(e)
+	return eventMirrorControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&corev1.Event{}).
+			WithEventFilter(e.newPredicates()), manager.GetLogger(),
+	).Complete(e)
 }
 
 func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
