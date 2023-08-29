@@ -2,9 +2,13 @@ package cmd
 
 import (
 	"context"
-	"time"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
 
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/suites"
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +21,36 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "Runs e2e tests",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		lgr := logger.FromContext(context.Background())
-		lgr.Info("Hello World from " + infraName)
-		time.Sleep(30 * time.Second)
-		lgr.Info("Goodbye World from " + infraName)
+		file, err := os.Open(infraFile)
+		if err != nil {
+			return fmt.Errorf("opening file: %w", err)
+		}
+		defer file.Close()
+
+		bytes, err := io.ReadAll(file)
+		if err != nil {
+			return fmt.Errorf("reading file: %w", err)
+		}
+
+		var loaded []infra.LoadableProvisioned
+		if err := json.Unmarshal(bytes, &loaded); err != nil {
+			return fmt.Errorf("unmarshalling saved infrastructure: %w", err)
+		}
+
+		provisioned, err := infra.ToProvisioned(loaded)
+		if err != nil {
+			return fmt.Errorf("generating provisioned infrastructure: %w", err)
+		}
+
+		if len(provisioned) != 1 {
+			return fmt.Errorf("expected 1 provisioned infrastructure, got %d", len(provisioned))
+		}
+
+		tests := suites.All()
+		if err := tests.Run(context.Background(), provisioned[0]); err != nil {
+			return fmt.Errorf("test failed: %w", err)
+		}
+
 		return nil
 	},
 }

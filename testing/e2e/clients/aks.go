@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -152,7 +154,7 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 	if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
 		Command: to.Ptr("kubectl apply -f manifests/"),
 		Context: &encoded,
-	}); err != nil {
+	}, runCommandOpts{}); err != nil {
 		return fmt.Errorf("running kubectl apply: %w", err)
 	}
 
@@ -169,45 +171,71 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 	lgr.Info("starting to wait for resources to be stable")
 	defer lgr.Info("finished waiting for resources to be stable")
 
+	var eg errgroup.Group
 	for _, obj := range objs {
-		kind := obj.GetObjectKind().GroupVersionKind().GroupKind().Kind
-		ns := obj.GetNamespace()
-		if ns == "" {
-			ns = "default"
-		}
+		func(obj client.Object) {
+			eg.Go(func() error {
+				kind := obj.GetObjectKind().GroupVersionKind().GroupKind().Kind
+				ns := obj.GetNamespace()
+				if ns == "" {
+					ns = "default"
+				}
 
-		lgr := lgr.With("kind", kind, "name", obj.GetName(), "namespace", ns)
-		lgr.Info("checking stability of " + kind + "/" + obj.GetName())
+				lgr := lgr.With("kind", kind, "name", obj.GetName(), "namespace", ns)
+				lgr.Info("checking stability of " + kind + "/" + obj.GetName())
 
-		switch {
-		case slices.Contains(workloadKinds, kind):
-			lgr.Info("checking rollout status")
-			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-				Command: to.Ptr(fmt.Sprintf("kubectl rollout status %s/%s -n %s", kind, obj.GetName(), ns)),
-			}); err != nil {
-				return fmt.Errorf("waiting for %s/%s to be stable: %w", kind, obj.GetName(), err)
-			}
-		case kind == "Pod":
-			lgr.Info("waiting for pod to be ready")
-			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-				Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=Ready pod/%s -n %s", obj.GetName(), ns)),
-			}); err != nil {
-				return fmt.Errorf("waiting for pod/%s to be stable: %w", obj.GetName(), err)
-			}
-		case kind == "Job":
-			lgr.Info("waiting for job complete")
-			if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-				Command: to.Ptr(fmt.Sprintf("kubectl logs --pod-running-timeout=20s --follow job/%s -n %s", obj.GetName(), ns)),
-			}); err != nil {
-				return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
-			}
-		}
+				switch {
+				case slices.Contains(workloadKinds, kind):
+					lgr.Info("checking rollout status")
+					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+						Command: to.Ptr(fmt.Sprintf("kubectl rollout status %s/%s -n %s", kind, obj.GetName(), ns)),
+					}, runCommandOpts{}); err != nil {
+						return fmt.Errorf("waiting for %s/%s to be stable: %w", kind, obj.GetName(), err)
+					}
+				case kind == "Pod":
+					lgr.Info("waiting for pod to be ready")
+					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+						Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=Ready pod/%s -n %s", obj.GetName(), ns)),
+					}, runCommandOpts{}); err != nil {
+						return fmt.Errorf("waiting for pod/%s to be stable: %w", obj.GetName(), err)
+					}
+				case kind == "Job":
+					lgr.Info("waiting for job complete")
+					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+						Command: to.Ptr(fmt.Sprintf("kubectl logs --pod-running-timeout=20s --follow job/%s -n %s", obj.GetName(), ns)),
+					}, runCommandOpts{
+						outputFile: fmt.Sprintf("job-%s.log", obj.GetName()), // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
+					}); err != nil {
+						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+					}
+
+					lgr.Info("checking job statuss")
+					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+						Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=10s job/%s -n %s", obj.GetName(), ns)),
+					}, runCommandOpts{}); err != nil {
+						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+					}
+				}
+
+				return nil
+			})
+		}(obj)
+	}
+
+	if err := eg.Wait(); err != nil {
+		return fmt.Errorf("waiting for resources to be stable: %w", err)
 	}
 
 	return nil
 }
 
-func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCommandRequest) error {
+type runCommandOpts struct {
+	// outputFile is the file to write the output of the command to. Useful for saving logs from a job or something similar
+	// where there's lots of logs that are extremely important and shouldn't be muddled up in the rest of the logs.
+	outputFile string
+}
+
+func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCommandRequest, opt runCommandOpts) error {
 	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup, "command", *request.Command)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to run command")
@@ -234,6 +262,18 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 	}
 
 	lgr.Info("command output: " + *result.Properties.Logs)
+	if opt.outputFile != "" {
+		outputFile, err := os.Create(opt.outputFile)
+		if err != nil {
+			return fmt.Errorf("creating output file %s: %w", opt.outputFile, err)
+		}
+		defer outputFile.Close()
+
+		_, err = outputFile.WriteString(*result.Properties.Logs)
+		if err != nil {
+			return fmt.Errorf("writing output file %s: %w", opt.outputFile, err)
+		}
+	}
 	if *result.Properties.ExitCode != 0 {
 		return fmt.Errorf("command failed with exit code %d", *result.Properties.ExitCode)
 	}

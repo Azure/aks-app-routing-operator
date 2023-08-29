@@ -51,7 +51,6 @@ var (
 
 func setupInfraFileFlag(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&infraFile, infraFileFlag, "./infra-config.json", "file to load infrastructure from")
-	cmd.MarkFlagRequired(infraFileFlag)
 }
 
 var (
