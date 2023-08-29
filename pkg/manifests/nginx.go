@@ -149,15 +149,27 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 			Labels: addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		Rules: []rbacv1.PolicyRule{
+			// update to match release 1.8.1
+			// https://github.com/kubernetes/ingress-nginx/blob/ab99e23bba4404ab5fd036e15fb178014cca1a2f/charts/ingress-nginx/templates/clusterrole.yaml#L7
 			{
 				APIGroups: []string{""},
-				Resources: []string{"endpoints", "pods", "services", "secrets", "configmaps"},
-				Verbs:     []string{"get", "watch", "list"},
+				Resources: []string{"configmaps", "endpoints", "nodes", "pods", "secrets"},
+				Verbs:     []string{"list", "watch"},
+			},
+			{
+				APIGroups: []string{"coordination.k8s.io"},
+				Resources: []string{"leases"},
+				Verbs:     []string{"list", "watch"},
 			},
 			{
 				APIGroups: []string{""},
-				Resources: []string{"configmaps", "events"},
-				Verbs:     []string{"*"},
+				Resources: []string{"nodes"},
+				Verbs:     []string{"get"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"services"},
+				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
 				APIGroups: []string{"networking.k8s.io"},
@@ -165,26 +177,24 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 				Verbs:     []string{"get", "watch", "list"},
 			},
 			{
+				APIGroups: []string{""},
+				Resources: []string{"events"},
+				Verbs:     []string{"create", "patch"},
+			},
+			{
 				APIGroups: []string{"networking.k8s.io"},
 				Resources: []string{"ingresses/status"},
-				Verbs:     []string{"*"},
+				Verbs:     []string{"update"},
 			},
 			{
 				APIGroups: []string{"networking.k8s.io"},
 				Resources: []string{"ingressclasses"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"discovery.k8s.io"},
+				Resources: []string{"endpointslices"},
 				Verbs:     []string{"list", "watch", "get"},
-			},
-			{
-				APIGroups: []string{""},
-				Resources: []string{"nodes"},
-				Verbs:     []string{"watch", "list"},
-			},
-			{
-				// required as of v1.3.0 due to controller switch to lease api
-				// https://github.com/kubernetes/ingress-nginx/releases/tag/controller-v1.3.0
-				APIGroups: []string{"coordination.k8s.io"},
-				Resources: []string{"leases"},
-				Verbs:     []string{"*"},
 			},
 		},
 	}
