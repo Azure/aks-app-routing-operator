@@ -128,28 +128,11 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 	lgr.Info("starting to deploy resources")
 	defer lgr.Info("finished deploying resources")
 
-	// wrap manifests into base64 zip file.
-	// this is specified by the AKS ARM API.
-	// https://github.com/FumingZhang/azure-cli/blob/aefcf3948ed4207bfcf5d53064e5dac8ea8f19ca/src/azure-cli/azure/cli/command_modules/acs/custom.py#L2750
-	b := &bytes.Buffer{}
-	zipWriter := zip.NewWriter(b)
-	for i, obj := range objs {
-		json, err := manifests.MarshalJson(obj)
-		if err != nil {
-			return fmt.Errorf("marshaling json for object: %w", err)
-		}
-
-		f, err := zipWriter.Create(fmt.Sprintf("manifests/%d.json", i))
-		if err != nil {
-			return fmt.Errorf("creating zip entry: %w", err)
-		}
-
-		if _, err := f.Write(json); err != nil {
-			return fmt.Errorf("writing zip entry: %w", err)
-		}
+	zip, err := zipManifests(objs)
+	if err != nil {
+		return fmt.Errorf("zipping manifests: %w", err)
 	}
-	zipWriter.Close()
-	encoded := base64.StdEncoding.EncodeToString(b.Bytes())
+	encoded := base64.StdEncoding.EncodeToString(zip)
 
 	if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
 		Command: to.Ptr("kubectl apply -f manifests/"),
@@ -160,6 +143,53 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 
 	if err := a.waitStable(ctx, objs); err != nil {
 		return fmt.Errorf("waiting for resources to be stable: %w", err)
+	}
+
+	return nil
+}
+
+// zipManifests wraps manifests into base64 zip file.
+// this is specified by the AKS ARM API.
+// https://github.com/FumingZhang/azure-cli/blob/aefcf3948ed4207bfcf5d53064e5dac8ea8f19ca/src/azure-cli/azure/cli/command_modules/acs/custom.py#L2750
+func zipManifests(objs []client.Object) ([]byte, error) {
+	b := &bytes.Buffer{}
+	zipWriter := zip.NewWriter(b)
+	for i, obj := range objs {
+		json, err := manifests.MarshalJson(obj)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling json for object: %w", err)
+		}
+
+		f, err := zipWriter.Create(fmt.Sprintf("manifests/%d.json", i))
+		if err != nil {
+			return nil, fmt.Errorf("creating zip entry: %w", err)
+		}
+
+		if _, err := f.Write(json); err != nil {
+			return nil, fmt.Errorf("writing zip entry: %w", err)
+		}
+	}
+	zipWriter.Close()
+	return b.Bytes(), nil
+}
+
+func (a *aks) Clean(ctx context.Context, objs []client.Object) error {
+	lgr := logger.FromContext(ctx).With("name", a.name, "resourceGroup", a.resourceGroup)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to clean resources")
+	defer lgr.Info("finished cleaning resources")
+
+	zip, err := zipManifests(objs)
+	if err != nil {
+		return fmt.Errorf("zipping manifests: %w", err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(zip)
+
+	if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+		Command: to.Ptr("kubectl delete -f manifests/"),
+		Context: &encoded,
+	}, runCommandOpts{}); err != nil {
+		return fmt.Errorf("running kubectl delete: %w", err)
 	}
 
 	return nil

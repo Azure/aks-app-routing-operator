@@ -8,8 +8,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func E2e(image, infraName string) []client.Object {
+func E2e(image, loadableProvisionedJson string) []client.Object {
 	ret := []client.Object{
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "infrastructure",
+			},
+			Data: map[string]string{
+				"infra-config.json": string(loadableProvisionedJson),
+			},
+		},
 		&batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-routing-operator-e2e",
@@ -23,7 +31,22 @@ func E2e(image, infraName string) []client.Object {
 							{
 								Name:  "app-routing-operator-e2e",
 								Image: image,
-								Args:  []string{"test", "--infra-name", infraName},
+								Args:  []string{"test", "--infra-file", "/infrastructure/infra-config.json"},
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "infra-volume",
+										MountPath: "/infrastructure/infra-config.json",
+										SubPath:   "infra-config.json",
+									},
+								},
+							},
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "infra-volume",
+								VolumeSource: corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{LocalObjectReference: corev1.LocalObjectReference{Name: "infrastructure"}},
+								},
 							},
 						},
 					},

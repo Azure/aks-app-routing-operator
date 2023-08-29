@@ -2,6 +2,8 @@ package infra
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -13,7 +15,21 @@ func (p Provisioned) Deploy(ctx context.Context) error {
 	lgr.Info("deploying tests")
 	defer lgr.Info("finished deploying tests")
 
-	objs := manifests.E2e(p.E2eImage, p.Name)
+	loadable, err := ToLoadable([]Provisioned{p})
+	if err != nil {
+		return logger.Error(lgr, fmt.Errorf("failed to convert provisioned to loadable: %w", err))
+	}
+
+	jsonLoadable, err := json.Marshal(loadable)
+	if err != nil {
+		return logger.Error(lgr, fmt.Errorf("failed to marshal loadable: %w", err))
+	}
+
+	objs := manifests.E2e(p.E2eImage, string(jsonLoadable))
+	if err := p.Cluster.Clean(ctx, objs); err != nil {
+		return logger.Error(lgr, err)
+	}
+
 	if err := p.Cluster.Deploy(ctx, objs); err != nil {
 		return logger.Error(lgr, err)
 	}

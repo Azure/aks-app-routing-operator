@@ -31,6 +31,7 @@ type cluster interface {
 	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	GetVnetId(ctx context.Context) (string, error)
 	Deploy(ctx context.Context, objs []client.Object) error
+	Clean(ctx context.Context, objs []client.Object) error
 	Identifier
 }
 

@@ -56,8 +56,3 @@ func setupInfraFileFlag(cmd *cobra.Command) {
 var (
 	infraName string
 )
-
-func setupInfraNameFlag(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&infraName, infraNameFlag, "", "infrastructure name that was provisioned")
-	cmd.MarkFlagRequired(infraNameFlag)
-}

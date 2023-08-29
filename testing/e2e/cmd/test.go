@@ -8,12 +8,13 @@ import (
 	"os"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/suites"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	setupInfraNameFlag(testCmd)
+	setupInfraFileFlag(testCmd)
 	rootCmd.AddCommand(testCmd)
 }
 
@@ -21,6 +22,9 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "Runs e2e tests",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
+		lgr := logger.FromContext(ctx)
+
 		file, err := os.Open(infraFile)
 		if err != nil {
 			return fmt.Errorf("opening file: %w", err)
@@ -48,7 +52,7 @@ var testCmd = &cobra.Command{
 
 		tests := suites.All()
 		if err := tests.Run(context.Background(), provisioned[0]); err != nil {
-			return fmt.Errorf("test failed: %w", err)
+			return logger.Error(lgr, fmt.Errorf("test failed: %w", err))
 		}
 
 		return nil

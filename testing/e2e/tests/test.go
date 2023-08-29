@@ -31,12 +31,12 @@ func (tests Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		lgr := lgr.With("test", t.GetName())
 		ctx := logger.WithContext(ctx, lgr)
 		lgr.Info("starting to run test")
-		defer lgr.Info("finished running test")
 
 		if err := t.Run(ctx); err != nil {
 			return logger.Error(lgr, err)
 		}
 
+		lgr.Info("finished running test")
 		return nil
 	}
 
@@ -46,6 +46,7 @@ func (tests Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 			return err
 		}
 	}
+	lgr.Info("finished running sequential tests")
 
 	lgr.Info("running parallel tests")
 	var eg errgroup.Group
@@ -60,6 +61,7 @@ func (tests Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	if err := eg.Wait(); err != nil {
 		return err
 	}
+	lgr.Info("finished running parallel tests")
 
 	return nil
 }
