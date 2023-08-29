@@ -151,8 +151,6 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 			Labels: addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		Rules: []rbacv1.PolicyRule{
-			// update to match release 1.8.1
-			// https://github.com/kubernetes/ingress-nginx/blob/ab99e23bba4404ab5fd036e15fb178014cca1a2f/charts/ingress-nginx/templates/clusterrole.yaml#L7
 			{
 				APIGroups: []string{""},
 				Resources: []string{"configmaps", "endpoints", "nodes", "pods", "secrets", "namespaces"},
@@ -214,8 +212,6 @@ func newNginxIngressControllerRole(conf *config.Config, ingressConfig *NginxIngr
 			Namespace: conf.NS,
 		},
 		Rules: []rbacv1.PolicyRule{
-			// update to match release 1.8.1
-			// https://github.com/kubernetes/ingress-nginx/blob/ab99e23bba4404ab5fd036e15fb178014cca1a2f/charts/ingress-nginx/templates/clusterrole.yaml#L7
 			{
 				APIGroups: []string{""},
 				Resources: []string{"namespaces"},
