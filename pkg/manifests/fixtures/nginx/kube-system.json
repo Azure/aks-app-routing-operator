@@ -28,31 +28,54 @@
       "rules": [
         {
           "verbs": [
-            "get",
-            "watch",
-            "list"
-          ],
-          "apiGroups": [
-            ""
-          ],
-          "resources": [
-            "endpoints",
-            "pods",
-            "services",
-            "secrets",
-            "configmaps"
-          ]
-        },
-        {
-          "verbs": [
-            "*"
+            "list",
+            "watch"
           ],
           "apiGroups": [
             ""
           ],
           "resources": [
             "configmaps",
-            "events"
+            "endpoints",
+            "nodes",
+            "pods",
+            "secrets"
+          ]
+        },
+        {
+          "verbs": [
+            "list",
+            "watch"
+          ],
+          "apiGroups": [
+            "coordination.k8s.io"
+          ],
+          "resources": [
+            "leases"
+          ]
+        },
+        {
+          "verbs": [
+            "get"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "nodes"
+          ]
+        },
+        {
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "services"
           ]
         },
         {
@@ -70,7 +93,19 @@
         },
         {
           "verbs": [
-            "*"
+            "create",
+            "patch"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "events"
+          ]
+        },
+        {
+          "verbs": [
+            "update"
           ],
           "apiGroups": [
             "networking.k8s.io"
@@ -81,9 +116,9 @@
         },
         {
           "verbs": [
+            "get",
             "list",
-            "watch",
-            "get"
+            "watch"
           ],
           "apiGroups": [
             "networking.k8s.io"
@@ -94,25 +129,15 @@
         },
         {
           "verbs": [
+            "list",
             "watch",
-            "list"
+            "get"
           ],
           "apiGroups": [
-            ""
+            "discovery.k8s.io"
           ],
           "resources": [
-            "nodes"
-          ]
-        },
-        {
-          "verbs": [
-            "*"
-          ],
-          "apiGroups": [
-            "coordination.k8s.io"
-          ],
-          "resources": [
-            "leases"
+            "endpointslices"
           ]
         }
       ]
