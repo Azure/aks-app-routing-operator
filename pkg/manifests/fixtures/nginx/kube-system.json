@@ -195,6 +195,7 @@
         },
         {
           "verbs": [
+            "get",
             "list",
             "watch"
           ],
@@ -205,8 +206,7 @@
             "configmaps",
             "pods",
             "secrets",
-            "endpoints",
-            "namespaces"
+            "endpoints"
           ]
         },
         {

@@ -219,8 +219,8 @@ func newNginxIngressControllerRole(conf *config.Config, ingressConfig *NginxIngr
 			},
 			{
 				APIGroups: []string{""},
-				Resources: []string{"configmaps", "pods", "secrets", "endpoints", "namespaces"},
-				Verbs:     []string{"list", "watch"},
+				Resources: []string{"configmaps", "pods", "secrets", "endpoints"},
+				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
 				APIGroups: []string{""},
