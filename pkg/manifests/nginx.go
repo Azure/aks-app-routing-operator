@@ -217,6 +217,12 @@ func newNginxIngressControllerRole(conf *config.Config, ingressConfig *NginxIngr
 				Resources: []string{"namespaces"},
 				Verbs:     []string{"get"},
 			},
+			// temporary permission used for update from 1.3.0->1.8.1
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"update"},
+			},
 			{
 				APIGroups: []string{""},
 				Resources: []string{"configmaps", "pods", "secrets", "endpoints"},

@@ -195,6 +195,17 @@
         },
         {
           "verbs": [
+            "update"
+          ],
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "configmaps"
+          ]
+        },
+        {
+          "verbs": [
             "get",
             "list",
             "watch"
