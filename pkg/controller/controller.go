@@ -149,7 +149,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
 	deploy, err := kcs.AppsV1().Deployments(conf.OperatorNS).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		// It's okay if we don't find the deployment - just skip setting ownership references latter
+		// it's okay if we don't find the deployment - just skip setting ownership references latter
 		log.Info("self deploy not found")
 		return nil, nil
 	}

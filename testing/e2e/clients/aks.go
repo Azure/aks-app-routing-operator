@@ -239,7 +239,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
 					}
 
-					lgr.Info("checking job statuss")
+					lgr.Info("checking job status")
 					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
 						Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=10s job/%s -n %s", obj.GetName(), ns)),
 					}, runCommandOpts{}); err != nil {

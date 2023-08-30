@@ -40,7 +40,6 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 	testutils.CleanupTestingEnv(env)
-
 	os.Exit(code)
 }
 
@@ -71,16 +70,16 @@ func TestLogger(t *testing.T) {
 func TestGetSelfDeploy(t *testing.T) {
 	t.Run("deploy exists", func(t *testing.T) {
 		kcs := fake.NewSimpleClientset()
-		conf := &config.Config{NS: "", OperatorNS: "app-routing-system", OperatorDeployment: "operator"}
+		conf := &config.Config{OperatorNS: "kube-system", OperatorDeployment: "app-routing-operator"}
 
 		ns := &corev1.Namespace{}
-		ns.Name = conf.NS
+		ns.Name = conf.OperatorNS
 		deploy := &appsv1.Deployment{}
 		deploy.Name = conf.OperatorDeployment
-		deploy.Namespace = conf.NS
+		deploy.Namespace = ns.Name
 
 		kcs.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
-		kcs.AppsV1().Deployments(conf.NS).Create(context.Background(), deploy, metav1.CreateOptions{})
+		kcs.AppsV1().Deployments(deploy.Namespace).Create(context.Background(), deploy, metav1.CreateOptions{})
 
 		self, err := getSelfDeploy(kcs, conf, logr.Discard())
 		require.NoError(t, err)
