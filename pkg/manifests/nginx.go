@@ -239,16 +239,6 @@ func newNginxIngressControllerRole(conf *config.Config, ingressConfig *NginxIngr
 				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
-				APIGroups: []string{""},
-				Resources: []string{"nodes"},
-				Verbs:     []string{"get"},
-			},
-			{
-				APIGroups: []string{""},
-				Resources: []string{"services"},
-				Verbs:     []string{"get", "list", "watch"},
-			},
-			{
 				APIGroups: []string{"networking.k8s.io"},
 				Resources: []string{"ingresses/status"},
 				Verbs:     []string{"update"},
