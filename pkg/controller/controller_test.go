@@ -70,10 +70,10 @@ func TestLogger(t *testing.T) {
 func TestGetSelfDeploy(t *testing.T) {
 	t.Run("deploy exists", func(t *testing.T) {
 		kcs := fake.NewSimpleClientset()
-		conf := &config.Config{OperatorNS: "kube-system", OperatorDeployment: "app-routing-operator"}
+		conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "app-routing-operator"}
 
 		ns := &corev1.Namespace{}
-		ns.Name = conf.OperatorNS
+		ns.Name = conf.NS
 		deploy := &appsv1.Deployment{}
 		deploy.Name = conf.OperatorDeployment
 		deploy.Namespace = ns.Name
@@ -89,7 +89,7 @@ func TestGetSelfDeploy(t *testing.T) {
 
 	t.Run("deploy missing", func(t *testing.T) {
 		kcs := fake.NewSimpleClientset()
-		conf := &config.Config{NS: "", OperatorNS: "app-routing-system", OperatorDeployment: "operator"}
+		conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
 
 		self, err := getSelfDeploy(kcs, conf, logr.Discard())
 		require.NoError(t, err)
