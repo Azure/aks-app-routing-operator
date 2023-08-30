@@ -6,6 +6,7 @@ package osm
 import (
 	"context"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -18,8 +19,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const (
-	ingressBackendControllerName = "ingress_backend"
+var (
+	ingressBackendControllerName = controllername.New("osm", "ingress", "backend")
 )
 
 // IngressControllerNamer returns the controller name that an Ingress consumes and a boolean indicating whether it's managed by web app routing.
@@ -68,10 +69,12 @@ func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingr
 	if conf.DisableOSM {
 		return nil
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&netv1.Ingress{}).
-		Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamer: ingressControllerNamer})
+	return ingressBackendControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&netv1.Ingress{}),
+		manager.GetLogger(),
+	).Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamer: ingressControllerNamer})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -91,7 +94,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err != nil {
 		return result, err
 	}
-	logger = logger.WithName("ingressBackendReconciler")
+	logger = ingressBackendControllerName.AddToLogger(logger)
 
 	ing := &netv1.Ingress{}
 	err = i.client.Get(ctx, req.NamespacedName, ing)

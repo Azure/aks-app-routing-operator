@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -23,7 +24,7 @@ import (
 )
 
 type cleaner struct {
-	name       string
+	name       controllername.ControllerNamer
 	mapper     meta.RESTMapper
 	clientset  kubernetes.Interface
 	dynamic    dynamic.Interface
@@ -33,7 +34,7 @@ type cleaner struct {
 }
 
 // NewCleaner creates a cleaner that attempts to delete resources with the labels specified and of the types returned by CleanTypeRetriever
-func NewCleaner(manager ctrl.Manager, name string, gvrRetriever CleanTypeRetriever) error {
+func NewCleaner(manager ctrl.Manager, name controllername.ControllerNamer, gvrRetriever CleanTypeRetriever) error {
 	d, err := dynamic.NewForConfig(manager.GetConfig())
 	if err != nil {
 		return fmt.Errorf("creating dynamic client: %w", err)
@@ -53,13 +54,13 @@ func NewCleaner(manager ctrl.Manager, name string, gvrRetriever CleanTypeRetriev
 		name:       name,
 		mapper:     mapper,
 		dynamic:    d,
-		logger:     manager.GetLogger().WithName(name),
+		logger:     name.AddToLogger(manager.GetLogger()),
 		clientset:  cs,
 		retriever:  gvrRetriever,
 		maxRetries: 2,
 	}
 
-	metrics.InitControllerMetrics(c.controllerName())
+	metrics.InitControllerMetrics(name)
 	return manager.Add(c)
 }
 
@@ -96,7 +97,7 @@ func (c *cleaner) Clean(ctx context.Context) error {
 		//this makes sure they have the proper value
 		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
 		//the values of result and err to their zero values, since they were just instantiated
-		metrics.HandleControllerReconcileMetrics(c.controllerName(), ctrl.Result{}, err)
+		metrics.HandleControllerReconcileMetrics(c.name, ctrl.Result{}, err)
 	}()
 	if c.retriever == nil {
 		err = errors.New("retriever is nil")
@@ -181,10 +182,6 @@ func (c *cleaner) CleanType(ctx context.Context, t cleanType) error {
 
 func (c *cleaner) NeedLeaderElection() bool {
 	return true
-}
-
-func (c *cleaner) controllerName() string {
-	return c.name
 }
 
 func isNamespaced(clientset kubernetes.Interface, gvr schema.GroupVersionResource) (bool, error) {

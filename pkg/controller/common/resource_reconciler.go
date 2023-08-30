@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
@@ -13,7 +14,7 @@ import (
 )
 
 type resourceReconciler struct {
-	name                    string
+	name                    controllername.ControllerNamer
 	client                  client.Client
 	logger                  logr.Logger
 	interval, retryInterval time.Duration
@@ -21,12 +22,12 @@ type resourceReconciler struct {
 }
 
 // NewResourceReconciler creates a reconciler that continuously ensures that the provided resources are provisioned
-func NewResourceReconciler(manager ctrl.Manager, name string, resources []client.Object, reconcileInterval time.Duration) error {
+func NewResourceReconciler(manager ctrl.Manager, name controllername.ControllerNamer, resources []client.Object, reconcileInterval time.Duration) error {
 	metrics.InitControllerMetrics(name)
 	rr := &resourceReconciler{
 		name:          name,
 		client:        manager.GetClient(),
-		logger:        manager.GetLogger().WithName(name),
+		logger:        name.AddToLogger(manager.GetLogger()),
 		interval:      reconcileInterval,
 		retryInterval: time.Second,
 		resources:     resources,

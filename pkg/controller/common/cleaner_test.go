@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -188,7 +189,6 @@ func TestCleanType(t *testing.T) {
 		}
 
 		c := &cleaner{
-			name:      "test-name",
 			dynamic:   d,
 			clientset: fakeClientset(),
 			logger:    logr.Discard(),
@@ -242,7 +242,7 @@ func AssertAction(t *testing.T, got []k8stesting.Action, expected k8stesting.Act
 func TestNewCleaner(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
 	require.NoError(t, err)
-	err = NewCleaner(m, "test-new-cleaner", RetrieverEmpty())
+	err = NewCleaner(m, controllername.New("test"), RetrieverEmpty())
 	require.NoError(t, err)
 }
 
@@ -266,7 +266,7 @@ func TestClean(t *testing.T) {
 		{
 			name: "nil retriver",
 			c: &cleaner{
-				name:      "test-name",
+				name:      controllername.New("test"),
 				dynamic:   d,
 				clientset: fakeClientset(),
 				logger:    logr.Discard(),
@@ -276,7 +276,7 @@ func TestClean(t *testing.T) {
 		{
 			name: "runs clean without err",
 			c: &cleaner{
-				name:      "test-name",
+				name:      controllername.New("test"),
 				dynamic:   d,
 				clientset: fakeClientset(),
 				logger:    logr.Discard(),
@@ -315,7 +315,7 @@ func TestCleanerStart(t *testing.T) {
 		{
 			name: "failing to start",
 			c: &cleaner{
-				name:       "test-name",
+				name:       controllername.New("test"),
 				dynamic:    d,
 				clientset:  fakeClientset(),
 				logger:     logr.Discard(),
@@ -326,7 +326,7 @@ func TestCleanerStart(t *testing.T) {
 		{
 			name: "starts cleaner",
 			c: &cleaner{
-				name:       "test-name",
+				name:       controllername.New("test"),
 				dynamic:    d,
 				clientset:  fakeClientset(),
 				logger:     logr.Discard(),

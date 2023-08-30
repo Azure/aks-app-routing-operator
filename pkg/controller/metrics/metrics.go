@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/prometheus/client_golang/prometheus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,26 +33,29 @@ func init() {
 
 // HandleControllerReconcileMetrics is meant to be called within a defer for each controller.
 // This lets us put all the metric handling in one place, rather than duplicating it in every controller
-func HandleControllerReconcileMetrics(controllerName string, result ctrl.Result, err error) {
+func HandleControllerReconcileMetrics(controllerName controllername.ControllerNamer, result ctrl.Result, err error) {
+	cn := controllerName.MetricsName()
+
 	switch {
 	// apierrors.IsNotFound is ignored by controllers so this should too
 	case err != nil && !apierrors.IsNotFound(err):
-		AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelError).Inc()
-		AppRoutingReconcileErrors.WithLabelValues(controllerName).Inc()
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelError).Inc()
+		AppRoutingReconcileErrors.WithLabelValues(cn).Inc()
 	case result.RequeueAfter > 0:
-		AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelRequeueAfter).Inc()
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelRequeueAfter).Inc()
 	case result.Requeue:
-		AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelRequeue).Inc()
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelRequeue).Inc()
 	default:
-		AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelSuccess).Inc()
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelSuccess).Inc()
 	}
 }
 
-func InitControllerMetrics(controllerName string) {
-	AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelError).Add(0)
-	AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelRequeueAfter).Add(0)
-	AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelRequeue).Add(0)
-	AppRoutingReconcileTotal.WithLabelValues(controllerName, LabelSuccess).Add(0)
+func InitControllerMetrics(controllerName controllername.ControllerNamer) {
+	cn := controllerName.MetricsName()
+	AppRoutingReconcileTotal.WithLabelValues(cn, LabelError).Add(0)
+	AppRoutingReconcileTotal.WithLabelValues(cn, LabelRequeueAfter).Add(0)
+	AppRoutingReconcileTotal.WithLabelValues(cn, LabelRequeue).Add(0)
+	AppRoutingReconcileTotal.WithLabelValues(cn, LabelSuccess).Add(0)
 
-	AppRoutingReconcileErrors.WithLabelValues(controllerName).Add(0)
+	AppRoutingReconcileErrors.WithLabelValues(cn).Add(0)
 }

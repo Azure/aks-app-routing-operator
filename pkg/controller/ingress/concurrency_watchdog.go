@@ -12,6 +12,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	prommodel "github.com/prometheus/client_model/go"
@@ -29,8 +30,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const (
-	concurrencyWatchdogControllerName = "concurrency_watchdog"
+var (
+	concurrencyWatchdogControllerName = controllername.New("concurrency", "watchdog")
 )
 
 // ScrapeFn returns the connection count for the given pod
@@ -109,7 +110,7 @@ func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, targets [
 		client:     manager.GetClient(),
 		clientset:  clientset,
 		restClient: clientset.CoreV1().RESTClient(),
-		logger:     manager.GetLogger().WithName("ingressWatchdog"),
+		logger:     concurrencyWatchdogControllerName.AddToLogger(manager.GetLogger()),
 		config:     conf,
 		targets:    targets,
 

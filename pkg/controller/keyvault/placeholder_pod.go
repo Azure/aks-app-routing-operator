@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,8 +25,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-const (
-	placeholderPodControllerName = "placeholder_pod"
+var (
+	placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
 )
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
@@ -44,10 +45,11 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 	if conf.DisableKeyvault {
 		return nil
 	}
-	return ctrl.
-		NewControllerManagedBy(manager).
-		For(&secv1.SecretProviderClass{}).
-		Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingressManager: ingressManager})
+	return placeholderPodControllerName.AddToController(
+		ctrl.
+			NewControllerManagedBy(manager).
+			For(&secv1.SecretProviderClass{}), manager.GetLogger(),
+	).Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingressManager: ingressManager})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -67,7 +69,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	if err != nil {
 		return result, err
 	}
-	logger = logger.WithName("placeholderPodController")
+	logger = placeholderPodControllerName.AddToLogger(logger)
 
 	spc := &secv1.SecretProviderClass{}
 	err = p.client.Get(ctx, req.NamespacedName, spc)
