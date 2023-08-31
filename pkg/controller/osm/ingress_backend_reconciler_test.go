@@ -6,6 +6,7 @@ package osm
 import (
 	"context"
 	"os"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -137,7 +138,7 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 }
 
 func TestNewIngressBackendReconciler(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}

@@ -3,6 +3,7 @@ package dns
 import (
 	"os"
 	"reflect"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -449,14 +450,14 @@ func TestActionFromConfig(t *testing.T) {
 }
 
 func TestAddExternalDnsReconciler(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 	err = addExternalDnsReconciler(m, []client.Object{obj(gvk1, nil)})
 	require.NoError(t, err)
 }
 
 func TestAddExternalDnsCleaner(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
 	err = addExternalDnsCleaner(m, []cleanObj{
@@ -468,7 +469,7 @@ func TestAddExternalDnsCleaner(t *testing.T) {
 }
 
 func TestNewExternalDns(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}

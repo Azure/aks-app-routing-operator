@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"strings"
 	"testing"
 	"time"
@@ -311,7 +312,7 @@ func TestConcurrencyWatchdogLeaderElection(t *testing.T) {
 }
 
 func TestNewConcurrencyWatchdog(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
 	err = NewConcurrencyWatchdog(m, conf, nil)

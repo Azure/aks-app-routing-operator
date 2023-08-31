@@ -12,7 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -21,8 +21,13 @@ import (
 var _ ctrl.Manager = &FakeManager{}
 
 type FakeManager struct {
-	Client client.Client
-	Scheme *runtime.Scheme
+	Client     client.Client
+	HttpClient *http.Client
+	Scheme     *runtime.Scheme
+}
+
+func (f *FakeManager) GetHTTPClient() *http.Client {
+	return f.HttpClient
 }
 
 // Add implements manager.Manager.
@@ -71,8 +76,8 @@ func (f *FakeManager) GetConfig() *rest.Config {
 }
 
 // GetControllerOptions implements manager.Manager.
-func (f *FakeManager) GetControllerOptions() v1alpha1.ControllerConfigurationSpec {
-	return v1alpha1.ControllerConfigurationSpec{}
+func (f *FakeManager) GetControllerOptions() config.Controller {
+	return config.Controller{}
 }
 
 // GetEventRecorderFor implements manager.Manager.
@@ -101,7 +106,7 @@ func (f *FakeManager) GetScheme() *runtime.Scheme {
 }
 
 // GetWebhookServer implements manager.Manager.
-func (f *FakeManager) GetWebhookServer() *webhook.Server {
+func (f *FakeManager) GetWebhookServer() webhook.Server {
 	return nil
 }
 

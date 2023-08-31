@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"net/http"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
@@ -68,7 +69,7 @@ func NewManager(conf *config.Config) (ctrl.Manager, error) {
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
 	m, err := ctrl.NewManager(rc, ctrl.Options{
-		MetricsBindAddress:     conf.MetricsAddr,
+		Metrics:                metricsserver.Options{BindAddress: conf.MetricsAddr},
 		HealthProbeBindAddress: conf.ProbeAddr,
 		Scheme:                 scheme,
 

@@ -49,7 +49,7 @@ func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 	}
 
 	family := &prommodel.MetricFamily{}
-	dec := expfmt.NewDecoder(bytes.NewReader(resp), expfmt.FmtOpenMetrics)
+	dec := expfmt.NewDecoder(bytes.NewReader(resp), expfmt.FmtOpenMetrics_0_0_1)
 	for {
 		err = dec.Decode(family)
 		if errors.Is(err, io.EOF) {

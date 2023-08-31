@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"testing"
 	"time"
 
@@ -96,7 +97,7 @@ func TestResourceReconcilerLeaderElection(t *testing.T) {
 }
 
 func TestNewResourceReconciler(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 	err = NewResourceReconciler(m, controllername.New("test"), nil, 1*time.Nanosecond)
 	require.NoError(t, err)
@@ -113,6 +114,7 @@ func TestResourceReconciler_DeletionTimestamp(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "test",
 			DeletionTimestamp: &deletionTimeStamp,
+			Finalizers:        []string{"finalizer"},
 		},
 	}
 
@@ -124,6 +126,9 @@ func TestResourceReconciler_DeletionTimestamp(t *testing.T) {
 		logger:    logr.Discard(),
 		resources: []client.Object{obj},
 	}
+
+	obj.SetFinalizers([]string{})
+	require.NoError(t, c.Update(context.Background(), obj))
 
 	beforeErrCount := testutils.GetErrMetricCount(t, rr.name)
 	beforeReconcileCount := testutils.GetReconcileMetricCount(t, rr.name, metrics.LabelSuccess)
@@ -150,6 +155,7 @@ func TestResourceReconciler_Start(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "test",
 			DeletionTimestamp: &deletionTimeStamp,
+			Finalizers:        []string{"finalizer"},
 		},
 	}
 
@@ -161,6 +167,9 @@ func TestResourceReconciler_Start(t *testing.T) {
 		logger:    logr.Discard(),
 		resources: []client.Object{obj},
 	}
+
+	obj.SetFinalizers([]string{})
+	require.NoError(t, c.Update(context.Background(), obj))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
