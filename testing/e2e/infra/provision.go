@@ -44,10 +44,25 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 			return logger.Error(lgr, fmt.Errorf("creating container registry: %w", err))
 		}
 
-		ret.Image = "e2e:" + i.Suffix
-		if err := ret.ContainerRegistry.BuildAndPush(ctx, ret.Image); err != nil {
-			return logger.Error(lgr, fmt.Errorf("building and pushing image: %w", err))
-		}
+		resEg.Go(func() error {
+			e2eRepoAndTag := "e2e:" + i.Suffix
+			if err := ret.ContainerRegistry.BuildAndPush(ctx, e2eRepoAndTag, "."); err != nil {
+				return logger.Error(lgr, fmt.Errorf("building and pushing e2e image: %w", err))
+			}
+			ret.E2eImage = ret.ContainerRegistry.GetName() + ".azurecr.io/" + e2eRepoAndTag
+			return nil
+		})
+
+		resEg.Go(func() error {
+			operatorRepoAndTag := "operator:" + i.Suffix
+			if err := ret.ContainerRegistry.BuildAndPush(ctx, operatorRepoAndTag, "../../"); err != nil {
+				return logger.Error(lgr, fmt.Errorf("building and pushing operator image: %w", err))
+			}
+			ret.OperatorImage = ret.ContainerRegistry.GetName() + ".azurecr.io/" + operatorRepoAndTag
+
+			return nil
+		})
+
 		return nil
 	})
 

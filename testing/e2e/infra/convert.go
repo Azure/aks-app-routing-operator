@@ -57,7 +57,8 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		ResourceGroup:     *resourceGroup,
 		SubscriptionId:    p.SubscriptionId,
 		TenantId:          p.TenantId,
-		Image:             p.Image,
+		E2eImage:          p.E2eImage,
+		OperatorImage:     p.OperatorImage,
 	}, nil
 }
 
@@ -87,12 +88,12 @@ func ToProvisioned(l []LoadableProvisioned) ([]Provisioned, error) {
 
 func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 	zs := make([]zone, len(l.Zones))
-	for _, z := range l.Zones {
-		zs = append(zs, clients.LoadZone(z))
+	for i, z := range l.Zones {
+		zs[i] = clients.LoadZone(z)
 	}
 	pzs := make([]privateZone, len(l.PrivateZones))
-	for _, pz := range l.PrivateZones {
-		pzs = append(pzs, clients.LoadPrivateZone(pz))
+	for i, pz := range l.PrivateZones {
+		pzs[i] = clients.LoadPrivateZone(pz)
 	}
 
 	return Provisioned{
@@ -106,6 +107,7 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 		ResourceGroup:     clients.LoadRg(l.ResourceGroup),
 		SubscriptionId:    l.SubscriptionId,
 		TenantId:          l.TenantId,
-		Image:             l.Image,
+		E2eImage:          l.E2eImage,
+		OperatorImage:     l.OperatorImage,
 	}, nil
 }
