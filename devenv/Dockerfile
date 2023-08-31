@@ -1,3 +1,6 @@
+# convenience dockerfile for unit tests
+# docker build . -t app-routing
+# docker run -it --volume ~/workspace/aks-app-routing-operator:/app-routing app-routing
 FROM golang:1.20
 RUN mkdir -p /usr/local/kubebuilder/bin
 RUN wget -q https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz &&\
