@@ -147,6 +147,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 }
 
 func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
+	// this doesn't actually work today. operator ns is not the same as resource ns which means we can't set this operator
+	// as the owner of any child resources. https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/#owner-references-in-object-specifications
+	// dynamic provisioning through a crd will fix this and fix our garbage collection.
+
 	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		// It's okay if we don't find the deployment - just skip setting ownership references latter

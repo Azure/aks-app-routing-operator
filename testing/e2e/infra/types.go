@@ -31,12 +31,13 @@ type cluster interface {
 	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	GetVnetId(ctx context.Context) (string, error)
 	Deploy(ctx context.Context, objs []client.Object) error
+	Clean(ctx context.Context, objs []client.Object) error
 	Identifier
 }
 
 type containerRegistry interface {
 	GetName() string
-	BuildAndPush(ctx context.Context, imageName string) error
+	BuildAndPush(ctx context.Context, imageName, dockerfilePath string) error
 	Identifier
 }
 
@@ -80,7 +81,8 @@ type Provisioned struct {
 	ResourceGroup     resourceGroup
 	SubscriptionId    string
 	TenantId          string
-	Image             string
+	E2eImage          string
+	OperatorImage     string
 }
 
 type LoadableProvisioned struct {
@@ -94,5 +96,6 @@ type LoadableProvisioned struct {
 	ResourceGroup     arm.ResourceID
 	SubscriptionId    string
 	TenantId          string
-	Image             string
+	E2eImage          string
+	OperatorImage     string
 }

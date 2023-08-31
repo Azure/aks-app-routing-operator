@@ -78,7 +78,7 @@ func (a *acr) GetId() string {
 	return a.id
 }
 
-func (a *acr) BuildAndPush(ctx context.Context, imageName string) error {
+func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string) error {
 	lgr := logger.FromContext(ctx).With("image", imageName, "name", a.name, "resourceGroup", a.resourceGroup, "subscriptionId", a.subscriptionId)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to build and push image")
@@ -87,7 +87,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName string) error {
 	// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
 	// I matched everything on the az cli but wasn't able to get it working with the sdk.
 	// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
-	cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, ".")
+	cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, dockerfilePath)
 	cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
 	cmd.Stderr = newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError))
 	if err := cmd.Run(); err != nil {
