@@ -6,13 +6,8 @@ package osm
 import (
 	"context"
 	"os"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"testing"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -27,8 +22,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 var (

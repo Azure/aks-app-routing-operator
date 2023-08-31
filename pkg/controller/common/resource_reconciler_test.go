@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 func TestResourceReconcilerEmpty(t *testing.T) {

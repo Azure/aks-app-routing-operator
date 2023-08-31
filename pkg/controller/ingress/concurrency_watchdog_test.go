@@ -12,13 +12,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -33,8 +29,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 

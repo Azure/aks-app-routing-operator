@@ -6,11 +6,7 @@ package controller
 import (
 	"context"
 	"net/http"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -26,10 +22,14 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 

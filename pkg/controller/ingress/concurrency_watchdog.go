@@ -12,7 +12,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	prommodel "github.com/prometheus/client_model/go"
@@ -26,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
