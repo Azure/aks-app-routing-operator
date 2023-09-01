@@ -19,6 +19,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
@@ -240,7 +241,7 @@ func AssertAction(t *testing.T, got []k8stesting.Action, expected k8stesting.Act
 }
 
 func TestNewCleaner(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 	err = NewCleaner(m, controllername.New("test"), RetrieverEmpty())
 	require.NoError(t, err)
@@ -252,10 +253,10 @@ func TestClean(t *testing.T) {
 		nonNamespacedGvr: nonNamespacedList,
 	})
 
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
-	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), apiutil.WithLazyDiscovery)
+	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), m.GetHTTPClient())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -301,10 +302,10 @@ func TestCleanerStart(t *testing.T) {
 		nonNamespacedGvr: nonNamespacedList,
 	})
 
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
-	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), apiutil.WithLazyDiscovery)
+	mapper, err := apiutil.NewDynamicRESTMapper(m.GetConfig(), m.GetHTTPClient())
 	require.NoError(t, err)
 
 	tests := []struct {
