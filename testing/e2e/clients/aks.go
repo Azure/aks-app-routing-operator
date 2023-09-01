@@ -85,6 +85,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 					Name:   to.Ptr("default"),
 					VMSize: to.Ptr("Standard_DS3_v2"),
 					Count:  to.Ptr(int32(2)),
+					Mode:   to.Ptr(armcontainerservice.AgentPoolModeSystem),
 				},
 			},
 			AddonProfiles: map[string]*armcontainerservice.ManagedClusterAddonProfile{

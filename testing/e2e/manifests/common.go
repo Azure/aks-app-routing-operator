@@ -3,6 +3,7 @@ package manifests
 import (
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,4 +49,37 @@ func setGroupKindVersion(obj client.Object) {
 	}
 
 	obj.GetObjectKind().SetGroupVersionKind(gvks[0])
+}
+
+// newGoDeployment creates a new basic Go deployment with a single main.go file from contents
+func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: to.Ptr(int32(1)),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      map[string]string{"app": name},
+					Annotations: map[string]string{},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "container",
+						Image: "mcr.microsoft.com/oss/go/microsoft/golang:1.20",
+						Command: []string{
+							"/bin/sh",
+							"-c",
+							"mkdir source && cd source && go mod init source && echo '" + contents + "' > main.go && go run main.go",
+						},
+					}},
+				},
+			},
+		},
+	}
 }
