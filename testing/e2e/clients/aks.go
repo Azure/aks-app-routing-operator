@@ -187,7 +187,7 @@ func (a *aks) Clean(ctx context.Context, objs []client.Object) error {
 	encoded := base64.StdEncoding.EncodeToString(zip)
 
 	if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-		Command: to.Ptr("kubectl delete -f manifests/"),
+		Command: to.Ptr("kubectl delete -f manifests/ --ignore-not-found=true"),
 		Context: &encoded,
 	}, runCommandOpts{}); err != nil {
 		return fmt.Errorf("running kubectl delete: %w", err)
@@ -292,7 +292,11 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 		return fmt.Errorf("running command: %w", err)
 	}
 
-	lgr.Info("command output: " + *result.Properties.Logs)
+	logs := ""
+	if result.Properties != nil && result.Properties.Logs != nil {
+		logs = *result.Properties.Logs
+	}
+	lgr.Info("command output: " + logs)
 	if opt.outputFile != "" {
 		outputFile, err := os.Create(opt.outputFile)
 		if err != nil {
@@ -300,7 +304,7 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 		}
 		defer outputFile.Close()
 
-		_, err = outputFile.WriteString(*result.Properties.Logs)
+		_, err = outputFile.WriteString(logs)
 		if err != nil {
 			return fmt.Errorf("writing output file %s: %w", opt.outputFile, err)
 		}
@@ -373,4 +377,13 @@ func (a *aks) GetVnetId(ctx context.Context) (string, error) {
 
 func (a *aks) GetId() string {
 	return a.id
+}
+
+func (a *aks) GetDnsServiceIp(ctx context.Context) (string, error) {
+	cluster, err := a.GetCluster(ctx)
+	if err != nil {
+		return "", fmt.Errorf("getting cluster: %w", err)
+	}
+
+	return *cluster.Properties.NetworkProfile.DNSServiceIP, nil
 }

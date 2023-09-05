@@ -32,6 +32,7 @@ type cluster interface {
 	GetVnetId(ctx context.Context) (string, error)
 	Deploy(ctx context.Context, objs []client.Object) error
 	Clean(ctx context.Context, objs []client.Object) error
+	GetDnsServiceIp(ctx context.Context) (string, error)
 	Identifier
 }
 
@@ -44,6 +45,7 @@ type containerRegistry interface {
 type zone interface {
 	GetDnsZone(ctx context.Context) (*armdns.Zone, error)
 	GetName() string
+	GetNameservers(ctx context.Context) ([]string, error)
 	Identifier
 }
 
@@ -68,6 +70,7 @@ type keyVault interface {
 
 type cert interface {
 	GetName() string
+	GetId() string
 }
 
 type Provisioned struct {
@@ -93,6 +96,7 @@ type LoadableProvisioned struct {
 	PrivateZones      []arm.ResourceID
 	KeyVault          arm.ResourceID
 	CertName          string
+	CertId            string
 	ResourceGroup     arm.ResourceID
 	SubscriptionId    string
 	TenantId          string

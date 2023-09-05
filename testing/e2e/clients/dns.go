@@ -109,6 +109,21 @@ func (z *zone) GetName() string {
 	return z.name
 }
 
+func (z *zone) GetNameservers(ctx context.Context) ([]string, error) {
+	zone, err := z.GetDnsZone(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting dns zone: %w", err)
+	}
+
+	nameservers := zone.Properties.NameServers
+	ret := make([]string, len(nameservers))
+	for i, ns := range nameservers {
+		ret[i] = *ns
+	}
+
+	return ret, nil
+}
+
 func (z *zone) GetId() string {
 	return z.id
 }

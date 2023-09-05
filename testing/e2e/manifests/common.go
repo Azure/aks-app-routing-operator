@@ -14,6 +14,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	ManagedByKey = "app.kubernetes.io/managed-by"
+	// ManagedByVal is the value for the ManagedByKey label on all resources directly managed by our e2e tester
+	ManagedByVal = "app-routing-operator-e2e"
+)
+
 var (
 	scheme = runtime.NewScheme()
 )
@@ -57,6 +63,9 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels: map[string]string{
+				ManagedByKey: ManagedByVal,
+			},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: to.Ptr(int32(1)),

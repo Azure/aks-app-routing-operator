@@ -24,6 +24,7 @@ type akv struct {
 type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
 
 type Cert struct {
+	id   string
 	name string
 }
 
@@ -138,8 +139,9 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	return nil
 }
 
-func LoadCert(name string) *Cert {
+func LoadCert(name, id string) *Cert {
 	return &Cert{
+		id:   id,
 		name: name,
 	}
 }
@@ -212,16 +214,21 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		}
 	}
 
-	_, err = client.CreateCertificate(ctx, name, *c, nil)
+	created, err := client.CreateCertificate(ctx, name, *c, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
 	return &Cert{
+		id:   created.ID.Name(),
 		name: name,
 	}, nil
 }
 
 func (c *Cert) GetName() string {
 	return c.name
+}
+
+func (c *Cert) GetId() string {
+	return c.id
 }

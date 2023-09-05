@@ -1,6 +1,7 @@
 package manifests
 
 import (
+	"math"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -19,18 +20,24 @@ var (
 )
 
 // OperatorVersion is an enum for the different versions of the operator
-type OperatorVersion int
+type OperatorVersion uint
 
 const (
 	OperatorVersion0_0_3 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
-	OperatorVersionLatest
+
+	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
+	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
 )
 
-type DnsZoneCount int
+// DnsZoneCount is enum for the number of dns zones but shouldn't be used directly. Use the exported fields of this type instead.
+type DnsZoneCount uint
 
 const (
+	// DnsZoneCountNone represents no dns zones
 	DnsZoneCountNone DnsZoneCount = iota
+	// DnsZoneCountOne represents one dns zone
 	DnsZoneCountOne
+	// DnsZoneCountMultiple represents multiple dns zones
 	DnsZoneCountMultiple
 )
 
@@ -45,8 +52,7 @@ type OperatorConfig struct {
 	TenantId   string
 	Location   string
 	Zones      DnsZones
-	ClusterUid string
-	disableOsm bool
+	DisableOsm bool
 }
 
 func (o *OperatorConfig) image(latestImage string) string {
@@ -72,7 +78,6 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
 		"--location", o.Location,
-		"--cluster-uid", o.ClusterUid,
 		"--namespace", "app-routing-system",
 	}
 
@@ -93,7 +98,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--dns-zone-ids", strings.Join(zones, ","))
 	}
 
-	if o.disableOsm {
+	if o.DisableOsm {
 		ret = append(ret, "--disable-osm")
 	}
 
@@ -105,7 +110,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-operator",
-				Namespace: "app-routing-system", // we use app-routing-system for now so we can take advantage of ownership refs and garbage collection
+				Namespace: "app-routing-system", // we use app-routing-system for now, so we can take advantage of ownership refs and garbage collection
+				Labels: map[string]string{
+					ManagedByKey: ManagedByVal,
+				},
 			},
 			Spec: appsv1.DeploymentSpec{
 				Replicas: to.Ptr(int32(2)),
