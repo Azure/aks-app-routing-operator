@@ -229,6 +229,10 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		domainFilters = append(domainFilters, fmt.Sprintf("--domain-filter=%s", parsedZone.ResourceName))
 	}
 
+	podLabels := GetTopLevelLabels()
+	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
+	podLabels["checksum/configmap"] = configMapHash[:16]
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -245,10 +249,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.Provider.ResourceName()}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app":                externalDnsConfig.Provider.ResourceName(),
-						"checksum/configmap": configMapHash[:16],
-					},
+					Labels: podLabels,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
 					ServiceAccountName: externalDnsConfig.Provider.ResourceName(),

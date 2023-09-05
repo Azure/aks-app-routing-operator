@@ -194,6 +194,7 @@
             "creationTimestamp": null,
             "labels": {
               "app": "external-dns-private",
+              "app.kubernetes.io/managed-by": "aks-app-routing-operator",
               "checksum/configmap": "620b97bffe28961e"
             }
           },
