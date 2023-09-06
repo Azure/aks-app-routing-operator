@@ -31,6 +31,7 @@ type aks struct {
 	dnsServiceIp                        string
 	location                            string
 	principalId                         string
+	clientId                            string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -50,12 +51,13 @@ func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
 	return nil
 }
 
-func LoadAks(id arm.ResourceID, dnsServiceIp, location, principalId string) *aks {
+func LoadAks(id arm.ResourceID, dnsServiceIp, location, principalId, clientId string) *aks {
 	return &aks{
 		name:           id.Name,
 		subscriptionId: id.SubscriptionID,
 		resourceGroup:  id.ResourceGroupName,
 		id:             id.String(),
+		clientId:       clientId,
 		dnsServiceIp:   dnsServiceIp,
 		location:       location,
 		principalId:    principalId,
@@ -121,6 +123,12 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("creating cluster: %w", err)
 	}
 
+	lgr.Info("important: ", result.Identity.UserAssignedIdentities)
+	identity, ok := result.Properties.IdentityProfile["kubeletidentity"]
+	if !ok {
+		return nil, fmt.Errorf("kubelet identity not found")
+	}
+
 	return &aks{
 		name:           *result.ManagedCluster.Name,
 		subscriptionId: subscriptionId,
@@ -128,7 +136,8 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		id:             *result.ManagedCluster.ID,
 		dnsServiceIp:   *result.Properties.NetworkProfile.DNSServiceIP,
 		location:       location,
-		principalId:    *result.Identity.PrincipalID,
+		principalId:    *identity.ObjectID,
+		clientId:       *identity.ClientID,
 	}, nil
 }
 
@@ -398,4 +407,8 @@ func (a *aks) GetLocation() string {
 
 func (a *aks) GetDnsServiceIp() string {
 	return a.dnsServiceIp
+}
+
+func (a *aks) GetClientId() string {
+	return a.clientId
 }

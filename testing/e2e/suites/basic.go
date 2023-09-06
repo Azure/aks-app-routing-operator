@@ -17,7 +17,7 @@ func basicSuite(infra infra.Provisioned) []test {
 			name: "public basic ingress",
 			cfgs: operatorCfgs{
 				{
-					Msi:      infra.Cluster.GetPrincipalId(),
+					Msi:      infra.Cluster.GetClientId(),
 					TenantId: infra.TenantId,
 					Location: infra.Cluster.GetLocation(),
 				},

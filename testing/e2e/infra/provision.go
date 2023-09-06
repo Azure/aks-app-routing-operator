@@ -171,20 +171,10 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	}
 
 	permEg.Go(func() error {
-		cluster, err := ret.Cluster.GetCluster(ctx)
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
-		}
-
-		kubelet, ok := cluster.Properties.IdentityProfile["kubeletidentity"]
-		if !ok {
-			return logger.Error(lgr, fmt.Errorf("kubelet identity not found"))
-		}
-		principalId := kubelet.ObjectID
-
+		principalId := ret.Cluster.GetPrincipalId()
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
-		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, *principalId, role); err != nil {
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, principalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
 
