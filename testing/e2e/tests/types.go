@@ -44,3 +44,14 @@ const (
 	// cleanDeploy deletes the operator if it exists and then deploys it. This simulates a new user.
 	cleanDeploy
 )
+
+func (o operatorDeployStrategy) string() string {
+	switch o {
+	case upgrade:
+		return "upgrade"
+	case cleanDeploy:
+		return "cleanDeploy"
+	default:
+		return "unknown"
+	}
+}

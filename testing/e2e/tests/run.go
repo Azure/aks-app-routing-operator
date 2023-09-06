@@ -24,9 +24,9 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		return fmt.Errorf("getting in-cluster config: %w", err)
 	}
 
-	runTestFn := func(t test) *logger.LoggedError {
+	runTestFn := func(t test, ctx context.Context) *logger.LoggedError {
 		lgr := lgr.With("test", t.GetName())
-		ctx := logger.WithContext(ctx, lgr)
+		ctx = logger.WithContext(ctx, lgr)
 		lgr.Info("starting to run test")
 
 		if err := t.Run(ctx, config); err != nil {
@@ -48,6 +48,13 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 
 	lgr.Info("starting to run tests")
 	for _, runStrategy := range ordered {
+		ctx := logger.WithContext(ctx, lgr.With(
+			"operatorVersion", runStrategy.config.Version.String(),
+			"operatorDeployStrategy", runStrategy.operatorDeployStrategy.string(),
+			"privateZones", runStrategy.config.Zones.Private.String(),
+			"publicZones", runStrategy.config.Zones.Public.String(),
+			"disableOsm", runStrategy.config.DisableOsm,
+		))
 		if err := deployOperator(ctx, config, runStrategy.operatorDeployStrategy, infra.OperatorImage, publicZones, privateZones, &runStrategy.config); err != nil {
 			return fmt.Errorf("deploying operator: %w", err)
 		}
@@ -56,7 +63,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		for _, t := range runStrategy.tests {
 			func(t test) {
 				eg.Go(func() error {
-					return runTestFn(t)
+					return runTestFn(t, ctx)
 				})
 			}(t)
 		}

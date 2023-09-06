@@ -30,6 +30,17 @@ const (
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
 )
 
+func (o OperatorVersion) String() string {
+	switch o {
+	case OperatorVersion0_0_3:
+		return "0.0.3"
+	case OperatorVersionLatest:
+		return "latest"
+	default:
+		return "unknown"
+	}
+}
+
 // DnsZoneCount is enum for the number of dns zones but shouldn't be used directly. Use the exported fields of this type instead.
 type DnsZoneCount uint
 
@@ -41,6 +52,19 @@ const (
 	// DnsZoneCountMultiple represents multiple dns zones
 	DnsZoneCountMultiple
 )
+
+func (d DnsZoneCount) String() string {
+	switch d {
+	case DnsZoneCountNone:
+		return "none"
+	case DnsZoneCountOne:
+		return "one"
+	case DnsZoneCountMultiple:
+		return "multiple"
+	default:
+		return "unknown"
+	}
+}
 
 type DnsZones struct {
 	Public  DnsZoneCount
@@ -59,7 +83,7 @@ type OperatorConfig struct {
 func (o *OperatorConfig) image(latestImage string) string {
 	switch o.Version {
 	case OperatorVersion0_0_3:
-		return "mcr.microsoft.com/aks/app-routing-operator:0.0.3"
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.0.3"
 	default:
 		return latestImage
 	}
@@ -80,6 +104,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--tenant-id", o.TenantId,
 		"--location", o.Location,
 		"--namespace", "app-routing-system",
+		"--cluster-uid", "test-cluster-uid",
 	}
 
 	var zones []string
@@ -160,10 +185,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 							{
 								Name:  "operator",
 								Image: cfg.image(latestImage),
-								Command: []string{
-									"/app-routing-operator",
-								},
-								Args: cfg.args(publicZones, privateZones),
+								Args:  cfg.args(publicZones, privateZones),
 							},
 						},
 					},
