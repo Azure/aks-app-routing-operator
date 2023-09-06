@@ -28,6 +28,9 @@ var (
 type aks struct {
 	name, subscriptionId, resourceGroup string
 	id                                  string
+	dnsServiceIp                        string
+	location                            string
+	principalId                         string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -47,12 +50,15 @@ func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
 	return nil
 }
 
-func LoadAks(id arm.ResourceID) *aks {
+func LoadAks(id arm.ResourceID, dnsServiceIp, location, principalId string) *aks {
 	return &aks{
-		id:             id.String(),
 		name:           id.Name,
-		resourceGroup:  id.ResourceGroupName,
 		subscriptionId: id.SubscriptionID,
+		resourceGroup:  id.ResourceGroupName,
+		id:             id.String(),
+		dnsServiceIp:   dnsServiceIp,
+		location:       location,
+		principalId:    principalId,
 	}
 }
 
@@ -116,10 +122,13 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	return &aks{
-		id:             *result.ManagedCluster.ID,
 		name:           *result.ManagedCluster.Name,
 		subscriptionId: subscriptionId,
 		resourceGroup:  resourceGroup,
+		id:             *result.ManagedCluster.ID,
+		dnsServiceIp:   *result.Properties.NetworkProfile.DNSServiceIP,
+		location:       location,
+		principalId:    *result.Identity.PrincipalID,
 	}, nil
 }
 
@@ -379,11 +388,14 @@ func (a *aks) GetId() string {
 	return a.id
 }
 
-func (a *aks) GetDnsServiceIp(ctx context.Context) (string, error) {
-	cluster, err := a.GetCluster(ctx)
-	if err != nil {
-		return "", fmt.Errorf("getting cluster: %w", err)
-	}
+func (a *aks) GetPrincipalId() string {
+	return a.principalId
+}
 
-	return *cluster.Properties.NetworkProfile.DNSServiceIP, nil
+func (a *aks) GetLocation() string {
+	return a.location
+}
+
+func (a *aks) GetDnsServiceIp() string {
+	return a.dnsServiceIp
 }

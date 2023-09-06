@@ -28,11 +28,13 @@ type Identifier interface {
 }
 
 type cluster interface {
-	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	GetVnetId(ctx context.Context) (string, error)
 	Deploy(ctx context.Context, objs []client.Object) error
 	Clean(ctx context.Context, objs []client.Object) error
-	GetDnsServiceIp(ctx context.Context) (string, error)
+	GetPrincipalId() string
+	GetLocation() string
+	GetDnsServiceIp() string
+	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	Identifier
 }
 
@@ -45,7 +47,7 @@ type containerRegistry interface {
 type zone interface {
 	GetDnsZone(ctx context.Context) (*armdns.Zone, error)
 	GetName() string
-	GetNameservers(ctx context.Context) ([]string, error)
+	GetNameservers() []string
 	Identifier
 }
 
@@ -88,18 +90,26 @@ type Provisioned struct {
 	OperatorImage     string
 }
 
+type LoadableZone struct {
+	ResourceId  arm.ResourceID
+	Nameservers []string
+}
+
+// LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.
+// Ensure that all fields are exported so that they can properly be serialized/deserialized.
 type LoadableProvisioned struct {
-	Name              string
-	Cluster           arm.ResourceID
-	ContainerRegistry arm.ResourceID
-	Zones             []arm.ResourceID
-	PrivateZones      []arm.ResourceID
-	KeyVault          arm.ResourceID
-	CertName          string
-	CertId            string
-	ResourceGroup     arm.ResourceID
-	SubscriptionId    string
-	TenantId          string
-	E2eImage          string
-	OperatorImage     string
+	Name                                                     string
+	Cluster                                                  arm.ResourceID
+	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId string
+	ContainerRegistry                                        arm.ResourceID
+	Zones                                                    []LoadableZone
+	PrivateZones                                             []arm.ResourceID
+	KeyVault                                                 arm.ResourceID
+	CertName                                                 string
+	CertId                                                   string
+	ResourceGroup                                            arm.ResourceID
+	SubscriptionId                                           string
+	TenantId                                                 string
+	E2eImage                                                 string
+	OperatorImage                                            string
 }

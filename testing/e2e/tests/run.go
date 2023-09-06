@@ -139,7 +139,7 @@ func (t Ts) order(ctx context.Context, infra infra.Provisioned) ordered {
 }
 
 func deployOperator(ctx context.Context, config *rest.Config, strategy operatorDeployStrategy, latestImage string, publicZones, privateZones []string, operatorCfg *manifests.OperatorConfig) error {
-	lgr := logger.FromContext(ctx).With("operatorVersion", operatorCfg.Version, "operatorDeployStrategy", strategy)
+	lgr := logger.FromContext(ctx)
 
 	c, err := client.New(config, client.Options{})
 	if err != nil {
@@ -165,6 +165,7 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 
 	lgr.Info("deploying operator")
 	for _, res := range toDeploy {
+		lgr.Info("deploying resource", "kind", res.GetObjectKind().GroupVersionKind().Kind, "name", res.GetName())
 		err := c.Patch(ctx, res, client.Apply, client.ForceOwnership, client.FieldOwner("test-operator"))
 		if apierrors.IsNotFound(err) {
 			err = c.Create(ctx, res, client.FieldOwner("test-operator"))

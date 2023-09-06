@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -107,6 +108,35 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 func Operator(latestImage string, publicZones, privateZones []string, cfg *OperatorConfig) []client.Object {
 	ret := []client.Object{
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-routing-system",
+			},
+		},
+		&corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-routing-operator",
+				Namespace: "app-routing-system",
+			},
+		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-routing-operator",
+				Namespace: "app-routing-system",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      "app-routing-operator",
+					Namespace: "app-routing-system",
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				Kind:     "ClusterRole",
+				Name:     "cluster-admin",
+				APIGroup: "",
+			},
+		},
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-operator",
@@ -125,6 +155,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 						Labels: operatorDeploymentLabels,
 					},
 					Spec: corev1.PodSpec{
+						ServiceAccountName: "app-routing-operator",
 						Containers: []corev1.Container{
 							{
 								Name:  "operator",
@@ -141,7 +172,8 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		},
 		&policyv1.PodDisruptionBudget{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "app-routing-operator",
+				Name:      "app-routing-operator",
+				Namespace: "app-routing-system",
 			},
 			Spec: policyv1.PodDisruptionBudgetSpec{
 				MinAvailable: to.Ptr(intstr.FromInt(1)),

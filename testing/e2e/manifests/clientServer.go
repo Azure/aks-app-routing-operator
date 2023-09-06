@@ -2,11 +2,9 @@ package manifests
 
 import (
 	_ "embed"
-	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/go-autorest/autorest/azure"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -43,13 +41,8 @@ func (t testingResources) Objects() []client.Object {
 	return ret
 }
 
-func ClientAndServer(namespace, name, zoneId, nameserver, keyvaultURI string) testingResources {
-	parsedZoneId, err := azure.ParseResourceID(zoneId)
-	if err != nil {
-		panic(fmt.Errorf("parsing zone id: %w", err))
-	}
-
-	host := strings.ToLower(namespace) + "." + parsedZoneId.ResourceName
+func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string) testingResources {
+	host := strings.ToLower(namespace) + "." + zoneName
 
 	clientDeployment := newGoDeployment(clientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"

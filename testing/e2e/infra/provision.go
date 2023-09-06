@@ -127,19 +127,14 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	for _, pz := range ret.PrivateZones {
 		func(pz privateZone) {
 			permEg.Go(func() error {
-				cluster, err := ret.Cluster.GetCluster(ctx)
-				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
-				}
-
 				dns, err := pz.GetDnsZone(ctx)
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := cluster.Identity.PrincipalID
+				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.PrivateDnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, *principalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -159,19 +154,14 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	for _, z := range ret.Zones {
 		func(z zone) {
 			permEg.Go(func() error {
-				cluster, err := ret.Cluster.GetCluster(ctx)
-				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("getting cluster: %w", err))
-				}
-
 				dns, err := z.GetDnsZone(ctx)
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := cluster.Identity.PrincipalID
+				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.DnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, *principalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -202,13 +192,8 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	})
 
 	permEg.Go(func() error {
-		cluster, err := ret.Cluster.GetCluster(ctx)
-		if err != nil {
-			return fmt.Errorf("getting cluster: %w", err)
-		}
-
-		principalId := cluster.Identity.PrincipalID
-		if err := ret.KeyVault.AddAccessPolicy(ctx, *principalId, armkeyvault.Permissions{
+		principalId := ret.Cluster.GetPrincipalId()
+		if err := ret.KeyVault.AddAccessPolicy(ctx, principalId, armkeyvault.Permissions{
 			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
 			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
 		}); err != nil {

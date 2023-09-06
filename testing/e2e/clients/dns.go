@@ -16,6 +16,7 @@ type zone struct {
 	subscriptionId string
 	resourceGroup  string
 	id             string
+	nameservers    []string
 }
 
 type privateZone struct {
@@ -31,12 +32,13 @@ type ZoneOpt func(z *armdns.Zone) error
 // PrivateZoneOpt specifies what kind of private zone to create
 type PrivateZoneOpt func(z *armprivatedns.PrivateZone) error
 
-func LoadZone(id arm.ResourceID) *zone {
+func LoadZone(id arm.ResourceID, nameservers []string) *zone {
 	return &zone{
 		id:             id.String(),
 		name:           id.Name,
 		subscriptionId: id.SubscriptionID,
 		resourceGroup:  id.ResourceGroupName,
+		nameservers:    nameservers,
 	}
 }
 
@@ -73,11 +75,17 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 		return nil, fmt.Errorf("creating zone: %w", err)
 	}
 
+	nameservers := make([]string, len(resp.Properties.NameServers))
+	for i, ns := range resp.Properties.NameServers {
+		nameservers[i] = *ns
+	}
+
 	return &zone{
 		name:           *resp.Name,
 		resourceGroup:  resourceGroup,
 		subscriptionId: subscriptionId,
 		id:             *resp.ID,
+		nameservers:    nameservers,
 	}, nil
 }
 
@@ -109,19 +117,8 @@ func (z *zone) GetName() string {
 	return z.name
 }
 
-func (z *zone) GetNameservers(ctx context.Context) ([]string, error) {
-	zone, err := z.GetDnsZone(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting dns zone: %w", err)
-	}
-
-	nameservers := zone.Properties.NameServers
-	ret := make([]string, len(nameservers))
-	for i, ns := range nameservers {
-		ret[i] = *ns
-	}
-
-	return ret, nil
+func (z *zone) GetNameservers() []string {
+	return z.nameservers
 }
 
 func (z *zone) GetId() string {

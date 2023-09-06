@@ -12,27 +12,21 @@ import (
 )
 
 func basicSuite(infra infra.Provisioned) []test {
-	cluster, err := infra.Cluster.GetCluster(context.Background())
-	if err != nil {
-		panic(fmt.Errorf("getting cluster: %w", err))
-	}
-
 	return []test{
 		{
 			name: "public basic ingress",
 			cfgs: operatorCfgs{
 				{
-					Msi:      *cluster.Identity.PrincipalID,
+					Msi:      infra.Cluster.GetPrincipalId(),
 					TenantId: infra.TenantId,
-					Location: *cluster.Location,
+					Location: infra.Cluster.GetLocation(),
 				},
 			}.
 				WithAllOsm().
 				withPublicZones(manifests.DnsZoneCountOne).
 				withVersions(manifests.OperatorVersionLatest, manifests.OperatorVersion0_0_3),
 			run: func(ctx context.Context, config *rest.Config) error {
-				lgr := logger.FromContext(ctx).With("test", "publicBasicIngress")
-				ctx = logger.WithContext(ctx, lgr)
+				lgr := logger.FromContext(ctx)
 				lgr.Info("running basic service")
 
 				c, err := client.New(config, client.Options{})
@@ -49,12 +43,7 @@ func basicSuite(infra infra.Provisioned) []test {
 				ctx = logger.WithContext(ctx, lgr)
 
 				zone := infra.Zones[0]
-				nameservers, err := zone.GetNameservers(ctx)
-				if err != nil {
-					return fmt.Errorf("getting nameservers: %w", err)
-				}
-
-				testingResources := manifests.ClientAndServer(ns.Name, "basic-service-test", zone.GetId(), nameservers[0], infra.Cert.GetId())
+				testingResources := manifests.ClientAndServer(ns.Name, "basic-service-test", zone.GetName(), zone.GetNameservers()[0], infra.Cert.GetId())
 				for _, object := range testingResources.Objects() {
 					if err := c.Create(ctx, object); err != nil {
 						return fmt.Errorf("creating resource: %w", err)

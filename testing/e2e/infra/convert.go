@@ -18,13 +18,16 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		return LoadableProvisioned{}, fmt.Errorf("parsing container registry resource id: %w", err)
 	}
 
-	zones := make([]arm.ResourceID, len(p.Zones))
+	zones := make([]LoadableZone, len(p.Zones))
 	for i, zone := range p.Zones {
 		z, err := arm.ParseResourceID(zone.GetId())
 		if err != nil {
 			return LoadableProvisioned{}, fmt.Errorf("parsing zone resource id: %w", err)
 		}
-		zones[i] = *z
+		zones[i] = LoadableZone{
+			ResourceId:  *z,
+			Nameservers: zone.GetNameservers(),
+		}
 	}
 
 	privateZones := make([]arm.ResourceID, len(p.PrivateZones))
@@ -47,19 +50,22 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 	}
 
 	return LoadableProvisioned{
-		Name:              p.Name,
-		Cluster:           *cluster,
-		ContainerRegistry: *containerRegistry,
-		Zones:             zones,
-		PrivateZones:      privateZones,
-		KeyVault:          *keyVault,
-		CertName:          p.Cert.GetName(),
-		CertId:            p.Cert.GetId(),
-		ResourceGroup:     *resourceGroup,
-		SubscriptionId:    p.SubscriptionId,
-		TenantId:          p.TenantId,
-		E2eImage:          p.E2eImage,
-		OperatorImage:     p.OperatorImage,
+		Name:                p.Name,
+		Cluster:             *cluster,
+		ClusterLocation:     p.Cluster.GetLocation(),
+		ClusterDnsServiceIp: p.Cluster.GetDnsServiceIp(),
+		ClusterPrincipalId:  p.Cluster.GetPrincipalId(),
+		ContainerRegistry:   *containerRegistry,
+		Zones:               zones,
+		PrivateZones:        privateZones,
+		KeyVault:            *keyVault,
+		CertName:            p.Cert.GetName(),
+		CertId:              p.Cert.GetId(),
+		ResourceGroup:       *resourceGroup,
+		SubscriptionId:      p.SubscriptionId,
+		TenantId:            p.TenantId,
+		E2eImage:            p.E2eImage,
+		OperatorImage:       p.OperatorImage,
 	}, nil
 }
 
@@ -90,7 +96,7 @@ func ToProvisioned(l []LoadableProvisioned) ([]Provisioned, error) {
 func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 	zs := make([]zone, len(l.Zones))
 	for i, z := range l.Zones {
-		zs[i] = clients.LoadZone(z)
+		zs[i] = clients.LoadZone(z.ResourceId, z.Nameservers)
 	}
 	pzs := make([]privateZone, len(l.PrivateZones))
 	for i, pz := range l.PrivateZones {
@@ -99,7 +105,7 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 
 	return Provisioned{
 		Name:              l.Name,
-		Cluster:           clients.LoadAks(l.Cluster),
+		Cluster:           clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId),
 		ContainerRegistry: clients.LoadAcr(l.ContainerRegistry),
 		Zones:             zs,
 		PrivateZones:      pzs,
