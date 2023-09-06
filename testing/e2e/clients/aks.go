@@ -10,10 +10,10 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,11 +51,11 @@ func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
 	return nil
 }
 
-func LoadAks(id arm.ResourceID, dnsServiceIp, location, principalId, clientId string) *aks {
+func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string) *aks {
 	return &aks{
-		name:           id.Name,
+		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
-		resourceGroup:  id.ResourceGroupName,
+		resourceGroup:  id.ResourceGroup,
 		id:             id.String(),
 		clientId:       clientId,
 		dnsServiceIp:   dnsServiceIp,

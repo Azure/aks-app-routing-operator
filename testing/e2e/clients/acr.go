@@ -6,9 +6,9 @@ import (
 	"os/exec"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"golang.org/x/exp/slog"
 )
 
@@ -19,11 +19,11 @@ type acr struct {
 	subscriptionId string
 }
 
-func LoadAcr(id arm.ResourceID) *acr {
+func LoadAcr(id azure.Resource) *acr {
 	return &acr{
 		id:             id.String(),
-		name:           id.Name,
-		resourceGroup:  id.ResourceGroupName,
+		name:           id.ResourceName,
+		resourceGroup:  id.ResourceGroup,
 		subscriptionId: id.SubscriptionID,
 	}
 }

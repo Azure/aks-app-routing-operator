@@ -5,41 +5,42 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/go-autorest/autorest/azure"
 )
 
 func (p Provisioned) Loadable() (LoadableProvisioned, error) {
-	cluster, err := arm.ParseResourceID(p.Cluster.GetId())
+	cluster, err := azure.ParseResourceID(p.Cluster.GetId())
 	if err != nil {
 		return LoadableProvisioned{}, fmt.Errorf("parsing cluster resource id: %w", err)
 	}
 
-	containerRegistry, err := arm.ParseResourceID(p.ContainerRegistry.GetId())
+	containerRegistry, err := azure.ParseResourceID(p.ContainerRegistry.GetId())
 	if err != nil {
 		return LoadableProvisioned{}, fmt.Errorf("parsing container registry resource id: %w", err)
 	}
 
 	zones := make([]LoadableZone, len(p.Zones))
 	for i, zone := range p.Zones {
-		z, err := arm.ParseResourceID(zone.GetId())
+		z, err := azure.ParseResourceID(zone.GetId())
 		if err != nil {
 			return LoadableProvisioned{}, fmt.Errorf("parsing zone resource id: %w", err)
 		}
 		zones[i] = LoadableZone{
-			ResourceId:  *z,
+			ResourceId:  z,
 			Nameservers: zone.GetNameservers(),
 		}
 	}
 
-	privateZones := make([]arm.ResourceID, len(p.PrivateZones))
+	privateZones := make([]azure.Resource, len(p.PrivateZones))
 	for i, privateZone := range p.PrivateZones {
-		z, err := arm.ParseResourceID(privateZone.GetId())
+		z, err := azure.ParseResourceID(privateZone.GetId())
 		if err != nil {
 			return LoadableProvisioned{}, fmt.Errorf("parsing private zone resource id: %w", err)
 		}
-		privateZones[i] = *z
+		privateZones[i] = z
 	}
 
-	keyVault, err := arm.ParseResourceID(p.KeyVault.GetId())
+	keyVault, err := azure.ParseResourceID(p.KeyVault.GetId())
 	if err != nil {
 		return LoadableProvisioned{}, fmt.Errorf("parsing key vault resource id: %w", err)
 	}
@@ -51,15 +52,15 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 
 	return LoadableProvisioned{
 		Name:                p.Name,
-		Cluster:             *cluster,
+		Cluster:             cluster,
 		ClusterLocation:     p.Cluster.GetLocation(),
 		ClusterDnsServiceIp: p.Cluster.GetDnsServiceIp(),
 		ClusterPrincipalId:  p.Cluster.GetPrincipalId(),
 		ClusterClientId:     p.Cluster.GetClientId(),
-		ContainerRegistry:   *containerRegistry,
+		ContainerRegistry:   containerRegistry,
 		Zones:               zones,
 		PrivateZones:        privateZones,
-		KeyVault:            *keyVault,
+		KeyVault:            keyVault,
 		CertName:            p.Cert.GetName(),
 		CertId:              p.Cert.GetId(),
 		ResourceGroup:       *resourceGroup,

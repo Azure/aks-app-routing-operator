@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+	"github.com/Azure/go-autorest/autorest/azure"
 )
 
 type akv struct {
@@ -28,11 +28,11 @@ type Cert struct {
 	name string
 }
 
-func LoadAkv(id arm.ResourceID) *akv {
+func LoadAkv(id azure.Resource) *akv {
 	return &akv{
 		id:             id.String(),
-		name:           id.Name,
-		resourceGroup:  id.ResourceGroupName,
+		name:           id.ResourceName,
+		resourceGroup:  id.ResourceGroup,
 		subscriptionId: id.SubscriptionID,
 	}
 }
@@ -220,7 +220,7 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 	}
 
 	return &Cert{
-		id:   created.ID.Name(),
+		id:   string(*created.ID),
 		name: name,
 	}, nil
 }

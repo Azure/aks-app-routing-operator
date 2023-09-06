@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -92,7 +93,7 @@ type Provisioned struct {
 }
 
 type LoadableZone struct {
-	ResourceId  arm.ResourceID
+	ResourceId  azure.Resource
 	Nameservers []string
 }
 
@@ -100,15 +101,15 @@ type LoadableZone struct {
 // Ensure that all fields are exported so that they can properly be serialized/deserialized.
 type LoadableProvisioned struct {
 	Name                                                                      string
-	Cluster                                                                   arm.ResourceID
+	Cluster                                                                   azure.Resource
 	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId string
-	ContainerRegistry                                                         arm.ResourceID
+	ContainerRegistry                                                         azure.Resource
 	Zones                                                                     []LoadableZone
-	PrivateZones                                                              []arm.ResourceID
-	KeyVault                                                                  arm.ResourceID
+	PrivateZones                                                              []azure.Resource
+	KeyVault                                                                  azure.Resource
 	CertName                                                                  string
 	CertId                                                                    string
-	ResourceGroup                                                             arm.ResourceID
+	ResourceGroup                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
 	SubscriptionId                                                            string
 	TenantId                                                                  string
 	E2eImage                                                                  string
