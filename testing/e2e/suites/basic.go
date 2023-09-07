@@ -55,6 +55,12 @@ func basicSuite(infra infra.Provisioned) []test {
 					return fmt.Errorf("waiting for client deployment to be available: %w", err)
 				}
 
+				for _, object := range testingResources.Objects() {
+					if err := c.Delete(ctx, object); err != nil {
+						return fmt.Errorf("deleting resource: %w", err)
+					}
+				}
+
 				// wait for testingResources.Client to be ready
 				lgr.Info("finished running basic service")
 				return nil

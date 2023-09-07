@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/go-autorest/autorest/azure"
 )
@@ -39,6 +40,7 @@ func init() {
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
+	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", 3*time.Minute, "interval at which to sync DNS records")
 }
 
 type DnsZoneConfig struct {
@@ -60,6 +62,7 @@ type Config struct {
 	DisableOSM                          bool
 	OperatorDeployment                  string
 	ClusterUid                          string
+	DnsSyncInterval                     time.Duration
 }
 
 func (c *Config) Validate() error {
@@ -96,6 +99,10 @@ func (c *Config) Validate() error {
 		if err := c.ParseAndValidateZoneIDs(dnsZonesString); err != nil {
 			return err
 		}
+	}
+
+	if c.DnsSyncInterval <= 0 {
+		return errors.New("--dns-sync-interval must be greater than 0")
 	}
 
 	return nil

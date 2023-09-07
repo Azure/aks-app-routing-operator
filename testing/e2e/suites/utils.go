@@ -27,7 +27,7 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 			}
 		}
 
-		if time.Since(start) > 6*time.Minute { // 6 minutes because it takes a decent amount of time for dns to "propagate"
+		if time.Since(start) > 10*time.Minute { // 6 minutes because it takes a decent amount of time for dns to "propagate"
 			return fmt.Errorf("timed out waiting for deployment to be available")
 		}
 

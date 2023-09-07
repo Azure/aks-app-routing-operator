@@ -271,7 +271,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 					for {
 						// check if job is complete
 						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=1s job/%s -n %s", obj.GetName(), ns)),
+							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=5s job/%s -n %s", obj.GetName(), ns)),
 						}, runCommandOpts{}); err == nil {
 							break // job is complete
 						} else {
@@ -283,7 +283,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 
 						// check if job is failed
 						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=failed --timeout=1s job/%s -n %s", obj.GetName(), ns)),
+							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=failed --timeout=5s job/%s -n %s", obj.GetName(), ns)),
 						}, runCommandOpts{}); err == nil {
 							getLogsFn()
 							return fmt.Errorf("job/%s failed", obj.GetName())

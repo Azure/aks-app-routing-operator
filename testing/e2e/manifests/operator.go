@@ -3,6 +3,7 @@ package manifests
 import (
 	"math"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
@@ -84,17 +85,15 @@ func (o *OperatorConfig) image(latestImage string) string {
 	switch o.Version {
 	case OperatorVersion0_0_3:
 		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.0.3"
-	default:
+	case OperatorVersionLatest:
 		return latestImage
+	default:
+		panic("unknown operator version")
 	}
 }
 
 // args returns the arguments to pass to the operator
 func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
-	// there's no difference in cli flags between version 0.0.3 and the current one
-	// so we can use the same args for both. this won't always be true. logic will be
-	// added here to modify the args based on the version when needed
-
 	if len(publicZones) < 2 || len(privateZones) < 2 {
 		panic("not enough zones provided")
 	}
@@ -105,6 +104,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--location", o.Location,
 		"--namespace", "app-routing-system",
 		"--cluster-uid", "test-cluster-uid",
+	}
+
+	if o.Version == OperatorVersionLatest {
+		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
 	}
 
 	var zones []string

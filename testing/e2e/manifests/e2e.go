@@ -53,7 +53,7 @@ func E2e(image, loadableProvisionedJson string) []client.Object {
 				Namespace: e2eNamespace,
 			},
 			Spec: batchv1.JobSpec{
-				BackoffLimit: to.Ptr(int32(1)),
+				BackoffLimit: to.Ptr(int32(0)), // this is number of retries, we only want to try once
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						ServiceAccountName: "app-routing-e2e",
