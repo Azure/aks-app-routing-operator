@@ -8,11 +8,17 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+func init() {
+	log.SetLogger(logr.New(log.NullLogSink{})) // without this controller-runtime panics. We use it solely for the client so we can ignore logs
+}
 
 func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
@@ -25,7 +31,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	}
 
 	runTestFn := func(t test, ctx context.Context) *logger.LoggedError {
-		lgr := lgr.With("test", t.GetName())
+		lgr := logger.FromContext(ctx).With("test", t.GetName())
 		ctx = logger.WithContext(ctx, lgr)
 		lgr.Info("starting to run test")
 
@@ -63,7 +69,11 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		for _, t := range runStrategy.tests {
 			func(t test) {
 				eg.Go(func() error {
-					return runTestFn(t, ctx)
+					if err := runTestFn(t, ctx); err != nil {
+						return fmt.Errorf("running test: %w", err)
+					}
+
+					return nil
 				})
 			}(t)
 		}
@@ -163,6 +173,10 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 	if strategy == cleanDeploy {
 		lgr.Info("cleaning old operators")
 		for _, res := range toDeploy {
+			if res.GetObjectKind().GroupVersionKind().Kind == "Namespace" {
+				continue // don't clean up namespace because we will get into race condition of namespace being in terminating state. It's fine to leave it, it's really deleting the other things that we care about.
+			}
+
 			copy := res.DeepCopyObject().(client.Object) // need copy so original object is not mutated
 			if err := cl.Delete(ctx, copy); err != nil && !apierrors.IsNotFound(err) {
 				return fmt.Errorf("deleting resource: %w", err)

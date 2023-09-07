@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -219,8 +220,10 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
+	id := string(*created.ID)
+	id = strings.TrimRight(id, "/pending") // haven't found a better way of getting the cert id other than this so far
 	return &Cert{
-		id:   string(*created.ID),
+		id:   id,
 		name: name,
 	}, nil
 }

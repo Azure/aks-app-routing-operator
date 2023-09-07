@@ -50,6 +50,7 @@ func basicSuite(infra infra.Provisioned) []test {
 					}
 				}
 
+				ctx = logger.WithContext(ctx, lgr.With("client", testingResources.Client.GetName(), "clientNamespace", testingResources.Client.GetNamespace()))
 				if err := waitForAvailable(ctx, c, *testingResources.Client); err != nil {
 					return fmt.Errorf("waiting for client deployment to be available: %w", err)
 				}

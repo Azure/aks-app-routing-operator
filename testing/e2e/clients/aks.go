@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 
@@ -23,6 +24,8 @@ var (
 	// https://kubernetes.io/docs/concepts/workloads/
 	// more specifically, these are compatible with kubectl rollout status
 	workloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet"}
+
+	nonZeroExitCode = errors.New("non-zero exit code")
 )
 
 type aks struct {
@@ -250,19 +253,45 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 					}
 				case kind == "Job":
 					lgr.Info("waiting for job complete")
-					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-						Command: to.Ptr(fmt.Sprintf("kubectl logs --pod-running-timeout=20s --follow job/%s -n %s", obj.GetName(), ns)),
-					}, runCommandOpts{
-						outputFile: fmt.Sprintf("job-%s.log", obj.GetName()), // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
-					}); err != nil {
-						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+
+					getLogsFn := func() error { // right now this just dumps all logs on the pod, if we eventually have more logs
+						// than can be stored we will need to "stream" this by using the --since-time flag
+						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s", obj.GetName(), ns)),
+						}, runCommandOpts{
+							outputFile: fmt.Sprintf("job-%s.log", obj.GetName()), // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
+						}); err != nil {
+							return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+						}
+
+						return nil
 					}
 
-					lgr.Info("checking job status")
-					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-						Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=10s job/%s -n %s", obj.GetName(), ns)),
-					}, runCommandOpts{}); err != nil {
-						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+					// invoke command jobs are supposed to be short-lived, so we have to constantly poll for completion
+					for {
+						// check if job is complete
+						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=1s job/%s -n %s", obj.GetName(), ns)),
+						}, runCommandOpts{}); err == nil {
+							break // job is complete
+						} else {
+							if !errors.Is(err, nonZeroExitCode) { // if the job is not complete, we will get a non-zero exit code
+								getLogsFn()
+								return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+							}
+						}
+
+						// check if job is failed
+						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=failed --timeout=1s job/%s -n %s", obj.GetName(), ns)),
+						}, runCommandOpts{}); err == nil {
+							getLogsFn()
+							return fmt.Errorf("job/%s failed", obj.GetName())
+						}
+					}
+
+					if err := getLogsFn(); err != nil {
+						return fmt.Errorf("getting logs for job/%s: %w", obj.GetName(), err)
 					}
 				}
 
@@ -314,9 +343,8 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 	if result.Properties != nil && result.Properties.Logs != nil {
 		logs = *result.Properties.Logs
 	}
-	lgr.Info("command output: " + logs)
 	if opt.outputFile != "" {
-		outputFile, err := os.Create(opt.outputFile)
+		outputFile, err := os.OpenFile(opt.outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("creating output file %s: %w", opt.outputFile, err)
 		}
@@ -326,9 +354,13 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 		if err != nil {
 			return fmt.Errorf("writing output file %s: %w", opt.outputFile, err)
 		}
+	} else {
+		lgr.Info("command output: " + logs)
 	}
+
 	if *result.Properties.ExitCode != 0 {
-		return fmt.Errorf("command failed with exit code %d", *result.Properties.ExitCode)
+		lgr.Info(fmt.Sprintf("command failed with exit code %d", *result.Properties.ExitCode))
+		return nonZeroExitCode
 	}
 
 	return nil
