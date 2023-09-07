@@ -52,6 +52,6 @@ func (o operatorDeployStrategy) string() string {
 	case cleanDeploy:
 		return "cleanDeploy"
 	default:
-		return "unknown"
+		panic("unknown operator deploy strategy")
 	}
 }

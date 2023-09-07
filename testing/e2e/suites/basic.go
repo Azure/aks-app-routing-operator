@@ -15,16 +15,20 @@ func basicSuite(infra infra.Provisioned) []test {
 	return []test{
 		{
 			name: "public basic ingress",
-			cfgs: operatorCfgs{
-				{
-					Msi:      infra.Cluster.GetClientId(),
-					TenantId: infra.TenantId,
-					Location: infra.Cluster.GetLocation(),
-				},
-			}.
-				WithAllOsm().
-				withPublicZones(manifests.DnsZoneCountOne).
-				withVersions(manifests.OperatorVersionLatest, manifests.OperatorVersion0_0_3),
+			cfgs: builderFromInfra(infra).
+				withOsm(false).
+				withVersions(manifests.OperatorVersionLatest, manifests.OperatorVersion0_0_3).
+				withZones(
+					manifests.DnsZones{
+						Public:  manifests.DnsZoneCountOne,
+						Private: manifests.DnsZoneCountNone,
+					},
+					manifests.DnsZones{
+						Public:  manifests.DnsZoneCountMultiple,
+						Private: manifests.DnsZoneCountNone,
+					},
+				).
+				build(),
 			run: func(ctx context.Context, config *rest.Config) error {
 				lgr := logger.FromContext(ctx)
 				lgr.Info("running basic service")
@@ -61,7 +65,6 @@ func basicSuite(infra infra.Provisioned) []test {
 					}
 				}
 
-				// wait for testingResources.Client to be ready
 				lgr.Info("finished running basic service")
 				return nil
 			},

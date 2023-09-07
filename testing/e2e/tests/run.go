@@ -23,7 +23,7 @@ func init() {
 func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("determining testing order")
-	ordered := t.order(ctx, infra)
+	ordered := t.order(ctx)
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -50,6 +50,17 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	privateZones := make([]string, len(infra.PrivateZones))
 	for i, zone := range infra.PrivateZones {
 		privateZones[i] = zone.GetId()
+	}
+
+	for i, runStrategy := range ordered {
+		lgr.Info("run strategy testing order",
+			"index", i,
+			"operatorVersion", runStrategy.config.Version.String(),
+			"operatorDeployStrategy", runStrategy.operatorDeployStrategy.string(),
+			"privateZones", runStrategy.config.Zones.Private.String(),
+			"publicZones", runStrategy.config.Zones.Public.String(),
+			"disableOsm", runStrategy.config.DisableOsm,
+		)
 	}
 
 	lgr.Info("starting to run tests")
@@ -87,9 +98,12 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	return nil
 }
 
-// order builds the testing order for the given tests. The logic is as follows
-func (t Ts) order(ctx context.Context, infra infra.Provisioned) ordered {
+// order builds the testing order for the given tests
+func (t Ts) order(ctx context.Context) ordered {
+	lgr := logger.FromContext(ctx)
+
 	// group tests by operator version
+	lgr.Info("grouping tests by operator version")
 	operatorVersionSet := make(map[manifests.OperatorVersion][]testWithConfig)
 	for _, test := range t {
 		for _, config := range test.GetOperatorConfigs() {
@@ -101,11 +115,14 @@ func (t Ts) order(ctx context.Context, infra infra.Provisioned) ordered {
 		}
 	}
 
+	lgr.Info("operator version set", "operatorVersionSet", operatorVersionSet)
+
 	// order operator versions in ascending order
 	versions := keys(operatorVersionSet)
 	sort.Slice(versions, func(i, j int) bool {
 		return versions[i] < versions[j]
 	})
+	lgr.Info("sorted operator versions", "versions", versions)
 
 	if len(versions) == 0 { // would mean no tests were supplied
 		return nil
@@ -122,10 +139,18 @@ func (t Ts) order(ctx context.Context, infra infra.Provisioned) ordered {
 			operatorCfgSet[test.config] = append(operatorCfgSet[test.config], test)
 		}
 
-		testsForVersion := make([]testsWithRunInfo, 0, len(operatorCfgSet))
+		testsForVersion := make([]testsWithRunInfo, 0)
 		for cfg := range operatorCfgSet {
+			if cfg.Version != version {
+				continue
+			}
+
 			var tests []test
 			for _, test := range operatorCfgSet[cfg] {
+				if test.config.Version != version {
+					continue
+				}
+
 				tests = append(tests, test.test)
 			}
 
@@ -136,6 +161,7 @@ func (t Ts) order(ctx context.Context, infra infra.Provisioned) ordered {
 			})
 		}
 		ret = append(ret, testsForVersion...)
+		lgr.Info("tests for version", "version", version, "tests", testsForVersion)
 
 		// operatorVersionLatest should always be the last version in the sorted versions
 		if version == manifests.OperatorVersionLatest {
@@ -150,6 +176,8 @@ func (t Ts) order(ctx context.Context, infra infra.Provisioned) ordered {
 			}
 			ret = append(ret, new...)
 		}
+
+		lgr.Info("ret", "ret", ret)
 	}
 
 	return ret
