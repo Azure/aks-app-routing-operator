@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -115,14 +118,11 @@ func (t Ts) order(ctx context.Context) ordered {
 		}
 	}
 
-	lgr.Info("operator version set", "operatorVersionSet", operatorVersionSet)
-
 	// order operator versions in ascending order
 	versions := keys(operatorVersionSet)
 	sort.Slice(versions, func(i, j int) bool {
 		return versions[i] < versions[j]
 	})
-	lgr.Info("sorted operator versions", "versions", versions)
 
 	if len(versions) == 0 { // would mean no tests were supplied
 		return nil
@@ -132,36 +132,29 @@ func (t Ts) order(ctx context.Context) ordered {
 	}
 
 	// combine tests that use the same operator configuration and operator version, so they can run in parallel
-	ret := make(ordered, 0, len(t))
+	lgr.Info("grouping tests by operator configuration")
+	ret := make(ordered, 0)
 	for _, version := range versions {
+		// group tests by operator configuration
 		operatorCfgSet := make(map[manifests.OperatorConfig][]testWithConfig)
 		for _, test := range operatorVersionSet[version] {
 			operatorCfgSet[test.config] = append(operatorCfgSet[test.config], test)
 		}
 
 		testsForVersion := make([]testsWithRunInfo, 0)
-		for cfg := range operatorCfgSet {
-			if cfg.Version != version {
-				continue
+		for cfg, tests := range operatorCfgSet {
+			var casted []test
+			for _, test := range tests {
+				casted = append(casted, test.test)
 			}
 
-			var tests []test
-			for _, test := range operatorCfgSet[cfg] {
-				if test.config.Version != version {
-					continue
-				}
-
-				tests = append(tests, test.test)
-			}
-
-			testsForVersion = append(ret, testsWithRunInfo{
-				tests:                  tests,
+			testsForVersion = append(testsForVersion, testsWithRunInfo{
+				tests:                  casted,
 				config:                 cfg,
 				operatorDeployStrategy: upgrade,
 			})
 		}
 		ret = append(ret, testsForVersion...)
-		lgr.Info("tests for version", "version", version, "tests", testsForVersion)
 
 		// operatorVersionLatest should always be the last version in the sorted versions
 		if version == manifests.OperatorVersionLatest {
@@ -176,8 +169,6 @@ func (t Ts) order(ctx context.Context) ordered {
 			}
 			ret = append(ret, new...)
 		}
-
-		lgr.Info("ret", "ret", ret)
 	}
 
 	return ret
@@ -209,7 +200,40 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 			if err := cl.Delete(ctx, copy); err != nil && !apierrors.IsNotFound(err) {
 				return fmt.Errorf("deleting resource: %w", err)
 			}
+
+			// wait for namespace to be fully deleted
 		}
+
+		lgr.Info("cleaning old testing namespaces")
+		var list corev1.NamespaceList
+		if err := cl.List(ctx, &list, client.MatchingLabels{manifests.ManagedByKey: manifests.ManagedByVal}); err != nil {
+			return fmt.Errorf("listing testing namespaces: %w", err)
+		}
+
+		for _, ns := range list.Items {
+			if err := cl.Delete(ctx, &ns); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("deleting testing namespace: %w", err)
+			}
+		}
+
+		// wait for namespaces to be fully deleted, we will redeploy same namespace for clean deploy scenarios
+		for _, ns := range list.Items {
+			if err := wait.PollImmediate(1*time.Second, 2*time.Minute, func() (bool, error) {
+				var copy corev1.Namespace
+				if err := cl.Get(ctx, client.ObjectKey{Name: ns.Name}, &copy); err != nil {
+					if apierrors.IsNotFound(err) {
+						return true, nil
+					}
+
+					return false, fmt.Errorf("getting namespace: %w", err)
+				}
+
+				return false, nil
+			}); err != nil {
+				return fmt.Errorf("waiting for namespace to be deleted: %w", err)
+			}
+		}
+
 	}
 
 	lgr.Info("deploying operator")

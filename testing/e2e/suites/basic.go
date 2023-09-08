@@ -11,6 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var (
+	publicBasicIngressNs = manifests.UncollisionedNs() // using a shared ns allows us to appropriately test upgrade scenarios
+)
+
 func basicSuite(infra infra.Provisioned) []test {
 	return []test{
 		{
@@ -39,30 +43,23 @@ func basicSuite(infra infra.Provisioned) []test {
 				}
 
 				lgr.Info("creating namespace")
-				ns := manifests.UncollisionedNs()
-				if err := c.Create(ctx, ns); err != nil {
-					return fmt.Errorf("creating ns: %w", err)
+				if err := upsert(ctx, c, publicBasicIngressNs); err != nil {
+					return fmt.Errorf("upserting ns: %w", err)
 				}
-				lgr = lgr.With("namespace", ns.Name)
+				lgr = lgr.With("namespace", publicBasicIngressNs.Name)
 				ctx = logger.WithContext(ctx, lgr)
 
 				zone := infra.Zones[0]
-				testingResources := manifests.ClientAndServer(ns.Name, "basic-service-test", zone.GetName(), zone.GetNameservers()[0], infra.Cert.GetId())
+				testingResources := manifests.ClientAndServer(publicBasicIngressNs.Name, "basic-service-test", zone.GetName(), zone.GetNameservers()[0], infra.Cert.GetId())
 				for _, object := range testingResources.Objects() {
-					if err := c.Create(ctx, object); err != nil {
-						return fmt.Errorf("creating resource: %w", err)
+					if err := upsert(ctx, c, object); err != nil {
+						return fmt.Errorf("upserting resource: %w", err)
 					}
 				}
 
 				ctx = logger.WithContext(ctx, lgr.With("client", testingResources.Client.GetName(), "clientNamespace", testingResources.Client.GetNamespace()))
 				if err := waitForAvailable(ctx, c, *testingResources.Client); err != nil {
 					return fmt.Errorf("waiting for client deployment to be available: %w", err)
-				}
-
-				for _, object := range testingResources.Objects() {
-					if err := c.Delete(ctx, object); err != nil {
-						return fmt.Errorf("deleting resource: %w", err)
-					}
 				}
 
 				lgr.Info("finished running basic service")

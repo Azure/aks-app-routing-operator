@@ -254,12 +254,17 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 				case kind == "Job":
 					lgr.Info("waiting for job complete")
 
+					outputFile := fmt.Sprintf("job-%s.log", obj.GetName()) // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
+					if err := os.RemoveAll(outputFile); err != nil {       // clean out previous log file, if doesn't exist returns nil
+						return fmt.Errorf("removing previous job log file: %w", err)
+					}
+
 					getLogsFn := func() error { // right now this just dumps all logs on the pod, if we eventually have more logs
 						// than can be stored we will need to "stream" this by using the --since-time flag
 						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
 							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s", obj.GetName(), ns)),
 						}, runCommandOpts{
-							outputFile: fmt.Sprintf("job-%s.log", obj.GetName()), // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
+							outputFile: outputFile,
 						}); err != nil {
 							return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
 						}
