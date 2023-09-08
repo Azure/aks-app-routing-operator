@@ -49,8 +49,6 @@ Infrastructures are defined in [/testing/e2e/infra/infras.go](../testing/e2e/inf
 
 Tests are defined in [/testing/e2e/suites/](../testing/e2e/suites/). Add any new tests here. [This](../testing/e2e/suites/basic.go) is a good reference for defining a test. Be sure to add any new suites to the [all function](../testing/e2e/suites/all.go) so that they are run.
 
-
-
 ## GitHub Runner
 
 todo: will fill in details when I add GitHub workflows to run new e2e
