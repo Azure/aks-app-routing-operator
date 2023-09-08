@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	controllerImageTag = "v1.3.0"
+	controllerImageTag = "v1.8.1"
 	prom               = "prometheus"
 )
 
@@ -106,6 +106,8 @@ func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deploymen
 		newNginxIngressControllerServiceAccount(conf, ingressConfig),
 		newNginxIngressControllerClusterRole(conf, ingressConfig),
 		newNginxIngressControllerClusterRoleBinding(conf, ingressConfig),
+		newNginxIngressControllerRole(conf, ingressConfig),
+		newNginxIngressControllerRoleBinding(conf, ingressConfig),
 		newNginxIngressControllerService(conf, ingressConfig),
 		newNginxIngressControllerDeployment(conf, ingressConfig),
 		newNginxIngressControllerConfigmap(conf, ingressConfig),
@@ -151,13 +153,23 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{""},
-				Resources: []string{"endpoints", "pods", "services", "secrets", "configmaps"},
-				Verbs:     []string{"get", "watch", "list"},
+				Resources: []string{"configmaps", "endpoints", "nodes", "pods", "secrets", "namespaces"},
+				Verbs:     []string{"list", "watch"},
+			},
+			{
+				APIGroups: []string{"coordination.k8s.io"},
+				Resources: []string{"leases"},
+				Verbs:     []string{"list", "watch"},
 			},
 			{
 				APIGroups: []string{""},
-				Resources: []string{"configmaps", "events"},
-				Verbs:     []string{"*"},
+				Resources: []string{"nodes"},
+				Verbs:     []string{"get"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"services"},
+				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
 				APIGroups: []string{"networking.k8s.io"},
@@ -165,26 +177,97 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 				Verbs:     []string{"get", "watch", "list"},
 			},
 			{
+				APIGroups: []string{""},
+				Resources: []string{"events"},
+				Verbs:     []string{"create", "patch"},
+			},
+			{
 				APIGroups: []string{"networking.k8s.io"},
 				Resources: []string{"ingresses/status"},
-				Verbs:     []string{"*"},
+				Verbs:     []string{"update"},
 			},
 			{
 				APIGroups: []string{"networking.k8s.io"},
 				Resources: []string{"ingressclasses"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"discovery.k8s.io"},
+				Resources: []string{"endpointslices"},
 				Verbs:     []string{"list", "watch", "get"},
+			},
+		},
+	}
+}
+
+func newNginxIngressControllerRole(conf *config.Config, ingressConfig *NginxIngressConfig) *rbacv1.Role {
+	return &rbacv1.Role{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Role",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ingressConfig.ResourceName,
+			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Namespace: conf.NS,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get"},
+			},
+			// temporary permission used for update from 1.3.0->1.8.1
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"update"},
 			},
 			{
 				APIGroups: []string{""},
-				Resources: []string{"nodes"},
-				Verbs:     []string{"watch", "list"},
+				Resources: []string{"configmaps", "pods", "secrets", "endpoints"},
+				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
-				// required as of v1.3.0 due to controller switch to lease api
-				// https://github.com/kubernetes/ingress-nginx/releases/tag/controller-v1.3.0
+				APIGroups: []string{""},
+				Resources: []string{"services"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"networking.k8s.io"},
+				Resources: []string{"ingresses"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"networking.k8s.io"},
+				Resources: []string{"ingresses/status"},
+				Verbs:     []string{"update"},
+			},
+			{
+				APIGroups: []string{"networking.k8s.io"},
+				Resources: []string{"ingressclasses"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups:     []string{"coordination.k8s.io"},
+				Resources:     []string{"leases"},
+				ResourceNames: []string{ingressConfig.ResourceName},
+				Verbs:         []string{"get", "update"},
+			},
+			{
 				APIGroups: []string{"coordination.k8s.io"},
 				Resources: []string{"leases"},
-				Verbs:     []string{"*"},
+				Verbs:     []string{"create"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"events"},
+				Verbs:     []string{"create", "patch"},
+			},
+			{
+				APIGroups: []string{"discovery.k8s.io"},
+				Resources: []string{"endpointslices"},
+				Verbs:     []string{"list", "watch", "get"},
 			},
 		},
 	}
@@ -203,6 +286,30 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
+			Name:     ingressConfig.ResourceName,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      ingressConfig.ResourceName,
+			Namespace: conf.NS,
+		}},
+	}
+}
+
+func newNginxIngressControllerRoleBinding(conf *config.Config, ingressConfig *NginxIngressConfig) *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "RoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ingressConfig.ResourceName,
+			Namespace: conf.NS,
+			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
 			Name:     ingressConfig.ResourceName,
 		},
 		Subjects: []rbacv1.Subject{{

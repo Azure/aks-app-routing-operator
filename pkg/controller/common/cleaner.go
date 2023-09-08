@@ -45,7 +45,7 @@ func NewCleaner(manager ctrl.Manager, name controllername.ControllerNamer, gvrRe
 		return fmt.Errorf("creating clientset: %w", err)
 	}
 
-	mapper, err := apiutil.NewDynamicRESTMapper(manager.GetConfig(), apiutil.WithLazyDiscovery)
+	mapper, err := apiutil.NewDynamicRESTMapper(manager.GetConfig(), manager.GetHTTPClient())
 	if err != nil {
 		return fmt.Errorf("creating dynamic rest mapper: %w", err)
 	}
