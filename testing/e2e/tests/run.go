@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -192,16 +193,14 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 	if strategy == cleanDeploy {
 		lgr.Info("cleaning old operators")
 		for _, res := range toDeploy {
+			// don't cleanup the namespace, we will reuse it. it's just wasted time
 			if res.GetObjectKind().GroupVersionKind().Kind == "Namespace" {
-				continue // don't clean up namespace because we will get into race condition of namespace being in terminating state. It's fine to leave it, it's really deleting the other things that we care about.
+				continue
 			}
 
-			copy := res.DeepCopyObject().(client.Object) // need copy so original object is not mutated
-			if err := cl.Delete(ctx, copy); err != nil && !apierrors.IsNotFound(err) {
+			if err := cl.Delete(ctx, res); err != nil && !apierrors.IsNotFound(err) {
 				return fmt.Errorf("deleting resource: %w", err)
 			}
-
-			// wait for namespace to be fully deleted
 		}
 
 		lgr.Info("cleaning old testing namespaces")
@@ -233,7 +232,6 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 				return fmt.Errorf("waiting for namespace to be deleted: %w", err)
 			}
 		}
-
 	}
 
 	lgr.Info("deploying operator")
@@ -245,6 +243,25 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 		}
 		if err != nil {
 			return fmt.Errorf("creating or updating resource: %w", err)
+		}
+
+		// if res is deployment, wait for it to be ready
+		if res.GetObjectKind().GroupVersionKind().Kind == "Deployment" {
+			if err := wait.PollImmediate(1*time.Second, 2*time.Minute, func() (bool, error) {
+				var copy appsv1.Deployment
+				if err := c.Get(ctx, client.ObjectKeyFromObject(res), &copy); err != nil {
+					return false, fmt.Errorf("getting deployment: %w", err)
+				}
+
+				// check rollout status of deployment
+				if copy.Status.UpdatedReplicas != *copy.Spec.Replicas {
+					return false, nil
+				}
+
+				return true, nil
+			}); err != nil {
+				return fmt.Errorf("waiting for deployment to be ready: %w", err)
+			}
 		}
 	}
 

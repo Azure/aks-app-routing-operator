@@ -126,7 +126,6 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("creating cluster: %w", err)
 	}
 
-	lgr.Info("important: ", result.Identity.UserAssignedIdentities)
 	identity, ok := result.Properties.IdentityProfile["kubeletidentity"]
 	if !ok {
 		return nil, fmt.Errorf("kubelet identity not found")
