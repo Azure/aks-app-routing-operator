@@ -43,6 +43,14 @@ The testing order would be calculated as something like this.
 
 Each row represents the tests and operator configuration that is run in parallel. We wait for tests to finish running for an operator configuration before testing the next configuration.
 
+## Adding new scenarios
+
+Infrastructures are defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go). Add any new AKS cluster configurations here.
+
+Tests are defined in [/testing/e2e/suites/](../testing/e2e/suites/). Add any new tests here. [This](../testing/e2e/suites/basic.go) is a good reference for defining a test. Be sure to add any new suites to the [all function](../testing/e2e/suites/all.go) so that they are run.
+
+
+
 ## GitHub Runner
 
 todo: will fill in details when I add GitHub workflows to run new e2e
@@ -58,4 +66,4 @@ go run ./main.go infra --subscription=<subscriptionId> --tenant=<tenantId> --nam
 go run ./main.go deploy # deploys the testing job to the cluster and exits based on job status. also uploads logs to local file
 ```
 
-You can replace `basic cluster` with the name of any infrastructure defined in `/testing/e2e/infra/infras.go`. 
+You can replace `basic cluster` with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go). 
