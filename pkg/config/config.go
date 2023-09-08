@@ -15,9 +15,10 @@ import (
 
 const (
 	// DefaultNs is the default namespace for the resources deployed by this operator
-	DefaultNs       = "app-routing-system"
-	PublicZoneType  = "dnszones"
-	PrivateZoneType = "privatednszones"
+	DefaultNs              = "app-routing-system"
+	PublicZoneType         = "dnszones"
+	PrivateZoneType        = "privatednszones"
+	defaultDnsSyncInterval = 3 * time.Minute
 )
 
 var Flags = &Config{}
@@ -40,7 +41,7 @@ func init() {
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
-	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", 3*time.Minute, "interval at which to sync DNS records")
+	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 }
 
 type DnsZoneConfig struct {
@@ -102,7 +103,7 @@ func (c *Config) Validate() error {
 	}
 
 	if c.DnsSyncInterval <= 0 {
-		return errors.New("--dns-sync-interval must be greater than 0")
+		c.DnsSyncInterval = defaultDnsSyncInterval
 	}
 
 	return nil
