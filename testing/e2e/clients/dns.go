@@ -75,8 +75,26 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 		return nil, fmt.Errorf("creating zone: %w", err)
 	}
 
+	// guard against two things that should be impossible
+	if resp.Properties == nil {
+		return nil, fmt.Errorf("zone properties are nil")
+	}
+	if resp.Properties.NameServers == nil {
+		return nil, fmt.Errorf("zone nameservers are nil")
+	}
+	if resp.Name == nil {
+		return nil, fmt.Errorf("zone name is nil")
+	}
+	if resp.ID == nil {
+		return nil, fmt.Errorf("zone id is nil")
+	}
+
 	nameservers := make([]string, len(resp.Properties.NameServers))
 	for i, ns := range resp.Properties.NameServers {
+		if ns == nil {
+			return nil, fmt.Errorf("zone nameserver %d is nil", i)
+		}
+
 		nameservers[i] = *ns
 	}
 
@@ -170,6 +188,14 @@ func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name str
 	result, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating private zone: %w", err)
+	}
+
+	// guard against things that should be impossible
+	if result.PrivateZone.Name == nil {
+		return nil, fmt.Errorf("private zone name is nil")
+	}
+	if result.ID == nil {
+		return nil, fmt.Errorf("private zone id is nil")
 	}
 
 	return &privateZone{

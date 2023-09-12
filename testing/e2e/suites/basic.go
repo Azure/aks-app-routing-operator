@@ -21,7 +21,7 @@ func basicSuite(infra infra.Provisioned) []test {
 			name: "public basic ingress",
 			cfgs: builderFromInfra(infra).
 				withOsm(false).
-				withVersions(manifests.OperatorVersionLatest, manifests.OperatorVersion0_0_3).
+				withVersions(manifests.AllOperatorVersions...).
 				withZones(
 					manifests.DnsZones{
 						Public:  manifests.DnsZoneCountOne,

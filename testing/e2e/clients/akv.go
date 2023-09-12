@@ -92,6 +92,17 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("waiting for vault creation to complete: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if result.Properties == nil {
+		return nil, fmt.Errorf("vault properties are nil")
+	}
+	if result.Properties.VaultURI == nil {
+		return nil, fmt.Errorf("vault uri is nil")
+	}
+	if result.ID == nil {
+		return nil, fmt.Errorf("vault id is nil")
+	}
+
 	return &akv{
 		uri:            *result.Properties.VaultURI,
 		id:             *result.ID,
@@ -218,6 +229,11 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 	created, err := client.CreateCertificate(ctx, name, *c, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating certificate: %w", err)
+	}
+
+	// guard against things that should be impossible
+	if created.ID == nil {
+		return nil, fmt.Errorf("created certificate has nil id")
 	}
 
 	id := string(*created.ID)

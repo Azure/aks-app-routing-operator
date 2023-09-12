@@ -14,21 +14,22 @@ import (
 
 type Role struct {
 	Name string
-	Id   string
+	// format string with a single %s for the subscription id
+	Id string
 }
 
 var (
 	DnsContributorRole = Role{
 		Name: "DNS Zone Contributor",
-		Id:   "/subscriptions/8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8/providers/Microsoft.Authorization/roleDefinitions/befefa01-2a29-4197-83a8-272ff33ce314",
+		Id:   "/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/befefa01-2a29-4197-83a8-272ff33ce314",
 	}
 	PrivateDnsContributorRole = Role{
 		Name: "Private DNS Zone Contributor",
-		Id:   "/subscriptions/8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8/providers/Microsoft.Authorization/roleDefinitions/b12aa53e-6015-4669-85d0-8515ebb3ae7f",
+		Id:   "/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b12aa53e-6015-4669-85d0-8515ebb3ae7f",
 	}
 	AcrPullRole = Role{
 		Name: "AcrPull",
-		Id:   "/subscriptions/8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d",
+		Id:   "/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d",
 	}
 )
 
@@ -52,7 +53,7 @@ func NewRoleAssignment(ctx context.Context, subscriptionId, scope, principalId s
 
 	_, err = client.Create(ctx, scope, uuid.New().String(), armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
-			RoleDefinitionID: to.Ptr(role.Id),
+			RoleDefinitionID: to.Ptr(fmt.Sprintf(role.Id, subscriptionId)),
 			PrincipalID:      to.Ptr(principalId),
 		},
 	}, nil)

@@ -62,6 +62,14 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("waiting for registry creation to complete: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if result.ID == nil {
+		return nil, fmt.Errorf("id is nil")
+	}
+	if result.Name == nil {
+		return nil, fmt.Errorf("name is nil")
+	}
+
 	return &acr{
 		id:             *result.ID,
 		name:           *result.Name,

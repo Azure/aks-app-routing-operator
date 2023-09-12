@@ -19,6 +19,9 @@ var (
 	operatorDeploymentLabels = map[string]string{
 		"app": "app-routing-operator",
 	}
+
+	// AllOperatorVersions is a list of all the operator versions
+	AllOperatorVersions = []OperatorVersion{OperatorVersion0_0_3, OperatorVersionLatest}
 )
 
 // OperatorVersion is an enum for the different versions of the operator

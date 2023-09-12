@@ -126,9 +126,30 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("creating cluster: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if result.ManagedCluster.Properties == nil {
+		return nil, fmt.Errorf("managed cluster properties is nil")
+	}
+	if result.ManagedCluster.Properties.IdentityProfile == nil {
+		return nil, fmt.Errorf("managed cluster identity profile is nil")
+	}
+	if result.ManagedCluster.Name == nil {
+		return nil, fmt.Errorf("managed cluster name is nil")
+	}
+	if result.Properties.NetworkProfile.DNSServiceIP == nil {
+		return nil, fmt.Errorf("dns service ip is nil")
+	}
+
 	identity, ok := result.Properties.IdentityProfile["kubeletidentity"]
 	if !ok {
 		return nil, fmt.Errorf("kubelet identity not found")
+	}
+
+	if identity.ObjectID == nil {
+		return nil, fmt.Errorf("kubelet identity object id is nil")
+	}
+	if identity.ClientID == nil {
+		return nil, fmt.Errorf("kubelet identity client id is nil")
 	}
 
 	return &aks{

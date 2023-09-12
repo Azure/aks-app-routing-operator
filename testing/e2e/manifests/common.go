@@ -94,3 +94,15 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 		},
 	}
 }
+
+// UncollisionedNs returns a namespace with a guaranteed unique name after creating the namespace
+func UncollisionedNs() *corev1.Namespace {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "app-routing-e2e-",
+			Labels: map[string]string{
+				ManagedByKey: ManagedByVal,
+			},
+		},
+	}
+}
