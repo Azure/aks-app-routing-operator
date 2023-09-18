@@ -79,7 +79,7 @@ jobs:
       - uses: actions/download-artifact@master
         with:
           name: infra
-          path: testing/e2e/infra.json
+          path: testing/e2e/
 
       - name: Test
         shell: bash
