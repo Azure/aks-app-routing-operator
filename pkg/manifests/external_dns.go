@@ -259,7 +259,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
-							"--interval=3m0s",
+							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 						}, domainFilters...),
 						VolumeMounts: []corev1.VolumeMount{{

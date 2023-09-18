@@ -6,9 +6,9 @@ import (
 	"os/exec"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"golang.org/x/exp/slog"
 )
 
@@ -19,11 +19,11 @@ type acr struct {
 	subscriptionId string
 }
 
-func LoadAcr(id arm.ResourceID) *acr {
+func LoadAcr(id azure.Resource) *acr {
 	return &acr{
 		id:             id.String(),
-		name:           id.Name,
-		resourceGroup:  id.ResourceGroupName,
+		name:           id.ResourceName,
+		resourceGroup:  id.ResourceGroup,
 		subscriptionId: id.SubscriptionID,
 	}
 }
@@ -62,6 +62,14 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("waiting for registry creation to complete: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if result.ID == nil {
+		return nil, fmt.Errorf("id is nil")
+	}
+	if result.Name == nil {
+		return nil, fmt.Errorf("name is nil")
+	}
+
 	return &acr{
 		id:             *result.ID,
 		name:           *result.Name,
@@ -87,7 +95,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 	// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
 	// I matched everything on the az cli but wasn't able to get it working with the sdk.
 	// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
-	cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, dockerfilePath)
+	cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, dockerfilePath)
 	cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
 	cmd.Stderr = newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError))
 	if err := cmd.Run(); err != nil {

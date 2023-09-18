@@ -5,15 +5,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,11 +24,17 @@ var (
 	// https://kubernetes.io/docs/concepts/workloads/
 	// more specifically, these are compatible with kubectl rollout status
 	workloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet"}
+
+	nonZeroExitCode = errors.New("non-zero exit code")
 )
 
 type aks struct {
 	name, subscriptionId, resourceGroup string
 	id                                  string
+	dnsServiceIp                        string
+	location                            string
+	principalId                         string
+	clientId                            string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -47,12 +54,16 @@ func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
 	return nil
 }
 
-func LoadAks(id arm.ResourceID) *aks {
+func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string) *aks {
 	return &aks{
-		id:             id.String(),
-		name:           id.Name,
-		resourceGroup:  id.ResourceGroupName,
+		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
+		resourceGroup:  id.ResourceGroup,
+		id:             id.String(),
+		clientId:       clientId,
+		dnsServiceIp:   dnsServiceIp,
+		location:       location,
+		principalId:    principalId,
 	}
 }
 
@@ -85,6 +96,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 					Name:   to.Ptr("default"),
 					VMSize: to.Ptr("Standard_DS3_v2"),
 					Count:  to.Ptr(int32(2)),
+					Mode:   to.Ptr(armcontainerservice.AgentPoolModeSystem),
 				},
 			},
 			AddonProfiles: map[string]*armcontainerservice.ManagedClusterAddonProfile{
@@ -114,11 +126,41 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("creating cluster: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if result.ManagedCluster.Properties == nil {
+		return nil, fmt.Errorf("managed cluster properties is nil")
+	}
+	if result.ManagedCluster.Properties.IdentityProfile == nil {
+		return nil, fmt.Errorf("managed cluster identity profile is nil")
+	}
+	if result.ManagedCluster.Name == nil {
+		return nil, fmt.Errorf("managed cluster name is nil")
+	}
+	if result.Properties.NetworkProfile.DNSServiceIP == nil {
+		return nil, fmt.Errorf("dns service ip is nil")
+	}
+
+	identity, ok := result.Properties.IdentityProfile["kubeletidentity"]
+	if !ok {
+		return nil, fmt.Errorf("kubelet identity not found")
+	}
+
+	if identity.ObjectID == nil {
+		return nil, fmt.Errorf("kubelet identity object id is nil")
+	}
+	if identity.ClientID == nil {
+		return nil, fmt.Errorf("kubelet identity client id is nil")
+	}
+
 	return &aks{
-		id:             *result.ManagedCluster.ID,
 		name:           *result.ManagedCluster.Name,
 		subscriptionId: subscriptionId,
 		resourceGroup:  resourceGroup,
+		id:             *result.ManagedCluster.ID,
+		dnsServiceIp:   *result.Properties.NetworkProfile.DNSServiceIP,
+		location:       location,
+		principalId:    *identity.ObjectID,
+		clientId:       *identity.ClientID,
 	}, nil
 }
 
@@ -186,7 +228,7 @@ func (a *aks) Clean(ctx context.Context, objs []client.Object) error {
 	encoded := base64.StdEncoding.EncodeToString(zip)
 
 	if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-		Command: to.Ptr("kubectl delete -f manifests/"),
+		Command: to.Ptr("kubectl delete -f manifests/ --ignore-not-found=true"),
 		Context: &encoded,
 	}, runCommandOpts{}); err != nil {
 		return fmt.Errorf("running kubectl delete: %w", err)
@@ -231,19 +273,50 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 					}
 				case kind == "Job":
 					lgr.Info("waiting for job complete")
-					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-						Command: to.Ptr(fmt.Sprintf("kubectl logs --pod-running-timeout=20s --follow job/%s -n %s", obj.GetName(), ns)),
-					}, runCommandOpts{
-						outputFile: fmt.Sprintf("job-%s.log", obj.GetName()), // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
-					}); err != nil {
-						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+
+					outputFile := fmt.Sprintf("job-%s.log", obj.GetName()) // output to a file for jobs because jobs are naturally different from other deployment resources in that waiting for "stability" is waiting for them to complete
+					if err := os.RemoveAll(outputFile); err != nil {       // clean out previous log file, if doesn't exist returns nil
+						return fmt.Errorf("removing previous job log file: %w", err)
 					}
 
-					lgr.Info("checking job status")
-					if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-						Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=10s job/%s -n %s", obj.GetName(), ns)),
-					}, runCommandOpts{}); err != nil {
-						return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+					getLogsFn := func() error { // right now this just dumps all logs on the pod, if we eventually have more logs
+						// than can be stored we will need to "stream" this by using the --since-time flag
+						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s", obj.GetName(), ns)),
+						}, runCommandOpts{
+							outputFile: outputFile,
+						}); err != nil {
+							return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+						}
+
+						return nil
+					}
+
+					// invoke command jobs are supposed to be short-lived, so we have to constantly poll for completion
+					for {
+						// check if job is complete
+						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=complete --timeout=5s job/%s -n %s", obj.GetName(), ns)),
+						}, runCommandOpts{}); err == nil {
+							break // job is complete
+						} else {
+							if !errors.Is(err, nonZeroExitCode) { // if the job is not complete, we will get a non-zero exit code
+								getLogsFn()
+								return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+							}
+						}
+
+						// check if job is failed
+						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
+							Command: to.Ptr(fmt.Sprintf("kubectl wait --for=condition=failed --timeout=5s job/%s -n %s", obj.GetName(), ns)),
+						}, runCommandOpts{}); err == nil {
+							getLogsFn()
+							return fmt.Errorf("job/%s failed", obj.GetName())
+						}
+					}
+
+					if err := getLogsFn(); err != nil {
+						return fmt.Errorf("getting logs for job/%s: %w", obj.GetName(), err)
 					}
 				}
 
@@ -291,21 +364,28 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 		return fmt.Errorf("running command: %w", err)
 	}
 
-	lgr.Info("command output: " + *result.Properties.Logs)
+	logs := ""
+	if result.Properties != nil && result.Properties.Logs != nil {
+		logs = *result.Properties.Logs
+	}
 	if opt.outputFile != "" {
-		outputFile, err := os.Create(opt.outputFile)
+		outputFile, err := os.OpenFile(opt.outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("creating output file %s: %w", opt.outputFile, err)
 		}
 		defer outputFile.Close()
 
-		_, err = outputFile.WriteString(*result.Properties.Logs)
+		_, err = outputFile.WriteString(logs)
 		if err != nil {
 			return fmt.Errorf("writing output file %s: %w", opt.outputFile, err)
 		}
+	} else {
+		lgr.Info("command output: " + logs)
 	}
+
 	if *result.Properties.ExitCode != 0 {
-		return fmt.Errorf("command failed with exit code %d", *result.Properties.ExitCode)
+		lgr.Info(fmt.Sprintf("command failed with exit code %d", *result.Properties.ExitCode))
+		return nonZeroExitCode
 	}
 
 	return nil
@@ -372,4 +452,20 @@ func (a *aks) GetVnetId(ctx context.Context) (string, error) {
 
 func (a *aks) GetId() string {
 	return a.id
+}
+
+func (a *aks) GetPrincipalId() string {
+	return a.principalId
+}
+
+func (a *aks) GetLocation() string {
+	return a.location
+}
+
+func (a *aks) GetDnsServiceIp() string {
+	return a.dnsServiceIp
+}
+
+func (a *aks) GetClientId() string {
+	return a.clientId
 }

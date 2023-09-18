@@ -68,6 +68,14 @@ func NewResourceGroup(ctx context.Context, subscriptionId, name, location string
 		return nil, fmt.Errorf("creating resource group: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if resp.ID == nil {
+		return nil, fmt.Errorf("resource group ID is nil")
+	}
+	if resp.Name == nil {
+		return nil, fmt.Errorf("resource group name is nil")
+	}
+
 	return &rg{
 		name: *resp.Name,
 		id:   *resp.ID,

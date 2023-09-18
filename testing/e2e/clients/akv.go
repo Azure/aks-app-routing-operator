@@ -3,12 +3,13 @@ package clients
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
+	"github.com/Azure/go-autorest/autorest/azure"
 )
 
 type akv struct {
@@ -24,14 +25,15 @@ type akv struct {
 type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
 
 type Cert struct {
+	id   string
 	name string
 }
 
-func LoadAkv(id arm.ResourceID) *akv {
+func LoadAkv(id azure.Resource) *akv {
 	return &akv{
 		id:             id.String(),
-		name:           id.Name,
-		resourceGroup:  id.ResourceGroupName,
+		name:           id.ResourceName,
+		resourceGroup:  id.ResourceGroup,
 		subscriptionId: id.SubscriptionID,
 	}
 }
@@ -90,6 +92,17 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("waiting for vault creation to complete: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if result.Properties == nil {
+		return nil, fmt.Errorf("vault properties are nil")
+	}
+	if result.Properties.VaultURI == nil {
+		return nil, fmt.Errorf("vault uri is nil")
+	}
+	if result.ID == nil {
+		return nil, fmt.Errorf("vault id is nil")
+	}
+
 	return &akv{
 		uri:            *result.Properties.VaultURI,
 		id:             *result.ID,
@@ -138,8 +151,9 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	return nil
 }
 
-func LoadCert(name string) *Cert {
+func LoadCert(name, id string) *Cert {
 	return &Cert{
+		id:   id,
 		name: name,
 	}
 }
@@ -212,16 +226,28 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 		}
 	}
 
-	_, err = client.CreateCertificate(ctx, name, *c, nil)
+	created, err := client.CreateCertificate(ctx, name, *c, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating certificate: %w", err)
 	}
 
+	// guard against things that should be impossible
+	if created.ID == nil {
+		return nil, fmt.Errorf("created certificate has nil id")
+	}
+
+	id := string(*created.ID)
+	id = strings.TrimRight(id, "/pending") // haven't found a better way of getting the cert id other than this so far
 	return &Cert{
+		id:   id,
 		name: name,
 	}, nil
 }
 
 func (c *Cert) GetName() string {
 	return c.name
+}
+
+func (c *Cert) GetId() string {
+	return c.id
 }

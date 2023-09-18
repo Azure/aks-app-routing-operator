@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
+	"github.com/Azure/go-autorest/autorest/azure"
 )
 
 type zone struct {
@@ -16,6 +16,7 @@ type zone struct {
 	subscriptionId string
 	resourceGroup  string
 	id             string
+	nameservers    []string
 }
 
 type privateZone struct {
@@ -31,12 +32,13 @@ type ZoneOpt func(z *armdns.Zone) error
 // PrivateZoneOpt specifies what kind of private zone to create
 type PrivateZoneOpt func(z *armprivatedns.PrivateZone) error
 
-func LoadZone(id arm.ResourceID) *zone {
+func LoadZone(id azure.Resource, nameservers []string) *zone {
 	return &zone{
 		id:             id.String(),
-		name:           id.Name,
+		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
-		resourceGroup:  id.ResourceGroupName,
+		resourceGroup:  id.ResourceGroup,
+		nameservers:    nameservers,
 	}
 }
 
@@ -73,11 +75,35 @@ func NewZone(ctx context.Context, subscriptionId, resourceGroup, name string, zo
 		return nil, fmt.Errorf("creating zone: %w", err)
 	}
 
+	// guard against two things that should be impossible
+	if resp.Properties == nil {
+		return nil, fmt.Errorf("zone properties are nil")
+	}
+	if resp.Properties.NameServers == nil {
+		return nil, fmt.Errorf("zone nameservers are nil")
+	}
+	if resp.Name == nil {
+		return nil, fmt.Errorf("zone name is nil")
+	}
+	if resp.ID == nil {
+		return nil, fmt.Errorf("zone id is nil")
+	}
+
+	nameservers := make([]string, len(resp.Properties.NameServers))
+	for i, ns := range resp.Properties.NameServers {
+		if ns == nil {
+			return nil, fmt.Errorf("zone nameserver %d is nil", i)
+		}
+
+		nameservers[i] = *ns
+	}
+
 	return &zone{
 		name:           *resp.Name,
 		resourceGroup:  resourceGroup,
 		subscriptionId: subscriptionId,
 		id:             *resp.ID,
+		nameservers:    nameservers,
 	}, nil
 }
 
@@ -109,16 +135,20 @@ func (z *zone) GetName() string {
 	return z.name
 }
 
+func (z *zone) GetNameservers() []string {
+	return z.nameservers
+}
+
 func (z *zone) GetId() string {
 	return z.id
 }
 
-func LoadPrivateZone(id arm.ResourceID) *privateZone {
+func LoadPrivateZone(id azure.Resource) *privateZone {
 	return &privateZone{
 		id:             id.String(),
-		name:           id.Name,
+		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
-		resourceGroup:  id.ResourceGroupName,
+		resourceGroup:  id.ResourceGroup,
 	}
 }
 
@@ -158,6 +188,14 @@ func NewPrivateZone(ctx context.Context, subscriptionId, resourceGroup, name str
 	result, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating private zone: %w", err)
+	}
+
+	// guard against things that should be impossible
+	if result.PrivateZone.Name == nil {
+		return nil, fmt.Errorf("private zone name is nil")
+	}
+	if result.ID == nil {
+		return nil, fmt.Errorf("private zone id is nil")
 	}
 
 	return &privateZone{
