@@ -1,0 +1,106 @@
+name: E2E Version 2 Provision and Test
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+      skipRefCheck:
+        type: boolean
+        default: true
+      name:
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '~1.20.3'
+
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Provision Infrastructure
+        shell: bash
+        run: |
+            cd testing/e2e
+            go run ./main.go infra --subscription="${{ secrets.AZURE_SUBSCRIPTION_ID }}" --tenant="${{ secrets.AZURE_TENANT_ID }}" --names="${{ inputs.name }}" --infra-file="./infra.json"
+        if:
+          (github.event_name == 'repository_dispatch' &&
+          github.event.client_payload.slash_command.args.named.sha != '' &&
+          contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+          inputs.skipRefCheck
+
+      - name: Ensure ref
+        uses: actions/github-script@v6
+        if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
+        with:
+          script: core.setFailed('Ref is not latest')
+
+      - name: Upload infra file
+        uses: actions/upload-artifact@v3
+        with:
+          name: infra
+          path: testing/e2e/infra.json
+  test:
+    needs: provision
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '~1.20.3'
+
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/download-artifact@master
+        with:
+          name: infra
+          path: testing/e2e/infra.json
+
+      - name: Test
+        shell: bash
+        id: test
+        run: |
+            cd testing/e2e
+            go run ./main.go deploy --infra-file="./infra.json"
+        if:
+          (github.event_name == 'repository_dispatch' &&
+          github.event.client_payload.slash_command.args.named.sha != '' &&
+          contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) ||
+          inputs.skipRefCheck
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v3
+        if: always() && steps.test.outcome == 'failure'
+        with:
+          name: logs
+          path: testing/e2e/job-app-routing-operator-e2e.log
+
+      - name: Ensure ref
+        uses: actions/github-script@v6
+        if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
+        with:
+          script: core.setFailed('Ref is not latest')
