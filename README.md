@@ -6,7 +6,7 @@ A Kubernetes operator that manages resources related to AKS Application Routing 
 
 ## Docs
 
-View the [docs](docs/) folder for more information.
+View the [docs](docs/) folder for more information. adfasdf
 
 ## Contributing
 
