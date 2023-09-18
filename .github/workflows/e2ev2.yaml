@@ -44,7 +44,6 @@ jobs:
             script: core.setFailed('Ref is not latest')
   test:
     needs: plan-infra
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false # this is false because we usually want to retry at individual infra level if there is a failure and it helps to see if only one infra is failing
       matrix: ${{fromJson(needs.plan-infra.outputs.matrix)}}
