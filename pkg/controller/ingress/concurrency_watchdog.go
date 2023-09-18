@@ -12,7 +12,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	prommodel "github.com/prometheus/client_model/go"
@@ -26,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
@@ -49,7 +49,7 @@ func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 	}
 
 	family := &prommodel.MetricFamily{}
-	dec := expfmt.NewDecoder(bytes.NewReader(resp), expfmt.FmtOpenMetrics)
+	dec := expfmt.NewDecoder(bytes.NewReader(resp), expfmt.FmtOpenMetrics_0_0_1)
 	for {
 		err = dec.Decode(family)
 		if errors.Is(err, io.EOF) {

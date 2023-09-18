@@ -50,7 +50,7 @@ var testCmd = &cobra.Command{
 			return fmt.Errorf("expected 1 provisioned infrastructure, got %d", len(provisioned))
 		}
 
-		tests := suites.All()
+		tests := suites.All(provisioned[0])
 		if err := tests.Run(context.Background(), provisioned[0]); err != nil {
 			return logger.Error(lgr, fmt.Errorf("test failed: %w", err))
 		}

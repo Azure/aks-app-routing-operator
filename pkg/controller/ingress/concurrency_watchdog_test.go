@@ -16,9 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,8 +29,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 )
 
@@ -311,7 +311,7 @@ func TestConcurrencyWatchdogLeaderElection(t *testing.T) {
 }
 
 func TestNewConcurrencyWatchdog(t *testing.T) {
-	m, err := manager.New(restConfig, manager.Options{MetricsBindAddress: "0"})
+	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
 	err = NewConcurrencyWatchdog(m, conf, nil)

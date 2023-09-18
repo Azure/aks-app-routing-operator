@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -28,10 +29,14 @@ type Identifier interface {
 }
 
 type cluster interface {
-	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	GetVnetId(ctx context.Context) (string, error)
 	Deploy(ctx context.Context, objs []client.Object) error
 	Clean(ctx context.Context, objs []client.Object) error
+	GetPrincipalId() string
+	GetClientId() string
+	GetLocation() string
+	GetDnsServiceIp() string
+	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	Identifier
 }
 
@@ -44,6 +49,7 @@ type containerRegistry interface {
 type zone interface {
 	GetDnsZone(ctx context.Context) (*armdns.Zone, error)
 	GetName() string
+	GetNameservers() []string
 	Identifier
 }
 
@@ -68,6 +74,7 @@ type keyVault interface {
 
 type cert interface {
 	GetName() string
+	GetId() string
 }
 
 type Provisioned struct {
@@ -85,17 +92,26 @@ type Provisioned struct {
 	OperatorImage     string
 }
 
+type LoadableZone struct {
+	ResourceId  azure.Resource
+	Nameservers []string
+}
+
+// LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.
+// Ensure that all fields are exported so that they can properly be serialized/deserialized.
 type LoadableProvisioned struct {
-	Name              string
-	Cluster           arm.ResourceID
-	ContainerRegistry arm.ResourceID
-	Zones             []arm.ResourceID
-	PrivateZones      []arm.ResourceID
-	KeyVault          arm.ResourceID
-	CertName          string
-	ResourceGroup     arm.ResourceID
-	SubscriptionId    string
-	TenantId          string
-	E2eImage          string
-	OperatorImage     string
+	Name                                                                      string
+	Cluster                                                                   azure.Resource
+	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId string
+	ContainerRegistry                                                         azure.Resource
+	Zones                                                                     []LoadableZone
+	PrivateZones                                                              []azure.Resource
+	KeyVault                                                                  azure.Resource
+	CertName                                                                  string
+	CertId                                                                    string
+	ResourceGroup                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
+	SubscriptionId                                                            string
+	TenantId                                                                  string
+	E2eImage                                                                  string
+	OperatorImage                                                             string
 }
