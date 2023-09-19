@@ -56,6 +56,13 @@ Tests are defined in [/testing/e2e/suites/](../testing/e2e/suites/). Add any new
 
 We use GitHub workflows to run and require passing E2E tests on every PR. [.github/workflows/ok-to-test.yaml](../.github/workflows/ok-to-test.yaml), [.github/workflows/pr-validate.yaml](../.github/workflows/pr-validate.yaml), [.github/workflows/pr-validate-fork.yaml](../.github/workflows/pr-validate-fork.yaml), [.github/workflows/e2ev2.yaml](../.github/workflows/e2ev2.yaml), and [.github/workflows/e2ev2-provision-test.yaml](../.github/workflows/e2ev2-provision-test.yaml) chain together to provide this.
 
+To trigger E2E tests on a PR, a Repository Writer must comment `
+/ok-to-test sha=<sha>`. Before commenting ensure that the PR doesn't contain malicious code. This comment must be posted every time you want the tests to retrigger. `<sha>` should be replaced by the latest sha of the PR.
+
+![test-sha](./test-sha.png)
+
+If E2E fails on GitHub you can click into the failing Job to see relevant logs to debug the error. 
+
 ## Local E2E
 
 Typically, when testing changes locally it's overkill to test changes on a wide variety of infrastructures, so you will most often filter down to a single infrastructure when testing locally.
@@ -71,3 +78,9 @@ go run ./main.go deploy # deploys the testing job to the cluster and exits based
 ```
 
 You can replace `basic cluster` with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go). 
+
+If a step fails you have a few options for debugging.
+
+- Read the logs printed to the console. Look for error-level logs
+- If the `deploy` command failed then look for the `testing/e2e/job-app-routing-operator-e2e.log` file. This contains logs from the E2E test runner on Kubernetes and should tell you exactly which test failed and why.
+- Connect to the Kubernetes cluster and dig around manually. The logs should include information on the cluster name, resource group, and subscription that you can use to connect to the cluster.
