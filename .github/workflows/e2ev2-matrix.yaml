@@ -1,4 +1,4 @@
-name: E2E Version 2 Test
+name: E2E Version 2 Test Matrix
 
 on:
   workflow_call:
