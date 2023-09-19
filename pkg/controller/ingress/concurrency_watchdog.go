@@ -160,7 +160,7 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.LabelGetter.PodLabels()))
 		if err != nil {
 			c.logger.Error(err, "error listing pods")
-			retErr = multierror.Append(retErr, err)
+			retErr = multierror.Append(retErr, fmt.Errorf("listing pods: %w", err))
 			continue
 		}
 
@@ -208,7 +208,9 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 			// don't add the error to return since we shouldn't retry right away
 		}
 	}
-
+	if retErr.ErrorOrNil() != nil {
+		c.logger.Error(retErr, "error reconciling ingress controller resources")
+	}
 	return retErr.ErrorOrNil()
 }
 

@@ -77,6 +77,7 @@ func (r *resourceReconciler) tick(ctx context.Context) error {
 		}
 
 		if err = util.Upsert(ctx, r.client, copy); err != nil {
+
 			return err
 		}
 	}
