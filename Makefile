@@ -49,4 +49,3 @@ all-tests:
 	./devenv/scripts/run_private_cluster.sh
 	make clean
 	./devenv/scripts/run_public_cluster.sh
-
