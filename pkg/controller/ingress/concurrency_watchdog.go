@@ -159,6 +159,7 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		list := &corev1.PodList{}
 		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.LabelGetter.PodLabels()))
 		if err != nil {
+			c.logger.Error(err, "error listing pods")
 			retErr = multierror.Append(retErr, err)
 			continue
 		}
@@ -168,11 +169,13 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		var totalConnectionCount float64
 		for i, pod := range list.Items {
 			if !podIsReady(&pod) {
+				c.logger.Info("pod is not ready", "name", pod.Name)
 				continue
 			}
 			nReadyPods++
 			count, err := target.ScrapeFn(ctx, c.restClient, &pod)
 			if err != nil {
+				c.logger.Error(err, "error scraping pod", "name", pod.Name)
 				retErr = multierror.Append(retErr, fmt.Errorf("scraping pod %q: %w", pod.Name, err))
 				continue
 			}
