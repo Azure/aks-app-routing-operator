@@ -10,7 +10,7 @@ clean:
 dev:
 	terraform --version
 	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
-	# ./devenv/scripts/deploy_operator.sh
+	./devenv/scripts/deploy_operator.sh
 
 push:
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt
@@ -49,15 +49,3 @@ all-tests:
 	./devenv/scripts/run_private_cluster.sh
 	make clean
 	./devenv/scripts/run_public_cluster.sh
-
-SUBSCRIPTION = ""
-TENANT = ""
-INFRAS = "basic cluster"
-INFRA_FILE = "./infra-config.json"
-
-# e2ev2 is the new e2e test framework. It will completely replace the old e2e test framework soon
-e2ev2-infra:
-	(cd testing/e2e && go run ./main.go infra --subscription=$(SUBSCRIPTION) --tenant=$(TENANT) --names=$(INFRAS) --infra-file=$(INFRA_FILE))
-
-e2ev2-test:
-	(cd testing/e2e && go run ./main.go deploy --infra-file=$(INFRA_FILE))

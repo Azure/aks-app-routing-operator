@@ -7,17 +7,20 @@ E2E is ran automatically on every PR. See [GitHub Runner](#-github-runner).
 
 You can also run E2E locally. See [Local E2E](#-local-e2e).
 
+> [!NOTE]  
+> We recently added a new E2E framework called E2EV2 which this document refers to. The older E2E framework is still in place but will shortly be phased out and removed. E2EV2 is referred to as E2E and is the topic of this doc.
+
 ## Architecture
 
 ### Major Steps
 
-E2e is designed so that every major step is run in a separate GitHub Job. This allows for easy retries and makes it a lot more obvious about which step failed. It also means logs are easier to read.
+E2E is designed so that every major step is run in a separate GitHub Job. This allows for easy retries and makes it a lot more obvious about which step failed. It also means logs are easier to read.
 
 ![e2e-jobs](./e2e-jobs.png)
 
 In the above diagram, each box is a GitHub Job. The arrows show the order in which the jobs are run. Essentially, each infrastructure step is run in parallel, and then the operator is installed and tested on each infrastructure. Infrastructure refers to the AKS cluster and the Azure resources needed for testing.
 
-E2e can be run in the same way locally but typically only one kind of infrastructure will be chosen to be run locally. The separation of each major phase will be the same.
+E2E can be run in the same way locally but typically only one kind of infrastructure will be chosen to be run locally. The separation of each major phase will be the same.
 
 ### Tests
 
@@ -51,7 +54,7 @@ Tests are defined in [/testing/e2e/suites/](../testing/e2e/suites/). Add any new
 
 ## GitHub Runner
 
-todo: will fill in details when I add GitHub workflows to run new e2e
+We use GitHub workflows to run and require passing E2E tests on every PR. [.github/workflows/ok-to-test.yaml](../.github/workflows/ok-to-test.yaml), [.github/workflows/pr-validate.yaml](../.github/workflows/pr-validate.yaml), [.github/workflows/pr-validate-fork.yaml](../.github/workflows/pr-validate-fork.yaml), [.github/workflows/e2ev2.yaml](../.github/workflows/e2ev2.yaml), and [.github/workflows/e2ev2-provision-test.yaml](../.github/workflows/e2ev2-provision-test.yaml) chain together to provide this.
 
 ## Local E2E
 
@@ -60,8 +63,11 @@ Typically, when testing changes locally it's overkill to test changes on a wide 
 Run e2e tests with the following commands.
 
 ```bash
+(
+cd testing/e2e
 go run ./main.go infra --subscription=<subscriptionId> --tenant=<tenantId> --names="basic cluster" # provisions the infrastructure and saves it to local config file
 go run ./main.go deploy # deploys the testing job to the cluster and exits based on job status. also uploads logs to local file
+)
 ```
 
 You can replace `basic cluster` with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go). 
