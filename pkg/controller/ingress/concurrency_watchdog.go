@@ -159,7 +159,8 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		list := &corev1.PodList{}
 		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.LabelGetter.PodLabels()))
 		if err != nil {
-			retErr = multierror.Append(retErr, err)
+			c.logger.Error(err, "error listing pods")
+			retErr = multierror.Append(retErr, fmt.Errorf("listing pods: %w", err))
 			continue
 		}
 
@@ -168,11 +169,13 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		var totalConnectionCount float64
 		for i, pod := range list.Items {
 			if !podIsReady(&pod) {
+				c.logger.Info("pod is not ready", "name", pod.Name)
 				continue
 			}
 			nReadyPods++
 			count, err := target.ScrapeFn(ctx, c.restClient, &pod)
 			if err != nil {
+				c.logger.Error(err, "error scraping pod", "name", pod.Name)
 				retErr = multierror.Append(retErr, fmt.Errorf("scraping pod %q: %w", pod.Name, err))
 				continue
 			}
@@ -205,8 +208,11 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 			// don't add the error to return since we shouldn't retry right away
 		}
 	}
-
-	return retErr.ErrorOrNil()
+	if err := retErr.ErrorOrNil(); err != nil {
+		c.logger.Error(err, "error reconciling ingress controller resources")
+		return err
+	}
+	return nil
 }
 
 func (c *ConcurrencyWatchdog) processVotes(list *corev1.PodList, connectionCountByPod []float64, avgConnectionCount float64) string {
