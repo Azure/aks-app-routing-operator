@@ -15,7 +15,7 @@ jobs:
     secrets: inherit
   e2eV2:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    uses: ./.github/workflows/e2ev2.yaml
+    uses: ./.github/workflows/e2ev2-matrix.yaml
     secrets: inherit
   status:
     permissions:

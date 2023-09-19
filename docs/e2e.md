@@ -54,7 +54,13 @@ Tests are defined in [/testing/e2e/suites/](../testing/e2e/suites/). Add any new
 
 ## GitHub Runner
 
-We use GitHub workflows to run and require passing E2E tests on every PR. [.github/workflows/ok-to-test.yaml](../.github/workflows/ok-to-test.yaml), [.github/workflows/pr-validate.yaml](../.github/workflows/pr-validate.yaml), [.github/workflows/pr-validate-fork.yaml](../.github/workflows/pr-validate-fork.yaml), [.github/workflows/e2ev2.yaml](../.github/workflows/e2ev2.yaml), and [.github/workflows/e2ev2-provision-test.yaml](../.github/workflows/e2ev2-provision-test.yaml) chain together to provide this.
+We use GitHub workflows to run and require passing E2E tests on every PR. 
+
+- [.github/workflows/ok-to-test.yaml](../.github/workflows/ok-to-test.yaml) - triggers workflows through the `/ok-to-test` comment which ensures access to Azure credentials is secure
+- [.github/workflows/pr-validate.yaml](../.github/workflows/pr-validate.yaml) - triggers tests for pull requests
+- [.github/workflows/pr-validate-fork.yaml](../.github/workflows/pr-validate-fork.yaml) - runs as a response to the `ok-to-test` event from a fork and triggers tests
+- [.github/workflows/e2ev2-matrix.yaml](../.github/workflows/e2ev2-matrix.yaml) - starts the testing matrix for E2E
+- [.github/workflows/e2ev2-provision-test.yaml](../.github/workflows/e2ev2-provision-test.yaml) - provisions a specific kind of infrastructure then runs tests against it
 
 To trigger E2E tests on a PR, a Repository Writer must comment `
 /ok-to-test sha=<sha>`. Before commenting ensure that the PR doesn't contain malicious code. This comment must be posted every time you want the tests to retrigger. `<sha>` should be replaced by the latest sha of the PR.
