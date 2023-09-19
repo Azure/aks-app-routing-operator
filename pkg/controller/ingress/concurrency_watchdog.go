@@ -208,10 +208,11 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 			// don't add the error to return since we shouldn't retry right away
 		}
 	}
-	if retErr.ErrorOrNil() != nil {
-		c.logger.Error(retErr, "error reconciling ingress controller resources")
+	if err := retErr.ErrorOrNil(); err != nil {
+		c.logger.Error(err, "error reconciling ingress controller resources")
+		return err
 	}
-	return retErr.ErrorOrNil()
+	return nil
 }
 
 func (c *ConcurrencyWatchdog) processVotes(list *corev1.PodList, connectionCountByPod []float64, avgConnectionCount float64) string {
