@@ -29,6 +29,8 @@ func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWit
 		enabled = []bool{false}
 	}
 
+	// osm tests can only work if the cluster has osm installed.
+	// filter out any enabled on clusters without osm
 	osms := make([]bool, 0, len(enabled))
 	for _, e := range enabled {
 		if in.Name != infra.OsmInfraName && e {
