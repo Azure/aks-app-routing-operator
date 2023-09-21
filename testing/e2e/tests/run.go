@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -28,6 +29,9 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("determining testing order")
 	ordered := t.order(ctx)
+	if len(ordered) == 0 {
+		return errors.New("no tests to run")
+	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
