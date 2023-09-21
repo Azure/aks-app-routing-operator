@@ -56,13 +56,21 @@ type cfgBuilderWithZones struct {
 	zones []manifests.DnsZones
 }
 
-func (c cfgBuilderWithVersions) withZones(zones ...manifests.DnsZones) cfgBuilderWithZones {
-	if len(zones) == 0 {
-		zones = []manifests.DnsZones{
-			{
-				Public:  manifests.DnsZoneCountNone,
-				Private: manifests.DnsZoneCountNone,
-			},
+func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, private []manifests.DnsZoneCount) cfgBuilderWithZones {
+	if len(public) == 0 {
+		public = manifests.AllDnsZoneCounts
+	}
+	if len(private) == 0 {
+		private = manifests.AllDnsZoneCounts
+	}
+
+	zones := []manifests.DnsZones{}
+	for _, pub := range public {
+		for _, pri := range private {
+			zones = append(zones, manifests.DnsZones{
+				Public:  pub,
+				Private: pri,
+			})
 		}
 	}
 

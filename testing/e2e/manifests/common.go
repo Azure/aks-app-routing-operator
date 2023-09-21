@@ -2,6 +2,9 @@ package manifests
 
 import (
 	"fmt"
+	"go/parser"
+	"go/token"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
@@ -61,6 +64,30 @@ func setGroupKindVersion(obj client.Object) {
 
 // newGoDeployment creates a new basic Go deployment with a single main.go file from contents
 func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
+	command := []string{
+		"/bin/sh",
+		"-c",
+		"mkdir source && cd source && go mod init source && echo '" + contents + "' > main.go && go run main.go",
+	}
+
+	// check if contents contains non standard library imports.
+	// if it does, we need a different command
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", contents, parser.ImportsOnly)
+	if err != nil {
+		panic(fmt.Errorf("parsing contents: %w", err)) // this should only happen if the contents are invalid Go code
+	}
+	for _, imp := range f.Imports {
+		if strings.Contains(imp.Path.Value, ".") { // if it contains a dot it's not a standard library import
+			command = []string{
+				"/bin/sh",
+				"-c",
+				"mkdir source && cd source && go mod init && echo '" + contents + "' > main.go && go mod tidy && go run main.go",
+			}
+			break
+		}
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -81,13 +108,9 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:  "container",
-						Image: "mcr.microsoft.com/oss/go/microsoft/golang:1.20",
-						Command: []string{
-							"/bin/sh",
-							"-c",
-							"mkdir source && cd source && go mod init source && echo '" + contents + "' > main.go && go run main.go",
-						},
+						Name:    "container",
+						Image:   "mcr.microsoft.com/oss/go/microsoft/golang:1.20",
+						Command: command,
 					}},
 				},
 			},
