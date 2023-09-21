@@ -25,6 +25,10 @@ var infraCmd = &cobra.Command{
 			infras = infras.FilterNames(infraNames)
 		}
 
+		if len(infras) == 0 {
+			return fmt.Errorf("no infrastructure configurations found")
+		}
+
 		provisioned, err := infras.Provision(tenantId, subscriptionId)
 		if err != nil {
 			return fmt.Errorf("provisioning infrastructure: %w", err)

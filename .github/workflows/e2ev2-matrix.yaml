@@ -51,4 +51,5 @@ jobs:
     uses: ./.github/workflows/e2ev2-provision-test.yaml
     with:
       name: ${{ matrix.name }}
+      ref: ${{ matrix.ref }}
     secrets: inherit
