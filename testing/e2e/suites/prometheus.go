@@ -16,16 +16,11 @@ var (
 )
 
 func promSuite(in infra.Provisioned) []test {
-	withOsmVals := []bool{false}
-	if in.Name == infra.OsmInfraName {
-		withOsmVals = []bool{true, false}
-	}
-
 	return []test{
 		{
 			name: "ingress prometheus metrics",
 			cfgs: builderFromInfra(in).
-				withOsm(withOsmVals...).
+				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),

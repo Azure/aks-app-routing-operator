@@ -82,7 +82,7 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 			command = []string{
 				"/bin/sh",
 				"-c",
-				"mkdir source && cd source && go mod init && echo '" + contents + "' > main.go && go mod tidy && go run main.go",
+				"mkdir source && cd source && go mod init source && echo '" + contents + "' > main.go && go mod tidy && go run main.go",
 			}
 			break
 		}

@@ -40,6 +40,16 @@ func (t prometheusResources) Objects() []client.Object {
 
 func PrometheusClientAndServer(namespace, name string) prometheusResources {
 	clientDeployment := newGoDeployment(promClientContents, namespace, name+"-client")
+	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
+		{
+			Name:  "PROM_NS",
+			Value: namespace,
+		},
+		{
+			Name:  "PROM_NAME",
+			Value: name + "-server",
+		},
+	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
 		FailureThreshold:    1,
 		InitialDelaySeconds: 1,

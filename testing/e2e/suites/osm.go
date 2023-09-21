@@ -15,15 +15,11 @@ var (
 )
 
 func osmSuite(in infra.Provisioned) []test {
-	if in.Name != infra.OsmInfraName {
-		return []test{}
-	}
-
 	return []test{
 		{
 			name: "osm ingress",
 			cfgs: builderFromInfra(in).
-				withOsm(true).
+				withOsm(in, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {

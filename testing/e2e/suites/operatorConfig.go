@@ -24,14 +24,23 @@ type cfgBuilderWithOsm struct {
 	osmEnabled []bool
 }
 
-func (c cfgBuilder) withOsm(enabled ...bool) cfgBuilderWithOsm {
+func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWithOsm {
 	if len(enabled) == 0 {
 		enabled = []bool{false}
 	}
 
+	osms := make([]bool, 0, len(enabled))
+	for _, e := range enabled {
+		if in.Name != infra.OsmInfraName && e {
+			continue
+		}
+
+		osms = append(osms, e)
+	}
+
 	return cfgBuilderWithOsm{
 		cfgBuilder: c,
-		osmEnabled: enabled,
+		osmEnabled: osms,
 	}
 }
 

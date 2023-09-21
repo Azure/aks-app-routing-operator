@@ -23,16 +23,11 @@ var (
 )
 
 func basicSuite(in infra.Provisioned) []test {
-	withOsmVals := []bool{false}
-	if in.Name == infra.OsmInfraName {
-		withOsmVals = []bool{true, false}
-	}
-
 	return []test{
 		{
 			name: "basic ingress",
 			cfgs: builderFromInfra(in).
-				withOsm(withOsmVals...).
+				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
@@ -126,7 +121,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, "basic-ingress", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId())
+			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId())
 			for _, object := range testingResources.Objects() {
 				if err := upsert(ctx, c, object); err != nil {
 					return fmt.Errorf("upserting resource: %w", err)

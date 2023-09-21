@@ -12,10 +12,10 @@ import (
 	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
-// these need to be the same as the consts in ../prometheus.go
+// these need to be set in the container spec
 const (
-	promNsEnv  = "PROM_NS"
-	promServer = "prometheus-server"
+	promNsEnv   = "PROM_NS"
+	promNameEnv = "PROM_NAME"
 )
 
 const (
@@ -25,6 +25,14 @@ const (
 
 func main() {
 	promNs := os.Getenv(promNsEnv)
+	if promNs == "" {
+		panic(fmt.Errorf("missing env %s", promNsEnv))
+	}
+	promServer := os.Getenv(promNameEnv)
+	if promServer == "" {
+		panic(fmt.Errorf("missing env %s", promNameEnv))
+	}
+
 	addr := fmt.Sprintf("http://%s.%s.svc.cluster.local:9090", promServer, promNs)
 
 	client, err := api.NewClient(api.Config{
