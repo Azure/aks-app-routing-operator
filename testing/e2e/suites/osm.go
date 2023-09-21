@@ -40,7 +40,7 @@ func osmSuite(in infra.Provisioned) []test {
 		{
 			name: "osm service",
 			cfgs: builderFromInfra(in).
-				withOsm(true).
+				withOsm(in, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {

@@ -42,7 +42,7 @@ func basicSuite(in infra.Provisioned) []test {
 		{
 			name: "basic service",
 			cfgs: builderFromInfra(in).
-				withOsm(false, true).
+				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
