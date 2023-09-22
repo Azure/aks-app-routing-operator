@@ -1,5 +1,7 @@
 .PHONY: clean dev push push-tester-image e2e run-e2e
 
+include .env
+
 # can have values of "public" or "private"
 CLUSTER_TYPE="public"
 
@@ -17,3 +19,9 @@ push:
 	docker build -t `cat devenv/state/operator-image-tag.txt` .
 	docker push `cat devenv/state/operator-image-tag.txt`
 	./devenv/scripts/push_image.sh
+
+e2e:
+	# parenthesis preserve current working directory
+	(cd testing/e2e && \
+	 go run ./main.go infra --subscription=${SUBSCRIPTION_ID} --tenant=${TENANT_ID} --names=${INFRA_NAMES} && \
+	 go run ./main.go deploy)

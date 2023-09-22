@@ -70,17 +70,11 @@ If E2E fails on GitHub you can click into the failing Job to see relevant logs t
 
 Typically, when testing changes locally it's overkill to test changes on a wide variety of infrastructures, so you will most often filter down to a single infrastructure when testing locally.
 
-Run e2e tests with the following commands.
+Run e2e with the following steps:
+1. Ensure you've copied the .env.example file to .env and filled in the values
+2. run `make e2e`
 
-```bash
-(
-cd testing/e2e
-go run ./main.go infra --subscription=<subscriptionId> --tenant=<tenantId> --names="basic cluster" # provisions the infrastructure and saves it to local config file
-go run ./main.go deploy # deploys the testing job to the cluster and exits based on job status. also uploads logs to local file
-)
-```
-
-You can replace `basic cluster` with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go). 
+You can replace `basic cluster` in the e2e file with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go). 
 
 If a step fails you have a few options for debugging.
 
