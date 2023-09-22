@@ -37,6 +37,7 @@ type cluster interface {
 	GetLocation() string
 	GetDnsServiceIp() string
 	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
+	GetOptions() map[string]struct{}
 	Identifier
 }
 
@@ -103,6 +104,7 @@ type LoadableProvisioned struct {
 	Name                                                                      string
 	Cluster                                                                   azure.Resource
 	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId string
+	ClusterOptions                                                            map[string]struct{}
 	ContainerRegistry                                                         azure.Resource
 	Zones                                                                     []LoadableZone
 	PrivateZones                                                              []azure.Resource

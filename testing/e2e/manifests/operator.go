@@ -15,6 +15,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	operatorNs        = "app-routing-system"
+	managedResourceNs = operatorNs
+)
+
 var (
 	operatorDeploymentLabels = map[string]string{
 		"app": "app-routing-operator",
@@ -22,6 +27,9 @@ var (
 
 	// AllOperatorVersions is a list of all the operator versions
 	AllOperatorVersions = []OperatorVersion{OperatorVersion0_0_3, OperatorVersionLatest}
+
+	// AllDnsZoneCounts is a list of all the dns zone counts
+	AllDnsZoneCounts = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
 )
 
 // OperatorVersion is an enum for the different versions of the operator
@@ -105,7 +113,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
 		"--location", o.Location,
-		"--namespace", "app-routing-system",
+		"--namespace", managedResourceNs,
 		"--cluster-uid", "test-cluster-uid",
 	}
 
@@ -141,25 +149,25 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	ret := []client.Object{
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "app-routing-system",
+				Name: operatorNs,
 			},
 		},
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-operator",
-				Namespace: "app-routing-system",
+				Namespace: operatorNs,
 			},
 		},
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-operator",
-				Namespace: "app-routing-system",
+				Namespace: operatorNs,
 			},
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
 					Name:      "app-routing-operator",
-					Namespace: "app-routing-system",
+					Namespace: operatorNs,
 				},
 			},
 			RoleRef: rbacv1.RoleRef{
@@ -171,7 +179,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-operator",
-				Namespace: "app-routing-system", // we use app-routing-system for now, so we can take advantage of ownership refs and garbage collection
+				Namespace: operatorNs,
 				Labels: map[string]string{
 					ManagedByKey: ManagedByVal,
 				},

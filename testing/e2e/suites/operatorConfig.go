@@ -1,6 +1,7 @@
 package suites
 
 import (
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 )
@@ -24,14 +25,31 @@ type cfgBuilderWithOsm struct {
 	osmEnabled []bool
 }
 
-func (c cfgBuilder) withOsm(enabled ...bool) cfgBuilderWithOsm {
+func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWithOsm {
 	if len(enabled) == 0 {
 		enabled = []bool{false}
 	}
 
+	osms := make([]bool, 0, len(enabled))
+
+	osmCluster := false
+	if _, ok := in.Cluster.GetOptions()[clients.OsmClusterOpt.Name]; ok {
+		osmCluster = true
+	}
+
+	for _, e := range enabled {
+		// osm tests can only work if the cluster has osm installed.
+		// filter out any enabled on clusters without osm
+		if !osmCluster && e {
+			continue
+		}
+
+		osms = append(osms, e)
+	}
+
 	return cfgBuilderWithOsm{
 		cfgBuilder: c,
-		osmEnabled: enabled,
+		osmEnabled: osms,
 	}
 }
 
@@ -56,13 +74,21 @@ type cfgBuilderWithZones struct {
 	zones []manifests.DnsZones
 }
 
-func (c cfgBuilderWithVersions) withZones(zones ...manifests.DnsZones) cfgBuilderWithZones {
-	if len(zones) == 0 {
-		zones = []manifests.DnsZones{
-			{
-				Public:  manifests.DnsZoneCountNone,
-				Private: manifests.DnsZoneCountNone,
-			},
+func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, private []manifests.DnsZoneCount) cfgBuilderWithZones {
+	if len(public) == 0 {
+		public = manifests.AllDnsZoneCounts
+	}
+	if len(private) == 0 {
+		private = manifests.AllDnsZoneCounts
+	}
+
+	zones := []manifests.DnsZones{}
+	for _, pub := range public {
+		for _, pri := range private {
+			zones = append(zones, manifests.DnsZones{
+				Public:  pub,
+				Private: pri,
+			})
 		}
 	}
 

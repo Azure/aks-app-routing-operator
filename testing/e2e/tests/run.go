@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -28,18 +29,21 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("determining testing order")
 	ordered := t.order(ctx)
+	if len(ordered) == 0 {
+		return errors.New("no tests to run")
+	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return fmt.Errorf("getting in-cluster config: %w", err)
 	}
 
-	runTestFn := func(t test, ctx context.Context) *logger.LoggedError {
+	runTestFn := func(t test, ctx context.Context, operator manifests.OperatorConfig) *logger.LoggedError {
 		lgr := logger.FromContext(ctx).With("test", t.GetName())
 		ctx = logger.WithContext(ctx, lgr)
 		lgr.Info("starting to run test")
 
-		if err := t.Run(ctx, config); err != nil {
+		if err := t.Run(ctx, config, operator); err != nil {
 			return logger.Error(lgr, err)
 		}
 
@@ -84,7 +88,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		for _, t := range runStrategy.tests {
 			func(t test) {
 				eg.Go(func() error {
-					if err := runTestFn(t, ctx); err != nil {
+					if err := runTestFn(t, ctx, runStrategy.config); err != nil {
 						return fmt.Errorf("running test: %w", err)
 					}
 

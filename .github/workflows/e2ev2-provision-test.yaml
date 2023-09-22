@@ -92,7 +92,7 @@ jobs:
       - name: Print test logs
         shell: bash
         run: cat testing/e2e/job-app-routing-operator-e2e.log
-        if: always() && steps.test.outcome == 'failure'
+        if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'success')
 
       - name: Ensure ref
         uses: actions/github-script@v6

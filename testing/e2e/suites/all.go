@@ -14,6 +14,8 @@ import (
 func All(infra infra.Provisioned) tests.Ts {
 	t := []test{}
 	t = append(t, basicSuite(infra)...)
+	t = append(t, osmSuite(infra)...)
+	t = append(t, promSuite(infra)...)
 
 	ret := make(tests.Ts, len(t))
 	for i, t := range t {
@@ -26,7 +28,7 @@ func All(infra infra.Provisioned) tests.Ts {
 type test struct {
 	name string
 	cfgs operatorCfgs
-	run  func(ctx context.Context, config *rest.Config) error
+	run  func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error
 }
 
 func (t test) GetName() string {
@@ -37,12 +39,12 @@ func (t test) GetOperatorConfigs() []manifests.OperatorConfig {
 	return t.cfgs
 }
 
-func (t test) Run(ctx context.Context, config *rest.Config) error {
+func (t test) Run(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 	if t.run == nil {
 		return fmt.Errorf("no run function provided for test %s", t.GetName())
 	}
 
-	return t.run(ctx, config)
+	return t.run(ctx, config, operator)
 }
 
 var alwaysRun = func(infra infra.Provisioned) bool {

@@ -61,6 +61,12 @@ func setGroupKindVersion(obj client.Object) {
 
 // newGoDeployment creates a new basic Go deployment with a single main.go file from contents
 func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
+	command := []string{
+		"/bin/sh",
+		"-c",
+		"mkdir source && cd source && go mod init source && echo '" + contents + "' > main.go && go mod tidy && go run main.go",
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -81,13 +87,9 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:  "container",
-						Image: "mcr.microsoft.com/oss/go/microsoft/golang:1.20",
-						Command: []string{
-							"/bin/sh",
-							"-c",
-							"mkdir source && cd source && go mod init source && echo '" + contents + "' > main.go && go run main.go",
-						},
+						Name:    "container",
+						Image:   "mcr.microsoft.com/oss/go/microsoft/golang:1.20",
+						Command: command,
 					}},
 				},
 			},

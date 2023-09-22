@@ -9,7 +9,7 @@ import (
 
 type test interface {
 	GetName() string
-	Run(ctx context.Context, config *rest.Config) error
+	Run(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error
 }
 
 // T is an interface for a single test
