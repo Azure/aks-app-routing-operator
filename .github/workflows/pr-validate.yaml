@@ -9,10 +9,6 @@ env:
   validate_job_name: validation-tests # must match env of same name in pr-validate-fork
 
 jobs:
-  e2e:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    uses: ./.github/workflows/e2e.yaml
-    secrets: inherit
   e2eV2:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     uses: ./.github/workflows/e2ev2-matrix.yaml
@@ -21,7 +17,7 @@ jobs:
     permissions:
       checks: write
       pull-requests: read
-    needs: [e2e, e2eV2]
+    needs: [e2eV2]
     runs-on: ubuntu-latest
     steps:
       - name: Update status

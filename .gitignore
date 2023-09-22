@@ -3,4 +3,5 @@ coverage.out
 .idea/
 .idea/*
 *.xml
-e2e.test
+
+.env
