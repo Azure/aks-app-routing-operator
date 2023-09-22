@@ -35,26 +35,48 @@ type aks struct {
 	location                            string
 	principalId                         string
 	clientId                            string
+	options                             map[string]struct{}
 }
 
 // McOpt specifies what kind of managed cluster to create
-type McOpt func(mc *armcontainerservice.ManagedCluster) error
-
-// PrivateClusterOpt specifies that the cluster should be private
-func PrivateClusterOpt(mc *armcontainerservice.ManagedCluster) error {
-	if mc.Properties == nil {
-		mc.Properties = &armcontainerservice.ManagedClusterProperties{}
-	}
-
-	if mc.Properties.APIServerAccessProfile == nil {
-		mc.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{}
-	}
-
-	mc.Properties.APIServerAccessProfile.EnablePrivateCluster = to.Ptr(true)
-	return nil
+type McOpt struct {
+	Name string
+	fn   func(mc *armcontainerservice.ManagedCluster) error
 }
 
-func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string) *aks {
+// PrivateClusterOpt specifies that the cluster should be private
+var PrivateClusterOpt = McOpt{
+	Name: "private cluster",
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
+		if mc.Properties == nil {
+			mc.Properties = &armcontainerservice.ManagedClusterProperties{}
+		}
+
+		if mc.Properties.APIServerAccessProfile == nil {
+			mc.Properties.APIServerAccessProfile = &armcontainerservice.ManagedClusterAPIServerAccessProfile{}
+		}
+
+		mc.Properties.APIServerAccessProfile.EnablePrivateCluster = to.Ptr(true)
+		return nil
+	},
+}
+
+var OsmClusterOpt = McOpt{
+	Name: "osm cluster",
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
+		if mc.Properties.AddonProfiles == nil {
+			mc.Properties.AddonProfiles = map[string]*armcontainerservice.ManagedClusterAddonProfile{}
+		}
+
+		mc.Properties.AddonProfiles["openServiceMesh"] = &armcontainerservice.ManagedClusterAddonProfile{
+			Enabled: to.Ptr(true),
+		}
+
+		return nil
+	},
+}
+
+func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string, options map[string]struct{}) *aks {
 	return &aks{
 		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
@@ -64,6 +86,7 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 		dnsServiceIp:   dnsServiceIp,
 		location:       location,
 		principalId:    principalId,
+		options:        map[string]struct{}{},
 	}
 }
 
@@ -109,10 +132,14 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 			},
 		},
 	}
+
+	options := make(map[string]struct{})
 	for _, opt := range mcOpts {
-		if err := opt(&mc); err != nil {
+		if err := opt.fn(&mc); err != nil {
 			return nil, fmt.Errorf("applying cluster option: %w", err)
 		}
+
+		options[opt.Name] = struct{}{}
 	}
 
 	poll, err := factory.NewManagedClustersClient().BeginCreateOrUpdate(ctx, resourceGroup, name, mc, nil)
@@ -161,6 +188,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		location:       location,
 		principalId:    *identity.ObjectID,
 		clientId:       *identity.ClientID,
+		options:        options,
 	}, nil
 }
 
@@ -468,4 +496,8 @@ func (a *aks) GetDnsServiceIp() string {
 
 func (a *aks) GetClientId() string {
 	return a.clientId
+}
+
+func (a *aks) GetOptions() map[string]struct{} {
+	return a.options
 }

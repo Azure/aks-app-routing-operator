@@ -1,6 +1,7 @@
 package suites
 
 import (
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 )
@@ -30,10 +31,16 @@ func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWit
 	}
 
 	osms := make([]bool, 0, len(enabled))
+
+	osmCluster := false
+	if _, ok := in.Cluster.GetOptions()[clients.OsmClusterOpt.Name]; ok {
+		osmCluster = true
+	}
+
 	for _, e := range enabled {
 		// osm tests can only work if the cluster has osm installed.
 		// filter out any enabled on clusters without osm
-		if e && in.Name != infra.OsmInfraName {
+		if !osmCluster && e {
 			continue
 		}
 

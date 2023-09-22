@@ -69,7 +69,7 @@ func PrometheusClientAndServer(namespace, name string) prometheusResources {
 	// just a standard prometheus config for nginx-ingress
 	c := fmt.Sprintf(`
 global:
-  scrape_interval: 10s
+  scrape_interval: 1s
 scrape_configs:
 - job_name: 'nginx-ingress'
   kubernetes_sd_configs:

@@ -55,8 +55,8 @@ func main() {
 		}
 
 		for _, target := range targets.Active {
-			if target.Labels[jobKey] == nginxJob {
-				log.Print("found active nginx-ingress target")
+			if target.Labels[jobKey] == nginxJob && target.Health == promv1.HealthGood {
+				log.Print("found healthy active nginx-ingress target")
 				return
 			}
 		}
