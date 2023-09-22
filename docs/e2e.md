@@ -7,9 +7,6 @@ E2E is ran automatically on every PR. See [GitHub Runner](#-github-runner).
 
 You can also run E2E locally. See [Local E2E](#-local-e2e).
 
-> [!NOTE]  
-> We recently added a new E2E framework called E2EV2 which this document refers to. The older E2E framework is still in place but will shortly be phased out and removed. E2EV2 is referred to as E2E and is the topic of this doc.
-
 ## Architecture
 
 ### Major Steps

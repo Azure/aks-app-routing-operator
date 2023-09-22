@@ -39,17 +39,6 @@ jobs:
               details_url: url,
             });
             return result;
-  e2e:
-    needs: setup
-    if:
-      github.event_name == 'repository_dispatch' &&
-      github.event.client_payload.slash_command.args.named.sha != '' &&
-      contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)
-    uses: ./.github/workflows/e2e.yaml
-    with:
-      ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
-      skipRefCheck: false
-    secrets: inherit
   e2eV2:
     if:
       github.event_name == 'repository_dispatch' &&
@@ -64,7 +53,7 @@ jobs:
     permissions:
       checks: write
       pull-requests: read
-    needs: [e2e, e2eV2]
+    needs: [e2eV2]
     runs-on: ubuntu-latest
     if: ${{ always() }}
     steps:
