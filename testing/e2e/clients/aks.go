@@ -86,7 +86,7 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 		dnsServiceIp:   dnsServiceIp,
 		location:       location,
 		principalId:    principalId,
-		options:        map[string]struct{}{},
+		options:        options,
 	}
 }
 
