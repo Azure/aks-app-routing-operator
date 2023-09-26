@@ -489,10 +489,6 @@
                   }
                 ],
                 "resources": {
-                  "limits": {
-                    "cpu": "1500m",
-                    "memory": "512Mi"
-                  },
                   "requests": {
                     "cpu": "500m",
                     "memory": "127Mi"
@@ -568,7 +564,19 @@
                 "operator": "Exists"
               }
             ],
-            "priorityClassName": "system-node-critical"
+            "priorityClassName": "system-node-critical",
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "nginx"
+                  }
+                }
+              }
+            ]
           }
         },
         "strategy": {},
@@ -642,7 +650,7 @@
         },
         "minReplicas": 2,
         "maxReplicas": 100,
-        "targetCPUUtilizationPercentage": 90
+        "targetCPUUtilizationPercentage": 80
       },
       "status": {
         "currentReplicas": 0,

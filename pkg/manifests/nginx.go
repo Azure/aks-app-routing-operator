@@ -393,6 +393,8 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		podAnnotations[k] = v
 	}
 
+	selector := &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()}
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -405,55 +407,65 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
+			Selector:             selector,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      ingressControllerPodLabels,
 					Annotations: podAnnotations,
 				},
-				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
-					ServiceAccountName: ingressConfig.ResourceName,
-					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
-						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
-						Args: []string{
-							"/nginx-ingress-controller",
-							"--ingress-class=" + ingressConfig.IcName,
-							"--controller-class=" + ingressConfig.ControllerClass,
-							"--election-id=" + ingressConfig.ResourceName,
-							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
-							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
-							"--http-port=8080",
-							"--https-port=8443",
-						},
-						SecurityContext: &corev1.SecurityContext{
-							RunAsUser: util.Int64Ptr(101),
-						},
-						Ports: []corev1.ContainerPort{
+				Spec: *WithPreferSystemNodes(
+					&corev1.PodSpec{
+						TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
 							{
-								Name:          "http",
-								ContainerPort: 8080,
+								MaxSkew:           1,
+								TopologyKey:       "kubernetes.io/hostname", // spread across nodes
+								WhenUnsatisfiable: corev1.ScheduleAnyway,
+								LabelSelector:     selector,
 							},
-							{
-								Name:          "https",
-								ContainerPort: 8443,
-							},
-							promPodPort,
 						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("500m"),
-								corev1.ResourceMemory: resource.MustParse("127Mi"),
+						ServiceAccountName: ingressConfig.ResourceName,
+						Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
+							Name:  "controller",
+							Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
+							Args: []string{
+								"/nginx-ingress-controller",
+								"--ingress-class=" + ingressConfig.IcName,
+								"--controller-class=" + ingressConfig.ControllerClass,
+								"--election-id=" + ingressConfig.ResourceName,
+								"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+								"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+								"--http-port=8080",
+								"--https-port=8443",
 							},
-							// It's not a recommended practice to specify limits for Nginx Ingress Controller.
-							// NGINX automatically claims workers based on the number of available CPUs meaning
-							// it's impossible to have a single number that fits all potential customer environments.
-							// It's fine for this to be a Burstable container since we have multiple replicas and PDB
-							// ensuring that some pods are always available.
-							// https://github.com/kubernetes/ingress-nginx/blob/4bac1200bfe4c95f654ffb86bea18ce9fc1c8630/charts/ingress-nginx/values.yaml#L342
-						},
-					}))},
-				}),
+							SecurityContext: &corev1.SecurityContext{
+								RunAsUser: util.Int64Ptr(101),
+							},
+							Ports: []corev1.ContainerPort{
+								{
+									Name:          "http",
+									ContainerPort: 8080,
+								},
+								{
+									Name:          "https",
+									ContainerPort: 8443,
+								},
+								promPodPort,
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("500m"),
+									corev1.ResourceMemory: resource.MustParse("127Mi"),
+								},
+								// It's not a recommended practice to specify limits for Nginx Ingress Controller.
+								// NGINX automatically claims workers based on the number of available CPUs meaning
+								// it's impossible to have a single number that fits all potential customer environments.
+								// It's fine for this to be a Burstable container since we have multiple replicas and PDB
+								// ensuring that some pods are always available.
+								// https://github.com/kubernetes/ingress-nginx/blob/4bac1200bfe4c95f654ffb86bea18ce9fc1c8630/charts/ingress-nginx/values.yaml#L342
+							},
+						}))},
+					},
+				),
 			},
 		},
 	}
