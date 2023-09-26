@@ -445,10 +445,12 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 								corev1.ResourceCPU:    resource.MustParse("500m"),
 								corev1.ResourceMemory: resource.MustParse("127Mi"),
 							},
-							Limits: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("1500m"),
-								corev1.ResourceMemory: resource.MustParse("512Mi"),
-							},
+							// It's not a recommended practice to specify limits for Nginx Ingress Controller.
+							// NGINX automatically claims workers based on the number of available CPUs meaning
+							// it's impossible to have a single number that fits all potential customer environments.
+							// It's fine for this to be a Burstable container since we have multiple replicas and PDB
+							// ensuring that some pods are always available.
+							// https://github.com/kubernetes/ingress-nginx/blob/4bac1200bfe4c95f654ffb86bea18ce9fc1c8630/charts/ingress-nginx/values.yaml#L342
 						},
 					}))},
 				}),
@@ -515,7 +517,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			},
 			MinReplicas:                    util.Int32Ptr(2),
 			MaxReplicas:                    100,
-			TargetCPUUtilizationPercentage: util.Int32Ptr(90),
+			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
 		},
 	}
 }
