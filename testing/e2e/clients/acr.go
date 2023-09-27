@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	cantFindAcrRegex = regexp.MustCompile(`The resource with name '.+' and type 'Microsoft\.ContainerRegistry/registries' could not be found in subscription`)
+	cantFindAcrRegex = regexp.MustCompile(`The resource with name '.+' and type 'Microsoft\.ContainerRegistry\/registries' could not be found in subscription`)
 )
 
 type acr struct {
@@ -110,8 +110,8 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 		cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, dockerfilePath)
 		cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
 
-		var buf bytes.Buffer
-		stdErr := io.MultiWriter(&buf, newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError)))
+		var errLog bytes.Buffer
+		stdErr := io.MultiWriter(&errLog, newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError)))
 		cmd.Stderr = stdErr
 		err := cmd.Run()
 		if err == nil {
@@ -121,7 +121,8 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 			// We've tried alternate strategies like polling the sdk to see if the acr exists but that
 			// tells us it exists then the acr command fails. This is the only reliable way we've found
 			// to wait for the acr to be ready.
-			if !cantFindAcrRegex.Match(buf.Bytes()) {
+			lgr.Info("failed to build and push acr image", "error", err, "stderr", errLog.String())
+			if !cantFindAcrRegex.Match(errLog.Bytes()) {
 				return fmt.Errorf("starting build and push command: %w", err)
 			}
 
