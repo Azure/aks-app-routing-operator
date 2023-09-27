@@ -18,6 +18,7 @@ import (
 
 var (
 	cantFindAcrRegex = regexp.MustCompile(`The resource with name '.+' and type 'Microsoft\.ContainerRegistry\/registries' could not be found in subscription`)
+	throttledRegex   = regexp.MustCompile(`(SubscriptionRequestsThrottled) Number of requests for subscription '.+' and operation '.+' exceeded the backend storage limit.`)
 )
 
 type acr struct {
@@ -117,7 +118,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 			// We've tried alternate strategies like polling the sdk to see if the acr exists but that
 			// tells us it exists then the acr command fails. This is the only reliable way we've found
 			// to wait for the acr to be ready.
-			if !cantFindAcrRegex.Match(errLog.Bytes()) {
+			if (!cantFindAcrRegex.Match(errLog.Bytes())) && (!throttledRegex.Match(errLog.Bytes())) {
 				lgr.Error("failed to build and push acr image")
 				return fmt.Errorf("running build and push command: %w", err)
 			}
@@ -127,7 +128,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 			}
 
 			lgr.Info("waiting for acr to be ready, retrying")
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second) // longer timeout to account for throttling
 		}
 	}
 
