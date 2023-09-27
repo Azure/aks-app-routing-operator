@@ -107,10 +107,8 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 		// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
 		cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, dockerfilePath)
 		cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
-
 		var errLog bytes.Buffer
-		stdErr := io.MultiWriter(&errLog, newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError)))
-		cmd.Stderr = stdErr
+		cmd.Stderr = io.MultiWriter(&errLog, newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError)))
 		err := cmd.Run()
 		if err == nil {
 			break
