@@ -121,9 +121,9 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 			// We've tried alternate strategies like polling the sdk to see if the acr exists but that
 			// tells us it exists then the acr command fails. This is the only reliable way we've found
 			// to wait for the acr to be ready.
-			lgr.Info("failed to build and push acr image", "error", err, "stderr", errLog.String())
 			if !cantFindAcrRegex.Match(errLog.Bytes()) {
-				return fmt.Errorf("starting build and push command: %w", err)
+				lgr.Error("failed to build and push acr image")
+				return fmt.Errorf("running build and push command: %w", err)
 			}
 
 			if time.Since(start) > 1*time.Minute {
