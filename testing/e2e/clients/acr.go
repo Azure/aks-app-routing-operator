@@ -117,7 +117,11 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 		if err == nil {
 			break
 		} else {
-			if !cantFindAcrRegex.Match(buf.Bytes()) { // if this regex matches the az cli can't find the acr, things just need more time to propagate
+			// if this regex matches the az cli can't find the acr, things just need more time to propagate.
+			// We've tried alternate strategies like polling the sdk to see if the acr exists but that
+			// tells us it exists then the acr command fails. This is the only reliable way we've found
+			// to wait for the acr to be ready.
+			if !cantFindAcrRegex.Match(buf.Bytes()) {
 				return fmt.Errorf("starting build and push command: %w", err)
 			}
 
