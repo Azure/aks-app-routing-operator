@@ -78,8 +78,6 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("name is nil")
 	}
 
-	time.Sleep(20 * time.Second)
-
 	return &acr{
 		id:             *result.ID,
 		name:           *result.Name,
