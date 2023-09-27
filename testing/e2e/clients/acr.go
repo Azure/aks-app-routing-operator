@@ -1,15 +1,23 @@
 package clients
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
+	"regexp"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"golang.org/x/exp/slog"
+)
+
+var (
+	cantFindAcrRegex = regexp.MustCompile(`The resource with name '.+' and type 'Microsoft\.ContainerRegistry/registries' could not be found in subscription`)
 )
 
 type acr struct {
@@ -70,6 +78,8 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("name is nil")
 	}
 
+	time.Sleep(20 * time.Second)
+
 	return &acr{
 		id:             *result.ID,
 		name:           *result.Name,
@@ -92,16 +102,32 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 	lgr.Info("starting to build and push image")
 	defer lgr.Info("finished building and pushing image")
 
-	// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
-	// I matched everything on the az cli but wasn't able to get it working with the sdk.
-	// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
-	// ~~~~
-	// Without the resource group flag the command often fails with unable to find the acr in the subscription. We are unsure why since this isn't a required flag
-	cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, "--resource-group", a.resourceGroup, dockerfilePath)
-	cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
-	cmd.Stderr = newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError))
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("starting build and push command: %w", err)
+	start := time.Now()
+	for {
+		// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
+		// I matched everything on the az cli but wasn't able to get it working with the sdk.
+		// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
+		cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, dockerfilePath)
+		cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
+
+		var buf bytes.Buffer
+		stdErr := io.MultiWriter(&buf, newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError)))
+		cmd.Stderr = stdErr
+		err := cmd.Run()
+		if err == nil {
+			break
+		} else {
+			if !cantFindAcrRegex.Match(buf.Bytes()) { // if this regex matches the az cli can't find the acr, things just need more time to propagate
+				return fmt.Errorf("starting build and push command: %w", err)
+			}
+
+			if time.Since(start) > 1*time.Minute {
+				return fmt.Errorf("acr not found after 1 minute")
+			}
+
+			lgr.Info("waiting for acr to be ready, retrying")
+			time.Sleep(1 * time.Second)
+		}
 	}
 
 	return nil
