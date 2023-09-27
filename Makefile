@@ -25,3 +25,8 @@ e2e:
 	(cd testing/e2e && \
 	 go run ./main.go infra --subscription=${SUBSCRIPTION_ID} --tenant=${TENANT_ID} --names=${INFRA_NAMES} && \
 	 go run ./main.go deploy)
+
+unit:
+	docker build ./devenv/ -t app-routing-dev:latest
+	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test ./...
+
