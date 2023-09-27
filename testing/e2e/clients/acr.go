@@ -1,15 +1,24 @@
 package clients
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
+	"regexp"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"golang.org/x/exp/slog"
+)
+
+var (
+	cantFindAcrRegex = regexp.MustCompile(`The resource with name '.+' and type 'Microsoft\.ContainerRegistry\/registries' could not be found in subscription`)
+	throttledRegex   = regexp.MustCompile(`(SubscriptionRequestsThrottled) Number of requests for subscription '.+' and operation '.+' exceeded the backend storage limit.`)
 )
 
 type acr struct {
@@ -92,14 +101,35 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath string
 	lgr.Info("starting to build and push image")
 	defer lgr.Info("finished building and pushing image")
 
-	// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
-	// I matched everything on the az cli but wasn't able to get it working with the sdk.
-	// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
-	cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, dockerfilePath)
-	cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
-	cmd.Stderr = newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError))
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("starting build and push command: %w", err)
+	start := time.Now()
+	for {
+		// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
+		// I matched everything on the az cli but wasn't able to get it working with the sdk.
+		// https://github.com/Azure/azure-cli/blob/5f9a8fa25cc1c980ebe5e034bd419c95a1c578e2/src/azure-cli/azure/cli/command_modules/acr/build.py#L25
+		cmd := exec.Command("az", "acr", "build", "--registry", a.name, "--image", imageName, "--subscription", a.subscriptionId, "--resource-group", a.resourceGroup, dockerfilePath)
+		cmd.Stdout = newLogWriter(lgr, "building and pushing acr image: ", nil)
+		var errLog bytes.Buffer
+		cmd.Stderr = io.MultiWriter(&errLog, newLogWriter(lgr, "building and pushing acr image: ", to.Ptr(slog.LevelError)))
+		err := cmd.Run()
+		if err == nil {
+			break
+		} else {
+			// if this regex matches the az cli can't find the acr, things just need more time to propagate.
+			// We've tried alternate strategies like polling the sdk to see if the acr exists but that
+			// tells us it exists then the acr command fails. This is the only reliable way we've found
+			// to wait for the acr to be ready.
+			if (!cantFindAcrRegex.Match(errLog.Bytes())) && (!throttledRegex.Match(errLog.Bytes())) {
+				lgr.Error("failed to build and push acr image")
+				return fmt.Errorf("running build and push command: %w", err)
+			}
+
+			if time.Since(start) > 1*time.Minute {
+				return fmt.Errorf("acr not found after 1 minute")
+			}
+
+			lgr.Info("waiting for acr to be ready, retrying")
+			time.Sleep(5 * time.Second) // longer timeout to account for throttling
+		}
 	}
 
 	return nil
