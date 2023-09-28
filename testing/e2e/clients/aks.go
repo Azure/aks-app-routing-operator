@@ -9,15 +9,16 @@ import (
 	"fmt"
 	"os"
 
+	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"golang.org/x/exp/slices"
-	"golang.org/x/sync/errgroup"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -72,6 +73,18 @@ var OsmClusterOpt = McOpt{
 			Enabled: to.Ptr(true),
 		}
 
+		return nil
+	},
+}
+
+var ServicePrincipalClusterOpt = McOpt{
+	Name: "service principal cluster",
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
+		if mc.Identity == nil {
+			mc.Identity = &armcontainerservice.ManagedClusterIdentity{}
+		}
+
+		mc.Identity.Type = to.Ptr(armcontainerservice.ResourceIdentityTypeUserAssigned)
 		return nil
 	},
 }

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -68,6 +69,15 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 
 	resEg.Go(func() error {
 		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.McOpts...)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
+		}
+		return nil
+	})
+
+	resEg.Go(func() error {
+		mcOpts := append(i.McOpts, clients.ServicePrincipalClusterOpt)
+		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, mcOpts...)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}

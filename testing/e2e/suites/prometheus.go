@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -23,6 +24,7 @@ func promSuite(in infra.Provisioned) []test {
 				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withServicePrincipal().
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)

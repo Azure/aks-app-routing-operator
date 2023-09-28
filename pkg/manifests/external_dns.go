@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"path"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -189,15 +190,21 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-	js, err := json.Marshal(&map[string]interface{}{
+	c := &map[string]interface{}{
 		"tenantId":                    externalDnsConfig.TenantId,
 		"subscriptionId":              externalDnsConfig.Subscription,
 		"resourceGroup":               externalDnsConfig.ResourceGroup,
-		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": true,
+		"useManagedIdentityExtension": false,
 		"cloud":                       conf.Cloud,
 		"location":                    conf.Location,
-	})
+	}
+	isMSICluster := conf.MSIClientID != ""
+	if isMSICluster {
+		(*c)["useManagedIdentityExtension"] = true
+		(*c)["userAssignedIdentityID"] = conf.MSIClientID
+	}
+
+	js, err := json.Marshal(c)
 	if err != nil {
 		panic(err)
 	}
@@ -233,6 +240,43 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
 
+	var volumeMounts []corev1.VolumeMount
+	var volumes []corev1.Volume
+	isMSICluster := conf.MSIClientID != ""
+	if isMSICluster {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "azure-config",
+			MountPath: "/etc/kubernetes",
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "azure-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: externalDnsConfig.Provider.ResourceName(),
+					},
+				},
+			},
+		})
+	}
+	isServicePrincipalCluster := !isMSICluster
+	if isServicePrincipalCluster {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "azure-config",
+			MountPath: "/etc/kubernetes/azure.json",
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "azure-config",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/etc/kubernetes/azure.json",
+				},
+			},
+		})
+	}
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -262,11 +306,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 						}, domainFilters...),
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "azure-config",
-							MountPath: "/etc/kubernetes",
-							ReadOnly:  true,
-						}},
+						VolumeMounts: volumeMounts,
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -278,16 +318,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							},
 						},
 					}))},
-					Volumes: []corev1.Volume{{
-						Name: "azure-config",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: externalDnsConfig.Provider.ResourceName(),
-								},
-							},
-						},
-					}},
+					Volumes: volumes,
 				}),
 			},
 		},

@@ -3,11 +3,12 @@ package suites
 import (
 	"context"
 
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/rest"
+
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 )
 
 var (
@@ -21,7 +22,9 @@ func osmSuite(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, true).
 				withVersions(manifests.AllOperatorVersions...).
-				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
+				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withServicePrincipal(false).
+				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, osmNs, in,
 					func(ingress *netv1.Ingress, service *corev1.Service, _ zoner) error {
@@ -42,7 +45,9 @@ func osmSuite(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, true).
 				withVersions(manifests.AllOperatorVersions...).
-				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
+				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withServicePrincipal(false).
+				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, osmNs, in,
 					func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {

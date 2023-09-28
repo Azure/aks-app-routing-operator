@@ -8,8 +8,6 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -18,6 +16,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -165,6 +166,10 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 							Driver:           "secrets-store.csi.k8s.io",
 							ReadOnly:         util.BoolPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
+							// only if sp
+							NodePublishSecretRef: &corev1.LocalObjectReference{
+								Name: "new-secret-goes-here",
+							},
 						},
 					},
 				}},

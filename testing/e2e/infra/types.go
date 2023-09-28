@@ -3,6 +3,8 @@ package infra
 import (
 	"context"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
@@ -10,7 +12,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type infras []infra
@@ -81,6 +82,7 @@ type cert interface {
 type Provisioned struct {
 	Name              string
 	Cluster           cluster
+	SPCluster         cluster
 	ContainerRegistry containerRegistry
 	Zones             []zone
 	PrivateZones      []privateZone

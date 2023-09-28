@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 )
 
 var (
@@ -30,6 +31,7 @@ func basicSuite(in infra.Provisioned) []test {
 				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withServicePrincipal(false).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, basicNs, in, nil); err != nil {
@@ -45,6 +47,7 @@ func basicSuite(in infra.Provisioned) []test {
 				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withServicePrincipal(false).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, basicNs, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {

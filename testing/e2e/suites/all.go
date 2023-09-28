@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/tests"
-	"k8s.io/client-go/rest"
 )
 
 // All returns all test in all suites
@@ -16,6 +17,7 @@ func All(infra infra.Provisioned) tests.Ts {
 	t = append(t, basicSuite(infra)...)
 	t = append(t, osmSuite(infra)...)
 	t = append(t, promSuite(infra)...)
+	t = append(t, servicePrincipalSuite(infra)...)
 
 	ret := make(tests.Ts, len(t))
 	for i, t := range t {

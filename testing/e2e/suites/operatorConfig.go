@@ -98,22 +98,41 @@ func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, priva
 	}
 }
 
+type cfgBuilderWithServicePrincipal struct {
+	cfgBuilderWithZones
+	servicePrincipalEnabled []bool
+}
+
+func (c cfgBuilderWithZones) withServicePrincipal(enabled ...bool) cfgBuilderWithServicePrincipal {
+	if len(enabled) == 0 {
+		enabled = []bool{false}
+	}
+
+	return cfgBuilderWithServicePrincipal{
+		cfgBuilderWithZones:     c,
+		servicePrincipalEnabled: enabled,
+	}
+}
+
 type operatorCfgs []manifests.OperatorConfig
 
-func (c cfgBuilderWithZones) build() operatorCfgs {
+func (c cfgBuilderWithServicePrincipal) build() operatorCfgs {
 	ret := operatorCfgs{}
 
 	for _, osmEnabled := range c.osmEnabled {
 		for _, version := range c.versions {
 			for _, zones := range c.zones {
-				ret = append(ret, manifests.OperatorConfig{
-					Version:    version,
-					Location:   c.location,
-					TenantId:   c.tenantId,
-					Msi:        c.msi,
-					Zones:      zones,
-					DisableOsm: !osmEnabled,
-				})
+				for _, spEnabled := range c.servicePrincipalEnabled {
+					ret = append(ret, manifests.OperatorConfig{
+						Version:                version,
+						Location:               c.location,
+						TenantId:               c.tenantId,
+						Msi:                    c.msi,
+						Zones:                  zones,
+						DisableOsm:             !osmEnabled,
+						EnableServicePrincipal: spEnabled,
+					})
+				}
 			}
 		}
 	}
