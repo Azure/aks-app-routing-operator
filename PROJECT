@@ -10,7 +10,7 @@ repo: github.com/Azure/aks-app-routing-operator
 resources:
 - api:
     crdVersion: v1
-    namespaced: true
+    namespaced: false
   controller: true
   domain: kubernetes.azure.com
   group: approuting

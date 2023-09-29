@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 
+	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
@@ -32,7 +33,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
-	//+kubebuilder:scaffold:imports
 )
 
 var scheme = runtime.NewScheme()
@@ -60,7 +60,7 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(secv1.Install(s))
 	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
-	//+kubebuilder:scaffold:scheme
+	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
