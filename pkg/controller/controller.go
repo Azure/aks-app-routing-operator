@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -144,6 +145,13 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 	if err = osm.NewIngressCertConfigReconciler(m, conf); err != nil {
+		return nil, err
+	}
+
+	if err = (&nginxingress.NginxIngressControllerReconciler{
+		Client: m.GetClient(),
+		Scheme: m.GetScheme(),
+	}).SetupWithManager(m); err != nil {
 		return nil, err
 	}
 
