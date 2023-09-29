@@ -5,3 +5,4 @@ coverage.out
 *.xml
 
 .env
+bin/*

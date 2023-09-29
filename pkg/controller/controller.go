@@ -31,17 +31,19 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
+	//+kubebuilder:scaffold:imports
 )
 
 var scheme = runtime.NewScheme()
 
 func init() {
 	registerSchemes(scheme)
-	ctrl.SetLogger(getLogger())
+	lgr := getLogger()
+	ctrl.SetLogger(lgr)
 	// need to set klog logger to same logger to get consistent logging format for all logs.
 	// without this things like leader election that use klog will not have the same format.
 	// https://github.com/kubernetes/client-go/blob/560efb3b8995da3adcec09865ca78c1ddc917cc9/tools/leaderelection/leaderelection.go#L250
-	klog.SetLogger(getLogger())
+	klog.SetLogger(lgr)
 }
 
 func getLogger(opts ...zap.Opts) logr.Logger {
@@ -57,6 +59,7 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(secv1.Install(s))
 	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
+	//+kubebuilder:scaffold:scheme
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {

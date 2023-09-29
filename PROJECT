@@ -1,0 +1,6 @@
+domain: github.com/Azure
+layout:
+- go.kubebuilder.io/v4
+projectName: app-routing
+repo: github.com/Azure/aks-app-routing-operator
+version: "3"
