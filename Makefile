@@ -1,4 +1,4 @@
-.PHONY: clean dev push push-tester-image e2e run-e2e
+# Run `make help` for usage information on commands in this file.
 
 include .env
 
@@ -23,6 +23,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 .PHONY: help
 help: ## Display this help.
+	# prints all targets with comments next to them, extracted from this file
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .PHONY: clean
@@ -57,6 +58,9 @@ e2e: ## Runs end-to-end tests
 unit: ## Runs unit tests
 	docker build ./devenv/ -t app-routing-dev:latest
 	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test ./...
+
+.PHONY: crd
+crd: generate manifests ## Generates all associated files from CRD
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.

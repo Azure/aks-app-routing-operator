@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -67,7 +66,7 @@ type NginxIngressControllerStatus struct {
 
 	// ManagedResourceRefs is a list of references to the managed resources
 	// +optional
-	ManagedResourceRefs []corev1.ObjectReference `json:"managedResourceRefs,omitempty"`
+	ManagedResourceRefs []ManagedObjectReference `json:"managedResourceRefs,omitempty"`
 }
 
 // nginxIngressControllerConditionType defines a specific condition of a NginxIngressController
@@ -98,6 +97,23 @@ const (
 	// - "Unknown" when the NGINX Ingress Controller availability's progress cannot be determined
 	ConditionTypeProgressing = "Progressing"
 )
+
+// ManagedObjectReference is a reference to an object
+type ManagedObjectReference struct {
+	// Name is the name of the managed object
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the managed object. If not specified, the resource is cluster-scoped
+	// +optional
+	Namespace string `json:"namespace"`
+
+	// Kind is the kind of the managed object
+	Kind string `json:"kind"`
+
+	// APIGroup is the API group of the managed object. If not specified, the resource is in the core API group
+	// +optional
+	APIGroup string `json:"apiGroup"`
+}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
