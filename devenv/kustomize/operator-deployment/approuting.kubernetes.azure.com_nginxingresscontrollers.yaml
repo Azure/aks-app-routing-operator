@@ -1,1 +1,1 @@
-./config/crd/bases/approuting.kubernetes.azure.com_nginxingresscontrollers.yaml
+../../../config/crd/bases/approuting.kubernetes.azure.com_nginxingresscontrollers.yaml

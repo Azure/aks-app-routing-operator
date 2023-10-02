@@ -17,7 +17,14 @@ type NginxIngressControllerReconciler struct {
 }
 
 func (r *NginxIngressControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	lgr := log.FromContext(ctx)
+	lgr.Info("Reconciling NginxIngressController")
+
+	var nginxIngressController approutingv1alpha1.NginxIngressController
+	if err := r.Get(ctx, req.NamespacedName, &nginxIngressController); err != nil {
+		lgr.Error(err, "unable to fetch NginxIngressController")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
 	// TODO(user): your logic here
 
