@@ -2,10 +2,10 @@ package manifests
 
 import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const operatorName = "aks-app-routing-operator"
@@ -15,15 +15,26 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
 }
 
-func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
-	if deploy == nil {
+func getOwnerRefs(owner client.Object) []metav1.OwnerReference {
+	if owner == nil {
 		return nil
 	}
+
+	gvk := owner.GetObjectKind().GroupVersionKind()
+
+	apiVersion := gvk.GroupVersion().String()
+	kind := gvk.Kind
+	name := owner.GetName()
+	uid := owner.GetUID()
+	if apiVersion == "" || kind == "" || name == "" || uid == "" {
+		return nil
+	}
+
 	return []metav1.OwnerReference{{
-		APIVersion: "apps/v1",
-		Kind:       "Deployment",
-		Name:       deploy.Name,
-		UID:        deploy.UID,
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
+		UID:        uid,
 	}}
 }
 

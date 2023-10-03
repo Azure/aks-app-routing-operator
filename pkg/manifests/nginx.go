@@ -69,7 +69,7 @@ type ServiceConfig struct {
 }
 
 // NginxIngressClass returns an IngressClass for the provided configuration
-func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
+func NginxIngressClass(conf *config.Config, self client.Object, ingressConfig *NginxIngressConfig) []client.Object {
 	ing := &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressClass",
@@ -94,15 +94,8 @@ func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConf
 }
 
 // NginxIngressControllerResources returns Kubernetes objects required for the controller
-func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
-	objs := []client.Object{}
-
-	// Can safely assume the namespace exists if using kube-system
-	if conf.NS != "kube-system" {
-		objs = append(objs, namespace(conf))
-	}
-
-	objs = append(objs,
+func NginxIngressControllerResources(conf *config.Config, self client.Object, ingressConfig *NginxIngressConfig) []client.Object {
+	objs := []client.Object{
 		newNginxIngressControllerServiceAccount(conf, ingressConfig),
 		newNginxIngressControllerClusterRole(conf, ingressConfig),
 		newNginxIngressControllerClusterRoleBinding(conf, ingressConfig),
@@ -113,7 +106,7 @@ func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deploymen
 		newNginxIngressControllerConfigmap(conf, ingressConfig),
 		newNginxIngressControllerPDB(conf, ingressConfig),
 		newNginxIngressControllerHPA(conf, ingressConfig),
-	)
+	}
 
 	owners := getOwnerRefs(self)
 	for _, obj := range objs {
@@ -121,6 +114,11 @@ func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deploymen
 
 		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
 		obj.SetLabels(l)
+	}
+
+	// We are purposefully adding namespace after setting ownership references and labels
+	if conf.NS != "kube-system" { // Can safely assume the namespace exists if using kube-system.
+		objs = append(objs, namespace(conf))
 	}
 
 	return objs

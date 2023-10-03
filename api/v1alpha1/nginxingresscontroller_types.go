@@ -23,7 +23,8 @@ type NginxIngressControllerSpec struct {
 
 	// +kubebuilder:default=nginx
 
-	// ControllerName is the name to use for the managed NGINX Ingress Controller deployment
+	// ControllerName is the name to use for the managed NGINX Ingress Controller resources. This will be used as the name unless
+	// there's a collision in which case it will be used as a prefix.
 	// +optional
 	ControllerName string `json:"controllerName,omitempty"`
 

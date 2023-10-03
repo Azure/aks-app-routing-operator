@@ -42,6 +42,8 @@ func Int64Ptr(i int64) *int64      { return &i }
 func BoolPtr(b bool) *bool         { return &b }
 func StringPtr(str string) *string { return &str }
 
+// todo: is kind enough to make this reliable? Group would be preferable but need to see how
+// to get that from owner ref. Should be able to extract from owner ref
 func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
 	for _, cur := range owners {
 		if cur.Kind == kind {
