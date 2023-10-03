@@ -52,10 +52,13 @@ var (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	ControllerClass string         // controller class which is equivalent to controller field of IngressClass
-	ResourceName    string         // name given to all resources
-	IcName          string         // IngressClass name
-	ServiceConfig   *ServiceConfig // service config that specifies details about the LB, defaults if nil
+	// ControllerClass is the name of the controller field on the IngressClass. Should be no more than 250 characters in length
+	ControllerClass string
+	// ResourceName is the name given to all resources
+	ResourceName string
+	// IngressClass name
+	IcName        string
+	ServiceConfig *ServiceConfig // service config that specifies details about the LB, defaults if nil
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {

@@ -3,6 +3,9 @@ package nginxingress
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
+	"sync"
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -15,46 +18,92 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
-	finalizer = "approuting.kubernetes.azure.com/finalizer"
+	controllerClassMaxLen = 250
 )
 
 var (
 	nginxIngressControllerReconcilerName = controllername.New("nginx", "ingress", "controller", "reconciler")
+
+	// collisionCountMu is used to prevent multiple nginxIngressController resources from determining their collisionCount at the same time
+	// before any managed resources are deployed (this could result in multiple nginxIngressController resources having the same collisionCount) leading
+	// to a collision
+	collisionCountMu sync.Mutex
 )
 
 // nginxIngressControllerReconciler reconciles a NginxIngressController object
 type nginxIngressControllerReconciler struct {
-	client client.Client
-	conf   *config.Config
+	client        client.Client
+	conf          *config.Config
+	interval      time.Duration
+	retryInterval time.Duration
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func SetupReconciler(conf *config.Config, mgr ctrl.Manager) error {
-	return nginxIngressControllerReconcilerName.AddToController(
+// NewReconciler sets up the controller with the Manager.
+func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
+	metrics.InitControllerMetrics(nginxIngressControllerReconcilerName)
+
+	reconciler := &nginxIngressControllerReconciler{client: mgr.GetClient(), conf: conf}
+
+	if err := nginxIngressControllerReconcilerName.AddToController(
 		ctrl.NewControllerManagedBy(mgr).For(&approutingv1alpha1.NginxIngressController{}),
 		mgr.GetLogger(),
-	).Complete(&nginxIngressControllerReconciler{client: mgr.GetClient(), conf: conf})
+	).Complete(reconciler); err != nil {
+		return err
+	}
+
+	return mgr.Add(reconciler)
 }
 
+// Start starts the NginxIngressController reconciler to continously reconcile NginxIngressController resources
+func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
+	lgr := nginxIngressControllerReconcilerName.AddToLogger(log.FromContext(ctx))
+	lgr.Info("starting reconciler")
+	defer lgr.Info("stopping reconciler")
+
+	interval := time.Nanosecond // run immediately when starting up
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(util.Jitter(interval, 0.3)):
+		}
+
+		// list all NginxIngressController resources and reconcile them
+		var list approutingv1alpha1.NginxIngressControllerList
+		if err := n.client.List(ctx, &list); err != nil {
+			lgr.Error(err, "unable to list NginxIngressController resources")
+			interval = n.retryInterval
+			continue
+		}
+
+		for _, nic := range list.Items {
+			// TODO: maybe use multiple go routines?
+			if err := n.ReconcileResource(ctx, &nic); err != nil {
+				lgr.Error(err, "unable to reconcile NginxIngressController resource", "namespace", nic.Namespace, "name", nic.Name)
+				interval = n.retryInterval
+				continue
+			}
+		}
+
+		interval = n.interval
+	}
+
+}
+
+// Reconcile immediately reconciles the NginxIngressController resource based on an event
 func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
 	defer func() {
 		metrics.HandleControllerReconcileMetrics(nginxIngressControllerReconcilerName, res, err)
 	}()
 
-	start := time.Now()
 	lgr := log.FromContext(ctx, "nginxIngressController", req.NamespacedName)
-	ctx = log.IntoContext(ctx, lgr)
-	lgr.Info("starting to reconcile resources")
-	defer lgr.Info("finished reconciling resources", "latencySec", time.Since(start).Seconds())
-
 	var nginxIngressController approutingv1alpha1.NginxIngressController
 	if err := n.client.Get(ctx, req.NamespacedName, &nginxIngressController); err != nil {
-		if apierrors.IsNotFound(err) { // object was deleted, we clean up through finalizer
+		if apierrors.IsNotFound(err) { // object was deleted
 			lgr.Info("NginxIngressController not found")
 			return ctrl.Result{}, nil
 		}
@@ -63,39 +112,43 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, err
 	}
 
-	// finalizer logic
-	if !nginxIngressController.ObjectMeta.DeletionTimestamp.IsZero() { // object is being deleted
-		// TODO: delete managed resources
-		// TODO: is it better to delete managed resources here or ownership references?
+	// no need for a finalizer, we use owner references to clean everything up since everything is in-cluster
 
-		controllerutil.RemoveFinalizer(&nginxIngressController, finalizer)
-		if err := n.client.Update(ctx, &nginxIngressController); err != nil {
-			lgr.Error(err, "unable to remove finalizer")
-			return ctrl.Result{}, fmt.Errorf("updating NginxIngressController to remove finalizer: %w", err)
-		}
-	}
-
-	if !controllerutil.ContainsFinalizer(&nginxIngressController, finalizer) {
-		controllerutil.AddFinalizer(&nginxIngressController, finalizer)
-		if err := n.client.Update(ctx, &nginxIngressController); err != nil {
-			lgr.Error(err, "unable to add finalizer")
-			return ctrl.Result{}, fmt.Errorf("updating NginxIngressController to include finalizer: %w", err)
-		}
-	}
-
-	if err := n.SetCollisionCount(ctx, &nginxIngressController); err != nil {
-		lgr.Error(err, "unable to set collision count")
-		return ctrl.Result{}, fmt.Errorf("setting collision count: %w", err)
-	}
-
-	for _, obj := range n.ManagedObjects(&nginxIngressController) {
-		if err := util.Upsert(ctx, n.client, obj); err != nil {
-			lgr.Error(err, "unable to upsert object", "name", obj.GetName(), "kind", obj.GetObjectKind().GroupVersionKind().Kind, "namespace", obj.GetNamespace())
-			return ctrl.Result{}, fmt.Errorf("upserting object: %w", err)
-		}
+	if err := n.ReconcileResource(ctx, &nginxIngressController); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconciling resource: %w", err)
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// ReconcileResource reconciles the NginxIngressController resource
+func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) error {
+	if nic == nil {
+		return nil
+	}
+
+	start := time.Now()
+	lgr := log.FromContext(ctx, "nginxIngressController", nic.GetName())
+	ctx = log.IntoContext(ctx, lgr)
+	lgr.Info("starting to reconcile resource")
+	defer lgr.Info("finished reconciling resource", "latencySec", time.Since(start).Seconds())
+
+	collisionCountMu.Lock()
+	defer collisionCountMu.Unlock()
+
+	if err := n.SetCollisionCount(ctx, nic); err != nil {
+		lgr.Error(err, "unable to set collision count")
+		return fmt.Errorf("setting collision count: %w", err)
+	}
+
+	for _, obj := range n.ManagedObjects(nic) {
+		if err := util.Upsert(ctx, n.client, obj); err != nil {
+			lgr.Error(err, "unable to upsert object", "name", obj.GetName(), "kind", obj.GetObjectKind().GroupVersionKind().Kind, "namespace", obj.GetNamespace())
+			return fmt.Errorf("upserting object: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha1.NginxIngressController) []client.Object {
@@ -103,14 +156,21 @@ func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha
 		return nil
 	}
 
+	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
+	suffix := strconv.Itoa(int(nic.Status.CollisionCount))
+	if len(cc)+len(suffix) > controllerClassMaxLen {
+		cc = cc[:controllerClassMaxLen-len(suffix)]
+	}
+	cc = cc + suffix
+
 	nginxIngressCfg := &manifests.NginxIngressConfig{
-		ControllerClass: "webapprouting.kubernetes.azure.com/nginx/" + nic.Name, // need to truncate and add to collision detection?
+		ControllerClass: cc,
 		ResourceName:    fmt.Sprintf("%s-%d", nic.Spec.ControllerName, nic.Status.CollisionCount),
 		IcName:          nic.Spec.IngressClassName,
 		ServiceConfig:   nil, // TODO: take in lb annotations
 	}
 
-	objs := []client.Object{}
+	var objs []client.Object
 	objs = append(objs, manifests.NginxIngressClass(n.conf, nic, nginxIngressCfg)...)
 	objs = append(objs, manifests.NginxIngressControllerResources(n.conf, nic, nginxIngressCfg)...)
 	return objs

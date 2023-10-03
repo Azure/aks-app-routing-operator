@@ -148,7 +148,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	if err := nginxingress.SetupReconciler(m); err != nil {
+	if err := nginxingress.NewReconciler(conf, m); err != nil {
 		return nil, err
 	}
 
