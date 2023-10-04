@@ -11,8 +11,10 @@ import (
 
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	"k8s.io/utils/env"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -39,16 +41,21 @@ type aks struct {
 	options                             map[string]struct{}
 }
 
+type McOptFields struct {
+	ClusterName string
+	Ctx         context.Context
+}
+
 // McOpt specifies what kind of managed cluster to create
 type McOpt struct {
 	Name string
-	fn   func(mc *armcontainerservice.ManagedCluster) error
+	fn   func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error
 }
 
 // PrivateClusterOpt specifies that the cluster should be private
 var PrivateClusterOpt = McOpt{
 	Name: "private cluster",
-	fn: func(mc *armcontainerservice.ManagedCluster) error {
+	fn: func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error {
 		if mc.Properties == nil {
 			mc.Properties = &armcontainerservice.ManagedClusterProperties{}
 		}
@@ -64,7 +71,7 @@ var PrivateClusterOpt = McOpt{
 
 var OsmClusterOpt = McOpt{
 	Name: "osm cluster",
-	fn: func(mc *armcontainerservice.ManagedCluster) error {
+	fn: func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error {
 		if mc.Properties.AddonProfiles == nil {
 			mc.Properties.AddonProfiles = map[string]*armcontainerservice.ManagedClusterAddonProfile{}
 		}
@@ -79,12 +86,32 @@ var OsmClusterOpt = McOpt{
 
 var ServicePrincipalClusterOpt = McOpt{
 	Name: "service principal cluster",
-	fn: func(mc *armcontainerservice.ManagedCluster) error {
-		if mc.Identity == nil {
-			mc.Identity = &armcontainerservice.ManagedClusterIdentity{}
+	fn: func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error {
+		lgr := logger.FromContext(opt.Ctx).With("name", opt.ClusterName)
+
+		mc.Identity = nil
+
+		spAppId := env.GetString("SERVICE_PRINCIPAL_APP_ID", "")
+		if spAppId == "" {
+			return fmt.Errorf("SERVICE_PRINCIPAL_APP_ID env var not set")
 		}
 
-		mc.Identity.Type = to.Ptr(armcontainerservice.ResourceIdentityTypeUserAssigned)
+		credName := *mc.Name + "-cred"
+
+		app, err := GetApplicationByAppIDWithNewPasswordCred(opt.Ctx, spAppId, credName)
+		if err != nil {
+			return fmt.Errorf("getting app registration: %w", err)
+		}
+
+		// https://github.com/Azure/azure-cli/issues/14086#issuecomment-671685599
+
+		// set service principal profile
+		lgr.Info(fmt.Sprintf("setting service principal profile ClientID to %s", app.AppID))
+		mc.Properties.ServicePrincipalProfile = &armcontainerservice.ManagedClusterServicePrincipalProfile{
+			ClientID: util.StringPtr(app.AppID),
+			Secret:   util.StringPtr(app.CredPassword),
+		}
+
 		return nil
 	},
 }
@@ -147,8 +174,12 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	options := make(map[string]struct{})
+	mcOptFields := McOptFields{
+		ClusterName: name,
+		Ctx:         ctx,
+	}
 	for _, opt := range mcOpts {
-		if err := opt.fn(&mc); err != nil {
+		if err := opt.fn(&mc, mcOptFields); err != nil {
 			return nil, fmt.Errorf("applying cluster option: %w", err)
 		}
 
@@ -170,8 +201,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	if result.ManagedCluster.Properties == nil {
 		return nil, fmt.Errorf("managed cluster properties is nil")
 	}
-	if result.ManagedCluster.Properties.IdentityProfile == nil {
-		return nil, fmt.Errorf("managed cluster identity profile is nil")
+	// cluster must use either MSI or Service Principal
+	if result.ManagedCluster.Properties.IdentityProfile == nil && result.ManagedCluster.Properties.ServicePrincipalProfile == nil {
+		return nil, fmt.Errorf("managed cluster identity profile and service principal profile are nil")
 	}
 	if result.ManagedCluster.Name == nil {
 		return nil, fmt.Errorf("managed cluster name is nil")
