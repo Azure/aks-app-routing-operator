@@ -83,6 +83,7 @@ const (
 	// ConditionTypeIngressClassReady indicates whether the IngressClass exists. Its condition status is one of
 	// - "True" when the IngressClass exists
 	// - "False" when the IngressClass does not exist
+	// - "Collision" when the IngressClass exists, but it's not owned by the NginxIngressController.
 	// - "Unknown" when the IngressClass's existence cannot be determined
 	ConditionTypeIngressClassReady = "IngressClassReady"
 
@@ -130,12 +131,6 @@ type NginxIngressController struct {
 
 	// +optional
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
-}
-
-func (n *NginxIngressController) SetConditions(conditions ...metav1.Condition) {
-	for _, c := range conditions {
-		meta.SetStatusCondition(&n.Status.Conditions, c)
-	}
 }
 
 func (n *NginxIngressController) GetCondition(t nginxIngressControllerConditionType) *metav1.Condition {

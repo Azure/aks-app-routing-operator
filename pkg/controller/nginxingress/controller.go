@@ -14,6 +14,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/keymutex"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,6 +36,16 @@ var (
 	collisionCountMu = keymutex.NewHashed(10) // 10 is the number of "buckets". It's not too big, not too small todo: add more
 )
 
+// collision represents the type of collision that occurred when reconciling an nginxIngressController resource.
+// will be used to help determine the way we should handle the collision.
+type collision int
+
+const (
+	collisionNone collision = iota
+	collisionIngressClass
+	collisionOther
+)
+
 // nginxIngressControllerReconciler reconciles a NginxIngressController object
 type nginxIngressControllerReconciler struct {
 	client        client.Client
@@ -46,7 +58,12 @@ type nginxIngressControllerReconciler struct {
 func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 	metrics.InitControllerMetrics(nginxIngressControllerReconcilerName)
 
-	reconciler := &nginxIngressControllerReconciler{client: mgr.GetClient(), conf: conf}
+	reconciler := &nginxIngressControllerReconciler{
+		client:        mgr.GetClient(),
+		conf:          conf,
+		interval:      time.Minute * 3,
+		retryInterval: time.Second * 10,
+	}
 
 	// start event-based reconciler
 	if err := nginxIngressControllerReconcilerName.AddToController(
@@ -64,7 +81,8 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 // This reconciles any NginxIngressController resources that existed before the operator started and makes our upgrade story work. It also
 // reconciles / reverts any changes made to our managed resources by users.
 func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
-	lgr := nginxIngressControllerReconcilerName.AddToLogger(log.FromContext(ctx))
+	lgr := nginxIngressControllerReconcilerName.AddToLogger(log.FromContext(ctx)).WithValues("reconciler", "loop")
+	ctx = log.IntoContext(ctx, lgr)
 	lgr.Info("starting reconciler")
 	defer lgr.Info("stopping reconciler")
 
@@ -75,7 +93,9 @@ func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
 			return ctx.Err()
 		case <-time.After(util.Jitter(interval, 0.3)):
 		}
+		lgr.Info("reconciler iteration started")
 
+		lgr.Info("listing NginxIngressControllers")
 		// list all NginxIngressController resources and reconcile them
 		var list approutingv1alpha1.NginxIngressControllerList
 		if err := n.client.List(ctx, &list); err != nil {
@@ -84,16 +104,23 @@ func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
 			continue
 		}
 
+		lgr.Info("reconciling each NginxIngressController")
 		for _, nic := range list.Items {
+			lgr := lgr.WithValues("name", nic.Name)
 			// TODO: maybe use multiple go routines?
 			// TODO: handle metrics
+			ctx := log.IntoContext(ctx, lgr)
+
+			lgr.Info("reconciling resource")
 			if err := n.ReconcileResource(ctx, &nic); err != nil {
-				lgr.Error(err, "unable to reconcile NginxIngressController resource", "namespace", nic.Namespace, "name", nic.Name)
+				lgr.Error(err, "unable to reconcile NginxIngressController resource")
 				interval = n.retryInterval
 				continue
 			}
+			lgr.Info("finished reconciling resource")
 		}
 
+		lgr.Info("finished reconcile iteration")
 		interval = n.interval
 	}
 
@@ -101,11 +128,13 @@ func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
 
 // Reconcile immediately reconciles the NginxIngressController resource based on events
 func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
+	lgr := log.FromContext(ctx, "nginxIngressController", req.NamespacedName, "reconciler", "event")
+	ctx = log.IntoContext(ctx, lgr)
+
 	defer func() {
 		metrics.HandleControllerReconcileMetrics(nginxIngressControllerReconcilerName, res, err)
 	}()
 
-	lgr := log.FromContext(ctx, "nginxIngressController", req.NamespacedName)
 	var nginxIngressController approutingv1alpha1.NginxIngressController
 	if err := n.client.Get(ctx, req.NamespacedName, &nginxIngressController); err != nil {
 		if apierrors.IsNotFound(err) { // object was deleted
@@ -190,14 +219,33 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 	lgr := log.FromContext(ctx)
 	startingCollisionCount := nic.Status.CollisionCount
 
-	for {
+	// there's a limit to how many times we should try to find the collision count, we don't want to put too much stress on api server
+	// TODO: we should set a condition when hit + jitter retry interval
+	for i := 0; i < 10; i++ {
 		collision, err := n.collides(ctx, nic)
 		if err != nil {
 			lgr.Error(err, "unable to determine collision")
 			return fmt.Errorf("determining collision: %w", err)
 		}
 
-		if !collision {
+		if collision == collisionIngressClass {
+			lgr.Info("ingress class collision")
+			meta.SetStatusCondition(&nic.Status.Conditions, metav1.Condition{
+				Type:               approutingv1alpha1.ConditionTypeIngressClassReady,
+				Status:             "Collision",
+				ObservedGeneration: nic.Generation,
+				Message:            fmt.Sprintf("IngressClass %s already exists in the cluster and isn't owned by this resource. Delete the IngressClass or recreate this resource with a different spec.IngressClass field.", nic.Spec.IngressClassName),
+				Reason:             "IngressClassCollision",
+			})
+			if err := n.client.Status().Update(ctx, nic); err != nil {
+				lgr.Error(err, "unable to update status")
+				return fmt.Errorf("updating status with IngressClass collision")
+			}
+
+			return nil // this isn't an error, it's caused by a race condition involving our webhook
+		}
+
+		if collision == collisionNone {
 			break
 		}
 
@@ -216,7 +264,7 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 	return nil
 }
 
-func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (bool, error) {
+func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (collision, error) {
 	lgr := log.FromContext(ctx)
 
 	objs := n.ManagedObjects(nic)
@@ -240,18 +288,23 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 				continue
 			}
 
+			return collisionNone, fmt.Errorf("getting object: %w", err)
 		}
 
 		if owner := util.FindOwnerKind(u.GetOwnerReferences(), nic.Kind); owner == nic.Name {
 			continue
 		}
 
-		lgr.Info("collision on")
-		return true, nil
+		lgr.Info("collision detected")
+		if obj.GetObjectKind().GroupVersionKind().Kind == "IngressClass" {
+			return collisionIngressClass, nil
+		}
+
+		return collisionOther, nil
 	}
 
 	lgr.Info("no collisions detected")
-	return false, nil
+	return collisionNone, nil
 }
 
 func (n *nginxIngressControllerReconciler) NeedLeaderElection() bool {
