@@ -217,8 +217,20 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 }
 
 func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (bool, error) {
+	lgr := log.FromContext(ctx)
+
 	objs := n.ManagedObjects(nic)
 	for _, obj := range objs {
+		lgr := lgr.WithValues("kind", obj.GetObjectKind().GroupVersionKind().Kind, "name", obj.GetName(), "namespace", obj.GetNamespace())
+
+		// if we won't own the resource, we don't care about collisions.
+		// this is most commonly used for namespaces since we shouldn't own
+		// namespaces
+		if util.FindOwnerKind(obj.GetOwnerReferences(), nic.Kind) != nic.Name {
+			lgr.Info("skipping collision check because we don't own the resource")
+			continue
+		}
+
 		u := &unstructured.Unstructured{}
 		u.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
 
@@ -234,9 +246,11 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 			continue
 		}
 
+		lgr.Info("collision on")
 		return true, nil
 	}
 
+	lgr.Info("no collisions detected")
 	return false, nil
 }
 
