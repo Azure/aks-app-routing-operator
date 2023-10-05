@@ -20,6 +20,7 @@ push:
 
 e2e:
 	# parenthesis preserve current working directory
+	include .env
 	(cd testing/e2e && \
 	 go run ./main.go infra --subscription=${SUBSCRIPTION_ID} --tenant=${TENANT_ID} --names=${INFRA_NAMES} && \
 	 go run ./main.go deploy)
