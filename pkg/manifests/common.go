@@ -16,12 +16,12 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 }
 
 func getOwnerRefs(owner client.Object) []metav1.OwnerReference {
+	// check if owner is nil
 	if owner == nil {
 		return nil
 	}
 
 	gvk := owner.GetObjectKind().GroupVersionKind()
-
 	apiVersion := gvk.GroupVersion().String()
 	kind := gvk.Kind
 	name := owner.GetName()

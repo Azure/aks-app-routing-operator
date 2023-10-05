@@ -48,6 +48,7 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 
 	reconciler := &nginxIngressControllerReconciler{client: mgr.GetClient(), conf: conf}
 
+	// start event-based reconciler
 	if err := nginxIngressControllerReconcilerName.AddToController(
 		ctrl.NewControllerManagedBy(mgr).For(&approutingv1alpha1.NginxIngressController{}),
 		mgr.GetLogger(),
@@ -55,6 +56,7 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 		return err
 	}
 
+	// start periodic reconciliation loop reconciler
 	return mgr.Add(reconciler)
 }
 
@@ -84,6 +86,7 @@ func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
 
 		for _, nic := range list.Items {
 			// TODO: maybe use multiple go routines?
+			// TODO: handle metrics
 			if err := n.ReconcileResource(ctx, &nic); err != nil {
 				lgr.Error(err, "unable to reconcile NginxIngressController resource", "namespace", nic.Namespace, "name", nic.Name)
 				interval = n.retryInterval

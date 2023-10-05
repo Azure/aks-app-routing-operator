@@ -8,12 +8,19 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,13 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
 var scheme = runtime.NewScheme()
@@ -62,6 +62,7 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
 	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
+	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {

@@ -9,7 +9,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
@@ -41,7 +41,7 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 		}
 
 		log.Info("unmarshalling crd file")
-		crd := &apiextensions.CustomResourceDefinition{}
+		crd := &apiextensionsv1.CustomResourceDefinition{}
 		if err := yaml.Unmarshal(content, crd); err != nil {
 			return fmt.Errorf("unmarshalling crd file %s: %w", path, err)
 		}
