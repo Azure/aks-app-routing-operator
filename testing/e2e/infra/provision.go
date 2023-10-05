@@ -88,7 +88,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	})
 
 	resEg.Go(func() error {
-		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location, i.ServicePrincipalOptions)
+		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating key vault: %w", err))
 		}
