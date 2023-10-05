@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	"k8s.io/utils/env"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -21,7 +20,7 @@ const (
 	lenPrivateZones = 2
 )
 
-func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) (Provisioned, *logger.LoggedError) {
+func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applicationObjectId string) (Provisioned, *logger.LoggedError) {
 	lgr := logger.FromContext(ctx).With("infra", i.Name)
 	lgr.Info("provisioning infrastructure")
 	defer lgr.Info("finished provisioning infrastructure")
@@ -33,12 +32,11 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	}
 
 	if i.ServicePrincipalOptions != nil {
-		spAppObjId := env.GetString("SERVICE_PRINCIPAL_APP_OBJ_ID", "")
-		if spAppObjId == "" {
-			return ret, logger.Error(lgr, fmt.Errorf("SERVICE_PRINCIPAL_APP_OBJ_ID env var not set"))
+		if applicationObjectId == "" {
+			return ret, logger.Error(lgr, fmt.Errorf("application object id must be provided when provisioning infrastructure with service principal options"))
 		}
 		credName := i.Name + "-cred"
-		spOpt, err := clients.GetServicePrincipalOptions(ctx, spAppObjId, credName)
+		spOpt, err := clients.GetServicePrincipalOptions(ctx, applicationObjectId, credName)
 		if err != nil {
 			return ret, logger.Error(lgr, fmt.Errorf("getting app with credential: %w", err))
 		}
@@ -216,7 +214,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	return ret, nil
 }
 
-func (is infras) Provision(tenantId, subscriptionId string) ([]Provisioned, error) {
+func (is infras) Provision(tenantId, subscriptionId, applicationObjectId string) ([]Provisioned, error) {
 	lgr := logger.FromContext(context.Background())
 	lgr.Info("starting to provision all infrastructure")
 	defer lgr.Info("finished provisioning all infrastructure")
@@ -231,7 +229,7 @@ func (is infras) Provision(tenantId, subscriptionId string) ([]Provisioned, erro
 				lgr := logger.FromContext(ctx)
 				ctx = logger.WithContext(ctx, lgr.With("infra", inf.Name))
 
-				provisionedInfra, err := inf.Provision(ctx, tenantId, subscriptionId)
+				provisionedInfra, err := inf.Provision(ctx, tenantId, subscriptionId, applicationObjectId)
 				if err != nil {
 					return fmt.Errorf("provisioning infrastructure %s: %w", inf.Name, err)
 				}
