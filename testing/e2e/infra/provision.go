@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 	lenPrivateZones = 2
 )
 
-func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) (Provisioned, *logger.LoggedError) {
+func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applicationObjectId string) (Provisioned, *logger.LoggedError) {
 	lgr := logger.FromContext(ctx).With("infra", i.Name)
 	lgr.Info("provisioning infrastructure")
 	defer lgr.Info("finished provisioning infrastructure")
@@ -28,6 +29,18 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 		Name:           i.Name,
 		SubscriptionId: subscriptionId,
 		TenantId:       tenantId,
+	}
+
+	if i.ServicePrincipalOptions != nil {
+		if applicationObjectId == "" {
+			return ret, logger.Error(lgr, fmt.Errorf("application object id must be provided when provisioning infrastructure with service principal options"))
+		}
+		credName := i.Name + "-cred"
+		spOpt, err := clients.GetServicePrincipalOptions(ctx, applicationObjectId, credName)
+		if err != nil {
+			return ret, logger.Error(lgr, fmt.Errorf("getting app with credential: %w", err))
+		}
+		i.ServicePrincipalOptions = spOpt
 	}
 
 	var err error
@@ -67,7 +80,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	})
 
 	resEg.Go(func() error {
-		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.McOpts...)
+		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.ServicePrincipalOptions, i.McOpts...)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}
@@ -75,7 +88,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	})
 
 	resEg.Go(func() error {
-		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
+		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location, i.ServicePrincipalOptions)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating key vault: %w", err))
 		}
@@ -124,6 +137,11 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	// connect permissions
 	var permEg errgroup.Group
 
+	roleAssignmentPrincipalId := ret.Cluster.GetPrincipalId()
+	if i.ServicePrincipalOptions != nil {
+		roleAssignmentPrincipalId = i.ServicePrincipalOptions.ServicePrincipalObjectID
+	}
+
 	for _, pz := range ret.PrivateZones {
 		func(pz privateZone) {
 			permEg.Go(func() error {
@@ -132,9 +150,8 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.PrivateDnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, roleAssignmentPrincipalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -159,9 +176,8 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.DnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, roleAssignmentPrincipalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -171,10 +187,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	}
 
 	permEg.Go(func() error {
-		principalId := ret.Cluster.GetPrincipalId()
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
-		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, principalId, role); err != nil {
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, roleAssignmentPrincipalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
 
@@ -182,8 +197,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	})
 
 	permEg.Go(func() error {
-		principalId := ret.Cluster.GetPrincipalId()
-		if err := ret.KeyVault.AddAccessPolicy(ctx, principalId, armkeyvault.Permissions{
+		if err := ret.KeyVault.AddAccessPolicy(ctx, roleAssignmentPrincipalId, armkeyvault.Permissions{
 			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
 			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
 		}); err != nil {
@@ -200,7 +214,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId string) 
 	return ret, nil
 }
 
-func (is infras) Provision(tenantId, subscriptionId string) ([]Provisioned, error) {
+func (is infras) Provision(tenantId, subscriptionId, applicationObjectId string) ([]Provisioned, error) {
 	lgr := logger.FromContext(context.Background())
 	lgr.Info("starting to provision all infrastructure")
 	defer lgr.Info("finished provisioning all infrastructure")
@@ -215,7 +229,7 @@ func (is infras) Provision(tenantId, subscriptionId string) ([]Provisioned, erro
 				lgr := logger.FromContext(ctx)
 				ctx = logger.WithContext(ctx, lgr.With("infra", inf.Name))
 
-				provisionedInfra, err := inf.Provision(ctx, tenantId, subscriptionId)
+				provisionedInfra, err := inf.Provision(ctx, tenantId, subscriptionId, applicationObjectId)
 				if err != nil {
 					return fmt.Errorf("provisioning infrastructure %s: %w", inf.Name, err)
 				}
