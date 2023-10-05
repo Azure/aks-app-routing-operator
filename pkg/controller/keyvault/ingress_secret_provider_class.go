@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"net/url"
 	"strings"
 
@@ -90,6 +91,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
 			Namespace: ing.Namespace,
+			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -110,14 +112,18 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return result, err
 	}
 
-	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
-	if err != nil {
-		return result, client.IgnoreNotFound(err)
+	if len(spc.Labels) != 0 && hasTopLevelLabels(spc.Labels) {
+		err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
+		if err != nil {
+			return result, client.IgnoreNotFound(err)
+		}
+
+		logger.Info("removing secret provider class for ingress")
+		err = i.client.Delete(ctx, spc)
+		return result, err
 	}
 
-	logger.Info("removing secret provider class for ingress")
-	err = i.client.Delete(ctx, spc)
-	return result, err
+	return result, nil
 }
 
 func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
@@ -193,4 +199,13 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	}
 
 	return true, nil
+}
+
+func hasTopLevelLabels(spcLabels map[string]string) bool {
+	for label, _ := range manifests.GetTopLevelLabels() {
+		if _, ok := spcLabels[label]; !ok {
+			return false
+		}
+	}
+	return true
 }
