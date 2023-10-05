@@ -12,6 +12,7 @@ const (
 	infraNamesFlag     = "names"
 	infraFileFlag      = "infra-file"
 	infraNameFlag      = "infra-name"
+	spAppIDFlag        = "sp-app-id"
 )
 
 var (
@@ -56,3 +57,13 @@ func setupInfraFileFlag(cmd *cobra.Command) {
 var (
 	infraName string
 )
+
+var (
+	spAppID string
+)
+
+func setupSPAppIdNameFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&spAppID, spAppIDFlag, "", "appid of the service principal to use for service principal cluster testing")
+	// TODO: make this work instead of the global env read
+	//cmd.MarkFlagRequired(spAppIDFlag)
+}

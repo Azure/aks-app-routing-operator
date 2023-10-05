@@ -38,7 +38,11 @@ func LoadAkv(id azure.Resource) *akv {
 	}
 }
 
-func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string) (*akv, error) {
+type AkvServicePrincipalOptions struct {
+	ServicePrincipalId string
+}
+
+func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string, spOptions *ServicePrincipalOptions) (*akv, error) {
 	name = truncate(name, 24)
 
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location, "subscriptionId", subscriptionId)
@@ -56,7 +60,22 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("creating client factory: %w", err)
 	}
 
-	clientObjectId, err := getObjectId(ctx, cred)
+	var clientObjectId string
+
+	//isMSICluster := spOptions == nil
+	//isSPCluster := !isMSICluster
+	//if isSPCluster {
+	//	// ServicePrincipalCluster
+	//	clientObjectId = spOptions.ServicePrincipalObjectID
+	//}
+	//if isMSICluster {
+	//	// MSI Cluster
+	//	clientObjectId, err = getObjectId(ctx, cred)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("getting client object id: %w", err)
+	//	}
+	//}
+	clientObjectId, err = getObjectId(ctx, cred)
 	if err != nil {
 		return nil, fmt.Errorf("getting client object id: %w", err)
 	}

@@ -13,6 +13,7 @@ func init() {
 	setupSubTenantFlags(infraCmd)
 	setupInfraNamesFlag(infraCmd)
 	setupInfraFileFlag(infraCmd)
+	setupSPAppIdNameFlag(infraCmd)
 	rootCmd.AddCommand(infraCmd)
 }
 

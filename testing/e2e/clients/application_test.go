@@ -4,37 +4,29 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"k8s.io/utils/env"
 )
 
 func Test_App_Please_Work(t *testing.T) {
-	r, err := RandStringAlphaNum(5)
-	mc := aks{
-		name: fmt.Sprintf("davidgamerotest-%s", r),
-	}
-	mcName := mc.name
-	app, err := NewApplication(context.Background(), fmt.Sprintf("%s-app", mcName))
-	if err != nil {
-		t.Fail()
-		t.Errorf("creating app registration: %s", err.Error())
-	}
-	fmt.Println("created app successfully")
-
-	// make a new service principal
-	sp, err := NewServicePrincipal(context.Background(), fmt.Sprintf("%s-sp", mcName), app)
-	if err != nil {
-		t.Errorf("creating service principal: %s", err.Error())
+	applicationObjectId := env.GetString("SERVICE_PRINCIPAL_APP_OBJ_ID", "")
+	if applicationObjectId == "" {
+		t.Errorf("SERVICE_PRINCIPAL_APP_OBJ_ID env var not set")
 		t.Fail()
 	}
 
-	fmt.Println("created service principal successfully")
-	fmt.Println(sp)
-
-	err = app.Delete(context.Background())
-
+	n, err := RandStringAlphaNum(10)
 	if err != nil {
-		t.Errorf("deleting app: %s", err.Error())
+		t.Errorf("generating random string: %s", err.Error())
 		t.Fail()
 	}
+	credName := n + "-cred"
 
-	fmt.Println("deleted app successfully")
+	spOpt, err := GetServicePrincipalOptions(context.TODO(), applicationObjectId, credName)
+	if err != nil {
+		t.Errorf("getting application: %s", err.Error())
+		t.Fail()
+	}
+	fmt.Printf("app: %+v\n", spOpt)
+
 }

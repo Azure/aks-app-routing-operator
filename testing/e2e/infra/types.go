@@ -23,6 +23,7 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
+	ServicePrincipalOptions *clients.ServicePrincipalOptions
 }
 
 type Identifier interface {
