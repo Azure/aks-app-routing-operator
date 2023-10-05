@@ -62,19 +62,6 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 
 	var clientObjectId string
 
-	//isMSICluster := spOptions == nil
-	//isSPCluster := !isMSICluster
-	//if isSPCluster {
-	//	// ServicePrincipalCluster
-	//	clientObjectId = spOptions.ServicePrincipalObjectID
-	//}
-	//if isMSICluster {
-	//	// MSI Cluster
-	//	clientObjectId, err = getObjectId(ctx, cred)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("getting client object id: %w", err)
-	//	}
-	//}
 	clientObjectId, err = getObjectId(ctx, cred)
 	if err != nil {
 		return nil, fmt.Errorf("getting client object id: %w", err)

@@ -41,13 +41,9 @@ type aks struct {
 }
 
 type ServicePrincipalOptions struct {
-	// ApplicationObjectID can be found in the portal on the app registration summary page
-	ApplicationObjectID string
-	// ApplicationClientID can be found in the portal on the app registration summary page
-	ApplicationClientID string
-	// ServicePrincipalObjectID can be found in the portal on the app registration enterprise applications page by clicking into "managed application in local directory" on the app registration summary page
-	ServicePrincipalObjectID string
-
+	ApplicationObjectID          string
+	ApplicationClientID          string
+	ServicePrincipalObjectID     string
 	ServicePrincipalCredPassword string
 }
 
