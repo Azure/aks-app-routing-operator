@@ -237,7 +237,14 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		principalID = *identity.ObjectID
 		clientID = *identity.ClientID
 	} else {
-		principalID = os.Getenv("SERVICE_PRINCIPAL_APP_OBJ_ID")
+		principalID = spOpts.ApplicationObjectID
+	}
+
+	if principalID == "" {
+		return nil, fmt.Errorf("principal id is empty")
+	}
+	if clientID == "" {
+		return nil, fmt.Errorf("client id is empty")
 	}
 
 	cluster := &aks{

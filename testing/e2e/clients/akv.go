@@ -38,10 +38,6 @@ func LoadAkv(id azure.Resource) *akv {
 	}
 }
 
-type AkvServicePrincipalOptions struct {
-	ServicePrincipalId string
-}
-
 func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, location string, spOptions *ServicePrincipalOptions) (*akv, error) {
 	name = truncate(name, 24)
 
@@ -60,9 +56,7 @@ func NewAkv(ctx context.Context, tenantId, subscriptionId, resourceGroup, name, 
 		return nil, fmt.Errorf("creating client factory: %w", err)
 	}
 
-	var clientObjectId string
-
-	clientObjectId, err = getObjectId(ctx, cred)
+	clientObjectId, err := getObjectId(ctx, cred)
 	if err != nil {
 		return nil, fmt.Errorf("getting client object id: %w", err)
 	}

@@ -14,22 +14,24 @@ import (
 
 func TimePtr(t time.Time) *time.Time { return &t }
 
+// GetServicePrincipalOptions populates a new ServicePrincipalOptions struct with fresh credentials and application/client/servicePrincipal object ids
 func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string, credName string) (*ServicePrincipalOptions, error) {
-	lgr := logger.FromContext(ctx).With("appid", applicationObjectID)
-	lgr.Info(fmt.Sprintf("getting application with appid %s", applicationObjectID))
+	lgr := logger.FromContext(ctx)
+	lgr.Info(fmt.Sprintf("getting application with object id %s", applicationObjectID))
 
 	cred, err := getAzCred()
 	scopes := []string{"https://graph.microsoft.com/.default"}
 	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(cred, scopes)
-
 	if err != nil {
 		return nil, fmt.Errorf("creating graph client: %w", err)
 	}
+
 	getAppResponse, err := graphClient.Applications().ByApplicationId(applicationObjectID).Get(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting application with object id %s: %w", applicationObjectID, err)
 	}
 
+	// add new password credential
 	addPasswordReq := graphapplications.NewItemAddPasswordPostRequestBody()
 	newCreds := graphmodels.NewPasswordCredential()
 	newCreds.SetDisplayName(util.StringPtr(credName))
@@ -41,7 +43,7 @@ func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string,
 	}
 	lgr.Info(fmt.Sprintf("added password with display name %s: ", *addPasswordCredResp.GetDisplayName()))
 
-	// get sp object id
+	// get service principal object id
 	sp, err := graphClient.ServicePrincipalsWithAppId(getAppResponse.GetAppId()).Get(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting service principal: %w", err)
@@ -53,6 +55,5 @@ func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string,
 		ServicePrincipalObjectID:     *sp.GetId(),
 		ServicePrincipalCredPassword: *addPasswordCredResp.GetSecretText(),
 	}
-
 	return spOpt, nil
 }
