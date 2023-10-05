@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"sync"
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -16,6 +15,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/keymutex"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -28,10 +28,10 @@ const (
 var (
 	nginxIngressControllerReconcilerName = controllername.New("nginx", "ingress", "controller", "reconciler")
 
-	// collisionCountMu is used to prevent multiple nginxIngressController resources from determining their collisionCount at the same time
-	// before any managed resources are deployed (this could result in multiple nginxIngressController resources having the same collisionCount) leading
-	// to a collision
-	collisionCountMu sync.Mutex
+	// collisionCountMu is used to prevent multiple nginxIngressController resources from determining their collisionCount at the same time. We use
+	// a hashed key mutex because collisions can only occur when the nginxIngressController resources have the same spec.ControllerName field. This
+	// is the field used to key into this mutex.
+	collisionCountMu = keymutex.NewHashed(10) // 10 is the number of "buckets". It's not too big, not too small todo: add more
 )
 
 // nginxIngressControllerReconciler reconciles a NginxIngressController object
@@ -58,7 +58,9 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 	return mgr.Add(reconciler)
 }
 
-// Start starts the NginxIngressController reconciler to continously reconcile NginxIngressController resources
+// Start starts the NginxIngressController reconciler to continuously reconcile NginxIngressController resources existing in the cluster.
+// This reconciles any NginxIngressController resources that existed before the operator started and makes our upgrade story work. It also
+// reconciles / reverts any changes made to our managed resources by users.
 func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
 	lgr := nginxIngressControllerReconcilerName.AddToLogger(log.FromContext(ctx))
 	lgr.Info("starting reconciler")
@@ -94,7 +96,7 @@ func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
 
 }
 
-// Reconcile immediately reconciles the NginxIngressController resource based on an event
+// Reconcile immediately reconciles the NginxIngressController resource based on events
 func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
 	defer func() {
 		metrics.HandleControllerReconcileMetrics(nginxIngressControllerReconcilerName, res, err)
@@ -133,8 +135,9 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 	lgr.Info("starting to reconcile resource")
 	defer lgr.Info("finished reconciling resource", "latencySec", time.Since(start).Seconds())
 
-	collisionCountMu.Lock()
-	defer collisionCountMu.Unlock()
+	lockKey := nic.Spec.ControllerName
+	collisionCountMu.LockKey(lockKey)
+	defer collisionCountMu.UnlockKey(lockKey)
 
 	if err := n.SetCollisionCount(ctx, nic); err != nil {
 		lgr.Error(err, "unable to set collision count")
@@ -156,6 +159,10 @@ func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha
 		return nil
 	}
 
+	// TODO: should use controller name instead of ingress class name, it better represents the resource
+	// TODO: need to specify limits for length of resource name. that makes this easy
+	// really would like some way of guaranteeing uniqueness for cc. Just doesn't work well for collisions
+	// after truncating
 	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
 	suffix := strconv.Itoa(int(nic.Status.CollisionCount))
 	if len(cc)+len(suffix) > controllerClassMaxLen {
@@ -228,4 +235,8 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 	}
 
 	return false, nil
+}
+
+func (n *nginxIngressControllerReconciler) NeedLeaderElection() bool {
+	return true
 }

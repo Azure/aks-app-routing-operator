@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -42,6 +43,7 @@ func init() {
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
+	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests")
 }
 
 type DnsZoneConfig struct {
@@ -64,6 +66,7 @@ type Config struct {
 	OperatorDeployment                  string
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
+	CrdPath                             string
 }
 
 func (c *Config) Validate() error {
@@ -104,6 +107,17 @@ func (c *Config) Validate() error {
 
 	if c.DnsSyncInterval <= 0 {
 		c.DnsSyncInterval = defaultDnsSyncInterval
+	}
+
+	crdPathStat, err := os.Stat(c.CrdPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("crd path %s does not exist", c.CrdPath)
+	}
+	if err != nil {
+		return fmt.Errorf("while checking crd path %s: %w", c.CrdPath, err)
+	}
+	if !crdPathStat.IsDir() {
+		return fmt.Errorf("crd path %s is not a directory", c.CrdPath)
 	}
 
 	return nil

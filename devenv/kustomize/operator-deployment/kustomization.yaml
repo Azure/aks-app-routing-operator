@@ -1,7 +1,6 @@
 # kustomization.yaml
 resources:
   - operator.yaml
-  - approuting.kubernetes.azure.com_nginxingresscontrollers.yaml
 
 patches:
   - patch: |-

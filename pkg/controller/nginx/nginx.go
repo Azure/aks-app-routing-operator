@@ -68,14 +68,6 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) ([]*ma
 		defaultIngConfig: defaultIngConfig,
 	}
 
-	if err := n.addIngressClassReconciler(); err != nil {
-		return nil, err
-	}
-
-	if err := n.addIngressControllerReconciler(); err != nil {
-		return nil, err
-	}
-
 	if err := n.addIngressReconciler(); err != nil {
 		return nil, err
 	}

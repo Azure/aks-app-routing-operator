@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -88,7 +89,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 
-	kcs, err := kubernetes.NewForConfig(rc) // need non-caching client since manager hasn't started yet
+	// setup non-caching clients for use before manager starts
+	kcs, err := kubernetes.NewForConfig(rc)
+	if err != nil {
+		return nil, err
+	}
+	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +105,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 	log.V(2).Info("using namespace: " + conf.NS)
+
+	if err := loadCRDs(cl, conf, log); err != nil {
+		log.Error(err, "failed to load CRDs")
+		return nil, err
+	}
 
 	if err := dns.NewExternalDns(m, conf, deploy); err != nil {
 		return nil, err
