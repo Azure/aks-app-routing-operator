@@ -43,16 +43,22 @@ spec:
                   Ingress Controller resources. This will be used as the name unless
                   there's a collision in which case it will be used as a prefix.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               controllerNamespace:
                 default: app-routing-system
                 description: ControllerNamespace is the namespace where the NGINX
                   Ingress Controller's required resources are deployed
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               ingressClassName:
-                description: IngressClassName is the name of the IngressClass that
-                  will be used for the NGINX Ingress Controller. Defaults to metadata.name
-                  if not specified.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               loadBalancerAnnotations:
                 additionalProperties:
                   type: string

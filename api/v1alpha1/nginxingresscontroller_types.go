@@ -10,22 +10,24 @@ import (
 
 // NginxIngressControllerSpec defines the desired state of NginxIngressController
 type NginxIngressControllerSpec struct {
-	// +kubebuilder:default=app-routing-system
-
 	// ControllerNamespace is the namespace where the NGINX Ingress Controller's required resources are deployed
 	// +optional
+	// +kubebuilder:default=app-routing-system
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	ControllerNamespace string `json:"controllerNamespace,omitempty"`
 
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
 	// +optional
-	IngressClassName string `json:"ingressClassName,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 
-	// +kubebuilder:default=nginx
+	IngressClassName string `json:"ingressClassName,omitempty"`
 
 	// ControllerName is the name to use for the managed NGINX Ingress Controller resources. This will be used as the name unless
 	// there's a collision in which case it will be used as a prefix.
 	// +optional
+	// +kubebuilder:default=nginx
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	ControllerName string `json:"controllerName,omitempty"`
 
 	// LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations
