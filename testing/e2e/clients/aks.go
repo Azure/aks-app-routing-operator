@@ -222,8 +222,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	// validate MSI when not using Service Principal
 	var identity *armcontainerservice.UserAssignedIdentity
 	var principalID, clientID string
-	if result.ManagedCluster.Properties.ServicePrincipalProfile == nil {
-		ok := false
+	isMSICluster := result.ManagedCluster.Properties.ServicePrincipalProfile == nil
+	if isMSICluster {
+		ok := false // avoid shadowing
 		identity, ok = result.Properties.IdentityProfile["kubeletidentity"]
 		if !ok {
 			return nil, fmt.Errorf("kubelet identity not found")
@@ -240,11 +241,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		principalID = spOpts.ApplicationObjectID
 	}
 
+	// final principal id validation to be safe
 	if principalID == "" {
 		return nil, fmt.Errorf("principal id is empty")
-	}
-	if clientID == "" {
-		return nil, fmt.Errorf("client id is empty")
 	}
 
 	cluster := &aks{
