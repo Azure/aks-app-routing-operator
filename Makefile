@@ -1,7 +1,5 @@
 .PHONY: clean dev push push-tester-image e2e run-e2e
 
-include .env
-
 # can have values of "public" or "private"
 CLUSTER_TYPE="public"
 
