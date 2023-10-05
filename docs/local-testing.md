@@ -5,7 +5,7 @@ Before submitting a pull request, you need to ensure that your changes work and 
 
 ## Development Environment 
 
-You can easily provision a development environment to test your changes on.
+You can easily provision a development environment to test your changes on. Prior to this, make sure you've created your `.env` file based on the values in `.env.example`.
 
 1. `make clean` to clear out any preexisting Terraform state.
 2. `make dev` to deploy all Azure resources necessary to run a full suite, including a Kubernetes cluster that the operator will be deployed to. IMPORTANT: this does not start the add-on. The next step needs to be run for the add-on to be fully deployed with the correct image.
