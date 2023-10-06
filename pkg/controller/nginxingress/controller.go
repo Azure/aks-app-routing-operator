@@ -33,7 +33,7 @@ var (
 	// collisionCountMu is used to prevent multiple nginxIngressController resources from determining their collisionCount at the same time. We use
 	// a hashed key mutex because collisions can only occur when the nginxIngressController resources have the same spec.ControllerName field. This
 	// is the field used to key into this mutex.
-	collisionCountMu = keymutex.NewHashed(10) // 10 is the number of "buckets". It's not too big, not too small todo: add more
+	collisionCountMu = keymutex.NewHashed(6) // 6 is the number of "buckets". It's not too big, not too small todo: add more details
 )
 
 // collision represents the type of collision that occurred when reconciling an nginxIngressController resource.
@@ -48,10 +48,8 @@ const (
 
 // nginxIngressControllerReconciler reconciles a NginxIngressController object
 type nginxIngressControllerReconciler struct {
-	client        client.Client
-	conf          *config.Config
-	interval      time.Duration
-	retryInterval time.Duration
+	client client.Client
+	conf   *config.Config
 }
 
 // NewReconciler sets up the controller with the Manager.
@@ -59,13 +57,10 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 	metrics.InitControllerMetrics(nginxIngressControllerReconcilerName)
 
 	reconciler := &nginxIngressControllerReconciler{
-		client:        mgr.GetClient(),
-		conf:          conf,
-		interval:      time.Minute * 3,
-		retryInterval: time.Second * 10,
+		client: mgr.GetClient(),
+		conf:   conf,
 	}
 
-	// start event-based reconciler
 	if err := nginxIngressControllerReconcilerName.AddToController(
 		ctrl.NewControllerManagedBy(mgr).For(&approutingv1alpha1.NginxIngressController{}),
 		mgr.GetLogger(),
@@ -73,60 +68,9 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 		return err
 	}
 
-	// start periodic reconciliation loop reconciler
-	return mgr.Add(reconciler)
+	return nil
 }
 
-// Start starts the NginxIngressController reconciler to continuously reconcile NginxIngressController resources existing in the cluster.
-// This reconciles any NginxIngressController resources that existed before the operator started and makes our upgrade story work. It also
-// reconciles / reverts any changes made to our managed resources by users.
-func (n *nginxIngressControllerReconciler) Start(ctx context.Context) error {
-	lgr := nginxIngressControllerReconcilerName.AddToLogger(log.FromContext(ctx)).WithValues("reconciler", "loop")
-	ctx = log.IntoContext(ctx, lgr)
-	lgr.Info("starting reconciler")
-	defer lgr.Info("stopping reconciler")
-
-	interval := time.Nanosecond // run immediately when starting up
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(util.Jitter(interval, 0.3)):
-		}
-		lgr.Info("reconciler iteration started")
-
-		lgr.Info("listing NginxIngressControllers")
-		// list all NginxIngressController resources and reconcile them
-		var list approutingv1alpha1.NginxIngressControllerList
-		if err := n.client.List(ctx, &list); err != nil {
-			lgr.Error(err, "unable to list NginxIngressController resources")
-			interval = n.retryInterval
-			continue
-		}
-
-		lgr.Info("reconciling each NginxIngressController")
-		for _, nic := range list.Items {
-			lgr := lgr.WithValues("name", nic.Name)
-			// TODO: maybe use multiple go routines?
-			// TODO: handle metrics
-			ctx := log.IntoContext(ctx, lgr)
-
-			lgr.Info("reconciling resource")
-			if err := n.ReconcileResource(ctx, &nic); err != nil {
-				lgr.Error(err, "unable to reconcile NginxIngressController resource")
-				interval = n.retryInterval
-				continue
-			}
-			lgr.Info("finished reconciling resource")
-		}
-
-		lgr.Info("finished reconcile iteration")
-		interval = n.interval
-	}
-
-}
-
-// Reconcile immediately reconciles the NginxIngressController resource based on events
 func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
 	lgr := log.FromContext(ctx, "nginxIngressController", req.NamespacedName, "reconciler", "event")
 	ctx = log.IntoContext(ctx, lgr)
@@ -305,8 +249,4 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 
 	lgr.Info("no collisions detected")
 	return collisionNone, nil
-}
-
-func (n *nginxIngressControllerReconciler) NeedLeaderElection() bool {
-	return true
 }

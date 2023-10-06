@@ -1,6 +1,6 @@
 # Run `make help` for usage information on commands in this file.
 
-include .env
+-include .env
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
