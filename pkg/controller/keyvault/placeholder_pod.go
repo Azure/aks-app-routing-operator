@@ -86,6 +86,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
+			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -108,10 +109,12 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	managed := p.ingressManager.IsManaging(ing)
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
+			return result, client.IgnoreNotFound(err)
+		}
+		if len(spc.Labels) != 0 && HasTopLevelLabels(spc.Labels) {
+			err = p.client.Delete(ctx, dep)
 			return result, err
 		}
-		err = p.client.Delete(ctx, dep)
-		return result, err
 	}
 
 	logger.Info("reconciling placeholder deployment for secret provider class")
