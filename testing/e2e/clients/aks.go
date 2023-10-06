@@ -56,13 +56,13 @@ type McOptFields struct {
 // McOpt specifies what kind of managed cluster to create
 type McOpt struct {
 	Name string
-	fn   func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error
+	fn   func(mc *armcontainerservice.ManagedCluster) error
 }
 
 // PrivateClusterOpt specifies that the cluster should be private
 var PrivateClusterOpt = McOpt{
 	Name: "private cluster",
-	fn: func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error {
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
 		if mc.Properties == nil {
 			mc.Properties = &armcontainerservice.ManagedClusterProperties{}
 		}
@@ -78,44 +78,13 @@ var PrivateClusterOpt = McOpt{
 
 var OsmClusterOpt = McOpt{
 	Name: "osm cluster",
-	fn: func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error {
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
 		if mc.Properties.AddonProfiles == nil {
 			mc.Properties.AddonProfiles = map[string]*armcontainerservice.ManagedClusterAddonProfile{}
 		}
 
 		mc.Properties.AddonProfiles["openServiceMesh"] = &armcontainerservice.ManagedClusterAddonProfile{
 			Enabled: to.Ptr(true),
-		}
-
-		return nil
-	},
-}
-
-var ServicePrincipalClusterOpt = McOpt{
-	Name: "service principal cluster",
-	fn: func(mc *armcontainerservice.ManagedCluster, opt McOptFields) error {
-		lgr := logger.FromContext(opt.Ctx).With("name", opt.ClusterName)
-
-		mc.Identity = nil
-
-		if opt.ServicePrincipalOptions == nil {
-			return fmt.Errorf("service principal options is nil")
-		}
-
-		clientId := opt.ServicePrincipalOptions.ApplicationClientID
-		if clientId == "" {
-			return fmt.Errorf("application client id is empty")
-		}
-		passwordCred := opt.ServicePrincipalOptions.ServicePrincipalCredPassword
-		if passwordCred == "" {
-			return fmt.Errorf("service principal cred password is empty")
-		}
-
-		// set service principal profile
-		lgr.Info(fmt.Sprintf("setting service principal profile ClientID to %s", clientId))
-		mc.Properties.ServicePrincipalProfile = &armcontainerservice.ManagedClusterServicePrincipalProfile{
-			ClientID: util.StringPtr(clientId),
-			Secret:   util.StringPtr(passwordCred),
 		}
 
 		return nil
@@ -176,17 +145,16 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 					},
 				},
 			},
+			ServicePrincipalProfile: &armcontainerservice.ManagedClusterServicePrincipalProfile{
+				ClientID: to.Ptr(spOpts.ApplicationClientID),
+				Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
+			},
 		},
 	}
 
 	options := make(map[string]struct{})
-	mcOptFields := McOptFields{
-		ClusterName:             name,
-		Ctx:                     ctx,
-		ServicePrincipalOptions: spOpts,
-	}
 	for _, opt := range mcOpts {
-		if err := opt.fn(&mc, mcOptFields); err != nil {
+		if err := opt.fn(&mc); err != nil {
 			return nil, fmt.Errorf("applying cluster option: %w", err)
 		}
 

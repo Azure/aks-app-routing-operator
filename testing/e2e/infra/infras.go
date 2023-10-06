@@ -38,7 +38,7 @@ var Infras = infras{
 	//	ResourceGroup:           rg,
 	//	Location:                location,
 	//	Suffix:                  uuid.New().String(),
-	//	McOpts:                  []clients.McOpt{clients.ServicePrincipalClusterOpt},
+	//	McOpts:                  []clients.McOpt{},
 	//	ServicePrincipalOptions: &clients.ServicePrincipalOptions{},
 	//},
 }
