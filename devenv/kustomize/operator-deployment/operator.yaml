@@ -42,3 +42,23 @@ spec:
   selector:
     matchLabels:
       app: app-routing-operator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-routing-operator-webhook
+  namespace: kube-system
+spec:
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: client
+      port: 9443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    matchLabels:
+      app: app-routing-operator
+  sessionAffinity: None
+  type: ClusterIP
