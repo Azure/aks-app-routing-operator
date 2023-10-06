@@ -137,10 +137,6 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	// connect permissions
 	var permEg errgroup.Group
 
-	if i.ServicePrincipalOptions != nil {
-		roleAssignmentPrincipalId = i.ServicePrincipalOptions.ServicePrincipalObjectID
-	}
-
 	for _, pz := range ret.PrivateZones {
 		func(pz privateZone) {
 			permEg.Go(func() error {
@@ -199,7 +195,8 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	})
 
 	permEg.Go(func() error {
-		if err := ret.KeyVault.AddAccessPolicy(ctx, roleAssignmentPrincipalId, armkeyvault.Permissions{
+		principalId := ret.Cluster.GetPrincipalId()
+		if err := ret.KeyVault.AddAccessPolicy(ctx, principalId, armkeyvault.Permissions{
 			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
 			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
 		}); err != nil {
