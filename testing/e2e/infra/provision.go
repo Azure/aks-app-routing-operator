@@ -137,7 +137,6 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	// connect permissions
 	var permEg errgroup.Group
 
-	roleAssignmentPrincipalId := ret.Cluster.GetPrincipalId()
 	if i.ServicePrincipalOptions != nil {
 		roleAssignmentPrincipalId = i.ServicePrincipalOptions.ServicePrincipalObjectID
 	}
@@ -150,8 +149,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
+				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.PrivateDnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, roleAssignmentPrincipalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -176,8 +176,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
+				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.DnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, roleAssignmentPrincipalId, role); err != nil {
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 				}
 
@@ -187,9 +188,10 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	}
 
 	permEg.Go(func() error {
+		principalId := ret.Cluster.GetPrincipalId()
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
-		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, roleAssignmentPrincipalId, role); err != nil {
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, principalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
 

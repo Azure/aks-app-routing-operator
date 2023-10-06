@@ -238,7 +238,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		principalID = *identity.ObjectID
 		clientID = *identity.ClientID
 	} else {
-		principalID = spOpts.ApplicationObjectID
+		principalID = spOpts.ServicePrincipalObjectID
 	}
 
 	// final principal id validation to be safe
