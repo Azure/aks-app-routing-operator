@@ -101,7 +101,7 @@ var ServicePrincipalClusterOpt = McOpt{
 		if opt.ServicePrincipalOptions == nil {
 			return fmt.Errorf("service principal options is nil")
 		}
-		// https://github.com/Azure/azure-cli/issues/14086#issuecomment-671685599
+
 		clientId := opt.ServicePrincipalOptions.ApplicationClientID
 		if clientId == "" {
 			return fmt.Errorf("application client id is empty")
