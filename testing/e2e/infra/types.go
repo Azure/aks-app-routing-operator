@@ -83,7 +83,6 @@ type cert interface {
 type Provisioned struct {
 	Name              string
 	Cluster           cluster
-	SPCluster         cluster
 	ContainerRegistry containerRegistry
 	Zones             []zone
 	PrivateZones      []privateZone
