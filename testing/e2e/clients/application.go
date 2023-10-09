@@ -34,7 +34,7 @@ func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string,
 	addPasswordReq := graphapplications.NewItemAddPasswordPostRequestBody()
 	newCreds := graphmodels.NewPasswordCredential()
 	newCreds.SetDisplayName(util.StringPtr(credName))
-	newCreds.SetEndDateTime(to.Ptr(time.Now().Add(24 * time.Hour)))
+	newCreds.SetEndDateTime(to.Ptr(time.Now().Add(2 * time.Hour)))
 	addPasswordReq.SetPasswordCredential(newCreds)
 	addPasswordCredResp, err := graphClient.Applications().ByApplicationId(applicationObjectID).AddPassword().Post(ctx, addPasswordReq, nil)
 	if err != nil {
