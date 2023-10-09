@@ -47,12 +47,6 @@ type ServicePrincipalOptions struct {
 	ServicePrincipalCredPassword string
 }
 
-type McOptFields struct {
-	ClusterName             string
-	Ctx                     context.Context
-	ServicePrincipalOptions *ServicePrincipalOptions
-}
-
 // McOpt specifies what kind of managed cluster to create
 type McOpt struct {
 	Name string
