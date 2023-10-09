@@ -68,14 +68,17 @@ func (r *resourceReconciler) tick(ctx context.Context) error {
 	}()
 
 	for _, res := range r.resources {
+		lgr := r.logger.WithValues("name", res.GetName(), "namespace", res.GetNamespace(), "kind", res.GetObjectKind().GroupVersionKind())
 		copy := res.DeepCopyObject().(client.Object)
 		if copy.GetDeletionTimestamp() != nil {
+			lgr.Info("deleting resource")
 			if err = r.client.Delete(ctx, copy); err != nil && !k8serrors.IsNotFound(err) {
 				r.logger.Error(err, "deleting unneeded resources")
 			}
 			continue
 		}
 
+		lgr.Info("upserting resource")
 		if err = util.Upsert(ctx, r.client, copy); err != nil {
 			r.logger.Error(err, "upserting resources")
 			return err

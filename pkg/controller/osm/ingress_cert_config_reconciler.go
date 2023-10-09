@@ -5,6 +5,7 @@ package osm
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
@@ -63,44 +64,52 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err != nil {
 		return result, err
 	}
-	logger = ingressCertConfigControllerName.AddToLogger(logger)
+	logger = ingressCertConfigControllerName.AddToLogger(logger).WithValues("namespace", req.Namespace, "name", req.Name)
 
 	if req.Name != osmMeshConfigName || req.Namespace != osmNamespace {
+		logger.Info(fmt.Sprintf("ignoring mesh config, not %s/%s", osmNamespace, osmMeshConfigName))
 		return result, nil
 	}
 
+	logger.Info("getting OSM ingress mesh config")
 	conf := &cfgv1alpha2.MeshConfig{}
 	err = i.client.Get(ctx, req.NamespacedName, conf)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
+	logger = logger.WithValues("generation", conf.Generation)
 
 	var dirty bool
 	if conf.Spec.Certificate.IngressGateway == nil {
 		conf.Spec.Certificate.IngressGateway = &cfgv1alpha2.IngressGatewayCertSpec{}
 	}
 	if conf.Spec.Certificate.IngressGateway.Secret.Name != osmClientCertName {
+		logger.Info("updating IngressGateway client cert secret name")
 		dirty = true
 		conf.Spec.Certificate.IngressGateway.Secret.Name = osmClientCertName
 	}
 	if conf.Spec.Certificate.IngressGateway.Secret.Namespace != osmNamespace {
+		logger.Info("updating IngressGateway client cert secret namespace")
 		dirty = true
 		conf.Spec.Certificate.IngressGateway.Secret.Namespace = osmNamespace
 	}
 	if conf.Spec.Certificate.IngressGateway.ValidityDuration != osmClientCertValidity {
+		logger.Info("updating IngressGateway client cert validity duration")
 		dirty = true
 		conf.Spec.Certificate.IngressGateway.ValidityDuration = osmClientCertValidity
 	}
 	if l := len(conf.Spec.Certificate.IngressGateway.SubjectAltNames); l != 1 ||
 		(l == 1 && conf.Spec.Certificate.IngressGateway.SubjectAltNames[0] != osmNginxSAN) {
+		logger.Info("updating IngressGateway SAN")
 		dirty = true
 		conf.Spec.Certificate.IngressGateway.SubjectAltNames = []string{osmNginxSAN}
 	}
 	if !dirty {
+		logger.Info("no changes required for OSM ingress client cert configuration")
 		return result, nil
 	}
 
-	logger.Info("updating OSM ingress client cert configuration")
+	logger.Info("updating OSM ingress mesh config")
 	err = i.client.Update(ctx, conf)
 	return result, err
 }
