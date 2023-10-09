@@ -39,6 +39,10 @@ type aks struct {
 	options                             map[string]struct{}
 }
 
+// ServicePrincipal represents all the information needed to use a service principal including
+// a fresh set of credentials and the associated application and service principal object ids.
+// This representation is intended as read-only as in most cases only one ID is needed to retrieve
+// the rest of the information for testing purposes.
 type ServicePrincipal struct {
 	ApplicationObjectID          string
 	ApplicationClientID          string
@@ -176,7 +180,10 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 	// cluster must use either MSI or Service Principal
 	if result.ManagedCluster.Properties.IdentityProfile == nil && result.ManagedCluster.Properties.ServicePrincipalProfile == nil {
-		return nil, fmt.Errorf("managed cluster identity profile and service principal profile are nil")
+		return nil, fmt.Errorf("cluster has no identity type since identity profile and service principal profile are nil")
+	}
+	if result.ManagedCluster.Properties.IdentityProfile != nil && result.ManagedCluster.Properties.ServicePrincipalProfile != nil {
+		return nil, fmt.Errorf("cluster has both identity profile and service principal profile, must only have one identity type")
 	}
 	if result.ManagedCluster.Name == nil {
 		return nil, fmt.Errorf("managed cluster name is nil")
