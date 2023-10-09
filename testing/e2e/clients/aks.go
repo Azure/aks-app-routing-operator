@@ -162,6 +162,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 		options[opt.Name] = struct{}{}
 	}
+	if mc.Properties.IdentityProfile != nil && mc.Properties.ServicePrincipalProfile != nil {
+		return nil, fmt.Errorf("cluster has both identity profile and service principal profile, must only have one identity type")
+	}
 
 	poll, err := factory.NewManagedClustersClient().BeginCreateOrUpdate(ctx, resourceGroup, name, mc, nil)
 	if err != nil {
@@ -181,9 +184,6 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	// cluster must use either MSI or Service Principal
 	if result.ManagedCluster.Properties.IdentityProfile == nil && result.ManagedCluster.Properties.ServicePrincipalProfile == nil {
 		return nil, fmt.Errorf("cluster has no identity type since identity profile and service principal profile are nil")
-	}
-	if result.ManagedCluster.Properties.IdentityProfile != nil && result.ManagedCluster.Properties.ServicePrincipalProfile != nil {
-		return nil, fmt.Errorf("cluster has both identity profile and service principal profile, must only have one identity type")
 	}
 	if result.ManagedCluster.Name == nil {
 		return nil, fmt.Errorf("managed cluster name is nil")
