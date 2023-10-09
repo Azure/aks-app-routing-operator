@@ -31,7 +31,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		TenantId:       tenantId,
 	}
 
-	if i.ServicePrincipalOptions != nil {
+	if i.ServicePrincipal != nil {
 		if applicationObjectId == "" {
 			return ret, logger.Error(lgr, fmt.Errorf("application object id must be provided when provisioning infrastructure with service principal options"))
 		}
@@ -40,7 +40,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		if err != nil {
 			return ret, logger.Error(lgr, fmt.Errorf("getting app with credential: %w", err))
 		}
-		i.ServicePrincipalOptions = spOpt
+		i.ServicePrincipal = spOpt
 	}
 
 	var err error
@@ -80,7 +80,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	})
 
 	resEg.Go(func() error {
-		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.ServicePrincipalOptions, i.McOpts...)
+		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.ServicePrincipal, i.McOpts...)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}

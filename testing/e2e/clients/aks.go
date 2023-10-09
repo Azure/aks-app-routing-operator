@@ -116,9 +116,6 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 	mc := armcontainerservice.ManagedCluster{
 		Location: to.Ptr(location),
-		Identity: &armcontainerservice.ManagedClusterIdentity{
-			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
-		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
 			DNSPrefix:         to.Ptr("approutinge2e"),
 			NodeResourceGroup: to.Ptr(truncate("MC_"+name, 80)),
@@ -146,6 +143,10 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		mc.Properties.ServicePrincipalProfile = &armcontainerservice.ManagedClusterServicePrincipalProfile{
 			ClientID: to.Ptr(spOpts.ApplicationClientID),
 			Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
+		}
+	}else{
+		mc.Identity= &armcontainerservice.ManagedClusterIdentity{
+			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
 		}
 	}
 
@@ -187,7 +188,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	// validate MSI when not using Service Principal
 	var identity *armcontainerservice.UserAssignedIdentity
 	var principalID, clientID string
-	isMSICluster := result.ManagedCluster.Properties.ServicePrincipalProfile == nil
+	isMSICluster := spOpts == nil
 	if isMSICluster {
 		ok := false // avoid shadowing
 		identity, ok = result.Properties.IdentityProfile["kubeletidentity"]
