@@ -14,6 +14,12 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
+type AuthType string
+const (
+	AuthTypeManagedIdentity AuthType = "" // MSI is the default
+	AuthTypeServicePrincipal AuthType = "servicePrincipal"
+)
+
 type infras []infra
 
 type infra struct {
@@ -23,6 +29,7 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
+	AuthType 	      AuthType
 	ServicePrincipal *clients.ServicePrincipal
 }
 
