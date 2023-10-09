@@ -145,11 +145,15 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 					},
 				},
 			},
-			ServicePrincipalProfile: &armcontainerservice.ManagedClusterServicePrincipalProfile{
-				ClientID: to.Ptr(spOpts.ApplicationClientID),
-				Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
-			},
 		},
+	}
+
+	// apply service principal
+	if spOpts != nil {
+		mc.Properties.ServicePrincipalProfile = &armcontainerservice.ManagedClusterServicePrincipalProfile{
+			ClientID: to.Ptr(spOpts.ApplicationClientID),
+			Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
+		}
 	}
 
 	options := make(map[string]struct{})
