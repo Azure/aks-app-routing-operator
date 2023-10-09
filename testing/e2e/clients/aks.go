@@ -40,7 +40,7 @@ type aks struct {
 	options                             map[string]struct{}
 }
 
-type ServicePrincipalOptions struct {
+type ServicePrincipal struct {
 	ApplicationObjectID          string
 	ApplicationClientID          string
 	ServicePrincipalObjectID     string
@@ -99,7 +99,7 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 	}
 }
 
-func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, spOpts *ServicePrincipalOptions, mcOpts ...McOpt) (*aks, error) {
+func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, spOpts *ServicePrincipal, mcOpts ...McOpt) (*aks, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create aks")

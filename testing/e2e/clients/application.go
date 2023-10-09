@@ -14,7 +14,7 @@ import (
 )
 
 // GetServicePrincipalOptions populates a new ServicePrincipalOptions struct with fresh credentials and application/client/servicePrincipal object ids
-func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string, credName string) (*ServicePrincipalOptions, error) {
+func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string, credName string) (*ServicePrincipal, error) {
 	lgr := logger.FromContext(ctx)
 	lgr.Info(fmt.Sprintf("getting application with object id %s", applicationObjectID))
 
@@ -48,7 +48,7 @@ func GetServicePrincipalOptions(ctx context.Context, applicationObjectID string,
 		return nil, fmt.Errorf("getting service principal: %w", err)
 	}
 
-	spOpt := &ServicePrincipalOptions{
+	spOpt := &ServicePrincipal{
 		ApplicationObjectID:          *getAppResponse.GetId(),
 		ApplicationClientID:          *getAppResponse.GetAppId(),
 		ServicePrincipalObjectID:     *sp.GetId(),
