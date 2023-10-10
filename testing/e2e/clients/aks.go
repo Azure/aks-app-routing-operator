@@ -44,10 +44,10 @@ type aks struct {
 // This representation is intended as read-only as in most cases only one ID is needed to retrieve
 // the rest of the information for testing purposes.
 type ServicePrincipal struct {
-	ApplicationObjectID          string
-	ApplicationClientID          string
-	ServicePrincipalObjectID     string
-	ServicePrincipalCredPassword string
+	ApplicationObjectID          string // The Object ID of the application associated with the service principal
+	ApplicationClientID          string // The Client ID of the application and service principal (also called AppID of the service principal)
+	ServicePrincipalObjectID     string // The Object ID of the service principal
+	ServicePrincipalCredPassword string // A generated password credential for the application associated with the service principal
 }
 
 // McOpt specifies what kind of managed cluster to create
