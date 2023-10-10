@@ -111,7 +111,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
-		if len(spc.Labels) != 0 && HasTopLevelLabels(spc.Labels) {
+		if len(dep.Labels) != 0 && manifests.HasTopLevelLabels(dep.Labels) {
 			err = p.client.Delete(ctx, dep)
 			return result, err
 		}

@@ -1,7 +1,6 @@
 package keyvault
 
 import (
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	netv1 "k8s.io/api/networking/v1"
 )
 
@@ -31,13 +30,4 @@ func (i ingressManager) IsManaging(ing *netv1.Ingress) bool {
 
 	_, ok := i.icNames[*cn]
 	return ok
-}
-
-func HasTopLevelLabels(spcLabels map[string]string) bool {
-	for label, _ := range manifests.GetTopLevelLabels() {
-		if _, ok := spcLabels[label]; !ok {
-			return false
-		}
-	}
-	return true
 }

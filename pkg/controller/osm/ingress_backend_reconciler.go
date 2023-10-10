@@ -5,8 +5,8 @@ package osm
 
 import (
 	"context"
-
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -111,6 +111,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ing.Name,
 			Namespace: ing.Namespace,
+			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -128,8 +129,11 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
-		err = i.client.Delete(ctx, backend)
-		return result, err
+
+		if len(backend.Labels) != 0 && manifests.HasTopLevelLabels(backend.Labels) {
+			err = i.client.Delete(ctx, backend)
+			return result, err
+		}
 	}
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{

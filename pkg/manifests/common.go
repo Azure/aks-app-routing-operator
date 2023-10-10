@@ -15,6 +15,15 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
 }
 
+func HasTopLevelLabels(spcLabels map[string]string) bool {
+	for label, _ := range GetTopLevelLabels() {
+		if _, ok := spcLabels[label]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
 	if deploy == nil {
 		return nil
