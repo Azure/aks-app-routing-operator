@@ -3,6 +3,8 @@ package infra
 import (
 	"context"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
@@ -10,7 +12,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+type AuthType string
+const (
+	AuthTypeManagedIdentity AuthType = "" // MSI is the default
+	AuthTypeServicePrincipal AuthType = "servicePrincipal"
 )
 
 type infras []infra
@@ -22,6 +29,8 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
+	AuthType 	      AuthType
+	ServicePrincipal *clients.ServicePrincipal
 }
 
 type Identifier interface {

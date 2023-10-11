@@ -9,15 +9,16 @@ import (
 	"fmt"
 	"os"
 
+	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"golang.org/x/exp/slices"
-	"golang.org/x/sync/errgroup"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -36,6 +37,21 @@ type aks struct {
 	principalId                         string
 	clientId                            string
 	options                             map[string]struct{}
+}
+
+// ServicePrincipal represents all the information needed to use a service principal including
+// a fresh set of credentials and the associated application and service principal object ids.
+// This representation is intended as read-only as in most cases only one ID is needed to retrieve
+// the rest of the information for testing purposes.
+type ServicePrincipal struct {
+	// ApplicationObjectID is Object ID of the application associated with the service principal
+	ApplicationObjectID          string 
+	// ApplicationClientID is the Client ID of the application and service principal (also called AppID of the service principal)
+	ApplicationClientID          string 
+	// ServicePrincipalObjectID is Object ID of the service principal
+	ServicePrincipalObjectID     string 
+	// ServicePrincipalCredPassword is a generated password credential for the application associated with the service principal
+	ServicePrincipalCredPassword string 
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -90,7 +106,9 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 	}
 }
 
-func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, mcOpts ...McOpt) (*aks, error) {
+// NewAks creates a new AKS cluster
+// spOpts is optional, if nil then the cluster will use MSI
+func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, spOpts *ServicePrincipal, mcOpts ...McOpt) (*aks, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create aks")
@@ -108,9 +126,6 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 
 	mc := armcontainerservice.ManagedCluster{
 		Location: to.Ptr(location),
-		Identity: &armcontainerservice.ManagedClusterIdentity{
-			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
-		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
 			DNSPrefix:         to.Ptr("approutinge2e"),
 			NodeResourceGroup: to.Ptr(truncate("MC_"+name, 80)),
@@ -133,6 +148,18 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		},
 	}
 
+	// apply service principal
+	if spOpts != nil {
+		mc.Properties.ServicePrincipalProfile = &armcontainerservice.ManagedClusterServicePrincipalProfile{
+			ClientID: to.Ptr(spOpts.ApplicationClientID),
+			Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
+		}
+	}else{
+		mc.Identity= &armcontainerservice.ManagedClusterIdentity{
+			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
+		}
+	}
+
 	options := make(map[string]struct{})
 	for _, opt := range mcOpts {
 		if err := opt.fn(&mc); err != nil {
@@ -140,6 +167,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		}
 
 		options[opt.Name] = struct{}{}
+	}
+	if mc.Properties.IdentityProfile != nil && mc.Properties.ServicePrincipalProfile != nil {
+		return nil, fmt.Errorf("cluster has both identity profile and service principal profile, must only have one identity type")
 	}
 
 	poll, err := factory.NewManagedClustersClient().BeginCreateOrUpdate(ctx, resourceGroup, name, mc, nil)
@@ -157,8 +187,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	if result.ManagedCluster.Properties == nil {
 		return nil, fmt.Errorf("managed cluster properties is nil")
 	}
-	if result.ManagedCluster.Properties.IdentityProfile == nil {
-		return nil, fmt.Errorf("managed cluster identity profile is nil")
+	// cluster must use either MSI or Service Principal
+	if result.ManagedCluster.Properties.IdentityProfile == nil && result.ManagedCluster.Properties.ServicePrincipalProfile == nil {
+		return nil, fmt.Errorf("cluster has no identity type since identity profile and service principal profile are nil")
 	}
 	if result.ManagedCluster.Name == nil {
 		return nil, fmt.Errorf("managed cluster name is nil")
@@ -167,29 +198,45 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("dns service ip is nil")
 	}
 
-	identity, ok := result.Properties.IdentityProfile["kubeletidentity"]
-	if !ok {
-		return nil, fmt.Errorf("kubelet identity not found")
+	// validate MSI when not using Service Principal
+	var identity *armcontainerservice.UserAssignedIdentity
+	var principalID, clientID string
+	isMSICluster := spOpts == nil
+	if isMSICluster {
+		ok := false // avoid shadowing
+		identity, ok = result.Properties.IdentityProfile["kubeletidentity"]
+		if !ok {
+			return nil, fmt.Errorf("kubelet identity not found")
+		}
+		if identity.ObjectID == nil {
+			return nil, fmt.Errorf("kubelet identity object id is nil")
+		}
+		if identity.ClientID == nil {
+			return nil, fmt.Errorf("kubelet identity client id is nil")
+		}
+		principalID = *identity.ObjectID
+		clientID = *identity.ClientID
+	} else {
+		principalID = spOpts.ServicePrincipalObjectID
 	}
 
-	if identity.ObjectID == nil {
-		return nil, fmt.Errorf("kubelet identity object id is nil")
-	}
-	if identity.ClientID == nil {
-		return nil, fmt.Errorf("kubelet identity client id is nil")
+	// final principal id validation to be safe
+	if principalID == "" {
+		return nil, fmt.Errorf("principal id is empty")
 	}
 
-	return &aks{
+	cluster := &aks{
 		name:           *result.ManagedCluster.Name,
 		subscriptionId: subscriptionId,
 		resourceGroup:  resourceGroup,
 		id:             *result.ManagedCluster.ID,
 		dnsServiceIp:   *result.Properties.NetworkProfile.DNSServiceIP,
 		location:       location,
-		principalId:    *identity.ObjectID,
-		clientId:       *identity.ClientID,
+		principalId:    principalID,
+		clientId:       clientID,
 		options:        options,
-	}, nil
+	}
+	return cluster, nil
 }
 
 func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {

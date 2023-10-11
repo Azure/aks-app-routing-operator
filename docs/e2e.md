@@ -49,6 +49,17 @@ Infrastructures are defined in [/testing/e2e/infra/infras.go](../testing/e2e/inf
 
 Tests are defined in [/testing/e2e/suites/](../testing/e2e/suites/). Add any new tests here. [This](../testing/e2e/suites/basic.go) is a good reference for defining a test. Be sure to add any new suites to the [all function](../testing/e2e/suites/all.go) so that they are run.
 
+### Environment Variables
+The `SERVICE_PRINCIPAL_APP_OBJ_ID` environment variable is used for the Service Principal Cluster Infrastructure.
+
+In order to avoid waiting for the lengthy (>30min) Service Principal propagation process, this value is passed to re-use an existing App Registration and its associated Service Principal.
+
+As App Registrations are a tenant-level resource, it shouldn't be necessary to create a new App Registration except when running e2e in a new tenant.
+
+An `aks-approuting-e2e` App Registration should already exist, and can be searched by name in the portal for public cloud testing.
+
+New App Registrations can be made in the portal, and then the Object ID can be found in the App Registration's Overview page. Note that this is not the same as the Object ID of the associated Service Principal.
+
 ## GitHub Runner
 
 We use GitHub workflows to run and require passing E2E tests on every PR. 

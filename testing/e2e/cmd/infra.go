@@ -13,6 +13,7 @@ func init() {
 	setupSubTenantFlags(infraCmd)
 	setupInfraNamesFlag(infraCmd)
 	setupInfraFileFlag(infraCmd)
+	setupSPAppIdNameFlag(infraCmd)
 	rootCmd.AddCommand(infraCmd)
 }
 
@@ -29,7 +30,7 @@ var infraCmd = &cobra.Command{
 			return fmt.Errorf("no infrastructure configurations found")
 		}
 
-		provisioned, err := infras.Provision(tenantId, subscriptionId)
+		provisioned, err := infras.Provision(tenantId, subscriptionId, spApplicationObjectID)
 		if err != nil {
 			return fmt.Errorf("provisioning infrastructure: %w", err)
 		}
