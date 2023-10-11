@@ -71,6 +71,7 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	logger = ingressControllerName.AddToLogger(logger)
 
+	logger.Info("getting service", "name", req.Name, "namespace", req.Namespace)
 	svc := &corev1.Service{}
 	err = i.client.Get(ctx, req.NamespacedName, svc)
 	if errors.IsNotFound(err) {
@@ -84,11 +85,13 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if svc.Annotations == nil || svc.Annotations["kubernetes.azure.com/ingress-host"] == "" || svc.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] == "" || len(svc.Spec.Ports) == 0 {
 		// Give users a migration path away from managed ingress, etc. resources by not cleaning them up if annotations are removed.
 		// Users can remove the annotations, remove the owner references from managed resources, and take ownership of them.
+		logger.Info("skipping service without required annotations or ports")
 		return result, nil
 	}
 
 	serviceAccount := "default"
 	if sa := svc.Annotations["kubernetes.azure.com/service-account-name"]; sa != "" {
+		logger.Info("using annotation defined service account", "name", sa)
 		serviceAccount = sa
 	}
 
@@ -138,6 +141,7 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		},
 	}
 	if svc.Annotations["kubernetes.azure.com/insecure-disable-osm"] == "" {
+		logger.Info("adding OSM annotations")
 		ing.Annotations["kubernetes.azure.com/use-osm-mtls"] = "true"
 		ing.Annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
 		ing.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = fmt.Sprintf("\nproxy_ssl_name \"%s.%s.cluster.local\";", serviceAccount, svc.Namespace)

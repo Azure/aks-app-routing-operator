@@ -96,12 +96,15 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = ingressBackendControllerName.AddToLogger(logger)
 
+	logger.Info("getting Ingress", "name", req.Name, "namespace", req.Namespace)
 	ing := &netv1.Ingress{}
 	err = i.client.Get(ctx, req.NamespacedName, ing)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
+
+	// TODO: add label and check for label before cleanup
 
 	backend := &policyv1alpha1.IngressBackend{
 		TypeMeta: metav1.TypeMeta{
@@ -120,14 +123,20 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}},
 		},
 	}
+	logger = logger.WithValues("ingressBackend", backend.Name)
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
-	logger = logger.WithValues("controller", controllerName)
+	logger = logger.WithValues("ingressController", controllerName)
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
+		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
+
+		logger.Info("getting IngressBackend")
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
 		if err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
+
+		logger.Info("deleting IngressBackend")
 		err = i.client.Delete(ctx, backend)
 		return result, err
 	}
