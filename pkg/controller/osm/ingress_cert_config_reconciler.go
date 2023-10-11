@@ -67,7 +67,7 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	logger = ingressCertConfigControllerName.AddToLogger(logger).WithValues("namespace", req.Namespace, "name", req.Name)
 
 	if req.Name != osmMeshConfigName || req.Namespace != osmNamespace {
-		logger.Info(fmt.Sprintf("ignoring mesh config, not %s/%s", osmNamespace, osmMeshConfigName))
+		logger.Info(fmt.Sprintf("ignoring mesh config, we only reconcile mesh config %s/%s", osmNamespace, osmMeshConfigName))
 		return result, nil
 	}
 
