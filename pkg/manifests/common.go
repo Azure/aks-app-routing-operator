@@ -15,7 +15,8 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
 }
 
-func getOwnerRefs(owner client.Object) []metav1.OwnerReference {
+// GetOwnerRefs returns a slice of OwnerReferences for the given owner
+func GetOwnerRefs(owner client.Object) []metav1.OwnerReference {
 	// check if owner is nil
 	if owner == nil {
 		return nil

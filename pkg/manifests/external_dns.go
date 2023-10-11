@@ -96,7 +96,7 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 	}
 
 	if self != nil {
-		owners := getOwnerRefs(self)
+		owners := GetOwnerRefs(self)
 		for _, obj := range objs {
 			obj.SetOwnerReferences(owners)
 		}

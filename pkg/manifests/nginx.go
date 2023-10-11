@@ -85,7 +85,7 @@ func NginxIngressClass(conf *config.Config, self client.Object, ingressConfig *N
 	}
 	objs := []client.Object{ing}
 
-	owners := getOwnerRefs(self)
+	owners := GetOwnerRefs(self)
 	for _, obj := range objs {
 		obj.SetOwnerReferences(owners)
 
@@ -111,7 +111,7 @@ func NginxIngressControllerResources(conf *config.Config, self client.Object, in
 		newNginxIngressControllerHPA(conf, ingressConfig),
 	}
 
-	owners := getOwnerRefs(self)
+	owners := GetOwnerRefs(self)
 	for _, obj := range objs {
 		obj.SetOwnerReferences(owners)
 
