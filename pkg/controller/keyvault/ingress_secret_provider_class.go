@@ -73,8 +73,9 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	if err != nil {
 		return result, err
 	}
-	logger = ingressSecretProviderControllerName.AddToLogger(logger)
+	logger = ingressSecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
+	logger.Info("getting Ingress")
 	ing := &netv1.Ingress{}
 	err = i.client.Get(ctx, req.NamespacedName, ing)
 	if err != nil {
@@ -99,8 +100,10 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			}},
 		},
 	}
+	logger = logger.WithValues("spc", spc.Name)
 	ok, err := i.buildSPC(ing, spc)
 	if err != nil {
+		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
 		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
 		return result, nil
 	}
@@ -110,6 +113,8 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return result, err
 	}
 
+	logger.Info("cleaning unused managed spc for ingress")
+	logger.Info("getting secret provider class for ingress")
 	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)

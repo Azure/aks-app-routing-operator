@@ -39,6 +39,9 @@ type ScrapeFn func(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 
 // NginxScrapeFn is the scrape function for Nginx
 func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) (float64, error) {
+	lgr := logr.FromContextOrDiscard(ctx)
+
+	lgr.Info("scraping pod", "pod", pod.Name)
 	resp, err := client.Get().
 		AbsPath("/api/v1/namespaces", pod.Namespace, "pods", pod.Name+":10254", "proxy/metrics").
 		Timeout(time.Second * 30).
@@ -68,6 +71,7 @@ func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 			return metric.Gauge.GetValue(), nil
 		}
 	}
+
 	return 0, fmt.Errorf("active connections metric not found")
 }
 
@@ -154,28 +158,33 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 	}()
 
 	for _, target := range c.targets {
-		c.logger.Info("starting checking on ingress controller pods", "labels", target.PodLabels())
+		lgr := c.logger.WithValues("target", target.LabelGetter.PodLabels())
+		lgr.Info("starting checking on ingress controller pods")
 
+		lgr.Info("listing pods")
 		list := &corev1.PodList{}
 		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.LabelGetter.PodLabels()))
 		if err != nil {
-			c.logger.Error(err, "error listing pods")
+			lgr.Error(err, "listing pods")
 			retErr = multierror.Append(retErr, fmt.Errorf("listing pods: %w", err))
 			continue
 		}
 
+		lgr.Info("gathering metrics for each pod")
 		connectionCountByPod := make([]float64, len(list.Items))
 		nReadyPods := 0
 		var totalConnectionCount float64
 		for i, pod := range list.Items {
+			lgr := lgr.WithValues("pod", pod.Name)
 			if !podIsReady(&pod) {
-				c.logger.Info("pod is not ready", "name", pod.Name)
+				lgr.Info("pod is not ready", "name", pod.Name)
 				continue
 			}
 			nReadyPods++
+			ctx := logr.NewContext(ctx, lgr)
 			count, err := target.ScrapeFn(ctx, c.restClient, &pod)
 			if err != nil {
-				c.logger.Error(err, "error scraping pod", "name", pod.Name)
+				lgr.Error(err, "scraping pod", "name", pod.Name)
 				retErr = multierror.Append(retErr, fmt.Errorf("scraping pod %q: %w", pod.Name, err))
 				continue
 			}
@@ -187,15 +196,18 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		// Only rebalance connections when three or more replicas are ready.
 		// Otherwise we will just push the connections to the other replica.
 		if nReadyPods < 3 {
+			lgr.Info("not enough ready pods to rebalance connections", "readyPods", nReadyPods)
 			continue
 		}
 
+		lgr.Info("processing votes")
 		pod := c.processVotes(list, connectionCountByPod, avgConnectionCount)
 		if pod == "" {
+			lgr.Info("no pod to evict")
 			continue
 		}
 
-		c.logger.Info("evicting pod due to high relative connection concurrency", "name", pod)
+		lgr.Info("evicting pod due to high relative connection concurrency", "name", pod)
 		eviction := &policyv1beta1.Eviction{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      pod,
@@ -204,12 +216,12 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		}
 
 		if err := c.clientset.CoreV1().Pods(eviction.Namespace).EvictV1beta1(ctx, eviction); err != nil {
-			c.logger.Error(err, "unable to evict pod", "name", pod)
+			lgr.Error(err, "unable to evict pod", "name", pod)
 			// don't add the error to return since we shouldn't retry right away
 		}
 	}
 	if err := retErr.ErrorOrNil(); err != nil {
-		c.logger.Error(err, "error reconciling ingress controller resources")
+		c.logger.Error(err, "reconciling ingress controller resources")
 		return err
 	}
 	return nil
