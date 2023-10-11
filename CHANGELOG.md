@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.3] - 2022-08-25
+## [0.0.4] - 2023-10-05
+
+### Added
+
+- Improved error logging - [#97](https://github.com/Azure/aks-app-routing-operator/pull/97)
+
+### Changed
+
+- Bump dependencies - [#92](https://github.com/Azure/aks-app-routing-operator/pull/92)
+- Upgrade NGINX Ingress Controller to v1.8.1 - [#89](https://github.com/Azure/aks-app-routing-operator/pull/89)
+
+## [0.0.3] - 2023-08-25
 
 ### Added
 
@@ -18,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increase unit test coverage - [#77](https://github.com/Azure/aks-app-routing-operator/pull/77), [#82](https://github.com/Azure/aks-app-routing-operator/pull/82)
 - Add controller name structure to each controller so logs and metrics have consistient and related controller names - [#80](https://github.com/Azure/aks-app-routing-operator/pull/80), [#84](https://github.com/Azure/aks-app-routing-operator/pull/84), [#85](https://github.com/Azure/aks-app-routing-operator/pull/85), [#86](https://github.com/Azure/aks-app-routing-operator/pull/86)
 
-## [0.0.2] - 2022-07-10
+## [0.0.2] - 2023-07-10
 
 ### Fixed
 
