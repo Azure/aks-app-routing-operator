@@ -69,8 +69,9 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	if err != nil {
 		return result, err
 	}
-	logger = placeholderPodControllerName.AddToLogger(logger)
+	logger = placeholderPodControllerName.AddToLogger(logger).WithValues("namespace", req.Namespace, "name", req.Name)
 
+	logger.Info("getting secret provider class")
 	spc := &secv1.SecretProviderClass{}
 	err = p.client.Get(ctx, req.NamespacedName, spc)
 	if err != nil {
@@ -96,30 +97,36 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			}},
 		},
 	}
+	logger = logger.WithValues("deployment", dep.Name)
 
 	ing := &netv1.Ingress{}
 	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
 	ing.Namespace = req.Namespace
+	logger = logger.WithValues("ingress", ing.Name)
 	if ing.Name != "" {
+		logger.Info("getting owner ingress")
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(ing), ing); err != nil {
-			return result, err
+			return result, client.IgnoreNotFound(err)
 		}
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
+		logger.Info("cleaning unused placeholder pod deployment")
+
+		logger.Info("getting placeholder deployment")
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
 			return result, client.IgnoreNotFound(err)
+
 		}
 		if len(dep.Labels) != 0 && manifests.HasTopLevelLabels(dep.Labels) {
+			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, dep)
-			return result, err
+			return result, client.IgnoreNotFound(err)
 		}
 	}
-
-	logger.Info("reconciling placeholder deployment for secret provider class")
-
 	// Manage a deployment resource
+	logger.Info("reconciling placeholder deployment for secret provider class")
 	p.buildDeployment(dep, spc, ing)
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
 		return result, err
