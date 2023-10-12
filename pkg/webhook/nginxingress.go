@@ -53,8 +53,7 @@ func init() {
 						},
 					},
 				},
-				FailurePolicy: util.ToPtr(admissionregistrationv1.Fail),
-				SideEffects:   util.ToPtr(admissionregistrationv1.SideEffectClassNone),
+				SideEffects: util.ToPtr(admissionregistrationv1.SideEffectClassNone),
 			}, nil
 		},
 	})

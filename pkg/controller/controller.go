@@ -166,12 +166,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	webhookServ, err := webhook.New(conf)
+	webhookServ, err := webhook.New(conf, m)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := webhookServ.Start(context.Background(), cl, m); err != nil {
+	if err := m.Add(webhookServ); err != nil {
 		return nil, err
 	}
 

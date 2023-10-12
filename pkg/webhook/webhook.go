@@ -35,9 +35,11 @@ type config struct {
 
 	// caPEM is a PEM-encoded CA bundle
 	ca []byte
+
+	mgr manager.Manager
 }
 
-func New(globalCfg *globalCfg.Config) (*config, error) {
+func New(globalCfg *globalCfg.Config, mgr manager.Manager) (*config, error) {
 	if globalCfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -62,12 +64,21 @@ func New(globalCfg *globalCfg.Config) (*config, error) {
 		port:        port,
 		url:         fmt.Sprintf("https://%s.%s.svc.cluster.local:%d", serviceName, namespace, port),
 		ca:          cert.ca,
+		mgr:         mgr,
+	}
+
+	for _, wh := range Validating {
+		if err := wh.AddToManager(mgr); err != nil {
+			return nil, fmt.Errorf("adding webhook to manager: %w", err)
+		}
 	}
 
 	return c, nil
 }
 
-func (c *config) Start(ctx context.Context, cl client.Client, m manager.Manager) error {
+// Start implements manager.Runnable which lets us use leader election to connect to the webhook instance
+// with our self signed cert
+func (c *config) Start(ctx context.Context) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
 	lgr.Info("setting up")
 
@@ -109,6 +120,7 @@ func (c *config) Start(ctx context.Context, cl client.Client, m manager.Manager)
 	// whCfg.SetOwnerReferences(owners)
 
 	// TODO: how does this work with multiple replicas and leader election? this seems very sketchy
+	cl := c.mgr.GetClient()
 	whs := []client.Object{validatingWhc, mutatingWhc}
 	for _, wh := range whs {
 		copy := wh.DeepCopyObject().(client.Object)
@@ -137,6 +149,6 @@ func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookCl
 			Port:      &c.port,
 			Path:      &path,
 		},
-		CABundle: c.ca,
+		CABundle: c.ca, // TODO: how does this work with multi replicas?
 	}, nil
 }
