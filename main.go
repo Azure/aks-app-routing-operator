@@ -5,10 +5,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -18,10 +15,10 @@ import (
 
 func main() {
 	flag.Parse()
-	rand.Seed(time.Now().Unix())
 
 	if err := run(); err != nil {
-		fmt.Println(err)
+		lgr := controller.GetLogger()
+		lgr.Error(err, "failed to run manager")
 		os.Exit(1)
 	}
 }

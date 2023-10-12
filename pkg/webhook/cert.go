@@ -123,11 +123,12 @@ func (s selfSignedCert) save(dir string) error {
 		return fmt.Errorf("removing dir %s: %w", dir, err)
 	}
 
-	if err := os.Mkdir(certDir, 0755); err != nil {
+	certPath := filepath.Join(dir, "tls.crt")
+
+	if err := os.MkdirAll(filepath.Dir(certPath), 0755); err != nil {
 		return fmt.Errorf("creating dir %s: %w", certDir, err)
 	}
 
-	certPath := filepath.Join(dir, "tls.crt")
 	certFile, err := os.OpenFile(certPath, os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("opening file %s: %w", certPath, err)

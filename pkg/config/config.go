@@ -42,7 +42,7 @@ func init() {
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 	flag.StringVar(&Flags.OperatorNs, "operator-namespace", "kube-system", "namespace of the operator's k8s deployment")
-	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "app-routing-operator", "name of the operator's webhook service")
+	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "app-routing-operator-webhook", "name of the operator's webhook service")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests")

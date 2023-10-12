@@ -156,6 +156,12 @@ func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha
 	var objs []client.Object
 	objs = append(objs, manifests.NginxIngressClass(n.conf, nic, nginxIngressCfg)...)
 	objs = append(objs, manifests.NginxIngressControllerResources(n.conf, nic, nginxIngressCfg)...)
+
+	owner := manifests.GetOwnerRefs(nic)
+	for _, obj := range objs {
+		obj.SetOwnerReferences(owner)
+	}
+
 	return objs
 }
 

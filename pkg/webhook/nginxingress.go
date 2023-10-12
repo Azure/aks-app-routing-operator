@@ -6,7 +6,9 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	admissionv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,14 +23,40 @@ const (
 )
 
 func init() {
-	AddToManagerFns = append(AddToManagerFns, func(mgr manager.Manager) error {
-		mgr.GetWebhookServer().Register(validationPath, &webhook.Admission{
-			Handler: &nginxIngressResourceValidator{
-				client: mgr.GetClient(),
-			},
-		})
+	Validating = append(Validating, Webhook[admissionregistrationv1.ValidatingWebhook]{
+		AddToManager: func(mgr manager.Manager) error {
+			mgr.GetWebhookServer().Register(validationPath, &webhook.Admission{
+				Handler: &nginxIngressResourceValidator{
+					client: mgr.GetClient(),
+				},
+			})
 
-		return nil
+			return nil
+		},
+		Definition: func(c *config) (admissionregistrationv1.ValidatingWebhook, error) {
+			clientCfg, err := c.GetClientConfig(validationPath)
+			if err != nil {
+				return admissionregistrationv1.ValidatingWebhook{}, fmt.Errorf("getting client config: %w", err)
+			}
+
+			return admissionregistrationv1.ValidatingWebhook{
+				Name:                    "validating.nginxingresscontroller.approuting.kubernetes.azure.com",
+				AdmissionReviewVersions: []string{admissionregistrationv1.SchemeGroupVersion.Version},
+				ClientConfig:            clientCfg,
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{approutingv1alpha1.GroupVersion.Group},
+							APIVersions: []string{approutingv1alpha1.GroupVersion.Version},
+							Resources:   []string{"nginxingresscontrollers"},
+						},
+					},
+				},
+				FailurePolicy: util.ToPtr(admissionregistrationv1.Fail),
+				SideEffects:   util.ToPtr(admissionregistrationv1.SideEffectClassNone),
+			}, nil
+		},
 	})
 }
 
@@ -73,4 +101,10 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 	}
 
 	return admission.Allowed("")
+}
+
+// this is called and injected automatically
+func (n *nginxIngressResourceValidator) InjectDecoder(d *admission.Decoder) error {
+	n.decoder = d
+	return nil
 }

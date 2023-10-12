@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 func TestLogger(t *testing.T) {
 	t.Run("logs are json structured", func(t *testing.T) {
 		logOut := new(bytes.Buffer)
-		logger := getLogger(zap.WriteTo(logOut))
+		logger := GetLogger(zap.WriteTo(logOut))
 
 		logger.Info("test info log", "key", "value", "key2", "value2")
 		logger.Error(errors.New("test error log"), "msg", "key3", "values3")

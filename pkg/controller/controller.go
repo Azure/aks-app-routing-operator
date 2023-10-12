@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
+	"github.com/Azure/aks-app-routing-operator/pkg/webhook"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -40,7 +41,7 @@ var scheme = runtime.NewScheme()
 
 func init() {
 	registerSchemes(scheme)
-	lgr := getLogger()
+	lgr := GetLogger()
 	ctrl.SetLogger(lgr)
 	// need to set klog logger to same logger to get consistent logging format for all logs.
 	// without this things like leader election that use klog will not have the same format.
@@ -48,7 +49,8 @@ func init() {
 	klog.SetLogger(lgr)
 }
 
-func getLogger(opts ...zap.Opts) logr.Logger {
+// GetLogger returns a logger that is used by the controllers
+func GetLogger(opts ...zap.Opts) logr.Logger {
 	// use raw opts to add caller info to logs
 	rawOpts := zap.RawZapOpts(ubzap.AddCaller())
 
@@ -161,6 +163,15 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	if err := nginxingress.NewReconciler(conf, m); err != nil {
+		return nil, err
+	}
+
+	webhookServ, err := webhook.New(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := webhookServ.Start(context.Background(), cl, m); err != nil {
 		return nil, err
 	}
 

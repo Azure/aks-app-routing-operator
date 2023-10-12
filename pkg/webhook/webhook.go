@@ -6,7 +6,6 @@ import (
 
 	globalCfg "github.com/Azure/aks-app-routing-operator/pkg/config"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,23 +14,19 @@ import (
 )
 
 const (
-	certDir = "/tmp/k8s-webhook-server/serving-certs"
+	certDir = "/tmp/k8s-webhook-server/serving-certs/"
 )
 
-// AddToManagerFuncs is a list of functions to add all Webhooks to the Manager
-var AddToManagerFns []func(manager.Manager) error
-
-// AddToManager adds all Webhooks to the Manager
-func AddToManager(m manager.Manager) error {
-	for _, f := range AddToManagerFns {
-		if err := f(m); err != nil {
-			return err
-		}
-	}
-
-	return nil
-
+type webhookType interface {
+	admissionregistrationv1.ValidatingWebhook | admissionregistrationv1.MutatingWebhook
 }
+
+type Webhook[T webhookType] struct {
+	AddToManager func(manager.Manager) error
+	Definition   func(c *config) (T, error)
+}
+
+var Validating []Webhook[admissionregistrationv1.ValidatingWebhook]
 
 type config struct {
 	serviceName, namespace string
@@ -42,7 +37,11 @@ type config struct {
 	ca []byte
 }
 
-func New(globalCfg globalCfg.Config) (*config, error) {
+func New(globalCfg *globalCfg.Config) (*config, error) {
+	if globalCfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
 	serviceName := globalCfg.OperatorWebhookService
 	namespace := globalCfg.OperatorNs
 
@@ -68,11 +67,21 @@ func New(globalCfg globalCfg.Config) (*config, error) {
 	return c, nil
 }
 
-func (c *config) Start(ctx context.Context, operator *appsv1.Deployment, cl client.Client) error {
+func (c *config) Start(ctx context.Context, cl client.Client, m manager.Manager) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
 	lgr.Info("setting up")
 
-	validatingWh := &admissionregistrationv1.ValidatingWebhookConfiguration{
+	var validatingWhs []admissionregistrationv1.ValidatingWebhook
+	for _, wh := range Validating {
+		wh, err := wh.Definition(c)
+		if err != nil {
+			return fmt.Errorf("getting webhook definition: %w", err)
+		}
+
+		validatingWhs = append(validatingWhs, wh)
+	}
+
+	validatingWhc := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "app-routing-validating",
 			Labels: map[string]string{
@@ -80,8 +89,9 @@ func (c *config) Start(ctx context.Context, operator *appsv1.Deployment, cl clie
 				"admissions.enforcer/disabled": "true",
 			},
 		},
+		Webhooks: validatingWhs,
 	}
-	mutatingWh := &admissionregistrationv1.MutatingWebhookConfiguration{
+	mutatingWhc := &admissionregistrationv1.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "app-routing-mutating",
 			Labels: map[string]string{
@@ -98,11 +108,13 @@ func (c *config) Start(ctx context.Context, operator *appsv1.Deployment, cl clie
 	// owners := manifests.GetOwnerRefs(operator)
 	// whCfg.SetOwnerReferences(owners)
 
-	whs := []client.Object{validatingWh, mutatingWh}
+	// TODO: how does this work with multiple replicas and leader election? this seems very sketchy
+	whs := []client.Object{validatingWhc, mutatingWhc}
 	for _, wh := range whs {
+		copy := wh.DeepCopyObject().(client.Object)
 		lgr := lgr.WithValues("webhook", wh.GetName())
 		lgr.Info("creating webhook configuration")
-		if err := cl.Create(ctx, wh); err != nil {
+		if err := cl.Create(ctx, copy); err != nil {
 			if !apierrors.IsAlreadyExists(err) {
 				return fmt.Errorf("creating webhook configuration: %w", err)
 			}
@@ -115,4 +127,16 @@ func (c *config) Start(ctx context.Context, operator *appsv1.Deployment, cl clie
 	}
 
 	return nil
+}
+
+func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookClientConfig, error) {
+	return admissionregistrationv1.WebhookClientConfig{
+		Service: &admissionregistrationv1.ServiceReference{
+			Name:      c.serviceName,
+			Namespace: c.namespace,
+			Port:      &c.port,
+			Path:      &path,
+		},
+		CABundle: c.ca,
+	}, nil
 }
