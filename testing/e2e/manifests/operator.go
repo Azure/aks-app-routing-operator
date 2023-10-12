@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -13,6 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 )
 
 const (
@@ -84,12 +85,13 @@ type DnsZones struct {
 }
 
 type OperatorConfig struct {
-	Version    OperatorVersion
-	Msi        string
-	TenantId   string
-	Location   string
-	Zones      DnsZones
-	DisableOsm bool
+	Version                    OperatorVersion
+	Msi                        string
+	TenantId                   string
+	Location                   string
+	Zones                      DnsZones
+	DisableOsm                 bool
+	EnableServicePrincipalAuth bool
 }
 
 func (o *OperatorConfig) image(latestImage string) string {
@@ -110,11 +112,16 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	}
 
 	ret := []string{
-		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
 		"--location", o.Location,
 		"--namespace", managedResourceNs,
 		"--cluster-uid", "test-cluster-uid",
+	}
+	if o.EnableServicePrincipalAuth {
+		ret = append(ret, "--enable-service-principal-auth")
+	}
+	if !o.EnableServicePrincipalAuth {
+		ret = append(ret, "--msi", o.Msi)
 	}
 
 	if o.Version == OperatorVersionLatest {
