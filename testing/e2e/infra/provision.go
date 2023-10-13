@@ -29,9 +29,10 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		Name:           i.Name,
 		SubscriptionId: subscriptionId,
 		TenantId:       tenantId,
+		AuthType:       i.AuthType,
 	}
 
-	if i.AuthType == AuthTypeServicePrincipal{
+	if i.AuthType == AuthTypeServicePrincipal {
 		if applicationObjectId == "" {
 			return ret, logger.Error(lgr, fmt.Errorf("application object id must be provided when provisioning infrastructure with service principal options"))
 		}

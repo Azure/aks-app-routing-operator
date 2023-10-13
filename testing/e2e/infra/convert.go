@@ -69,6 +69,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		TenantId:            p.TenantId,
 		E2eImage:            p.E2eImage,
 		OperatorImage:       p.OperatorImage,
+		AuthType:            p.AuthType,
 	}, nil
 }
 
@@ -119,5 +120,6 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 		TenantId:          l.TenantId,
 		E2eImage:          l.E2eImage,
 		OperatorImage:     l.OperatorImage,
+		AuthType:          l.AuthType,
 	}, nil
 }

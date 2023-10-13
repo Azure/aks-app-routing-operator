@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/tests"
-	"k8s.io/client-go/rest"
 )
 
 // All returns all test in all suites

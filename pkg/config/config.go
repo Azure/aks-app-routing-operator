@@ -42,6 +42,7 @@ func init() {
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
+	flag.BoolVar(&Flags.EnableServicePrincipal, "enable-service-principal", false, "authenticate with a service principal instead of msi")
 }
 
 type DnsZoneConfig struct {
@@ -61,6 +62,7 @@ type Config struct {
 	ConcurrencyWatchdogThres            float64
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
+	EnableServicePrincipal              bool
 	OperatorDeployment                  string
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
@@ -73,8 +75,11 @@ func (c *Config) Validate() error {
 	if c.Registry == "" {
 		return errors.New("--registry is required")
 	}
-	if c.MSIClientID == "" {
-		return errors.New("--msi is required")
+	if c.MSIClientID == "" && !c.EnableServicePrincipal {
+		return errors.New("--msi is required unless using service principal")
+	}
+	if c.EnableServicePrincipal == true && c.MSIClientID != "" {
+		return errors.New("--service-principal cannot be enabled with msi specified")
 	}
 	if c.TenantID == "" {
 		return errors.New("--tenant-id is required")

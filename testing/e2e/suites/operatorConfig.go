@@ -1,6 +1,8 @@
 package suites
 
 import (
+	"golang.org/x/exp/slices"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -10,6 +12,7 @@ type cfgBuilder struct {
 	msi      string
 	tenantId string
 	location string
+	authType infra.AuthType
 }
 
 func builderFromInfra(infra infra.Provisioned) cfgBuilder {
@@ -17,6 +20,7 @@ func builderFromInfra(infra infra.Provisioned) cfgBuilder {
 		msi:      infra.Cluster.GetClientId(),
 		tenantId: infra.TenantId,
 		location: infra.Cluster.GetLocation(),
+		authType: infra.AuthType,
 	}
 }
 
@@ -58,9 +62,20 @@ type cfgBuilderWithVersions struct {
 	versions []manifests.OperatorVersion
 }
 
-func (c cfgBuilderWithOsm) withVersions(versions ...manifests.OperatorVersion) cfgBuilderWithVersions {
+func (c cfgBuilderWithOsm) withVersions(in infra.Provisioned, versions ...manifests.OperatorVersion) cfgBuilderWithVersions {
 	if len(versions) == 0 {
 		versions = []manifests.OperatorVersion{manifests.OperatorVersionLatest}
+	}
+
+	if in.AuthType == infra.AuthTypeServicePrincipal {
+		// Filter for operator versions that support service principal auth
+		spVersions := []manifests.OperatorVersion{}
+		for _, v := range versions {
+			if slices.Contains(manifests.ServicePrincipalOperatorVersions, v) {
+				spVersions = append(spVersions, v)
+			}
+		}
+		versions = spVersions
 	}
 
 	return cfgBuilderWithVersions{
@@ -107,12 +122,13 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 		for _, version := range c.versions {
 			for _, zones := range c.zones {
 				ret = append(ret, manifests.OperatorConfig{
-					Version:    version,
-					Location:   c.location,
-					TenantId:   c.tenantId,
-					Msi:        c.msi,
-					Zones:      zones,
-					DisableOsm: !osmEnabled,
+					Version:                    version,
+					Location:                   c.location,
+					TenantId:                   c.tenantId,
+					Msi:                        c.msi,
+					Zones:                      zones,
+					DisableOsm:                 !osmEnabled,
+					EnableServicePrincipalAuth: c.authType == infra.AuthTypeServicePrincipal,
 				})
 			}
 		}

@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 )
 
 var (
@@ -28,7 +29,7 @@ func basicSuite(in infra.Provisioned) []test {
 			name: "basic ingress",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(in, manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -43,7 +44,7 @@ func basicSuite(in infra.Provisioned) []test {
 			name: "basic service",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(in, manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {

@@ -85,7 +85,7 @@ var validateTestCases = []struct {
 			ConcurrencyWatchdogVotes: 2,
 			ClusterUid:               "test-cluster-uid",
 		},
-		Error: "--msi is required",
+		Error: "--msi is required unless using service principal",
 	},
 	{
 		Name: "missing-tenant-id",
@@ -185,6 +185,22 @@ var validateTestCases = []struct {
 			ClusterUid:               "cluster-uid",
 		},
 		Error:   "while parsing dns zone resource ID invalid: parsing failed for invalid. Invalid resource Id format",
+		DnsZone: "invalid,dns,zone",
+	}, {
+		Name: "service-principal-with-msi",
+		Conf: &Config{
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			EnableServicePrincipal:   true,
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
+		},
+		Error:   "--service-principal cannot be enabled with msi specified",
 		DnsZone: "invalid,dns,zone",
 	},
 }

@@ -10,14 +10,15 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -167,6 +168,16 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, err
 	}
 
+	spcParams := map[string]string{
+		"keyvaultName": vaultName,
+		"tenantId":     i.config.TenantID,
+		"objects":      string(objects),
+	}
+	if !i.config.EnableServicePrincipal {
+		spcParams["useVMManagedIdentity"] = "true"
+		spcParams["userAssignedIdentityID"] = i.config.MSIClientID
+	}
+
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
@@ -184,13 +195,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 			},
 		}},
 		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-		Parameters: map[string]string{
-			"keyvaultName":           vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": i.config.MSIClientID,
-			"tenantId":               i.config.TenantID,
-			"objects":                string(objects),
-		},
+		Parameters: spcParams,
 	}
 
 	if i.config.Cloud != "" {

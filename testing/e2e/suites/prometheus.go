@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -21,7 +22,7 @@ func promSuite(in infra.Provisioned) []test {
 			name: "ingress prometheus metrics",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(in, manifests.AllOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -30,7 +31,7 @@ func promSuite(in infra.Provisioned) []test {
 
 				c, err := client.New(config, client.Options{})
 				if err != nil {
-					return fmt.Errorf("creating client: %w")
+					return fmt.Errorf("creating client: %w", err)
 				}
 
 				lgr.Info("creating namespace")

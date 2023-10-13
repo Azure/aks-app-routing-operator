@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"path"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -111,7 +113,7 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
 	objs = append(objs, dnsCm)
-	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
+	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash, conf.EnableServicePrincipal))
 
 	for _, obj := range objs {
 		l := util.MergeMaps(obj.GetLabels(), externalDnsConfig.Provider.Labels())
@@ -189,15 +191,30 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-	js, err := json.Marshal(&map[string]interface{}{
+	// TODO: if SP use this instead of MSI
+	//{
+	//	"tenantId": "$(az account show --query tenantId -o tsv)",
+	//	"subscriptionId": "$(az account show --query id -o tsv)",
+	//	"resourceGroup": "$AZURE_DNS_ZONE_RESOURCE_GROUP",
+	//	"aadClientId": "$EXTERNALDNS_SP_APP_ID",
+	//	"aadClientSecret": "$EXTERNALDNS_SP_PASSWORD"
+	//}
+	c := &map[string]interface{}{
 		"tenantId":                    externalDnsConfig.TenantId,
 		"subscriptionId":              externalDnsConfig.Subscription,
 		"resourceGroup":               externalDnsConfig.ResourceGroup,
 		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": true,
+		"useManagedIdentityExtension": false,
 		"cloud":                       conf.Cloud,
 		"location":                    conf.Location,
-	})
+	}
+	isMSICluster := conf.MSIClientID != ""
+	if isMSICluster {
+		(*c)["useManagedIdentityExtension"] = true
+		(*c)["userAssignedIdentityID"] = conf.MSIClientID
+	}
+
+	js, err := json.Marshal(c)
 	if err != nil {
 		panic(err)
 	}
@@ -218,7 +235,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string) *appsv1.Deployment {
+func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string, enableServicePrincipal bool) *appsv1.Deployment {
 	domainFilters := []string{}
 
 	for _, zoneId := range externalDnsConfig.DnsZoneResourceIDs {
@@ -232,6 +249,42 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	podLabels := GetTopLevelLabels()
 	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
+
+	volumes := []corev1.Volume{{
+		Name: "azure-config",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: externalDnsConfig.Provider.ResourceName(),
+				},
+			},
+		},
+	}}
+	if enableServicePrincipal {
+		volumes = append(volumes, corev1.Volume{
+			Name: "sp-creds",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: common.ServicePrincipalSecretName,
+				},
+			},
+		})
+	}
+
+	volumeMounts := []corev1.VolumeMount{{
+		Name:      "azure-config",
+		MountPath: "/etc/kubernetes",
+		ReadOnly:  true,
+	}}
+
+	if enableServicePrincipal {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "sp-creds",
+			MountPath: "/etc/kubernetes/azure.json",
+			SubPath:   "azure.json",
+			ReadOnly:  true,
+		})
+	}
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -262,11 +315,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 						}, domainFilters...),
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "azure-config",
-							MountPath: "/etc/kubernetes",
-							ReadOnly:  true,
-						}},
+						VolumeMounts: volumeMounts,
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -278,16 +327,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							},
 						},
 					}))},
-					Volumes: []corev1.Volume{{
-						Name: "azure-config",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: externalDnsConfig.Provider.ResourceName(),
-								},
-							},
-						},
-					}},
+					Volumes: volumes,
 				}),
 			},
 		},

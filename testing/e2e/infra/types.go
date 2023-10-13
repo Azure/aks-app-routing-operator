@@ -15,8 +15,9 @@ import (
 )
 
 type AuthType string
+
 const (
-	AuthTypeManagedIdentity AuthType = "" // MSI is the default
+	AuthTypeManagedIdentity  AuthType = "" // MSI is the default
 	AuthTypeServicePrincipal AuthType = "servicePrincipal"
 )
 
@@ -29,8 +30,8 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
-	AuthType 	      AuthType
-	ServicePrincipal *clients.ServicePrincipal
+	AuthType                AuthType
+	ServicePrincipal        *clients.ServicePrincipal
 }
 
 type Identifier interface {
@@ -100,6 +101,7 @@ type Provisioned struct {
 	TenantId          string
 	E2eImage          string
 	OperatorImage     string
+	AuthType          AuthType
 }
 
 type LoadableZone struct {
@@ -125,4 +127,5 @@ type LoadableProvisioned struct {
 	TenantId                                                                  string
 	E2eImage                                                                  string
 	OperatorImage                                                             string
+	AuthType                                                                  AuthType
 }
