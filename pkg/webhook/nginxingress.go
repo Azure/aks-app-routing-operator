@@ -7,6 +7,7 @@ import (
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -66,21 +67,22 @@ type nginxIngressResourceValidator struct {
 }
 
 func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	if req.Operation == admissionv1.Create {
-		if n.decoder == nil {
-			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("decoder not initialized"))
-		}
+	lgr := logr.FromContextOrDiscard(ctx).WithValues("name", req.Name, "namespace", req.Namespace, "operation", req.Operation)
 
+	if req.Operation == admissionv1.Create {
+		lgr.Info("decoding NginxIngressController resource")
 		var nginxIngressController approutingv1alpha1.NginxIngressController
 		if err := n.decoder.Decode(req, &nginxIngressController); err != nil {
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
 		}
 
+		lgr.Info("checking if IngressClass already exists")
 		ic := &netv1.IngressClass{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: nginxIngressController.Spec.IngressClassName,
 			},
 		}
+		lgr.Info("attempting to get IngressClass " + ic.Name)
 		err := n.client.Get(ctx, client.ObjectKeyFromObject(ic), ic)
 		if err == nil {
 			return admission.Denied(fmt.Sprintf("IngressClass %s already exists. Delete or use a different spec.IngressClassName field", ic.Name))
@@ -90,6 +92,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		}
 
 		// list nginx ingress controllers
+		lgr.Info("listing NginxIngressControllers to check for collisions")
 		var nginxIngressControllerList approutingv1alpha1.NginxIngressControllerList
 		if err := n.client.List(ctx, &nginxIngressControllerList); err != nil {
 			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("listing NginxIngressControllers: %w", err))
@@ -97,6 +100,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 
 		for _, nic := range nginxIngressControllerList.Items {
 			if nic.Spec.IngressClassName == nginxIngressController.Spec.IngressClassName {
+				lgr.Info("IngressClass already exists on NginxIngressController " + nic.Name)
 				return admission.Denied(fmt.Sprintf("IngressClass %s already exists on NginxIngressController %s. Use a different spec.IngressClassName field", nic.Spec.IngressClassName, nic.Name))
 			}
 		}

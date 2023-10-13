@@ -29,8 +29,8 @@ type config struct {
 	port                   int32
 	url                    string
 
-	// caPEM is a PEM-encoded CA bundle
-	ca []byte
+	certDir string
+	cert    selfSignedCert
 
 	mgr manager.Manager
 }
@@ -48,6 +48,8 @@ func New(globalCfg *globalCfg.Config, mgr manager.Manager, certDir string, port 
 		return nil, fmt.Errorf("generating cert: %w", err)
 	}
 
+	// need to save here and in start, manager expects some certs at startup
+	// TODO: this must be better
 	if err := cert.save(certDir); err != nil {
 		return nil, fmt.Errorf("saving cert: %w", err)
 	}
@@ -57,7 +59,8 @@ func New(globalCfg *globalCfg.Config, mgr manager.Manager, certDir string, port 
 		namespace:   namespace,
 		port:        port,
 		url:         fmt.Sprintf("https://%s.%s.svc.cluster.local:%d", serviceName, namespace, port),
-		ca:          cert.ca,
+		certDir:     certDir,
+		cert:        cert,
 		mgr:         mgr,
 	}
 
@@ -75,6 +78,10 @@ func New(globalCfg *globalCfg.Config, mgr manager.Manager, certDir string, port 
 func (c *config) Start(ctx context.Context) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
 	lgr.Info("setting up")
+
+	if err := c.cert.save(c.certDir); err != nil {
+		return fmt.Errorf("saving cert: %w", err)
+	}
 
 	var validatingWhs []admissionregistrationv1.ValidatingWebhook
 	for _, wh := range Validating {
@@ -142,6 +149,6 @@ func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookCl
 			Port:      &c.port,
 			Path:      &path,
 		},
-		CABundle: c.ca, // TODO: how does this work with multi replicas?
+		CABundle: c.cert.ca, // TODO: how does this work with multi replicas?
 	}, nil
 }
