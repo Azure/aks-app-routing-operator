@@ -445,7 +445,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.8.1",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.8.4",
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",
