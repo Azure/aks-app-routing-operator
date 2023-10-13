@@ -13,10 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-const (
-	certDir = "/tmp/k8s-webhook-server/serving-certs/"
-)
-
 type webhookType interface {
 	admissionregistrationv1.ValidatingWebhook | admissionregistrationv1.MutatingWebhook
 }
@@ -39,7 +35,7 @@ type config struct {
 	mgr manager.Manager
 }
 
-func New(globalCfg *globalCfg.Config, mgr manager.Manager) (*config, error) {
+func New(globalCfg *globalCfg.Config, mgr manager.Manager, certDir string, port int32) (*config, error) {
 	if globalCfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -56,8 +52,6 @@ func New(globalCfg *globalCfg.Config, mgr manager.Manager) (*config, error) {
 		return nil, fmt.Errorf("saving cert: %w", err)
 	}
 
-	// TODO: parameterize port
-	port := int32(9443)
 	c := &config{
 		serviceName: serviceName,
 		namespace:   namespace,
@@ -102,15 +96,6 @@ func (c *config) Start(ctx context.Context) error {
 		},
 		Webhooks: validatingWhs,
 	}
-	mutatingWhc := &admissionregistrationv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "app-routing-mutating",
-			Labels: map[string]string{
-				// https://learn.microsoft.com/en-us/azure/aks/faq#can-admission-controller-webhooks-impact-kube-system-and-internal-aks-namespaces
-				"admissions.enforcer/disabled": "true",
-			},
-		},
-	}
 
 	// set ownership references so webhook is deleted when operator is deleted
 	// set ownership references to app-routing-system ns for now ?? we need a workaround to delete
@@ -121,7 +106,7 @@ func (c *config) Start(ctx context.Context) error {
 
 	// TODO: how does this work with multiple replicas and leader election? this seems very sketchy
 	cl := c.mgr.GetClient()
-	whs := []client.Object{validatingWhc, mutatingWhc}
+	whs := []client.Object{validatingWhc}
 	for _, wh := range whs {
 		copy := wh.DeepCopyObject().(client.Object)
 		lgr := lgr.WithValues("webhook", wh.GetName())
@@ -131,9 +116,17 @@ func (c *config) Start(ctx context.Context) error {
 				return fmt.Errorf("creating webhook configuration: %w", err)
 			}
 
-			lgr.Info("webhook configuration already exists, patching")
-			if err := cl.Patch(ctx, wh, client.MergeFrom(wh)); err != nil { // use MergeFrom to overwrite lists
-				return fmt.Errorf("patching webhook configuration: %w", err)
+			// delete and recreate for now
+			// TODO: switch to patch
+			lgr.Info("webhook configuration already exists, deleting")
+			if err := cl.Delete(ctx, copy); err != nil {
+				return fmt.Errorf("deleting webhook configuration: %w", err)
+			}
+
+			lgr.Info("recreating webhook configuration")
+			copy2 := wh.DeepCopyObject().(client.Object)
+			if err := cl.Create(ctx, copy2); err != nil {
+				return fmt.Errorf("creating webhook configuration: %w", err)
 			}
 		}
 	}

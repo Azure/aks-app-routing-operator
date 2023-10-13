@@ -15,7 +15,9 @@ import (
 	"time"
 )
 
-// this file is heavily inspired by https://github.com/Azure/fleet/blob/main/pkg/webhook/webhook.go
+// this file is heavily inspired by
+// https://www.velotio.com/engineering-blog/managing-tls-certificate-for-kubernetes-admission-webhook
+// https://github.com/Azure/fleet/blob/main/pkg/webhook/webhook.go
 
 type selfSignedCert struct {
 	ca, cert, key []byte
@@ -25,12 +27,7 @@ func genCert(serviceName, ns string) (selfSignedCert, error) {
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(2023),
 		Subject: pkix.Name{
-			CommonName:         "approuting.kubernetes.azure.com",
-			Organization:       []string{"Microsoft"},
-			OrganizationalUnit: []string{"Azure Kubernetes Service"},
-			Locality:           []string{"Redmond"},
-			Province:           []string{"Washington"},
-			Country:            []string{"United States of America"},
+			CommonName: "approuting.kubernetes.azure.com",
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(10, 0, 0),
@@ -40,12 +37,12 @@ func genCert(serviceName, ns string) (selfSignedCert, error) {
 		BasicConstraintsValid: true,
 	}
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return selfSignedCert{}, fmt.Errorf("generating private key: %w", err)
 	}
 
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caKey.PublicKey, caKey)
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
 	if err != nil {
 		return selfSignedCert{}, fmt.Errorf("generating CA certificate: %w", err)
 	}
@@ -68,26 +65,21 @@ func genCert(serviceName, ns string) (selfSignedCert, error) {
 		DNSNames:     dnsNames,
 		SerialNumber: big.NewInt(2023),
 		Subject: pkix.Name{
-			CommonName:         fmt.Sprintf("%s.cert.server", serviceName),
-			Organization:       []string{"Microsoft"},
-			OrganizationalUnit: []string{"Azure Kubernetes Service"},
-			Locality:           []string{"Redmond"},
-			Province:           []string{"Washington"},
-			Country:            []string{"United States of America"},
+			CommonName: fmt.Sprintf("%s.cert.server", serviceName),
 		},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().AddDate(10, 0, 0),
-		SubjectKeyId: []byte{1, 2, 3, 4, 5},
+		SubjectKeyId: []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return selfSignedCert{}, fmt.Errorf("generating private key: %w", err)
 	}
 
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certKey.PublicKey, caKey)
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
 	if err != nil {
 		return selfSignedCert{}, fmt.Errorf("generating certificate: %w", err)
 	}
@@ -104,7 +96,7 @@ func genCert(serviceName, ns string) (selfSignedCert, error) {
 	var certPrvKeyPEM bytes.Buffer
 	if err := pem.Encode(&certPrvKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(certKey),
+		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
 	}); err != nil {
 		return selfSignedCert{}, fmt.Errorf("pem encoding certificate private key: %w", err)
 	}
@@ -126,10 +118,10 @@ func (s selfSignedCert) save(dir string) error {
 	certPath := filepath.Join(dir, "tls.crt")
 
 	if err := os.MkdirAll(filepath.Dir(certPath), 0755); err != nil {
-		return fmt.Errorf("creating dir %s: %w", certDir, err)
+		return fmt.Errorf("creating dir %s: %w", dir, err)
 	}
 
-	certFile, err := os.OpenFile(certPath, os.O_CREATE|os.O_WRONLY, 0600)
+	certFile, err := os.OpenFile(certPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0600)
 	if err != nil {
 		return fmt.Errorf("opening file %s: %w", certPath, err)
 	}
@@ -145,7 +137,7 @@ func (s selfSignedCert) save(dir string) error {
 	}
 
 	keyPath := filepath.Join(dir, "tls.key")
-	keyFile, err := os.OpenFile(keyPath, os.O_CREATE|os.O_WRONLY, 0600)
+	keyFile, err := os.OpenFile(keyPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("opening file %s: %w", keyPath, err)
 	}

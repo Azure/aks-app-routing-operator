@@ -27,7 +27,8 @@ func init() {
 		AddToManager: func(mgr manager.Manager) error {
 			mgr.GetWebhookServer().Register(validationPath, &webhook.Admission{
 				Handler: &nginxIngressResourceValidator{
-					client: mgr.GetClient(),
+					client:  mgr.GetClient(),
+					decoder: admission.NewDecoder(mgr.GetScheme()),
 				},
 			})
 
@@ -66,6 +67,10 @@ type nginxIngressResourceValidator struct {
 
 func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if req.Operation == admissionv1.Create {
+		if n.decoder == nil {
+			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("decoder not initialized"))
+		}
+
 		var nginxIngressController approutingv1alpha1.NginxIngressController
 		if err := n.decoder.Decode(req, &nginxIngressController); err != nil {
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
@@ -100,10 +105,4 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 	}
 
 	return admission.Allowed("")
-}
-
-// this is called and injected automatically
-func (n *nginxIngressResourceValidator) InjectDecoder(d *admission.Decoder) error {
-	n.decoder = d
-	return nil
 }

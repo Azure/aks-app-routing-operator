@@ -34,7 +34,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+)
+
+const (
+	certDir     = "/tmp/k8s-webhook-server/serving-certs/"
+	webhookPort = 9443
 )
 
 var scheme = runtime.NewScheme()
@@ -85,6 +91,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
+
+		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port:    webhookPort,
+			CertDir: certDir,
+		}),
 	})
 	if err != nil {
 		return nil, err
@@ -166,7 +177,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	webhookServ, err := webhook.New(conf, m)
+	webhookServ, err := webhook.New(conf, m, certDir, webhookPort)
 	if err != nil {
 		return nil, err
 	}
