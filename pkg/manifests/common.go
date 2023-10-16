@@ -16,8 +16,16 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 }
 
 func HasTopLevelLabels(spcLabels map[string]string) bool {
-	for label, _ := range GetTopLevelLabels() {
-		if _, ok := spcLabels[label]; !ok {
+	if len(spcLabels) == 0 {
+		return false
+	}
+
+	for label, value := range GetTopLevelLabels() {
+		spcValue, ok := spcLabels[label]
+		if !ok {
+			return false
+		}
+		if spcValue != value {
 			return false
 		}
 	}

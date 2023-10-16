@@ -6,6 +6,7 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"net/url"
 	"testing"
 
@@ -28,6 +29,89 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
+
+func TestSecretProviderClassReconcilerLabelChecking(t *testing.T) {
+	ing := &netv1.Ingress{}
+	ing.Name = "test-ingress"
+	ing.Namespace = "default"
+	ingressClass := "webapprouting.kubernetes.azure.com"
+	ing.Spec.IngressClassName = &ingressClass
+	ing.Annotations = map[string]string{
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+	}
+
+	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	i := &IngressSecretProviderClassReconciler{
+		client: c,
+		config: &config.Config{
+			TenantID:    "test-tenant-id",
+			MSIClientID: "test-msi-client-id",
+		},
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+	}
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	// Create the secret provider class
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err := i.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Prove it exists
+	spc := &secv1.SecretProviderClass{}
+	spc.Name = "keyvault-" + ing.Name
+	spc.Namespace = ing.Namespace
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
+
+	expected := &secv1.SecretProviderClass{
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: "azure",
+			Parameters: map[string]string{
+				"keyvaultName":           "testvault",
+				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
+				"tenantId":               i.config.TenantID,
+				"useVMManagedIdentity":   "true",
+				"userAssignedIdentityID": i.config.MSIClientID,
+			},
+			SecretObjects: []*secv1.SecretObject{{
+				SecretName: spc.Name,
+				Type:       "kubernetes.io/tls",
+				Data: []*secv1.SecretObjectData{
+					{ObjectName: "testcert", Key: "tls.key"},
+					{ObjectName: "testcert", Key: "tls.crt"},
+				},
+			}},
+		},
+	}
+	assert.Equal(t, expected.Spec, spc.Spec)
+
+	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Remove the cert's version from the ingress
+	ing.Annotations = map[string]string{
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert",
+	}
+	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+}
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ing := &netv1.Ingress{}
@@ -307,4 +391,58 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
 		})
 	}
+}
+
+func TestIngressSecretProviderClassReconcilerBuildSPCLabelChecking(t *testing.T) {
+	ingressClass := "webapprouting.kubernetes.azure.com"
+
+	i := &IngressSecretProviderClassReconciler{
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+	}
+
+	ing := &netv1.Ingress{}
+	ing.Spec.IngressClassName = &ingressClass
+	ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert"}
+
+	t.Run("no labels", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Labels = map[string]string{}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("no top level labels", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Labels = map[string]string{"fake": "fake"}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("bad value for proper key on label", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		ing.Labels = map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.False(t, ok)
+		require.NoError(t, err)
+	})
+
+	t.Run("top level labels with extra labels", func(t *testing.T) {
+		ing := ing.DeepCopy()
+		extraLabels := map[string]string{"fake": "label", "fake2": "label2", "fake3": "label3"}
+		ing.Labels = extraLabels
+		for key, label := range manifests.GetTopLevelLabels() {
+			ing.Labels[key] = label
+		}
+
+		ing.Name = "test-ingress"
+
+		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		assert.True(t, ok)
+		require.NoError(t, err)
+	})
 }

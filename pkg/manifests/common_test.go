@@ -39,6 +39,22 @@ func TestNamespaceResources(t *testing.T) {
 	}
 }
 
+func TestHasTopLevelLabels(t *testing.T) {
+	cases := []struct {
+		Labels  map[string]string
+		Outcome bool
+	}{
+		{Labels: map[string]string{}, Outcome: false},
+		{Labels: map[string]string{"fake": "fake"}, Outcome: false},
+		{Labels: map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}, Outcome: false},
+		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, Outcome: true},
+	}
+
+	for _, c := range cases {
+		require.Equal(t, HasTopLevelLabels(c.Labels), c.Outcome)
+	}
+}
+
 // AssertFixture checks the fixture path and compares it to the provided objects, failing if they are not equal
 func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
 	t.Logf("Testing fixture %s", fixturePath)
