@@ -125,7 +125,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	if len(spc.Labels) != 0 && manifests.HasTopLevelLabels(spc.Labels) {
 		logger.Info("removing secret provider class for ingress")
 		err = i.client.Delete(ctx, spc)
-		return result, err
+		return result, client.IgnoreNotFound(err)
 	}
 
 	return result, nil
