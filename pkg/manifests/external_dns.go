@@ -111,8 +111,14 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
 
+	// TODO: if sp use secret instead of externaldns config map
+	spAzSecret := newSpAzSecret(conf, externalDnsConfig)
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
-	objs = append(objs, dnsCm)
+	if conf.EnableServicePrincipal {
+		objs = append(objs, spAzSecret)
+	} else {
+		objs = append(objs, dnsCm)
+	}
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash, conf.EnableServicePrincipal))
 
 	for _, obj := range objs {
@@ -121,6 +127,37 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	}
 
 	return objs
+}
+
+func newSpAzSecret(conf *config.Config, dnsConfig *ExternalDnsConfig) *corev1.Secret {
+	d := map[string]string{
+		"tenantId":        conf.TenantID,
+		"resourceGroup":   dnsConfig.ResourceGroup,
+		"subscriptionId":  dnsConfig.Subscription,
+		"aadClientId":     "<EXTERNALDNS_SP_APP_ID>",
+		"aadClientSecret": "<EXTERNALDNS_SP_PASSWORD>",
+	}
+	jsonBytes, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+	s := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.ServicePrincipalSecretName + "-" + dnsConfig.Provider.ResourceName(),
+			Namespace: conf.NS,
+			Labels:    GetTopLevelLabels(),
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"azure.json": jsonBytes,
+		},
+	}
+
+	return s
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
@@ -191,27 +228,14 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-	// TODO: if SP use this instead of MSI
-	//{
-	//	"tenantId": "$(az account show --query tenantId -o tsv)",
-	//	"subscriptionId": "$(az account show --query id -o tsv)",
-	//	"resourceGroup": "$AZURE_DNS_ZONE_RESOURCE_GROUP",
-	//	"aadClientId": "$EXTERNALDNS_SP_APP_ID",
-	//	"aadClientSecret": "$EXTERNALDNS_SP_PASSWORD"
-	//}
 	c := &map[string]interface{}{
 		"tenantId":                    externalDnsConfig.TenantId,
 		"subscriptionId":              externalDnsConfig.Subscription,
 		"resourceGroup":               externalDnsConfig.ResourceGroup,
 		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": false,
+		"useManagedIdentityExtension": true,
 		"cloud":                       conf.Cloud,
 		"location":                    conf.Location,
-	}
-	isMSICluster := conf.MSIClientID != ""
-	if isMSICluster {
-		(*c)["useManagedIdentityExtension"] = true
-		(*c)["userAssignedIdentityID"] = conf.MSIClientID
 	}
 
 	js, err := json.Marshal(c)
@@ -248,40 +272,38 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	podLabels := GetTopLevelLabels()
 	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
-	podLabels["checksum/configmap"] = configMapHash[:16]
 
-	volumes := []corev1.Volume{{
-		Name: "azure-config",
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: externalDnsConfig.Provider.ResourceName(),
-				},
-			},
-		},
-	}}
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
 	if enableServicePrincipal {
 		volumes = append(volumes, corev1.Volume{
 			Name: "sp-creds",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: common.ServicePrincipalSecretName,
+					SecretName: common.ServicePrincipalSecretName + "-" + externalDnsConfig.Provider.ResourceName(),
 				},
 			},
 		})
-	}
-
-	volumeMounts := []corev1.VolumeMount{{
-		Name:      "azure-config",
-		MountPath: "/etc/kubernetes",
-		ReadOnly:  true,
-	}}
-
-	if enableServicePrincipal {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "sp-creds",
-			MountPath: "/etc/kubernetes/azure.json",
-			SubPath:   "azure.json",
+			MountPath: "/etc/kubernetes",
+			ReadOnly:  true,
+		})
+	} else {
+		podLabels["checksum/configmap"] = configMapHash[:16]
+		volumes = append(volumes, corev1.Volume{
+			Name: "azure-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: externalDnsConfig.Provider.ResourceName(),
+					},
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "azure-config",
+			MountPath: "/etc/kubernetes",
 			ReadOnly:  true,
 		})
 	}

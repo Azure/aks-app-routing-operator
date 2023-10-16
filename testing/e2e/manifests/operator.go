@@ -120,7 +120,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--cluster-uid", "test-cluster-uid",
 	}
 	if o.EnableServicePrincipalAuth {
-		ret = append(ret, "--enable-service-principal-auth")
+		ret = append(ret, "--enable-service-principal")
 	}
 	if !o.EnableServicePrincipalAuth {
 		ret = append(ret, "--msi", o.Msi)
