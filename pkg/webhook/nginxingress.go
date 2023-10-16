@@ -69,6 +69,8 @@ type nginxIngressResourceValidator struct {
 func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	lgr := logr.FromContextOrDiscard(ctx).WithValues("name", req.Name, "namespace", req.Namespace, "operation", req.Operation)
 
+	// TODO: record metrics
+
 	if req.Operation == admissionv1.Create {
 		lgr.Info("decoding NginxIngressController resource")
 		var nginxIngressController approutingv1alpha1.NginxIngressController

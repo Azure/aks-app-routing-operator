@@ -110,6 +110,7 @@ func (c *config) Start(ctx context.Context) error {
 	// TODO: no ownership ref from global to namespaced
 	// owners := manifests.GetOwnerRefs(operator)
 	// whCfg.SetOwnerReferences(owners)
+	// TODO: bind to app-routing-system namespace
 
 	// TODO: how does this work with multiple replicas and leader election? this seems very sketchy
 	cl := c.mgr.GetClient()
