@@ -577,6 +577,7 @@
         }
       },
       "data": {
+        "allow-snippet-annotations": "true",
         "annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'"
       }
     },
