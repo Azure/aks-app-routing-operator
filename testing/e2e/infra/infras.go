@@ -32,6 +32,15 @@ var Infras = infras{
 		Suffix:        uuid.New().String(),
 		McOpts:        []clients.McOpt{clients.OsmClusterOpt},
 	},
+	// TODO: add back when service principal cluster is supported
+	//{
+	//	Name:                    "service principal cluster",
+	//	ResourceGroup:           rg,
+	//	Location:                location,
+	//	Suffix:                  uuid.New().String(),
+	//	McOpts:                  []clients.McOpt{},
+	//	ServicePrincipalOptions: &clients.ServicePrincipalOptions{},
+	//},
 }
 
 func (i infras) FilterNames(names []string) infras {

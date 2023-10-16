@@ -12,6 +12,7 @@ const (
 	infraNamesFlag     = "names"
 	infraFileFlag      = "infra-file"
 	infraNameFlag      = "infra-name"
+	spAppObjectIdFlag  = "sp-app-obj-id"
 )
 
 var (
@@ -56,3 +57,11 @@ func setupInfraFileFlag(cmd *cobra.Command) {
 var (
 	infraName string
 )
+
+var (
+	spApplicationObjectID string
+)
+
+func setupSPAppIdNameFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&spApplicationObjectID, spAppObjectIdFlag, "", "appid of the service principal to use for service principal cluster testing")
+}
