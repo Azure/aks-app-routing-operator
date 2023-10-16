@@ -5,11 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2023-10-13
+
+### Added
+
+- Improved logging across entire operator - [#110](https://github.com/Azure/aks-app-routing-operator/pull/110)
+
+### Changed
+
+- Upgrade NGINX Ingress Controller to v1.8.4 - [#113](https://github.com/Azure/aks-app-routing-operator/pull/113)
+
+
 ## [0.0.4] - 2023-10-05
 
 ### Added
 
 - Improved error logging - [#97](https://github.com/Azure/aks-app-routing-operator/pull/97)
+- Improved E2E testing framework that tests upgrade story and all operator configurations - [#79](https://github.com/Azure/aks-app-routing-operator/pull/79), [#90](https://github.com/Azure/aks-app-routing-operator/pull/90), [#95](https://github.com/Azure/aks-app-routing-operator/pull/95), [#98](https://github.com/Azure/aks-app-routing-operator/pull/98), [#100](https://github.com/Azure/aks-app-routing-operator/pull/100), [#104](https://github.com/Azure/aks-app-routing-operator/pull/104)
 
 ### Changed
 
