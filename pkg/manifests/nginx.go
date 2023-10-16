@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	controllerImageTag = "v1.8.1"
+	controllerImageTag = "v1.9.3"
 	prom               = "prometheus"
 )
 
@@ -423,6 +423,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							"--election-id=" + ingressConfig.ResourceName,
 							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+							"--enable-annotation-validation=true",
 							"--http-port=8080",
 							"--https-port=8443",
 						},
