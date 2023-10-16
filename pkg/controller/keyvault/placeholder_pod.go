@@ -30,6 +30,10 @@ var (
 	placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
 )
 
+const (
+	keyvaultServicePrincipalSecretName = "keyvault-service-principal"
+)
+
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
 // Keyvault secrets referenced by each secret provider class managed by IngressSecretProviderClassReconciler.
 //
@@ -124,6 +128,22 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		return result, client.IgnoreNotFound(err)
 	}
 
+	if p.config.EnableServicePrincipal {
+		sec := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Secret",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      keyvaultServicePrincipalSecretName,
+				Namespace: req.Namespace,
+			},
+		}
+		if err = util.Upsert(ctx, p.client, sec); err != nil {
+			return result, err
+		}
+	}
+
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
 	p.buildDeployment(dep, spc, ing)
@@ -136,6 +156,21 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
 	labels := map[string]string{"app": spc.Name}
+	v := corev1.Volume{
+		Name: "secrets",
+		VolumeSource: corev1.VolumeSource{
+			CSI: &corev1.CSIVolumeSource{
+				Driver:           "secrets-store.csi.k8s.io",
+				ReadOnly:         util.BoolPtr(true),
+				VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
+			},
+		},
+	}
+	if p.config.EnableServicePrincipal {
+		v.CSI.NodePublishSecretRef = &corev1.LocalObjectReference{
+			Name: keyvaultServicePrincipalSecretName,
+		}
+	}
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
@@ -167,22 +202,7 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 						},
 					},
 				}},
-				Volumes: []corev1.Volume{{
-					Name: "secrets",
-					VolumeSource: corev1.VolumeSource{
-						CSI: &corev1.CSIVolumeSource{
-							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
-							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
-							// TODO: implement reading a secret and a name for the secret
-							// only if sp
-							// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/configurations/identity-access-modes/service-principal-mode/
-							//NodePublishSecretRef: &corev1.LocalObjectReference{
-							//	Name: "new-secret-goes-here",
-							//},
-						},
-					},
-				}},
+				Volumes: []corev1.Volume{v},
 			}),
 		},
 	}
