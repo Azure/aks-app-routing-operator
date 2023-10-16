@@ -1,8 +1,6 @@
 package keyvault
 
-import (
-	netv1 "k8s.io/api/networking/v1"
-)
+import netv1 "k8s.io/api/networking/v1"
 
 // IngressManager returns a boolean indicating whether the Ingress is being managed by us
 type IngressManager interface {
