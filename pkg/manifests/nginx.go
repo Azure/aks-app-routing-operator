@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	controllerImageTag = "v1.8.4"
+	controllerImageTag = "v1.9.3"
 	prom               = "prometheus"
 )
 
@@ -423,6 +423,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							"--election-id=" + ingressConfig.ResourceName,
 							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+							"--enable-annotation-validation=true",
 							"--http-port=8080",
 							"--https-port=8443",
 						},
@@ -472,6 +473,7 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 			// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
 			// But we can still protect against leaked service account tokens.
 			// See: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#annotation-value-word-blocklist
+			"allow-snippet-annotations":       "true",
 			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
 		},
 	}
