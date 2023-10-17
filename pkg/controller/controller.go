@@ -5,7 +5,9 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -43,7 +45,10 @@ const (
 	webhookPort = 9443
 )
 
-var scheme = runtime.NewScheme()
+var (
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+)
 
 func init() {
 	registerSchemes(scheme)
@@ -103,35 +108,68 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 
-	// setup non-caching clients for use before manager starts
-	kcs, err := kubernetes.NewForConfig(rc)
-	if err != nil {
-		return nil, err
-	}
+	// setup non-caching client for use before manager starts
 	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
 		return nil, err
 	}
 
-	log := m.GetLogger()
-	deploy, err := getSelfDeploy(kcs, conf, log)
+	setupLog.V(2).Info("using namespace: " + conf.NS)
+
+	if err := loadCRDs(cl, conf, setupLog); err != nil {
+		setupLog.Error(err, "failed to load CRDs")
+		return nil, err
+	}
+
+	certsReady := make(chan struct{})
+	webhookCfg, err := webhook.New(conf, webhookPort, certDir)
 	if err != nil {
-		return nil, err
-	}
-	log.V(2).Info("using namespace: " + conf.NS)
-
-	if err := loadCRDs(cl, conf, log); err != nil {
-		log.Error(err, "failed to load CRDs")
-		return nil, err
+		return nil, fmt.Errorf("creating webhook config: %w", err)
 	}
 
-	if err := dns.NewExternalDns(m, conf, deploy); err != nil {
-		return nil, err
+	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl); err != nil {
+		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 
-	nginxConfigs, err := nginx.New(m, conf, deploy)
+	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady); err != nil {
+		return nil, fmt.Errorf("adding cert-manager to webhook config: %w", err)
+	}
+
+	go func() {
+		setupLog.Info("waiting for certificates to be ready")
+		<-certsReady
+		setupLog.Info("certificates are ready")
+
+		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
+			setupLog.Error(err, "failed to setup webhooks")
+			os.Exit(1)
+		}
+
+		if err := setupControllers(m, conf, certsReady); err != nil {
+			setupLog.Error(err, "failed to setup controllers")
+			os.Exit(1)
+		}
+	}()
+
+	return m, nil
+}
+
+func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error) error {
+	if err := addWebhooksFn(mgr); err != nil {
+		return fmt.Errorf("adding webhooks: %w", err)
+	}
+
+	return nil
+}
+
+func setupControllers(mgr ctrl.Manager, conf *config.Config, certsReady chan struct{}) error {
+	if err := dns.NewExternalDns(mgr, conf, nil); err != nil {
+		return fmt.Errorf("adding external dns controller to manager: %w", err)
+	}
+
+	nginxConfigs, err := nginx.New(mgr, conf, nil)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("creating nginx configs: %w", err)
 	}
 
 	watchdogTargets := make([]*ingress.WatchdogTarget, 0)
@@ -141,8 +179,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 			LabelGetter: nginxConfig,
 		})
 	}
-	if err := ingress.NewConcurrencyWatchdog(m, conf, watchdogTargets); err != nil {
-		return nil, err
+	if err := ingress.NewConcurrencyWatchdog(mgr, conf, watchdogTargets); err != nil {
+		return fmt.Errorf("adding ingress concurrency watchdog to manager: %w", err)
 	}
 
 	icToController := make(map[string]string)
@@ -155,41 +193,33 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	ingressManager := keyvault.NewIngressManager(ics)
-	if err := keyvault.NewIngressSecretProviderClassReconciler(m, conf, ingressManager); err != nil {
-		return nil, err
+	if err := keyvault.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
+		return fmt.Errorf("adding ingress secret provider class reconciler to manager: %w", err)
 	}
-	if err := keyvault.NewPlaceholderPodController(m, conf, ingressManager); err != nil {
-		return nil, err
+	if err := keyvault.NewPlaceholderPodController(mgr, conf, ingressManager); err != nil {
+		return fmt.Errorf("adding placeholder pod controller to manager: %w", err)
 	}
-	if err = keyvault.NewEventMirror(m, conf); err != nil {
-		return nil, err
+	if err = keyvault.NewEventMirror(mgr, conf); err != nil {
+		return fmt.Errorf("adding event mirror to manager: %w", err)
 	}
 
 	ingressControllerNamer := osm.NewIngressControllerNamer(icToController)
-	if err := osm.NewIngressBackendReconciler(m, conf, ingressControllerNamer); err != nil {
-		return nil, err
+	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressControllerNamer); err != nil {
+		return fmt.Errorf("adding ingress backend reconciler to manager: %w", err)
 	}
-	if err = osm.NewIngressCertConfigReconciler(m, conf); err != nil {
-		return nil, err
-	}
-
-	if err := nginxingress.NewReconciler(conf, m); err != nil {
-		return nil, err
+	if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
+		return fmt.Errorf("adding ingress cert config reconciler to manager: %w", err)
 	}
 
-	webhookServ, err := webhook.New(conf, m, certDir, webhookPort)
-	if err != nil {
-		return nil, err
+	if err := nginxingress.NewReconciler(conf, mgr); err != nil {
+		return fmt.Errorf("adding nginx ingress reconciler to manager: %w", err)
 	}
 
-	if err := m.Add(webhookServ); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	setupLog.Info("controllers added to manager")
+	return nil
 }
 
-func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logger) (*appsv1.Deployment, error) {
+func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config) (*appsv1.Deployment, error) {
 	// this doesn't work today. operator ns is not the same as resource ns which means we can't set this operator
 	// as the owner of any child resources. https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/#owner-references-in-object-specifications
 	// dynamic provisioning through a crd will fix this and fix our garbage collection.
@@ -198,7 +228,7 @@ func getSelfDeploy(kcs kubernetes.Interface, conf *config.Config, log logr.Logge
 	deploy, err := kcs.AppsV1().Deployments(conf.NS).Get(context.Background(), conf.OperatorDeployment, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		// It's okay if we don't find the deployment - just skip setting ownership references latter
-		log.Info("self deploy not found")
+		setupLog.Info("self deploy not found")
 		return nil, nil
 	}
 	if err != nil {

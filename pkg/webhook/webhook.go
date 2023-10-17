@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	globalCfg "github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/open-policy-agent/cert-controller/pkg/rotator"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -27,61 +28,29 @@ var Validating []Webhook[admissionregistrationv1.ValidatingWebhook]
 type config struct {
 	serviceName, namespace string
 	port                   int32
-	url                    string
+	certDir                string
 
-	certDir string
-	cert    selfSignedCert
-
-	mgr manager.Manager
+	validatingWebhookConfigName string
 }
 
-func New(globalCfg *globalCfg.Config, mgr manager.Manager, certDir string, port int32) (*config, error) {
+func New(globalCfg *globalCfg.Config, port int32, certsDir string) (*config, error) {
 	if globalCfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
 
-	serviceName := globalCfg.OperatorWebhookService
-	namespace := globalCfg.OperatorNs
-
-	cert, err := genCert(serviceName, namespace)
-	if err != nil {
-		return nil, fmt.Errorf("generating cert: %w", err)
-	}
-
-	// need to save here and in start, manager expects some certs at startup
-	// TODO: this must be better
-	if err := cert.save(certDir); err != nil {
-		return nil, fmt.Errorf("saving cert: %w", err)
-	}
-
 	c := &config{
-		serviceName: serviceName,
-		namespace:   namespace,
-		port:        port,
-		url:         fmt.Sprintf("https://%s.%s.svc.cluster.local:%d", serviceName, namespace, port),
-		certDir:     certDir,
-		cert:        cert,
-		mgr:         mgr,
-	}
-
-	for _, wh := range Validating {
-		if err := wh.AddToManager(mgr); err != nil {
-			return nil, fmt.Errorf("adding webhook to manager: %w", err)
-		}
+		serviceName:                 globalCfg.OperatorWebhookService,
+		namespace:                   globalCfg.OperatorNs,
+		port:                        port,
+		certDir:                     certsDir,
+		validatingWebhookConfigName: "app-routing-validating",
 	}
 
 	return c, nil
 }
 
-// Start implements manager.Runnable which lets us use leader election to connect to the webhook instance
-// with our self signed cert
-func (c *config) Start(ctx context.Context) error {
+func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Client) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
-	lgr.Info("setting up")
-
-	if err := c.cert.save(c.certDir); err != nil {
-		return fmt.Errorf("saving cert: %w", err)
-	}
 
 	var validatingWhs []admissionregistrationv1.ValidatingWebhook
 	for _, wh := range Validating {
@@ -93,9 +62,10 @@ func (c *config) Start(ctx context.Context) error {
 		validatingWhs = append(validatingWhs, wh)
 	}
 
+	lgr.Info("ensuring webhook configuration")
 	validatingWhc := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "app-routing-validating",
+			Name: c.validatingWebhookConfigName,
 			Labels: map[string]string{
 				// https://learn.microsoft.com/en-us/azure/aks/faq#can-admission-controller-webhooks-impact-kube-system-and-internal-aks-namespaces
 				"admissions.enforcer/disabled": "true",
@@ -104,38 +74,50 @@ func (c *config) Start(ctx context.Context) error {
 		Webhooks: validatingWhs,
 	}
 
-	// set ownership references so webhook is deleted when operator is deleted
-	// set ownership references to app-routing-system ns for now ?? we need a workaround to delete
-	// TODO: maybe users have to manually delete?
-	// TODO: no ownership ref from global to namespaced
-	// owners := manifests.GetOwnerRefs(operator)
-	// whCfg.SetOwnerReferences(owners)
-	// TODO: bind to app-routing-system namespace
+	// todo: add ownership references to app-routing-system ns
 
-	// TODO: how does this work with multiple replicas and leader election? this seems very sketchy
-	cl := c.mgr.GetClient()
 	whs := []client.Object{validatingWhc}
 	for _, wh := range whs {
 		copy := wh.DeepCopyObject().(client.Object)
 		lgr := lgr.WithValues("webhook", wh.GetName())
-		lgr.Info("creating webhook configuration")
-		if err := cl.Create(ctx, copy); err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				return fmt.Errorf("creating webhook configuration: %w", err)
-			}
+		lgr.Info("upserting webhook configuration")
 
-			// delete and recreate for now
-			// TODO: switch to patch
-			lgr.Info("webhook configuration already exists, deleting")
-			if err := cl.Delete(ctx, copy); err != nil {
-				return fmt.Errorf("deleting webhook configuration: %w", err)
-			}
+		if err := util.Upsert(ctx, cl, copy); err != nil {
+			return fmt.Errorf("upserting webhook configuration: %w", err)
+		}
+	}
 
-			lgr.Info("recreating webhook configuration")
-			copy2 := wh.DeepCopyObject().(client.Object)
-			if err := cl.Create(ctx, copy2); err != nil {
-				return fmt.Errorf("creating webhook configuration: %w", err)
-			}
+	return nil
+}
+
+func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsReady chan struct{}) error {
+	webhooks := make([]rotator.WebhookInfo, 0)
+	webhooks = append(webhooks, rotator.WebhookInfo{
+		Name: c.validatingWebhookConfigName,
+		Type: rotator.Validating,
+	})
+
+	cm := &certManager{
+		SecretName:     "app-routing-operator-webhook-secret",
+		CertDir:        c.certDir,
+		ServiceName:    c.serviceName,
+		Namespace:      c.namespace,
+		Webhooks:       webhooks,
+		CAName:         "approuting.kubernetes.azure.com",
+		CAOrganization: "Microsoft",
+		Ready:          certsReady,
+	}
+	if err := cm.addToManager(ctx, mgr); err != nil {
+		return fmt.Errorf("adding rotation: %w", err)
+	}
+
+	return nil
+}
+
+func (c *config) AddWebhooks(mgr manager.Manager) error {
+	for _, wh := range Validating {
+		if err := wh.AddToManager(mgr); err != nil {
+			return fmt.Errorf("adding webhook to manager: %w", err)
 		}
 	}
 
@@ -150,6 +132,5 @@ func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookCl
 			Port:      &c.port,
 			Path:      &path,
 		},
-		CABundle: c.cert.ca, // TODO: how does this work with multi replicas?
 	}, nil
 }
