@@ -52,6 +52,7 @@ func New(globalCfg *globalCfg.Config, port int32, certsDir string) (*config, err
 func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Client) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
 
+	lgr.Info("calculating ValidatingWebhookConfiguration")
 	var validatingWhs []admissionregistrationv1.ValidatingWebhook
 	for _, wh := range Validating {
 		wh, err := wh.Definition(c)
@@ -62,8 +63,11 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 		validatingWhs = append(validatingWhs, wh)
 	}
 
-	lgr.Info("ensuring webhook configuration")
 	validatingWhc := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ValidatingWebhookConfiguration",
+			APIVersion: "admissionregistration.k8s.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: c.validatingWebhookConfigName,
 			Labels: map[string]string{
@@ -76,6 +80,7 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 
 	// todo: add ownership references to app-routing-system ns
 
+	lgr.Info("ensuring webhook configuration")
 	whs := []client.Object{validatingWhc}
 	for _, wh := range whs {
 		copy := wh.DeepCopyObject().(client.Object)
@@ -87,18 +92,23 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 		}
 	}
 
+	lgr.Info("finished ensuring webhook configuration")
 	return nil
 }
 
 func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsReady chan struct{}) error {
+	lgr := log.FromContext(ctx).WithName("cert-manager")
+
+	lgr.Info("calculating webhooks for cert-manager")
 	webhooks := make([]rotator.WebhookInfo, 0)
 	webhooks = append(webhooks, rotator.WebhookInfo{
 		Name: c.validatingWebhookConfigName,
 		Type: rotator.Validating,
 	})
 
+	lgr.Info("adding cert-manager to controller manager")
 	cm := &certManager{
-		SecretName:     "app-routing-operator-webhook-secret",
+		SecretName:     "app-routing-webhook-secret",
 		CertDir:        c.certDir,
 		ServiceName:    c.serviceName,
 		Namespace:      c.namespace,
@@ -111,6 +121,7 @@ func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsR
 		return fmt.Errorf("adding rotation: %w", err)
 	}
 
+	lgr.Info("finished adding cert-manager to controller manager")
 	return nil
 }
 

@@ -22,6 +22,7 @@ import (
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -41,7 +42,7 @@ import (
 )
 
 const (
-	certDir     = "/tmp/k8s-webhook-server/serving-certs/"
+	certDir     = "/tmp/k8s-webhook-server/serving-certs"
 	webhookPort = 9443
 )
 
@@ -76,6 +77,7 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
 	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(admissionregistrationv1.AddToScheme(s))
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
@@ -140,11 +142,13 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		<-certsReady
 		setupLog.Info("certificates are ready")
 
+		setupLog.Info("setting up webhooks")
 		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
 			setupLog.Error(err, "failed to setup webhooks")
 			os.Exit(1)
 		}
 
+		setupLog.Info("setting up controllers")
 		if err := setupControllers(m, conf, certsReady); err != nil {
 			setupLog.Error(err, "failed to setup controllers")
 			os.Exit(1)

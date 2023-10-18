@@ -32,6 +32,16 @@ spec:
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
           command: ["/aks-app-routing-operator"]
           args: []
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: app-routing-webhook-secret
+            optional: true
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

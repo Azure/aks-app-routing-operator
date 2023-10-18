@@ -48,12 +48,12 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager) err
 		ExtraDNSNames:          dnsNames,
 		IsReady:                c.Ready,
 		Webhooks:               c.Webhooks,
-		RestartOnSecretRefresh: false,
+		RestartOnSecretRefresh: true,
 		ExtKeyUsages: &[]x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
 			x509.ExtKeyUsageClientAuth,
 		},
-		RequireLeaderElection: true,
+		RequireLeaderElection: false, // todo: testing this out in false
 	}); err != nil {
 		return fmt.Errorf("adding rotator: %w", err)
 	}
