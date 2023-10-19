@@ -118,7 +118,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 			setupLog.Info("certs are ready")
 			close(setupDone)
 		case <-certsMounted:
-			waitTime := 15 * time.Second
+			waitTime := 45 * time.Second
 			setupLog.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s to give certs a chance to be rotated", waitTime))
 			select {
 			case <-certsReady:
