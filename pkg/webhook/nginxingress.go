@@ -55,7 +55,8 @@ func init() {
 						},
 					},
 				},
-				SideEffects: util.ToPtr(admissionregistrationv1.SideEffectClassNone),
+				FailurePolicy: util.ToPtr(admissionregistrationv1.Fail), // need this because we have to check permissions, better to fail than let a request through
+				SideEffects:   util.ToPtr(admissionregistrationv1.SideEffectClassNone),
 			}, nil
 		},
 	})

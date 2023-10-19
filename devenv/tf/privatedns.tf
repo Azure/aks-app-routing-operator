@@ -26,6 +26,7 @@ data "azurerm_resources" "noderesourcegroup" {
   count = length(var.privatezones) > 0 ? 1 : 0
 }
 
+/* ignore for now, weird caching issue
 resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnection" {
   for_each              = azurerm_private_dns_zone.dnszone
   name                  = "approutingdev-link-${each.value.name}"
@@ -33,3 +34,4 @@ resource "azurerm_private_dns_zone_virtual_network_link" "approutingvnetconnecti
   private_dns_zone_name = each.value.name
   virtual_network_id    = data.azurerm_resources.noderesourcegroup[0].resources[0].id
 }
+*/

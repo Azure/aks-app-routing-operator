@@ -9,7 +9,7 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/google/uuid v1.3.1
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/open-policy-agent/cert-controller v0.10.0
+	github.com/open-policy-agent/cert-controller v0.10.0 // can't use anything higher than 0.4.0 because of https://github.com/open-policy-agent/cert-controller/issues/53
 	github.com/openservicemesh/osm v1.2.4
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0

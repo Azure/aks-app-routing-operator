@@ -4,12 +4,17 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"os"
+	"path"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/go-logr/logr"
 	"github.com/open-policy-agent/cert-controller/pkg/rotator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -22,19 +27,43 @@ type certManager struct {
 
 	CAName, CAOrganization string
 
-	Ready chan struct{}
+	CertsMounted chan struct{}
+	Ready        chan struct{}
 }
 
-func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager) error {
-	// TODO: is this needed?
+func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr logr.Logger) error {
+	lgr.Info("ensuring webhook cert secret")
 	if err := c.ensureSecret(ctx, mgr); err != nil {
 		return fmt.Errorf("ensuring secret: %w", err)
 	}
 
-	dnsNames := []string{
-		fmt.Sprintf("%s.%s.svc", c.ServiceName, c.Namespace),
-		fmt.Sprintf("%s.%s.svc.cluster.local", c.ServiceName, c.Namespace),
-	}
+	// workaround for https://github.com/open-policy-agent/cert-controller/issues/53
+	// this isn't great, but it's the best we can do for now
+	go func() {
+		checkCertsMounted := func() (bool, error) {
+			lgr.Info("checking if certs are mounted")
+			certFile := path.Join(c.CertDir, "tls.crt")
+			_, err := os.Stat(certFile)
+			if err == nil {
+				return true, nil
+			}
+
+			return false, nil
+		}
+
+		if err := wait.ExponentialBackoff(wait.Backoff{
+			Duration: 1 * time.Second,
+			Factor:   2,
+			Jitter:   1,
+			Steps:    10,
+		}, checkCertsMounted); err != nil {
+			lgr.Error(err, "waiting for certs to be mounted")
+			return
+		}
+
+		lgr.Info("certs mounted")
+		close(c.CertsMounted)
+	}()
 
 	if err := rotator.AddRotator(mgr, &rotator.CertRotator{
 		SecretKey: types.NamespacedName{
@@ -44,16 +73,15 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager) err
 		CertDir:                c.CertDir,
 		CAName:                 c.CAName,
 		CAOrganization:         c.CAOrganization,
-		DNSName:                dnsNames[0],
-		ExtraDNSNames:          dnsNames,
+		DNSName:                fmt.Sprintf("%s.%s.svc", c.ServiceName, c.Namespace),
 		IsReady:                c.Ready,
 		Webhooks:               c.Webhooks,
 		RestartOnSecretRefresh: true,
+		RequireLeaderElection:  true,
 		ExtKeyUsages: &[]x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
 			x509.ExtKeyUsageClientAuth,
 		},
-		RequireLeaderElection: false, // todo: testing this out in false
 	}); err != nil {
 		return fmt.Errorf("adding rotator: %w", err)
 	}

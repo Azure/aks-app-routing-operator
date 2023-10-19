@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -108,7 +109,31 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
+	certsReady := make(chan struct{})
+	certsMounted := make(chan struct{})
+	setupDone := make(chan struct{})
+	go func() {
+		select {
+		case <-certsReady:
+			setupLog.Info("certs are ready")
+			close(setupDone)
+		case <-certsMounted:
+			waitTime := 15 * time.Second
+			setupLog.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s to give certs a chance to be rotated", waitTime))
+			select {
+			case <-certsReady:
+				setupLog.Info("certs are fully ready")
+			case <-time.After(waitTime):
+				setupLog.Info("continuing with setup")
+			}
+			setupLog.Info("setup done")
+			close(setupDone)
+		}
+	}()
+
+	if err := setupProbes(m, setupDone); err != nil {
+		return nil, fmt.Errorf("setting up probes: %w", err)
+	}
 
 	// setup non-caching client for use before manager starts
 	cl, err := client.New(rc, client.Options{Scheme: scheme})
@@ -123,7 +148,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	certsReady := make(chan struct{})
 	webhookCfg, err := webhook.New(conf, webhookPort, certDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating webhook config: %w", err)
@@ -133,14 +157,14 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 
-	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady); err != nil {
+	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady, certsMounted); err != nil {
 		return nil, fmt.Errorf("adding cert-manager to webhook config: %w", err)
 	}
 
 	go func() {
-		setupLog.Info("waiting for certificates to be ready")
-		<-certsReady
-		setupLog.Info("certificates are ready")
+		setupLog.Info("waiting for setup to be done")
+		<-setupDone
+		setupLog.Info("setup is done")
 
 		setupLog.Info("setting up webhooks")
 		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
@@ -149,7 +173,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		}
 
 		setupLog.Info("setting up controllers")
-		if err := setupControllers(m, conf, certsReady); err != nil {
+		if err := setupControllers(m, conf); err != nil {
 			setupLog.Error(err, "failed to setup controllers")
 			os.Exit(1)
 		}
@@ -166,7 +190,33 @@ func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error)
 	return nil
 }
 
-func setupControllers(mgr ctrl.Manager, conf *config.Config, certsReady chan struct{}) error {
+func setupProbes(mgr ctrl.Manager, certsReady <-chan struct{}) error {
+	setupLog.Info("adding probes to manager")
+
+	check := func(req *http.Request) error {
+		select {
+		case <-certsReady:
+			return mgr.GetWebhookServer().StartedChecker()(req)
+		default:
+			return fmt.Errorf("certs aren't ready yet")
+		}
+	}
+
+	if err := mgr.AddReadyzCheck("readyz", check); err != nil {
+		return fmt.Errorf("adding readyz check: %w", err)
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", check); err != nil {
+		return fmt.Errorf("adding healthz check: %w", err)
+	}
+
+	setupLog.Info("added probes to manager")
+	return nil
+}
+
+func setupControllers(mgr ctrl.Manager, conf *config.Config) error {
+	setupLog.Info("adding controllers to manager")
+
 	if err := dns.NewExternalDns(mgr, conf, nil); err != nil {
 		return fmt.Errorf("adding external dns controller to manager: %w", err)
 	}
