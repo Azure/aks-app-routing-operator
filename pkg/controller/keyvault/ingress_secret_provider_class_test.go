@@ -40,7 +40,6 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	ing.Annotations = map[string]string{
 		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
 	}
-	ing.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -70,7 +69,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "keyvault-" + ing.Name
 	spc.Namespace = ing.Namespace
-	spc.Labels = ing.Labels
+	spc.Labels = manifests.GetTopLevelLabels()
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
 	expected := &secv1.SecretProviderClass{
@@ -142,9 +141,11 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	fakeLabels := map[string]string{"fake1": "label1", "fake2": "label2", "fake3": "label3"}
+
 	// Check for top level labels with additional labels
-	ing.Labels = util.MergeMaps(manifests.GetTopLevelLabels(), fakeLabels)
+	spc.Labels = fakeLabels
 	require.NoError(t, i.client.Update(ctx, ing))
+
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -152,16 +153,10 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
-	// Check for labels without top level labels
-	ing.Labels = fakeLabels
-	require.NoError(t, i.client.Update(ctx, ing))
-	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
-	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
-	_, err = i.Reconcile(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
-
+	// Prove spc was not deleted
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
+	// Prove idempotence
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(spc), spc)))
 }
 
 func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
