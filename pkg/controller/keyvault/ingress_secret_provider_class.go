@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"net/url"
 	"strings"
 
@@ -22,6 +21,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
@@ -115,7 +115,6 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return result, err
 	}
 
-	logger.Info("cleaning unused managed spc for ingress")
 	logger.Info("getting secret provider class for ingress")
 	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
 	if err != nil {
@@ -136,7 +135,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	if len(ing.Labels) == 0 || !(manifests.HasRequiredLabels(ing.Labels, manifests.GetTopLevelLabels())) {
+	if len(spc.Labels) == 0 || !(manifests.HasRequiredLabels(spc.Labels, manifests.GetTopLevelLabels())) {
 		return false, nil
 	}
 
