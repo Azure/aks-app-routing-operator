@@ -122,7 +122,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return result, client.IgnoreNotFound(err)
 	}
 
-	if len(spc.Labels) != 0 && manifests.HasTopLevelLabels(spc.Labels) {
+	if len(spc.Labels) != 0 && manifests.HasRequiredLabels(spc.Labels, manifests.GetTopLevelLabels()) {
 		logger.Info("removing secret provider class for ingress")
 		err = i.client.Delete(ctx, spc)
 		return result, client.IgnoreNotFound(err)
@@ -136,7 +136,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	if len(ing.Labels) == 0 || !(manifests.HasTopLevelLabels(ing.Labels)) {
+	if len(ing.Labels) == 0 || !(manifests.HasRequiredLabels(ing.Labels, manifests.GetTopLevelLabels())) {
 		return false, nil
 	}
 

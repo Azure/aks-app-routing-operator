@@ -87,7 +87,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
-			Labels:    manifests.GetTopLevelLabels(),
+			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -111,6 +111,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
+
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		logger.Info("cleaning unused placeholder pod deployment")
 
@@ -119,7 +120,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 
 		}
-		if len(dep.Labels) != 0 && manifests.HasTopLevelLabels(dep.Labels) {
+		if len(dep.Labels) != 0 && manifests.HasRequiredLabels(dep.Labels, manifests.GetTopLevelLabels()) {
 			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, dep)
 			return result, client.IgnoreNotFound(err)
@@ -136,7 +137,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
-	labels := map[string]string{"app": spc.Name}
+	labels := util.MergeMaps(map[string]string{"app": spc.Name}, spc.Labels)
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),

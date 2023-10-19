@@ -39,19 +39,24 @@ func TestNamespaceResources(t *testing.T) {
 	}
 }
 
-func TestHasTopLevelLabels(t *testing.T) {
+func TestHasRequiredLabels(t *testing.T) {
+	placeholderPodLabels := map[string]string{"app": "app-name"}
+
 	cases := []struct {
-		Labels  map[string]string
-		Outcome bool
+		Labels    map[string]string
+		ReqLabels []map[string]string
+		Outcome   bool
 	}{
-		{Labels: map[string]string{}, Outcome: false},
-		{Labels: map[string]string{"fake": "fake"}, Outcome: false},
-		{Labels: map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}, Outcome: false},
-		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, Outcome: true},
+		{Labels: map[string]string{}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
+		{Labels: map[string]string{"fake": "fake"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
+		{Labels: map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
+		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: true},
+		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: false},
+		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "app": "app-name", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: true},
 	}
 
 	for _, c := range cases {
-		require.Equal(t, HasTopLevelLabels(c.Labels), c.Outcome)
+		require.Equal(t, HasRequiredLabels(c.Labels, c.ReqLabels...), c.Outcome)
 	}
 }
 

@@ -15,18 +15,29 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
 }
 
-func HasTopLevelLabels(spcLabels map[string]string) bool {
-	if len(spcLabels) == 0 {
+// Checks the first set of labels has the labels of the other passed in sets
+func HasRequiredLabels(checkedLabels map[string]string, labelSet ...map[string]string) bool {
+	if len(checkedLabels) == 0 {
 		return false
 	}
 
-	for label, value := range GetTopLevelLabels() {
-		spcValue, ok := spcLabels[label]
-		if !ok {
-			return false
-		}
-		if spcValue != value {
-			return false
+	labelSetLen := 0
+	for _, set := range labelSet {
+		labelSetLen += len(set)
+	}
+	if len(checkedLabels) < labelSetLen {
+		return false
+	}
+
+	for _, set := range labelSet {
+		for label, value := range set {
+			spcValue, ok := checkedLabels[label]
+			if !ok {
+				return false
+			}
+			if spcValue != value {
+				return false
+			}
 		}
 	}
 	return true

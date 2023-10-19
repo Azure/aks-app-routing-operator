@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -18,7 +19,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,6 +36,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	ing.Namespace = "default"
 	ingressClass := "webapprouting.kubernetes.azure.com"
 	ing.Spec.IngressClassName = &ingressClass
+	ing.Labels = manifests.GetTopLevelLabels()
 
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = "test-spc"
@@ -45,6 +46,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 		Kind: "Ingress",
 		Name: ing.Name,
 	}}
+	spc.Labels = ing.Labels
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
@@ -73,13 +75,15 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	replicas := int32(1)
 	historyLimit := int32(2)
+
+	expectedLabels := util.MergeMaps(spc.Labels, map[string]string{"app": spc.Name})
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
-		Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": spc.Name}},
+		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app": spc.Name},
+				Labels: expectedLabels,
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": "123",
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
@@ -154,11 +158,130 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	// Prove the deployment was deleted
+	// Prove the deployment was not deleted
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove idempotence
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+}
+
+func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
+	ing := &netv1.Ingress{}
+	ing.Name = "test-ing"
+	ing.Namespace = "default"
+	ingressClass := "webapprouting.kubernetes.azure.com"
+	ing.Spec.IngressClassName = &ingressClass
+	ing.Labels = map[string]string{}
+
+	spc := &secv1.SecretProviderClass{}
+	spc.Name = "test-spc"
+	spc.Namespace = ing.Namespace
+	spc.Generation = 123
+	spc.OwnerReferences = []metav1.OwnerReference{{
+		Kind: "Ingress",
+		Name: ing.Name,
+	}}
+	spc.Labels = ing.Labels
+
+	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
+	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+	p := &PlaceholderPodController{
+		client:         c,
+		config:         &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+	}
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	// Create placeholder pod deployment
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err := p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	dep := &appsv1.Deployment{}
+	dep.Name = spc.Name
+	dep.Namespace = spc.Namespace
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
+
+	replicas := int32(1)
+	historyLimit := int32(2)
+
+	expectedLabels := util.MergeMaps(spc.Labels, map[string]string{"app": spc.Name})
+	expected := appsv1.DeploymentSpec{
+		Replicas:             &replicas,
+		RevisionHistoryLimit: &historyLimit,
+		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: expectedLabels,
+				Annotations: map[string]string{
+					"kubernetes.azure.com/observed-generation": "123",
+					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/ingress-owner":       ing.Name,
+					"openservicemesh.io/sidecar-injection":     "disabled",
+				},
+			},
+			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
+				AutomountServiceAccountToken: util.BoolPtr(false),
+				Containers: []corev1.Container{{
+					Name:  "placeholder",
+					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "secrets",
+						MountPath: "/mnt/secrets",
+						ReadOnly:  true,
+					}},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("20m"),
+							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+				}},
+				Volumes: []corev1.Volume{{
+					Name: "secrets",
+					VolumeSource: corev1.VolumeSource{
+						CSI: &corev1.CSIVolumeSource{
+							Driver:           "secrets-store.csi.k8s.io",
+							ReadOnly:         util.BoolPtr(true),
+							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
+						},
+					},
+				}},
+			}),
+		},
+	}
+	assert.Equal(t, expected, dep.Spec)
+
+	// Prove idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Change the ingress resource's class
+	ing.Spec.IngressClassName = nil
+	require.NoError(t, c.Update(ctx, spc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Prove the deployment was not deleted
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
+	// Prove idempotence
+	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
 
 func TestNewPlaceholderPodController(t *testing.T) {
