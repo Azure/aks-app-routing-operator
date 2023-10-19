@@ -111,11 +111,11 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
 
-	// TODO: if sp use secret instead of externaldns config map
-	spAzSecret := newSpAzSecret(conf, externalDnsConfig)
+	// TODO: only create this secret once, don't keep reconciling it
+	//spAzSecret := newSpAzSecret(conf, externalDnsConfig)
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
 	if conf.EnableServicePrincipal {
-		objs = append(objs, spAzSecret)
+		//objs = append(objs, spAzSecret)
 	} else {
 		objs = append(objs, dnsCm)
 	}

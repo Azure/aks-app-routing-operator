@@ -2,14 +2,18 @@ package suites
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -71,7 +75,7 @@ type modifier func(ingress *netv1.Ingress, service *corev1.Service, z zoner) err
 
 // clientServerTest is a test that deploys a client and server application and ensures the client can reach the server.
 // This is the standard test used to check traffic flow is working.
-var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod modifier) error {
+var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, prov infra.Provisioned, mod modifier) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting test")
 
@@ -84,21 +88,58 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		z := infra.Zones[0]
+		z := prov.Zones[0]
 		zones = append(zones, zone{name: z.GetName(), nameserver: z.GetNameservers()[0]})
 	case manifests.DnsZoneCountMultiple:
-		for _, z := range infra.Zones {
+		for _, z := range prov.Zones {
 			zones = append(zones, zone{name: z.GetName(), nameserver: z.GetNameservers()[0]})
 		}
 	}
+	if prov.AuthType == infra.AuthTypeServicePrincipal && operator.Zones.Public != manifests.DnsZoneCountNone {
+		lgr.Info("hydrating external dns secret")
+		externalDnsSecret := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Secret",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "sp-creds-external-dns",
+				Namespace: "app-routing-system",
+			},
+			Type: corev1.SecretTypeOpaque,
+		}
+		prov.Zones[0].GetDnsZone(ctx)
+		err = upsertDNSSecret(ctx, c, externalDnsSecret, prov.ServicePrincipal, prov.SubscriptionId, prov.TenantId, prov.ResourceGroup.GetName())
+		if err != nil {
+			return fmt.Errorf("upserting external DNS secret: %w", err)
+		}
+	}
+
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		z := infra.PrivateZones[0]
-		zones = append(zones, zone{name: z.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
+		z := prov.PrivateZones[0]
+		zones = append(zones, zone{name: z.GetName(), nameserver: prov.Cluster.GetDnsServiceIp()})
 	case manifests.DnsZoneCountMultiple:
-		for _, z := range infra.PrivateZones {
-			zones = append(zones, zone{name: z.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
+		for _, z := range prov.PrivateZones {
+			zones = append(zones, zone{name: z.GetName(), nameserver: prov.Cluster.GetDnsServiceIp()})
+		}
+	}
+	if prov.AuthType == infra.AuthTypeServicePrincipal && operator.Zones.Private != manifests.DnsZoneCountNone {
+		lgr.Info("hydrating external dns private secret")
+		externalDnsSecret := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Secret",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "sp-creds-external-dns-private",
+				Namespace: "app-routing-system",
+			},
+		}
+		err = upsertDNSSecret(ctx, c, externalDnsSecret, prov.ServicePrincipal, prov.SubscriptionId, prov.TenantId, prov.ResourceGroup.GetName())
+		if err != nil {
+			return fmt.Errorf("upserting external DNS secret: %w", err)
 		}
 	}
 
@@ -122,11 +163,41 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId())
+			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), prov.Cert.GetId())
 			for _, object := range testingResources.Objects() {
 				if err := upsert(ctx, c, object); err != nil {
 					return fmt.Errorf("upserting resource: %w", err)
 				}
+			}
+
+			// Populate Service Principal credentials if needed
+			if prov.AuthType == infra.AuthTypeServicePrincipal {
+				lgr.Info("creating service principal secrets")
+				sp := prov.ServicePrincipal
+				if err != nil {
+					return fmt.Errorf("marshalling service principal credentials: %w", err)
+				}
+
+				sec := &corev1.Secret{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "v1",
+						Kind:       "Secret",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "keyvault-service-principal",
+						Namespace: ns.Name,
+					},
+					Data: map[string][]byte{
+						"clientid":     []byte(sp.ApplicationClientID),
+						"clientsecret": []byte(sp.ServicePrincipalCredPassword),
+					},
+				}
+				lgr.Info("upserting keyvault service principal secret")
+				err := util.Upsert(ctx, c, sec)
+				if err != nil {
+					return fmt.Errorf("upserting keyvault service principal secret: %w", err)
+				}
+
 			}
 
 			if mod != nil {
@@ -150,6 +221,75 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	}
 
 	lgr.Info("finished successfully")
+	return nil
+}
+
+func upsertDNSSecret(ctx context.Context, c client.Client, externalDnsSecret *corev1.Secret, sp clients.ServicePrincipal, subscriptionId, tenantId, resourceGroup string) error {
+	lgr := logger.FromContext(ctx)
+	//err := c.Get(ctx, client.ObjectKeyFromObject(externalDnsSecret), externalDnsSecret)
+	//if client.IgnoreNotFound(err) != nil {
+	//	return fmt.Errorf("getting external dns secret: %w", err)
+	//}
+	//if errors.IsNotFound(err) {
+	//	lgr.Info("external dns secret not found, creating")
+	//}
+	lgr.Info("hydrating external dns secret")
+	err := hydrateExternalDNSSecret(ctx, externalDnsSecret, sp, subscriptionId, tenantId, resourceGroup)
+	if err != nil {
+		return fmt.Errorf("hydrating external dns secret: %w", err)
+	}
+	err = upsert(ctx, c, externalDnsSecret)
+	if err != nil {
+		return fmt.Errorf("upserting external dns secret: %w", err)
+	}
+	return nil
+}
+
+type ExternalDNSAzureJson struct {
+	TenantId        string `json:"tenantId"`
+	SubscriptionId  string `json:"subscriptionId"`
+	ResourceGroup   string `json:"resourceGroup"`
+	AadClientId     string `json:"aadClientId"`
+	AadClientSecret string `json:"aadClientSecret"`
+}
+
+func hydrateExternalDNSSecret(ctx context.Context, secret *corev1.Secret, sp clients.ServicePrincipal, subscriptionId, tenantId, resourceGroup string) error {
+	lgr := logger.FromContext(ctx)
+
+	az := ExternalDNSAzureJson{}
+
+	azureJson := secret.Data["azure.json"]
+	if len(azureJson) > 0 {
+		//lgr.Info("azure.json(b64) = " + string(azureJson64))
+		// un base 64 the json
+		//azureJson, err := base64.StdEncoding.DecodeString(string(azureJson64))
+		//if err != nil {
+		//	return fmt.Errorf("decoding azure json: %w", err)
+		//}
+		lgr.Info("external dns secret azure.json = " + string(azureJson))
+
+		err := json.Unmarshal(azureJson, &az)
+		if err != nil {
+			return fmt.Errorf("unmarshaling externaldns json secret: %w", err)
+		}
+	}
+	az.SubscriptionId = subscriptionId
+	az.ResourceGroup = resourceGroup
+	az.TenantId = tenantId
+	az.AadClientId = sp.ApplicationClientID
+	az.AadClientSecret = sp.ServicePrincipalCredPassword
+
+	azureJsonNew, err := json.Marshal(az)
+	if err != nil {
+		return fmt.Errorf("marshaling azure json for external dns: %w", err)
+	}
+	if secret.Data == nil {
+		lgr.Info("nil data map found in external dns secret, creating new map")
+		secret.Data = make(map[string][]byte)
+	}
+	//azureJsonNew64 := base64.StdEncoding.EncodeToString(azureJsonNew)
+	lgr.Info(fmt.Sprintf("writing new azure.json for externaldns secret %s", azureJsonNew))
+	secret.Data["azure.json"] = azureJsonNew
 	return nil
 }
 

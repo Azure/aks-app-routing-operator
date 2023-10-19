@@ -101,6 +101,7 @@ type Provisioned struct {
 	TenantId          string
 	E2eImage          string
 	OperatorImage     string
+	ServicePrincipal  clients.ServicePrincipal
 	AuthType          AuthType
 }
 
@@ -127,5 +128,6 @@ type LoadableProvisioned struct {
 	TenantId                                                                  string
 	E2eImage                                                                  string
 	OperatorImage                                                             string
+	ServicePrincipal                                                          clients.ServicePrincipal
 	AuthType                                                                  AuthType
 }

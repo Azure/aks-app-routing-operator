@@ -11,6 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,7 +32,7 @@ var (
 )
 
 const (
-	keyvaultServicePrincipalSecretName = "keyvault-service-principal"
+	KeyvaultServicePrincipalSecretName = "keyvault-service-principal"
 )
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
@@ -135,11 +136,22 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 				Kind:       "Secret",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      keyvaultServicePrincipalSecretName,
+				Name:      KeyvaultServicePrincipalSecretName,
 				Namespace: req.Namespace,
 			},
+			Data: map[string][]byte{
+				"clientid":     []byte("<service-principal-appId>"),
+				"clientsecret": []byte("<service-principal-secret>"),
+			},
 		}
-		if err = util.Upsert(ctx, p.client, sec); err != nil {
+		err = p.client.Get(ctx, client.ObjectKeyFromObject(sec), sec)
+		if apierrors.IsNotFound(err) {
+			logger.Info("creating service principal secret")
+			if err = util.Upsert(ctx, p.client, sec); err != nil {
+				return result, err
+			}
+		}
+		if client.IgnoreNotFound(err) != nil {
 			return result, err
 		}
 	}
@@ -168,7 +180,7 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 	}
 	if p.config.EnableServicePrincipal {
 		v.CSI.NodePublishSecretRef = &corev1.LocalObjectReference{
-			Name: keyvaultServicePrincipalSecretName,
+			Name: KeyvaultServicePrincipalSecretName,
 		}
 	}
 	dep.Spec = appsv1.DeploymentSpec{

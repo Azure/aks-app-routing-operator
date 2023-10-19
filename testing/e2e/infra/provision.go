@@ -43,6 +43,11 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		}
 		i.ServicePrincipal = spOpt
 	}
+	if i.ServicePrincipal == nil {
+		ret.ServicePrincipal = clients.ServicePrincipal{}
+	} else {
+		ret.ServicePrincipal = *i.ServicePrincipal
+	}
 
 	var err error
 	ret.ResourceGroup, err = clients.NewResourceGroup(ctx, subscriptionId, i.ResourceGroup, i.Location, clients.DeleteAfterOpt(2*time.Hour))
