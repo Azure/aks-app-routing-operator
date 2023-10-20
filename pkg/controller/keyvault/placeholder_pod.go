@@ -11,7 +11,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -127,33 +126,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		logger.Info("deleting placeholder deployment")
 		err = p.client.Delete(ctx, dep)
 		return result, client.IgnoreNotFound(err)
-	}
-
-	if p.config.EnableServicePrincipal {
-		sec := &corev1.Secret{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1",
-				Kind:       "Secret",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      KeyvaultServicePrincipalSecretName,
-				Namespace: req.Namespace,
-			},
-			Data: map[string][]byte{
-				"clientid":     []byte("<service-principal-appId>"),
-				"clientsecret": []byte("<service-principal-secret>"),
-			},
-		}
-		err = p.client.Get(ctx, client.ObjectKeyFromObject(sec), sec)
-		if apierrors.IsNotFound(err) {
-			logger.Info("creating service principal secret")
-			if err = util.Upsert(ctx, p.client, sec); err != nil {
-				return result, err
-			}
-		}
-		if client.IgnoreNotFound(err) != nil {
-			return result, err
-		}
 	}
 
 	// Manage a deployment resource

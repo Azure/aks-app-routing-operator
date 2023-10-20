@@ -31,7 +31,7 @@ type infra struct {
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
 	AuthType                AuthType
-	ServicePrincipal        *clients.ServicePrincipal
+	ServicePrincipal        clients.ServicePrincipal
 }
 
 type Identifier interface {

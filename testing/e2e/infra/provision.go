@@ -37,17 +37,13 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 			return ret, logger.Error(lgr, fmt.Errorf("application object id must be provided when provisioning infrastructure with service principal options"))
 		}
 		credName := i.Name + "-cred"
-		spOpt, err := clients.GetServicePrincipalOptions(ctx, applicationObjectId, credName)
+		sp, err := clients.GetServicePrincipal(ctx, applicationObjectId, credName)
 		if err != nil {
 			return ret, logger.Error(lgr, fmt.Errorf("getting app with credential: %w", err))
 		}
-		i.ServicePrincipal = spOpt
+		i.ServicePrincipal = sp
 	}
-	if i.ServicePrincipal == nil {
-		ret.ServicePrincipal = clients.ServicePrincipal{}
-	} else {
-		ret.ServicePrincipal = *i.ServicePrincipal
-	}
+	ret.ServicePrincipal = i.ServicePrincipal
 
 	var err error
 	ret.ResourceGroup, err = clients.NewResourceGroup(ctx, subscriptionId, i.ResourceGroup, i.Location, clients.DeleteAfterOpt(2*time.Hour))
@@ -86,7 +82,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	})
 
 	resEg.Go(func() error {
-		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.ServicePrincipal, i.McOpts...)
+		ret.Cluster, err = clients.NewAks(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix, i.Location, i.ServicePrincipal, i.AuthType, i.McOpts...)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}

@@ -226,13 +226,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 
 func upsertDNSSecret(ctx context.Context, c client.Client, externalDnsSecret *corev1.Secret, sp clients.ServicePrincipal, subscriptionId, tenantId, resourceGroup string) error {
 	lgr := logger.FromContext(ctx)
-	//err := c.Get(ctx, client.ObjectKeyFromObject(externalDnsSecret), externalDnsSecret)
-	//if client.IgnoreNotFound(err) != nil {
-	//	return fmt.Errorf("getting external dns secret: %w", err)
-	//}
-	//if errors.IsNotFound(err) {
-	//	lgr.Info("external dns secret not found, creating")
-	//}
+
 	lgr.Info("hydrating external dns secret")
 	err := hydrateExternalDNSSecret(ctx, externalDnsSecret, sp, subscriptionId, tenantId, resourceGroup)
 	if err != nil {
@@ -257,17 +251,8 @@ func hydrateExternalDNSSecret(ctx context.Context, secret *corev1.Secret, sp cli
 	lgr := logger.FromContext(ctx)
 
 	az := ExternalDNSAzureJson{}
-
 	azureJson := secret.Data["azure.json"]
 	if len(azureJson) > 0 {
-		//lgr.Info("azure.json(b64) = " + string(azureJson64))
-		// un base 64 the json
-		//azureJson, err := base64.StdEncoding.DecodeString(string(azureJson64))
-		//if err != nil {
-		//	return fmt.Errorf("decoding azure json: %w", err)
-		//}
-		lgr.Info("external dns secret azure.json = " + string(azureJson))
-
 		err := json.Unmarshal(azureJson, &az)
 		if err != nil {
 			return fmt.Errorf("unmarshaling externaldns json secret: %w", err)
@@ -287,8 +272,7 @@ func hydrateExternalDNSSecret(ctx context.Context, secret *corev1.Secret, sp cli
 		lgr.Info("nil data map found in external dns secret, creating new map")
 		secret.Data = make(map[string][]byte)
 	}
-	//azureJsonNew64 := base64.StdEncoding.EncodeToString(azureJsonNew)
-	lgr.Info(fmt.Sprintf("writing new azure.json for externaldns secret %s", azureJsonNew))
+	lgr.Info("writing new azure.json for externaldns secret")
 	secret.Data["azure.json"] = azureJsonNew
 	return nil
 }

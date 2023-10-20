@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -45,13 +46,13 @@ type aks struct {
 // the rest of the information for testing purposes.
 type ServicePrincipal struct {
 	// ApplicationObjectID is Object ID of the application associated with the service principal
-	ApplicationObjectID          string 
+	ApplicationObjectID string
 	// ApplicationClientID is the Client ID of the application and service principal (also called AppID of the service principal)
-	ApplicationClientID          string 
+	ApplicationClientID string
 	// ServicePrincipalObjectID is Object ID of the service principal
-	ServicePrincipalObjectID     string 
+	ServicePrincipalObjectID string
 	// ServicePrincipalCredPassword is a generated password credential for the application associated with the service principal
-	ServicePrincipalCredPassword string 
+	ServicePrincipalCredPassword string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -108,7 +109,7 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 
 // NewAks creates a new AKS cluster
 // spOpts is optional, if nil then the cluster will use MSI
-func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, spOpts *ServicePrincipal, mcOpts ...McOpt) (*aks, error) {
+func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location string, sp ServicePrincipal, authType infra.AuthType, mcOpts ...McOpt) (*aks, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create aks")
@@ -149,15 +150,18 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	}
 
 	// apply service principal
-	if spOpts != nil {
+	switch authType {
+	case infra.AuthTypeServicePrincipal:
 		mc.Properties.ServicePrincipalProfile = &armcontainerservice.ManagedClusterServicePrincipalProfile{
-			ClientID: to.Ptr(spOpts.ApplicationClientID),
-			Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
+			ClientID: to.Ptr(sp.ApplicationClientID),
+			Secret:   to.Ptr(sp.ServicePrincipalCredPassword),
 		}
-	}else{
-		mc.Identity= &armcontainerservice.ManagedClusterIdentity{
+	case infra.AuthTypeManagedIdentity:
+		mc.Identity = &armcontainerservice.ManagedClusterIdentity{
 			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
 		}
+	default:
+		return nil, fmt.Errorf("unknown auth type %s", authType)
 	}
 
 	options := make(map[string]struct{})
@@ -201,8 +205,10 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	// validate MSI when not using Service Principal
 	var identity *armcontainerservice.UserAssignedIdentity
 	var principalID, clientID string
-	isMSICluster := spOpts == nil
-	if isMSICluster {
+	switch authType {
+	case infra.AuthTypeServicePrincipal:
+		principalID = sp.ServicePrincipalObjectID
+	case infra.AuthTypeManagedIdentity:
 		ok := false // avoid shadowing
 		identity, ok = result.Properties.IdentityProfile["kubeletidentity"]
 		if !ok {
@@ -216,8 +222,8 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		}
 		principalID = *identity.ObjectID
 		clientID = *identity.ClientID
-	} else {
-		principalID = spOpts.ServicePrincipalObjectID
+	default:
+		return nil, fmt.Errorf("unknown auth type %s", authType)
 	}
 
 	// final principal id validation to be safe

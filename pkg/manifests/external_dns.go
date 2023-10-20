@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"path"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -20,7 +18,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -111,12 +109,8 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
 
-	// TODO: only create this secret once, don't keep reconciling it
-	//spAzSecret := newSpAzSecret(conf, externalDnsConfig)
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
-	if conf.EnableServicePrincipal {
-		//objs = append(objs, spAzSecret)
-	} else {
+	if !conf.EnableServicePrincipal {
 		objs = append(objs, dnsCm)
 	}
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash, conf.EnableServicePrincipal))
@@ -127,37 +121,6 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	}
 
 	return objs
-}
-
-func newSpAzSecret(conf *config.Config, dnsConfig *ExternalDnsConfig) *corev1.Secret {
-	d := map[string]string{
-		"tenantId":        conf.TenantID,
-		"resourceGroup":   dnsConfig.ResourceGroup,
-		"subscriptionId":  dnsConfig.Subscription,
-		"aadClientId":     "<EXTERNALDNS_SP_APP_ID>",
-		"aadClientSecret": "<EXTERNALDNS_SP_PASSWORD>",
-	}
-	jsonBytes, err := json.Marshal(d)
-	if err != nil {
-		panic(err)
-	}
-	s := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Secret",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.ServicePrincipalSecretName + "-" + dnsConfig.Provider.ResourceName(),
-			Namespace: conf.NS,
-			Labels:    GetTopLevelLabels(),
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"azure.json": jsonBytes,
-		},
-	}
-
-	return s
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
