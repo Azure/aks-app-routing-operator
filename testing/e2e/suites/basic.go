@@ -95,7 +95,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			zones = append(zones, zone{name: z.GetName(), nameserver: z.GetNameservers()[0]})
 		}
 	}
-	if prov.AuthType == infra.AuthTypeServicePrincipal && operator.Zones.Public != manifests.DnsZoneCountNone {
+	if prov.AuthType == clients.AKSAuthTypeServicePrincipal && operator.Zones.Public != manifests.DnsZoneCountNone {
 		lgr.Info("hydrating external dns secret")
 		externalDnsSecret := &corev1.Secret{
 			TypeMeta: metav1.TypeMeta{
@@ -125,7 +125,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			zones = append(zones, zone{name: z.GetName(), nameserver: prov.Cluster.GetDnsServiceIp()})
 		}
 	}
-	if prov.AuthType == infra.AuthTypeServicePrincipal && operator.Zones.Private != manifests.DnsZoneCountNone {
+	if prov.AuthType == clients.AKSAuthTypeServicePrincipal && operator.Zones.Private != manifests.DnsZoneCountNone {
 		lgr.Info("hydrating external dns private secret")
 		externalDnsSecret := &corev1.Secret{
 			TypeMeta: metav1.TypeMeta{
@@ -171,7 +171,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			}
 
 			// Populate Service Principal credentials if needed
-			if prov.AuthType == infra.AuthTypeServicePrincipal {
+			if prov.AuthType == clients.AKSAuthTypeServicePrincipal {
 				lgr.Info("creating service principal secrets")
 				sp := prov.ServicePrincipal
 				if err != nil {

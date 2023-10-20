@@ -12,7 +12,7 @@ type cfgBuilder struct {
 	msi      string
 	tenantId string
 	location string
-	authType infra.AuthType
+	authType clients.AKSAuthType
 }
 
 func builderFromInfra(infra infra.Provisioned) cfgBuilder {
@@ -67,7 +67,7 @@ func (c cfgBuilderWithOsm) withVersions(in infra.Provisioned, versions ...manife
 		versions = []manifests.OperatorVersion{manifests.OperatorVersionLatest}
 	}
 
-	if in.AuthType == infra.AuthTypeServicePrincipal {
+	if in.AuthType == clients.AKSAuthTypeServicePrincipal {
 		// Filter for operator versions that support service principal auth
 		spVersions := []manifests.OperatorVersion{}
 		for _, v := range versions {
@@ -128,7 +128,7 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 					Msi:                        c.msi,
 					Zones:                      zones,
 					DisableOsm:                 !osmEnabled,
-					EnableServicePrincipalAuth: c.authType == infra.AuthTypeServicePrincipal,
+					EnableServicePrincipalAuth: c.authType == clients.AKSAuthTypeServicePrincipal,
 				})
 			}
 		}
