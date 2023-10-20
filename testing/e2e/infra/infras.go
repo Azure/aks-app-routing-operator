@@ -39,7 +39,7 @@ var Infras = infras{
 		Location:      location,
 		Suffix:        uuid.New().String(),
 		McOpts:        []clients.McOpt{},
-		AuthType:      AuthTypeServicePrincipal,
+		AuthType:      clients.AKSAuthTypeServicePrincipal,
 	},
 }
 

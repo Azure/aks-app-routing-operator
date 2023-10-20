@@ -14,13 +14,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
-type AuthType string
-
-const (
-	AuthTypeManagedIdentity  AuthType = "" // MSI is the default
-	AuthTypeServicePrincipal AuthType = "servicePrincipal"
-)
-
 type infras []infra
 
 type infra struct {
@@ -30,7 +23,7 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
-	AuthType                AuthType
+	AuthType                clients.AKSAuthType
 	ServicePrincipal        clients.ServicePrincipal
 }
 
@@ -102,7 +95,7 @@ type Provisioned struct {
 	E2eImage          string
 	OperatorImage     string
 	ServicePrincipal  clients.ServicePrincipal
-	AuthType          AuthType
+	AuthType          clients.AKSAuthType
 }
 
 type LoadableZone struct {
@@ -129,5 +122,5 @@ type LoadableProvisioned struct {
 	E2eImage                                                                  string
 	OperatorImage                                                             string
 	ServicePrincipal                                                          clients.ServicePrincipal
-	AuthType                                                                  AuthType
+	AuthType                                                                  clients.AKSAuthType
 }
