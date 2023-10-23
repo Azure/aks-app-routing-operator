@@ -27,8 +27,7 @@ type certManager struct {
 
 	CAName, CAOrganization string
 
-	CertsMounted chan struct{}
-	Ready        chan struct{}
+	Ready chan struct{}
 }
 
 func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr logr.Logger) error {
@@ -39,6 +38,7 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 
 	// workaround for https://github.com/open-policy-agent/cert-controller/issues/53
 	// this isn't great, but it's the best we can do for now
+	certsMounted := make(chan struct{})
 	go func() {
 		checkCertsMounted := func() (bool, error) {
 			lgr.Info("checking if certs are mounted")
@@ -62,9 +62,10 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 		}
 
 		lgr.Info("certs mounted")
-		close(c.CertsMounted)
+		close(certsMounted)
 	}()
 
+	certsRotated := make(chan struct{})
 	if err := rotator.AddRotator(mgr, &rotator.CertRotator{
 		SecretKey: types.NamespacedName{
 			Name:      c.SecretName,
@@ -74,7 +75,7 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 		CAName:                 c.CAName,
 		CAOrganization:         c.CAOrganization,
 		DNSName:                fmt.Sprintf("%s.%s.svc", c.ServiceName, c.Namespace),
-		IsReady:                c.Ready,
+		IsReady:                certsRotated,
 		Webhooks:               c.Webhooks,
 		RestartOnSecretRefresh: true,
 		RequireLeaderElection:  true,
@@ -85,6 +86,25 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 	}); err != nil {
 		return fmt.Errorf("adding rotator: %w", err)
 	}
+
+	go func() {
+		select {
+		case <-certsRotated:
+			lgr.Info("certs rotated")
+			close(c.Ready)
+		case <-certsMounted:
+			waitTime := 25 * time.Second
+			lgr.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s", waitTime))
+
+			select {
+			case <-certsRotated:
+				lgr.Info("certs rotated")
+			case <-time.After(waitTime):
+				lgr.Info("waited for certs to be rotated, continuing")
+				close(c.Ready)
+			}
+		}
+	}()
 
 	return nil
 }

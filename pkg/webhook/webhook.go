@@ -96,7 +96,9 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 	return nil
 }
 
-func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsReady chan struct{}, certsMounted chan struct{}) error {
+// AddCertManager adds cert-manager to the manager. The manager starting will result in the cert-manager
+// starting and generating the certificates.
+func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsReady chan struct{}) error {
 	lgr := log.FromContext(ctx).WithName("cert-manager")
 
 	lgr.Info("calculating webhooks for cert-manager")
@@ -116,7 +118,6 @@ func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsR
 		CAName:         "approuting.kubernetes.azure.com",
 		CAOrganization: "Microsoft",
 		Ready:          certsReady,
-		CertsMounted:   certsMounted,
 	}
 	if err := cm.addToManager(ctx, mgr, lgr); err != nil {
 		return fmt.Errorf("adding rotation: %w", err)

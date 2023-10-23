@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -110,28 +109,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	certsReady := make(chan struct{})
-	certsMounted := make(chan struct{})
-	setupDone := make(chan struct{})
-	go func() {
-		select {
-		case <-certsReady:
-			setupLog.Info("certs are ready")
-			close(setupDone)
-		case <-certsMounted:
-			waitTime := 45 * time.Second
-			setupLog.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s to give certs a chance to be rotated", waitTime))
-			select {
-			case <-certsReady:
-				setupLog.Info("certs are fully ready")
-			case <-time.After(waitTime):
-				setupLog.Info("continuing with setup")
-			}
-			setupLog.Info("setup done")
-			close(setupDone)
-		}
-	}()
 
-	if err := setupProbes(m, setupDone); err != nil {
+	if err := setupProbes(m, certsReady); err != nil {
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
 
@@ -157,13 +136,13 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 
-	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady, certsMounted); err != nil {
+	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady); err != nil {
 		return nil, fmt.Errorf("adding cert-manager to webhook config: %w", err)
 	}
 
 	go func() {
 		setupLog.Info("waiting for setup to be done")
-		<-setupDone
+		<-certsReady
 		setupLog.Info("setup is done")
 
 		setupLog.Info("setting up webhooks")
