@@ -140,6 +140,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("adding cert-manager to webhook config: %w", err)
 	}
 
+	setupLog.Info("setting up controllers")
+	if err := setupControllers(m, conf); err != nil {
+		setupLog.Error(err, "failed to setup controllers")
+		os.Exit(1)
+	}
+
 	go func() {
 		setupLog.Info("waiting for setup to be done")
 		<-certsReady
@@ -148,12 +154,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		setupLog.Info("setting up webhooks")
 		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
 			setupLog.Error(err, "failed to setup webhooks")
-			os.Exit(1)
-		}
-
-		setupLog.Info("setting up controllers")
-		if err := setupControllers(m, conf); err != nil {
-			setupLog.Error(err, "failed to setup controllers")
 			os.Exit(1)
 		}
 	}()

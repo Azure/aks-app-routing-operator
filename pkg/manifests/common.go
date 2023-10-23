@@ -46,8 +46,8 @@ func namespace(conf *config.Config) *corev1.Namespace {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        conf.NS,
-			Labels:      GetTopLevelLabels(),
+			Name: conf.NS,
+			// don't set top level labels, namespace is not managed by App Routing Operator
 			Annotations: map[string]string{},
 		},
 	}

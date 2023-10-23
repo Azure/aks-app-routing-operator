@@ -199,7 +199,7 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 			break
 		}
 
-		lgr.Info("collision detected, incrementing", "collisionCount", nic.Status.CollisionCount)
+		lgr.Info("reconcilable collision detected, incrementing", "collisionCount", nic.Status.CollisionCount)
 		nic.Status.CollisionCount++
 	}
 
@@ -224,8 +224,14 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 		// if we won't own the resource, we don't care about collisions.
 		// this is most commonly used for namespaces since we shouldn't own
 		// namespaces
-		if util.FindOwnerKind(obj.GetOwnerReferences(), nic.Kind) != nic.Name {
-			lgr.Info("skipping collision check because we don't own the resource")
+		skip := false
+		for k, v := range manifests.GetTopLevelLabels() {
+			if obj.GetLabels()[k] != v {
+				lgr.Info("skipping collision check because we don't own the resource")
+				skip = true
+			}
+		}
+		if skip {
 			continue
 		}
 
