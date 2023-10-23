@@ -108,9 +108,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, err
 	}
 
-	certsReady := make(chan struct{})
-
-	if err := setupProbes(m, certsReady); err != nil {
+	webhooksReady := make(chan struct{})
+	if err := setupProbes(m, webhooksReady); err != nil {
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
 
@@ -136,6 +135,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 
+	certsReady := make(chan struct{})
 	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady); err != nil {
 		return nil, fmt.Errorf("adding cert-manager to webhook config: %w", err)
 	}
@@ -147,15 +147,17 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	go func() {
-		setupLog.Info("waiting for setup to be done")
+		setupLog.Info("waiting for certs to be ready")
 		<-certsReady
-		setupLog.Info("setup is done")
+		setupLog.Info("certs are ready")
 
 		setupLog.Info("setting up webhooks")
 		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
 			setupLog.Error(err, "failed to setup webhooks")
 			os.Exit(1)
 		}
+
+		close(webhooksReady)
 	}()
 
 	return m, nil
@@ -169,12 +171,12 @@ func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error)
 	return nil
 }
 
-func setupProbes(mgr ctrl.Manager, certsReady <-chan struct{}) error {
+func setupProbes(mgr ctrl.Manager, webhooksReady <-chan struct{}) error {
 	setupLog.Info("adding probes to manager")
 
 	check := func(req *http.Request) error {
 		select {
-		case <-certsReady:
+		case <-webhooksReady:
 			return mgr.GetWebhookServer().StartedChecker()(req)
 		default:
 			return fmt.Errorf("certs aren't ready yet")

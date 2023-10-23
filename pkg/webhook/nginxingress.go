@@ -79,6 +79,10 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
 		}
 
+		if invalidReason := nginxIngressController.Valid(); invalidReason != "" {
+			return admission.Denied(invalidReason)
+		}
+
 		lgr.Info("checking if IngressClass already exists")
 		ic := &netv1.IngressClass{
 			ObjectMeta: metav1.ObjectMeta{

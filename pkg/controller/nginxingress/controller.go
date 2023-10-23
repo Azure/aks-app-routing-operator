@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -111,7 +110,7 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 	lgr.Info("starting to reconcile resource")
 	defer lgr.Info("finished reconciling resource", "latencySec", time.Since(start).Seconds())
 
-	lockKey := nic.Spec.ControllerName
+	lockKey := nic.Spec.ControllerNamePrefix
 	collisionCountMu.LockKey(lockKey)
 	defer collisionCountMu.UnlockKey(lockKey)
 
@@ -135,20 +134,16 @@ func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha
 		return nil
 	}
 
-	// TODO: should use controller name instead of ingress class name, it better represents the resource
-	// TODO: need to specify limits for length of resource name. that makes this easy
-	// really would like some way of guaranteeing uniqueness for cc. Just doesn't work well for collisions
-	// after truncating
 	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
-	suffix := strconv.Itoa(int(nic.Status.CollisionCount))
-	if len(cc)+len(suffix) > controllerClassMaxLen {
-		cc = cc[:controllerClassMaxLen-len(suffix)]
+
+	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters
+	if len(cc) > controllerClassMaxLen {
+		cc = cc[:controllerClassMaxLen]
 	}
-	cc = cc + suffix
 
 	nginxIngressCfg := &manifests.NginxIngressConfig{
 		ControllerClass: cc,
-		ResourceName:    fmt.Sprintf("%s-%d", nic.Spec.ControllerName, nic.Status.CollisionCount),
+		ResourceName:    fmt.Sprintf("%s-%d", nic.Spec.ControllerNamePrefix, nic.Status.CollisionCount),
 		IcName:          nic.Spec.IngressClassName,
 		ServiceConfig:   nil, // TODO: take in lb annotations
 	}
