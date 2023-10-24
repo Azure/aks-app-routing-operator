@@ -133,11 +133,31 @@ func (n *NginxIngressController) GetCondition(t nginxIngressControllerConditionT
 
 // Valid checks this NginxIngressController to see if it's valid. Returns a string describing the validation error, if any, or empty string if there is no error.
 func (n *NginxIngressController) Valid() string {
+	if n.Spec.ControllerNamePrefix == "" {
+		return "spec.controllerNamePrefix must be specified"
+	}
+
+	if n.Spec.IngressClassName == "" {
+		return "spec.ingressClassName must be specified"
+	}
+
 	if len(n.Name) > 100 {
 		return "Name length must be less than or equal to 100 characters"
 	}
 
+	// TODO: add more specific validations https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+
 	return ""
+}
+
+func (n *NginxIngressController) Default() {
+	if n.Spec.IngressClassName == "" {
+		n.Spec.IngressClassName = n.Name
+	}
+
+	if n.Spec.ControllerNamePrefix == "" {
+		n.Spec.ControllerNamePrefix = "nginx"
+	}
 }
 
 //+kubebuilder:object:root=true

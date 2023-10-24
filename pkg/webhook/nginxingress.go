@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -21,6 +22,7 @@ import (
 
 const (
 	validationPath = "/validate-nginx-ingress-controller"
+	mutationPath   = "/mutate-nginx-ingress-controller"
 )
 
 func init() {
@@ -47,7 +49,7 @@ func init() {
 				ClientConfig:            clientCfg,
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
-						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{approutingv1alpha1.GroupVersion.Group},
 							APIVersions: []string{approutingv1alpha1.GroupVersion.Version},
@@ -60,29 +62,70 @@ func init() {
 			}, nil
 		},
 	})
+
+	Mutating = append(Mutating, Webhook[admissionregistrationv1.MutatingWebhook]{
+		AddToManager: func(mgr manager.Manager) error {
+			mgr.GetWebhookServer().Register(mutationPath, &webhook.Admission{
+				Handler: &nginxIngressResourceMutator{
+					client:  mgr.GetClient(),
+					decoder: admission.NewDecoder(mgr.GetScheme()),
+				},
+			})
+
+			return nil
+		},
+		Definition: func(c *config) (admissionregistrationv1.MutatingWebhook, error) {
+			clientCfg, err := c.GetClientConfig(mutationPath)
+			if err != nil {
+				return admissionregistrationv1.MutatingWebhook{}, fmt.Errorf("getting client config: %w", err)
+			}
+
+			return admissionregistrationv1.MutatingWebhook{
+				Name:                    "mutating.nginxingresscontroller.approuting.kubernetes.azure.com",
+				AdmissionReviewVersions: []string{admissionregistrationv1.SchemeGroupVersion.Version},
+				ClientConfig:            clientCfg,
+				Rules: []admissionregistrationv1.RuleWithOperations{
+					{
+						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.OperationAll},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{approutingv1alpha1.GroupVersion.Group},
+							APIVersions: []string{approutingv1alpha1.GroupVersion.Version},
+							Resources:   []string{"nginxingresscontrollers"},
+						},
+					},
+				},
+				FailurePolicy: util.ToPtr(admissionregistrationv1.Ignore),
+				SideEffects:   util.ToPtr(admissionregistrationv1.SideEffectClassNone),
+			}, nil
+		},
+	})
 }
 
 type nginxIngressResourceValidator struct {
 	client  client.Client
-	decoder *admission.Decoder // todo: do we need to instantiate this?
+	decoder *admission.Decoder
 }
 
 func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	lgr := logr.FromContextOrDiscard(ctx).WithValues("name", req.Name, "namespace", req.Namespace, "operation", req.Operation)
+	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", req.Name, "namespace", req.Namespace, "operation", req.Operation).WithName("nginxIngressResourceValidator")
 
+	if req.Operation == admissionv1.Delete {
+		lgr.Info("delete operation, skipping validation")
+		return admission.Allowed("")
+	}
+
+	lgr.Info("decoding NginxIngressController resource")
+	var nginxIngressController approutingv1alpha1.NginxIngressController
+	if err := n.decoder.Decode(req, &nginxIngressController); err != nil {
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
+	}
+
+	if invalidReason := nginxIngressController.Valid(); invalidReason != "" {
+		return admission.Denied(invalidReason)
+	}
 	// TODO: record metrics
 
 	if req.Operation == admissionv1.Create {
-		lgr.Info("decoding NginxIngressController resource")
-		var nginxIngressController approutingv1alpha1.NginxIngressController
-		if err := n.decoder.Decode(req, &nginxIngressController); err != nil {
-			return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
-		}
-
-		if invalidReason := nginxIngressController.Valid(); invalidReason != "" {
-			return admission.Denied(invalidReason)
-		}
-
 		lgr.Info("checking if IngressClass already exists")
 		ic := &netv1.IngressClass{
 			ObjectMeta: metav1.ObjectMeta{
@@ -116,4 +159,34 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 	}
 
 	return admission.Allowed("")
+}
+
+type nginxIngressResourceMutator struct {
+	client  client.Client
+	decoder *admission.Decoder
+}
+
+func (n nginxIngressResourceMutator) Handle(ctx context.Context, request admission.Request) admission.Response {
+	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", request.Name, "namespace", request.Namespace, "operation", request.Operation).WithName("nginxIngressResourceMutator")
+
+	if request.Operation == admissionv1.Delete {
+		lgr.Info("delete operation, skipping mutation")
+		return admission.Allowed("")
+	}
+
+	lgr.Info("decoding NginxIngressController resource")
+	var nginxIngressController approutingv1alpha1.NginxIngressController
+	if err := n.decoder.Decode(request, &nginxIngressController); err != nil {
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
+	}
+
+	lgr.Info("defaulting NginxIngressController resource")
+	nginxIngressController.Default()
+
+	marshalled, err := json.Marshal(nginxIngressController)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("marshalling NginxIngressController: %w", err))
+	}
+
+	return admission.PatchResponseFromRaw(request.Object.Raw, marshalled)
 }

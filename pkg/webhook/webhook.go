@@ -24,6 +24,7 @@ type Webhook[T webhookType] struct {
 }
 
 var Validating []Webhook[admissionregistrationv1.ValidatingWebhook]
+var Mutating []Webhook[admissionregistrationv1.MutatingWebhook]
 
 type config struct {
 	serviceName, namespace string
@@ -31,6 +32,7 @@ type config struct {
 	certDir                string
 
 	validatingWebhookConfigName string
+	mutatingWebhookConfigName   string
 }
 
 func New(globalCfg *globalCfg.Config, port int32, certsDir string) (*config, error) {
@@ -44,6 +46,7 @@ func New(globalCfg *globalCfg.Config, port int32, certsDir string) (*config, err
 		port:                        port,
 		certDir:                     certsDir,
 		validatingWebhookConfigName: "app-routing-validating",
+		mutatingWebhookConfigName:   "app-routing-mutating",
 	}
 
 	return c, nil
@@ -78,10 +81,36 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 		Webhooks: validatingWhs,
 	}
 
+	lgr.Info("calculating MutatingWebhookConfiguration")
+	var mutatingWhs []admissionregistrationv1.MutatingWebhook
+	for _, wh := range Mutating {
+		wh, err := wh.Definition(c)
+		if err != nil {
+			return fmt.Errorf("getting webhook definition: %w", err)
+		}
+
+		mutatingWhs = append(mutatingWhs, wh)
+	}
+
+	mutatingWhc := &admissionregistrationv1.MutatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MutatingWebhookConfiguration",
+			APIVersion: "admissionregistration.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.mutatingWebhookConfigName,
+			Labels: map[string]string{
+				// https://learn.microsoft.com/en-us/azure/aks/faq#can-admission-controller-webhooks-impact-kube-system-and-internal-aks-namespaces
+				"admissions.enforcer/disabled": "true",
+			},
+		},
+		Webhooks: mutatingWhs,
+	}
+
 	// todo: add ownership references to app-routing-system ns
 
 	lgr.Info("ensuring webhook configuration")
-	whs := []client.Object{validatingWhc}
+	whs := []client.Object{validatingWhc, mutatingWhc}
 	for _, wh := range whs {
 		copy := wh.DeepCopyObject().(client.Object)
 		lgr := lgr.WithValues("webhook", wh.GetName())
@@ -107,6 +136,10 @@ func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsR
 		Name: c.validatingWebhookConfigName,
 		Type: rotator.Validating,
 	})
+	webhooks = append(webhooks, rotator.WebhookInfo{
+		Name: c.mutatingWebhookConfigName,
+		Type: rotator.Mutating,
+	})
 
 	lgr.Info("adding cert-manager to controller manager")
 	cm := &certManager{
@@ -129,6 +162,12 @@ func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsR
 
 func (c *config) AddWebhooks(mgr manager.Manager) error {
 	for _, wh := range Validating {
+		if err := wh.AddToManager(mgr); err != nil {
+			return fmt.Errorf("adding webhook to manager: %w", err)
+		}
+	}
+
+	for _, wh := range Mutating {
 		if err := wh.AddToManager(mgr); err != nil {
 			return fmt.Errorf("adding webhook to manager: %w", err)
 		}
