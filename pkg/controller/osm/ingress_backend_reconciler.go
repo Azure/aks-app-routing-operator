@@ -5,8 +5,7 @@ package osm
 
 import (
 	"context"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,7 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
@@ -104,8 +105,6 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
 
-	// TODO: add label and check for label before cleanup
-
 	backend := &policyv1alpha1.IngressBackend{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressBackend",
@@ -137,7 +136,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 		}
 
-		if len(backend.Labels) != 0 && manifests.HasRequiredLabels(backend.Labels, manifests.GetTopLevelLabels()) {
+		if manifests.HasTopLevelLabels(backend.Labels) {
 			logger.Info("deleting IngressBackend")
 			err = i.client.Delete(ctx, backend)
 			return result, client.IgnoreNotFound(err)

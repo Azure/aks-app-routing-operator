@@ -8,11 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"testing"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,32 +23,50 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
+)
+
+var (
+	placeholderTestIngClassName = "webapprouting.kubernetes.azure.com"
+	placeholderTestIng          = &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ing",
+			Namespace: "default",
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: &placeholderTestIngClassName,
+		},
+	}
+
+	placeholderSpc = &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-spc",
+			Namespace:  placeholderTestIng.Namespace,
+			Generation: 123,
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind: "Ingress",
+				Name: placeholderTestIng.Name,
+			}},
+		},
+	}
 )
 
 func TestPlaceholderPodControllerIntegration(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ing"
-	ing.Namespace = "default"
-	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Labels = manifests.GetTopLevelLabels()
-
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "test-spc"
-	spc.Namespace = ing.Namespace
-	spc.Generation = 123
-	spc.OwnerReferences = []metav1.OwnerReference{{
-		Kind: "Ingress",
-		Name: ing.Name,
-	}}
-	spc.Labels = ing.Labels
+	ing := placeholderTestIng.DeepCopy()
+	spc := placeholderSpc.DeepCopy()
+	spc.Labels = manifests.GetTopLevelLabels()
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	p := &PlaceholderPodController{
 		client:         c,
 		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{placeholderTestIngClassName: {}}),
 	}
 
 	ctx := context.Background()
@@ -158,7 +171,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	// Prove the deployment was deleted
+	// Prove the deployment was not deleted
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove idempotence
@@ -166,29 +179,16 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 }
 
 func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
-	ing := &netv1.Ingress{}
-	ing.Name = "test-ing"
-	ing.Namespace = "default"
-	ingressClass := "webapprouting.kubernetes.azure.com"
-	ing.Spec.IngressClassName = &ingressClass
-	ing.Labels = map[string]string{}
-
-	spc := &secv1.SecretProviderClass{}
-	spc.Name = "test-spc"
-	spc.Namespace = ing.Namespace
-	spc.Generation = 123
-	spc.OwnerReferences = []metav1.OwnerReference{{
-		Kind: "Ingress",
-		Name: ing.Name,
-	}}
-	spc.Labels = ing.Labels
+	ing := placeholderTestIng.DeepCopy()
+	spc := placeholderSpc.DeepCopy()
+	spc.Labels = map[string]string{}
 
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	p := &PlaceholderPodController{
 		client:         c,
 		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManager(map[string]struct{}{ingressClass: {}}),
+		ingressManager: NewIngressManager(map[string]struct{}{placeholderTestIngClassName: {}}),
 	}
 
 	ctx := context.Background()
@@ -211,7 +211,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := util.MergeMaps(spc.Labels, map[string]string{"app": spc.Name})
+	expectedLabels := util.MergeMaps(map[string]string{"app": spc.Name}, manifests.GetTopLevelLabels())
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
@@ -268,7 +268,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 
 	// Change the ingress resource's class
 	ing.Spec.IngressClassName = nil
-	require.NoError(t, c.Update(ctx, spc))
+	require.NoError(t, c.Update(ctx, ing))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)

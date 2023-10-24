@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,24 +40,21 @@ func TestNamespaceResources(t *testing.T) {
 	}
 }
 
-func TestHasRequiredLabels(t *testing.T) {
-	placeholderPodLabels := map[string]string{"app": "app-name"}
-
+func TestHasTopLevelLabels(t *testing.T) {
 	cases := []struct {
 		Labels    map[string]string
 		ReqLabels []map[string]string
 		Outcome   bool
 	}{
-		{Labels: map[string]string{}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
-		{Labels: map[string]string{"fake": "fake"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
-		{Labels: map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: false},
-		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels()}, Outcome: true},
-		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "fakeLabel3": "fakeValue3", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: false},
-		{Labels: map[string]string{"fakeLabel1": "fakeValue1", "fakeLabel2": "fakeValue2", "app": "app-name", "app.kubernetes.io/managed-by": "aks-app-routing-operator"}, ReqLabels: []map[string]string{GetTopLevelLabels(), placeholderPodLabels}, Outcome: true},
+		{Labels: map[string]string{}, Outcome: false},                                                               // Blank labels
+		{Labels: map[string]string{"fake": "fake"}, Outcome: false},                                                 // Only fake labels
+		{Labels: map[string]string{"app.kubernetes.io/managed-by": "false-operator-name"}, Outcome: false},          // Correct key, incorrect value
+		{Labels: GetTopLevelLabels(), Outcome: true},                                                                // Correct labels
+		{Labels: util.MergeMaps(GetTopLevelLabels(), map[string]string{"fakeLabel1": "fakeValue1"}), Outcome: true}, // Additional labels
 	}
 
 	for _, c := range cases {
-		require.Equal(t, HasRequiredLabels(c.Labels, c.ReqLabels...), c.Outcome)
+		require.Equal(t, HasTopLevelLabels(c.Labels), c.Outcome)
 	}
 }
 

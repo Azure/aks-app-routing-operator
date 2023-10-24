@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +19,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -92,7 +92,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("keyvault-%s", ing.Name),
 			Namespace: ing.Namespace,
-			Labels:    ing.Labels,
+			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -115,13 +115,14 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return result, err
 	}
 
+	logger.Info("cleaning unused managed spc for ingress")
 	logger.Info("getting secret provider class for ingress")
 	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
 
-	if len(spc.Labels) != 0 && manifests.HasRequiredLabels(spc.Labels, manifests.GetTopLevelLabels()) {
+	if len(spc.Labels) != 0 && manifests.HasTopLevelLabels(spc.Labels) {
 		logger.Info("removing secret provider class for ingress")
 		err = i.client.Delete(ctx, spc)
 		return result, client.IgnoreNotFound(err)
@@ -132,10 +133,6 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
 	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
-		return false, nil
-	}
-
-	if len(spc.Labels) == 0 || !(manifests.HasRequiredLabels(spc.Labels, manifests.GetTopLevelLabels())) {
 		return false, nil
 	}
 
