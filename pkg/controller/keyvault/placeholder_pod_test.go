@@ -171,7 +171,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	// Prove the deployment was not deleted
+	// Prove the deployment was deleted
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove idempotence
