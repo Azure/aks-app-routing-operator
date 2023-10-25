@@ -178,7 +178,6 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
-	// Prove it exists
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "secrets-store.csi.x-k8s.io/v1",

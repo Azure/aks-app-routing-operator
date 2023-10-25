@@ -285,9 +285,6 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 
 	// Prove the deployment was not deleted
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
-
-	// Prove idempotence
-	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
 
 func TestNewPlaceholderPodController(t *testing.T) {
