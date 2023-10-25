@@ -127,37 +127,6 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
-	ok = i.buildBackend(backend, ing, controllerName)
-	if ok {
-		logger.Info("reconciling OSM ingress backend for ingress")
-		err = util.Upsert(ctx, i.client, backend)
-		return result, err
-	}
-
-	logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
-	logger.Info("getting IngressBackend")
-
-	toCleanBackend := &policyv1alpha1.IngressBackend{}
-	err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
-	if err != nil {
-		return result, client.IgnoreNotFound(err)
-	}
-
-	if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
-		logger.Info("deleting IngressBackend")
-		err = i.client.Delete(ctx, toCleanBackend)
-		return result, client.IgnoreNotFound(err)
-	}
-
-	logger.Info("reconciling OSM ingress backend for ingress")
-	err = util.Upsert(ctx, i.client, toCleanBackend)
-	return result, err
-}
-
-func (i *IngressBackendReconciler) buildBackend(backend *policyv1alpha1.IngressBackend, ing *netv1.Ingress, controllerName string) bool {
-	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" {
-		return false
-	}
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{
 		Backends: []policyv1alpha1.BackendSpec{},
@@ -192,5 +161,28 @@ func (i *IngressBackendReconciler) buildBackend(backend *policyv1alpha1.IngressB
 		}
 	}
 
-	return true
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
+		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
+		logger.Info("getting IngressBackend")
+
+		toCleanBackend := &policyv1alpha1.IngressBackend{}
+		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
+		if err != nil {
+			return result, client.IgnoreNotFound(err)
+		}
+
+		if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
+			logger.Info("deleting IngressBackend")
+			err = i.client.Delete(ctx, toCleanBackend)
+			return result, client.IgnoreNotFound(err)
+		}
+
+		logger.Info("reconciling OSM ingress backend for ingress")
+		err = util.Upsert(ctx, i.client, toCleanBackend)
+		return result, err
+	}
+
+	logger.Info("reconciling OSM ingress backend for ingress")
+	err = util.Upsert(ctx, i.client, backend)
+	return result, err
 }
