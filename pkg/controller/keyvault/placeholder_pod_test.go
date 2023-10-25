@@ -81,9 +81,12 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	dep := &appsv1.Deployment{}
-	dep.Name = spc.Name
-	dep.Namespace = spc.Namespace
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spc.Name,
+			Namespace: spc.Namespace,
+		},
+	}
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
 
 	replicas := int32(1)
@@ -203,9 +206,12 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	dep := &appsv1.Deployment{}
-	dep.Name = spc.Name
-	dep.Namespace = spc.Namespace
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spc.Name,
+			Namespace: spc.Namespace,
+		},
+	}
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
 
 	replicas := int32(1)
