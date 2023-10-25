@@ -32,10 +32,10 @@ import (
 )
 
 var (
-	env        *envtest.Environment
-	restConfig *rest.Config
-	err        error
-	ing        = &netv1.Ingress{
+	env            *envtest.Environment
+	restConfig     *rest.Config
+	err            error
+	backendTestIng = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-ingress",
 			Namespace:   "test-ns",
@@ -74,7 +74,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestIngressBackendReconcilerIntegration(t *testing.T) {
-	ing := ing.DeepCopy()
+	ing := backendTestIng.DeepCopy()
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -139,7 +139,7 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 }
 
 func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
-	ing := ing.DeepCopy()
+	ing := backendTestIng.DeepCopy()
 	c := fake.NewClientBuilder().WithObjects(ing).Build()
 	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
 
@@ -202,15 +202,19 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)))
+	assert.Equal(t, 0, len(backend.Labels))
 	_, err = e.Reconcile(ctx, req)
 	require.NoError(t, err)
+	assert.Equal(t, 0, len(backend.Labels))
 
 	// Prove the ingress backend was not cleaned up
 	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)))
 }
 
 func TestNewIngressBackendReconciler(t *testing.T) {
-	ing := ing.DeepCopy()
+	ing := backendTestIng.DeepCopy()
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 

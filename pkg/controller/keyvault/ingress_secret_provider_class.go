@@ -117,14 +117,17 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 	logger.Info("cleaning unused managed spc for ingress")
 	logger.Info("getting secret provider class for ingress")
-	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), spc)
+
+	toCleanSPC := &secv1.SecretProviderClass{}
+
+	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC)
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
 
-	if manifests.HasTopLevelLabels(spc.Labels) {
+	if manifests.HasTopLevelLabels(toCleanSPC.Labels) {
 		logger.Info("removing secret provider class for ingress")
-		err = i.client.Delete(ctx, spc)
+		err = i.client.Delete(ctx, toCleanSPC)
 		return result, client.IgnoreNotFound(err)
 	}
 

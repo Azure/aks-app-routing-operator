@@ -127,20 +127,36 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
-	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
-		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
+	ok = i.buildBackend(backend, ing, controllerName)
+	if ok {
+		logger.Info("reconciling OSM ingress backend for ingress")
+		err = util.Upsert(ctx, i.client, backend)
+		return result, err
+	}
 
-		logger.Info("getting IngressBackend")
-		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
-		if err != nil {
-			return result, client.IgnoreNotFound(err)
-		}
+	logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
+	logger.Info("getting IngressBackend")
 
-		if manifests.HasTopLevelLabels(backend.Labels) {
-			logger.Info("deleting IngressBackend")
-			err = i.client.Delete(ctx, backend)
-			return result, client.IgnoreNotFound(err)
-		}
+	toCleanBackend := &policyv1alpha1.IngressBackend{}
+	err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
+	if err != nil {
+		return result, client.IgnoreNotFound(err)
+	}
+
+	if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
+		logger.Info("deleting IngressBackend")
+		err = i.client.Delete(ctx, toCleanBackend)
+		return result, client.IgnoreNotFound(err)
+	}
+
+	logger.Info("reconciling OSM ingress backend for ingress")
+	err = util.Upsert(ctx, i.client, toCleanBackend)
+	return result, err
+}
+
+func (i *IngressBackendReconciler) buildBackend(backend *policyv1alpha1.IngressBackend, ing *netv1.Ingress, controllerName string) bool {
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" {
+		return false
 	}
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{
@@ -176,7 +192,5 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	logger.Info("reconciling OSM ingress backend for ingress")
-	err = util.Upsert(ctx, i.client, backend)
-	return result, err
+	return true
 }
