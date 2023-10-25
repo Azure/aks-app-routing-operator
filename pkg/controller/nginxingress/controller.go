@@ -2,6 +2,7 @@ package nginxingress
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -119,11 +120,28 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 		return fmt.Errorf("setting collision count: %w", err)
 	}
 
+	var managedResourceRefs []approutingv1alpha1.ManagedObjectReference
 	for _, obj := range n.ManagedObjects(nic) {
 		if err := util.Upsert(ctx, n.client, obj); err != nil {
 			lgr.Error(err, "unable to upsert object", "name", obj.GetName(), "kind", obj.GetObjectKind().GroupVersionKind().Kind, "namespace", obj.GetNamespace())
 			return fmt.Errorf("upserting object: %w", err)
 		}
+
+		if managedByUs(obj) {
+			managedResourceRefs = append(managedResourceRefs, approutingv1alpha1.ManagedObjectReference{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+				Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+				APIGroup:  obj.GetObjectKind().GroupVersionKind().Group,
+			})
+		}
+	}
+
+	lgr.Info("updating ManagedResourceRefs status")
+	nic.Status.ManagedResourceRefs = managedResourceRefs
+	if err := n.client.Status().Update(ctx, nic); err != nil {
+		lgr.Error(err, "unable to update status")
+		return fmt.Errorf("updating status: %w", err)
 	}
 
 	return nil
@@ -196,6 +214,10 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 
 		lgr.Info("reconcilable collision detected, incrementing", "collisionCount", nic.Status.CollisionCount)
 		nic.Status.CollisionCount++
+
+		if i == 9 {
+			return errors.New("too many collisions")
+		}
 	}
 
 	if startingCollisionCount != nic.Status.CollisionCount {
@@ -219,14 +241,8 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 		// if we won't own the resource, we don't care about collisions.
 		// this is most commonly used for namespaces since we shouldn't own
 		// namespaces
-		skip := false
-		for k, v := range manifests.GetTopLevelLabels() {
-			if obj.GetLabels()[k] != v {
-				lgr.Info("skipping collision check because we don't own the resource")
-				skip = true
-			}
-		}
-		if skip {
+		if !managedByUs(obj) {
+			lgr.Info("skipping collision check because we don't own the resource")
 			continue
 		}
 
@@ -256,4 +272,14 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 
 	lgr.Info("no collisions detected")
 	return collisionNone, nil
+}
+
+func managedByUs(obj client.Object) bool {
+	for k, v := range manifests.GetTopLevelLabels() {
+		if obj.GetLabels()[k] != v {
+			return false
+		}
+	}
+
+	return true
 }
