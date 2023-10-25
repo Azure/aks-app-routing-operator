@@ -7,10 +7,12 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	authv1 "k8s.io/api/authorization/v1"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,7 +51,7 @@ func init() {
 				ClientConfig:            clientCfg,
 				Rules: []admissionregistrationv1.RuleWithOperations{
 					{
-						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update},
+						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update, admissionregistrationv1.Delete},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{approutingv1alpha1.GroupVersion.Group},
 							APIVersions: []string{approutingv1alpha1.GroupVersion.Version},
@@ -109,8 +111,50 @@ type nginxIngressResourceValidator struct {
 func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", req.Name, "namespace", req.Namespace, "operation", req.Operation).WithName("nginxIngressResourceValidator")
 
+	// ensure user has permissions required
+	lgr.Info("checking permissions")
+	extra := make(map[string]authv1.ExtraValue)
+	for k, v := range req.UserInfo.Extra {
+		extra[k] = authv1.ExtraValue(v)
+	}
+	// todo: use multiple go routines to make these calls in parallel?
+	for _, resource := range manifests.NginxResources {
+		lgr := lgr.WithValues("sarResource", resource.Name, "sarGroup", resource.Group, "sarVersion", resource.Version)
+		lgr.Info("checking permissions for resource")
+		sar := authv1.SubjectAccessReview{
+			Spec: authv1.SubjectAccessReviewSpec{
+				ResourceAttributes: &authv1.ResourceAttributes{
+					// TODO: add namespace check
+					Namespace: "",
+					Verb:      "*",
+					Group:     resource.Group,
+					Version:   resource.Version,
+					Resource:  resource.Name,
+				},
+				User:   req.UserInfo.Username,
+				Groups: req.UserInfo.Groups,
+				Extra:  extra,
+				UID:    req.UserInfo.UID,
+			},
+		}
+		lgr.Info("performing SubjectAccessReview")
+		if err := n.client.Create(ctx, &sar); err != nil {
+			lgr.Error(err, "creating SubjectAccessReview")
+			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("creating SubjectAccessReview: %w", err))
+		}
+		if sar.Status.Denied || (!sar.Status.Allowed) {
+			lgr.Info("denied due to permissions", "reason", sar.Status.Reason)
+			// TODO: add permissions check they are failing here and use sar.Status.Reason
+			return admission.Denied(
+				fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'. ",
+					req.UserInfo.Username, sar.Spec.ResourceAttributes.Verb, sar.Spec.ResourceAttributes.Resource, sar.Spec.ResourceAttributes.Group, sar.Spec.ResourceAttributes.Version,
+				))
+		}
+
+	}
+	lgr.Info("permissions check passed")
+
 	if req.Operation == admissionv1.Delete {
-		lgr.Info("delete operation, skipping validation")
 		return admission.Allowed("")
 	}
 
@@ -120,6 +164,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
 	}
 
+	// basic spec validation (everything we can check without making API calls)
 	if invalidReason := nginxIngressController.Valid(); invalidReason != "" {
 		return admission.Denied(invalidReason)
 	}
@@ -145,17 +190,17 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		lgr.Info("listing NginxIngressControllers to check for collisions")
 		var nginxIngressControllerList approutingv1alpha1.NginxIngressControllerList
 		if err := n.client.List(ctx, &nginxIngressControllerList); err != nil {
+			lgr.Error(err, "listing NginxIngressControllers")
 			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("listing NginxIngressControllers: %w", err))
 		}
 
 		for _, nic := range nginxIngressControllerList.Items {
 			if nic.Spec.IngressClassName == nginxIngressController.Spec.IngressClassName {
-				lgr.Info("IngressClass already exists on NginxIngressController " + nic.Name)
+				lgr.Info("denied admission. IngressClass already exists on NginxIngressController " + nic.Name)
 				return admission.Denied(fmt.Sprintf("IngressClass %s already exists on NginxIngressController %s. Use a different spec.IngressClassName field", nic.Spec.IngressClassName, nic.Name))
 			}
 		}
 
-		// TODO: check user permissions with SubjectAccessReview
 	}
 
 	return admission.Allowed("")
