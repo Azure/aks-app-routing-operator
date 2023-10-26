@@ -6,7 +6,6 @@ package osm
 import (
 	"context"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,7 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
@@ -104,8 +105,6 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation)
 
-	// TODO: add label and check for label before cleanup
-
 	backend := &policyv1alpha1.IngressBackend{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressBackend",
@@ -114,6 +113,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ing.Name,
 			Namespace: ing.Namespace,
+			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -127,19 +127,6 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
 	logger = logger.WithValues("ingressController", controllerName)
-	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
-		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
-
-		logger.Info("getting IngressBackend")
-		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)
-		if err != nil {
-			return result, client.IgnoreNotFound(err)
-		}
-
-		logger.Info("deleting IngressBackend")
-		err = i.client.Delete(ctx, backend)
-		return result, err
-	}
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{
 		Backends: []policyv1alpha1.BackendSpec{},
@@ -172,6 +159,24 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				},
 			})
 		}
+	}
+
+	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
+		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
+		logger.Info("getting IngressBackend")
+
+		toCleanBackend := &policyv1alpha1.IngressBackend{}
+		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
+		if err != nil {
+			return result, client.IgnoreNotFound(err)
+		}
+
+		if manifests.HasTopLevelLabels(toCleanBackend.Labels) {
+			logger.Info("deleting IngressBackend")
+			err = i.client.Delete(ctx, toCleanBackend)
+			return result, client.IgnoreNotFound(err)
+		}
+		return result, nil
 	}
 
 	logger.Info("reconciling OSM ingress backend for ingress")

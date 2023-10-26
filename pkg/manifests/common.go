@@ -1,11 +1,12 @@
 package manifests
 
 import (
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 )
 
 const operatorName = "aks-app-routing-operator"
@@ -13,6 +14,24 @@ const operatorName = "aks-app-routing-operator"
 // GetTopLevelLabels returns labels that every resource App Routing manages have
 func GetTopLevelLabels() map[string]string { // this is a function to avoid any accidental mutation due to maps being reference types
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
+}
+
+// Checks the first set of labels has the labels of the other passed in sets
+func HasTopLevelLabels(objLabels map[string]string) bool {
+	if len(objLabels) == 0 {
+		return false
+	}
+
+	for label, val := range GetTopLevelLabels() {
+		spcVal, ok := objLabels[label]
+		if !ok {
+			return false
+		}
+		if spcVal != val {
+			return false
+		}
+	}
+	return true
 }
 
 func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {

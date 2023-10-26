@@ -8,7 +8,6 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +19,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -87,6 +87,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      spc.Name,
 			Namespace: spc.Namespace,
+			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
 				Controller: util.BoolPtr(true),
@@ -110,19 +111,22 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	managed := p.ingressManager.IsManaging(ing)
+
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		logger.Info("cleaning unused placeholder pod deployment")
 
 		logger.Info("getting placeholder deployment")
-		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), dep); err != nil {
+
+		toCleanDeployment := &appsv1.Deployment{}
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
-
-		logger.Info("deleting placeholder deployment")
-		err = p.client.Delete(ctx, dep)
-		return result, client.IgnoreNotFound(err)
+		if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
+			logger.Info("deleting placeholder deployment")
+			err = p.client.Delete(ctx, toCleanDeployment)
+			return result, client.IgnoreNotFound(err)
+		}
 	}
-
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
 	p.buildDeployment(dep, spc, ing)
@@ -134,7 +138,8 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
-	labels := map[string]string{"app": spc.Name}
+	labels := util.MergeMaps(map[string]string{"app": spc.Name}, manifests.GetTopLevelLabels())
+
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
