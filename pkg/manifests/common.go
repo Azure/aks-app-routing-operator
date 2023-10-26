@@ -2,6 +2,7 @@ package manifests
 
 import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -16,7 +17,7 @@ func GetTopLevelLabels() map[string]string { // this is a function to avoid any 
 }
 
 // GetOwnerRefs returns a slice of OwnerReferences for the given owner
-func GetOwnerRefs(owner client.Object) []metav1.OwnerReference {
+func GetOwnerRefs(owner client.Object, controller bool) []metav1.OwnerReference {
 	// check if owner is nil
 	if owner == nil {
 		return nil
@@ -36,6 +37,7 @@ func GetOwnerRefs(owner client.Object) []metav1.OwnerReference {
 		Kind:       kind,
 		Name:       name,
 		UID:        uid,
+		Controller: util.ToPtr(controller),
 	}}
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,7 +63,9 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 	}
 
 	if err := nginxIngressControllerReconcilerName.AddToController(
-		ctrl.NewControllerManagedBy(mgr).For(&approutingv1alpha1.NginxIngressController{}),
+		ctrl.NewControllerManagedBy(mgr).
+			For(&approutingv1alpha1.NginxIngressController{}).
+			Owns(&appsv1.Deployment{}),
 		mgr.GetLogger(),
 	).Complete(reconciler); err != nil {
 		return err
@@ -134,6 +137,15 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 				Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 				APIGroup:  obj.GetObjectKind().GroupVersionKind().Group,
 			})
+
+			if obj.GetObjectKind().GroupVersionKind().Kind == "Deployment" {
+				// TODO: make this more type safe
+				deployment := obj.(*appsv1.Deployment)
+				nic.Status.ControllerReadyReplicas = deployment.Status.ReadyReplicas
+				nic.Status.ControllerAvailableReplicas = deployment.Status.AvailableReplicas
+				nic.Status.ControllerUnavailableReplicas = deployment.Status.UnavailableReplicas
+				nic.Status.ControllerReplicas = deployment.Status.Replicas
+			}
 		}
 	}
 
@@ -167,10 +179,10 @@ func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha
 	}
 
 	var objs []client.Object
-	objs = append(objs, manifests.NginxIngressClass(n.conf, nic, nginxIngressCfg)...)
-	objs = append(objs, manifests.NginxIngressControllerResources(n.conf, nic, nginxIngressCfg)...)
+	objs = append(objs, manifests.NginxIngressClass(n.conf, nginxIngressCfg)...)
+	objs = append(objs, manifests.NginxIngressControllerResources(n.conf, nginxIngressCfg)...)
 
-	owner := manifests.GetOwnerRefs(nic)
+	owner := manifests.GetOwnerRefs(nic, true)
 	for _, obj := range objs {
 		obj.SetOwnerReferences(owner)
 	}

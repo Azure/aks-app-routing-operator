@@ -78,7 +78,7 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) ([]*ma
 func (n *nginx) addIngressClassReconciler() error {
 	objs := []client.Object{}
 	for _, config := range n.ingConfigs {
-		objs = append(objs, manifests.NginxIngressClass(n.conf, n.self, config)...)
+		objs = append(objs, manifests.NginxIngressClass(n.conf, config)...)
 	}
 
 	return ingress.NewIngressClassReconciler(n.manager, objs, n.name)
@@ -87,7 +87,7 @@ func (n *nginx) addIngressClassReconciler() error {
 func (n *nginx) addIngressControllerReconciler() error {
 	objs := []client.Object{}
 	for _, config := range n.ingConfigs {
-		objs = append(objs, manifests.NginxIngressControllerResources(n.conf, n.self, config)...)
+		objs = append(objs, manifests.NginxIngressControllerResources(n.conf, config)...)
 	}
 
 	return ingress.NewIngressControllerReconciler(n.manager, objs, n.name)

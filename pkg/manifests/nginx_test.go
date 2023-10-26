@@ -130,7 +130,7 @@ var (
 
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range controllerTestCases {
-		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, tc.IngConfig)
+		objs := NginxIngressControllerResources(tc.Conf, tc.IngConfig)
 		fixture := path.Join("fixtures", "nginx", tc.Name) + ".json"
 		AssertFixture(t, fixture, objs)
 	}
@@ -138,7 +138,7 @@ func TestIngressControllerResources(t *testing.T) {
 
 func TestIngressClassResources(t *testing.T) {
 	for _, tc := range classTestCases {
-		objs := NginxIngressClass(tc.Conf, tc.Deploy, tc.IngConfig)
+		objs := NginxIngressClass(tc.Conf, tc.IngConfig)
 		fixture := path.Join("fixtures", "nginx", tc.Name) + "-ingressclass.json"
 		AssertFixture(t, fixture, objs)
 	}

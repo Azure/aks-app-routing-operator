@@ -48,7 +48,7 @@ spec:
               port: 8080
             periodSeconds: 5
           startupProbe:
-            failureThreshold: 100
+            failureThreshold: 7
             httpGet:
               path: /readyz
               port: 8080

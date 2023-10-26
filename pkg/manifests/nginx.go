@@ -140,7 +140,7 @@ type ServiceConfig struct {
 }
 
 // NginxIngressClass returns an IngressClass for the provided configuration
-func NginxIngressClass(conf *config.Config, self client.Object, ingressConfig *NginxIngressConfig) []client.Object {
+func NginxIngressClass(conf *config.Config, ingressConfig *NginxIngressConfig) []client.Object {
 	ing := &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressClass",
@@ -153,10 +153,7 @@ func NginxIngressClass(conf *config.Config, self client.Object, ingressConfig *N
 	}
 	objs := []client.Object{ing}
 
-	owners := GetOwnerRefs(self)
 	for _, obj := range objs {
-		obj.SetOwnerReferences(owners)
-
 		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
 		obj.SetLabels(l)
 	}
@@ -165,7 +162,7 @@ func NginxIngressClass(conf *config.Config, self client.Object, ingressConfig *N
 }
 
 // NginxIngressControllerResources returns Kubernetes objects required for the controller
-func NginxIngressControllerResources(conf *config.Config, self client.Object, ingressConfig *NginxIngressConfig) []client.Object {
+func NginxIngressControllerResources(conf *config.Config, ingressConfig *NginxIngressConfig) []client.Object {
 	objs := []client.Object{
 		newNginxIngressControllerServiceAccount(conf, ingressConfig),
 		newNginxIngressControllerClusterRole(conf, ingressConfig),
@@ -179,10 +176,7 @@ func NginxIngressControllerResources(conf *config.Config, self client.Object, in
 		newNginxIngressControllerHPA(conf, ingressConfig),
 	}
 
-	owners := GetOwnerRefs(self)
 	for _, obj := range objs {
-		obj.SetOwnerReferences(owners)
-
 		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
 		obj.SetLabels(l)
 	}

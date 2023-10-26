@@ -101,8 +101,8 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 				lgr.Info("certs rotated")
 			case <-time.After(waitTime):
 				lgr.Info("waited for certs to be rotated, continuing")
-				close(c.Ready)
 			}
+			close(c.Ready)
 		}
 	}()
 
