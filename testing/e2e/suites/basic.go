@@ -122,15 +122,14 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			ctx = logger.WithContext(ctx, lgr)
 
 			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId())
-			for _, object := range testingResources.Objects() {
-				if err := upsert(ctx, c, object); err != nil {
-					return fmt.Errorf("upserting resource: %w", err)
-				}
-			}
-
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
+				}
+			}
+			for _, object := range testingResources.Objects() {
+				if err := upsert(ctx, c, object); err != nil {
+					return fmt.Errorf("upserting resource: %w", err)
 				}
 			}
 

@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	controllerImageTag = "v1.9.3"
+	controllerImageTag = "v1.9.4"
 	prom               = "prometheus"
 )
 
