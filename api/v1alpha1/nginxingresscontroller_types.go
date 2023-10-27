@@ -64,15 +64,12 @@ type NginxIngressControllerStatus struct {
 	ManagedResourceRefs []ManagedObjectReference `json:"managedResourceRefs,omitempty"`
 }
 
-// nginxIngressControllerConditionType defines a specific condition of a NginxIngressController
-type nginxIngressControllerConditionType string
-
 const (
 	// ConditionTypeAvailable indicates whether the NGINX Ingress Controller is available. Its condition status is one of
 	// - "True" when the NGINX Ingress Controller is available and can be used
 	// - "False" when the NGINX Ingress Controller is not available and cannot offer full functionality
 	// - "Unknown" when the NGINX Ingress Controller's availability cannot be determined
-	ConditionTypeAvailable nginxIngressControllerConditionType = "Available"
+	ConditionTypeAvailable = "Available"
 
 	// ConditionTypeIngressClassReady indicates whether the IngressClass exists. Its condition status is one of
 	// - "True" when the IngressClass exists
@@ -114,6 +111,9 @@ type ManagedObjectReference struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster,shortName=nic
+//+kubebuilder:printcolumn:name="IngressClass",type="string",JSONPath=`.spec.ingressClassName`
+//+kubebuilder:printcolumn:name="ControllerNamePrefix",type="string",JSONPath=`.spec.controllerNamePrefix`
+//+kubebuilder:printcolumn:name="Available",type="string",JSONPath=`.status.conditions[?(@.type=="Available")].status`
 
 // NginxIngressController is the Schema for the nginxingresscontrollers API
 type NginxIngressController struct {
@@ -127,12 +127,12 @@ type NginxIngressController struct {
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
 }
 
-func (n *NginxIngressController) GetCondition(t nginxIngressControllerConditionType) *metav1.Condition {
-	return meta.FindStatusCondition(n.Status.Conditions, string(t))
+func (n *NginxIngressController) GetCondition(t string) *metav1.Condition {
+	return meta.FindStatusCondition(n.Status.Conditions, t)
 }
 
 func (n *NginxIngressController) SetCondition(c metav1.Condition) {
-	current := n.GetCondition(nginxIngressControllerConditionType(c.Type))
+	current := n.GetCondition(c.Type)
 
 	if current != nil && current.Status == c.Status && current.Message == c.Message && current.Reason == c.Reason {
 		current.ObservedGeneration = n.Generation

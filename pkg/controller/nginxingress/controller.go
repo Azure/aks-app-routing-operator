@@ -344,17 +344,17 @@ func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.
 
 	controllerAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeControllerAvailable)
 	icAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeIngressClassReady)
-	if controllerAvailable != nil && icAvailable != nil && controllerAvailable.Status == metav1.ConditionTrue && icAvailable.Status == metav1.ConditionFalse {
+	if controllerAvailable != nil && icAvailable != nil && controllerAvailable.Status == metav1.ConditionTrue && icAvailable.Status == metav1.ConditionTrue {
 		nic.SetCondition(metav1.Condition{
-			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
-			Status:  "True",
+			Type:    approutingv1alpha1.ConditionTypeAvailable,
+			Status:  metav1.ConditionTrue,
 			Reason:  "ControllerIsAvailable",
 			Message: "Controller Deployment has minimum availability and IngressClass is up-to-date",
 		})
 	} else {
 		nic.SetCondition(metav1.Condition{
-			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
-			Status:  "False",
+			Type:    approutingv1alpha1.ConditionTypeAvailable,
+			Status:  metav1.ConditionFalse,
 			Reason:  "ControllerIsNotAvailable",
 			Message: "Controller Deployment does not have minimum availability or IngressClass is not up-to-date",
 		})

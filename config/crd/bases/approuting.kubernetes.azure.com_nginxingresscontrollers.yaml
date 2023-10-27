@@ -16,7 +16,17 @@ spec:
     singular: nginxingresscontroller
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.ingressClassName
+      name: IngressClass
+      type: string
+    - jsonPath: .spec.controllerNamePrefix
+      name: ControllerNamePrefix
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Available")].status
+      name: Available
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NginxIngressController is the Schema for the nginxingresscontrollers
