@@ -393,6 +393,8 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		podAnnotations[k] = v
 	}
 
+	selector := &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()}
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -405,13 +407,21 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		},
 		Spec: appsv1.DeploymentSpec{
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
+			Selector:             selector,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      ingressControllerPodLabels,
 					Annotations: podAnnotations,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
+					TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname", // spread across nodes
+							WhenUnsatisfiable: corev1.ScheduleAnyway,
+							LabelSelector:     selector,
+						},
+					},
 					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
@@ -445,10 +455,6 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("500m"),
 								corev1.ResourceMemory: resource.MustParse("127Mi"),
-							},
-							Limits: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("1500m"),
-								corev1.ResourceMemory: resource.MustParse("512Mi"),
 							},
 						},
 					}))},
@@ -517,7 +523,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			},
 			MinReplicas:                    util.Int32Ptr(2),
 			MaxReplicas:                    100,
-			TargetCPUUtilizationPercentage: util.Int32Ptr(90),
+			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
 		},
 	}
 }
