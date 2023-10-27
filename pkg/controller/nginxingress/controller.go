@@ -275,6 +275,7 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 		}
 
 		if owner := util.FindOwnerKind(u.GetOwnerReferences(), nic.Kind); owner == nic.Name {
+			lgr.Info("the nginxIngressController owns this resource")
 			continue
 		}
 
