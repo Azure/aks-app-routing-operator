@@ -131,6 +131,19 @@ func (n *NginxIngressController) GetCondition(t nginxIngressControllerConditionT
 	return meta.FindStatusCondition(n.Status.Conditions, string(t))
 }
 
+func (n *NginxIngressController) SetCondition(c metav1.Condition) {
+	current := n.GetCondition(nginxIngressControllerConditionType(c.Type))
+
+	if current != nil && current.Status == c.Status && current.Message == c.Message && current.Reason == c.Reason {
+		current.ObservedGeneration = n.Generation
+		return
+	}
+
+	c.ObservedGeneration = n.Generation
+	c.LastTransitionTime = metav1.Now()
+	meta.SetStatusCondition(&n.Status.Conditions, c)
+}
+
 // Valid checks this NginxIngressController to see if it's valid. Returns a string describing the validation error, if any, or empty string if there is no error.
 func (n *NginxIngressController) Valid() string {
 	if n.Spec.ControllerNamePrefix == "" {

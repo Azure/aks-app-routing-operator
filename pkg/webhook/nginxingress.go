@@ -118,7 +118,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		extra[k] = authv1.ExtraValue(v)
 	}
 	// todo: use multiple go routines to make these calls in parallel?
-	for _, resource := range manifests.NginxResources {
+	for _, resource := range manifests.NginxResourceTypes {
 		lgr := lgr.WithValues("sarResource", resource.Name, "sarGroup", resource.Group, "sarVersion", resource.Version)
 		lgr.Info("checking permissions for resource")
 		sar := authv1.SubjectAccessReview{

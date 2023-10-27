@@ -14,6 +14,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -94,18 +96,32 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	// no need for a finalizer, we use owner references to clean everything up since everything is in-cluster
+	resources := n.ManagedResources(&nginxIngressController)
+	if resources == nil {
+		return ctrl.Result{}, fmt.Errorf("unable to get managed resources")
+	}
 
-	if err := n.ReconcileResource(ctx, &nginxIngressController); err != nil {
+	managedRes, err := n.ReconcileResource(ctx, &nginxIngressController, resources)
+	defer func() {
+		n.updateStatus(&nginxIngressController, resources.Deployment, resources.IngressClass, managedRes)
+		if statusErr := n.client.Status().Update(ctx, &nginxIngressController); statusErr != nil {
+			lgr.Error(statusErr, "unable to update NginxIngressController status")
+			if err == nil {
+				err = statusErr
+			}
+		}
+	}()
+	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconciling resource: %w", err)
 	}
 
 	return ctrl.Result{}, nil
 }
 
-// ReconcileResource reconciles the NginxIngressController resource
-func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) error {
+// ReconcileResource reconciles the NginxIngressController resources returning a list of managed resources.
+func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context, nic *approutingv1alpha1.NginxIngressController, res *manifests.NginxResources) ([]approutingv1alpha1.ManagedObjectReference, error) {
 	if nic == nil {
-		return nil
+		return nil, errors.New("nginxIngressController cannot be nil")
 	}
 
 	start := time.Now()
@@ -120,14 +136,14 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 
 	if err := n.SetCollisionCount(ctx, nic); err != nil {
 		lgr.Error(err, "unable to set collision count")
-		return fmt.Errorf("setting collision count: %w", err)
+		return nil, fmt.Errorf("setting collision count: %w", err)
 	}
 
 	var managedResourceRefs []approutingv1alpha1.ManagedObjectReference
-	for _, obj := range n.ManagedObjects(nic) {
+	for _, obj := range res.Objects() {
 		if err := util.Upsert(ctx, n.client, obj); err != nil {
 			lgr.Error(err, "unable to upsert object", "name", obj.GetName(), "kind", obj.GetObjectKind().GroupVersionKind().Kind, "namespace", obj.GetNamespace())
-			return fmt.Errorf("upserting object: %w", err)
+			return nil, fmt.Errorf("upserting object: %w", err)
 		}
 
 		if managedByUs(obj) {
@@ -138,28 +154,13 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 				APIGroup:  obj.GetObjectKind().GroupVersionKind().Group,
 			})
 
-			if obj.GetObjectKind().GroupVersionKind().Kind == "Deployment" {
-				// TODO: make this more type safe
-				deployment := obj.(*appsv1.Deployment)
-				nic.Status.ControllerReadyReplicas = deployment.Status.ReadyReplicas
-				nic.Status.ControllerAvailableReplicas = deployment.Status.AvailableReplicas
-				nic.Status.ControllerUnavailableReplicas = deployment.Status.UnavailableReplicas
-				nic.Status.ControllerReplicas = deployment.Status.Replicas
-			}
 		}
 	}
 
-	lgr.Info("updating ManagedResourceRefs status")
-	nic.Status.ManagedResourceRefs = managedResourceRefs
-	if err := n.client.Status().Update(ctx, nic); err != nil {
-		lgr.Error(err, "unable to update status")
-		return fmt.Errorf("updating status: %w", err)
-	}
-
-	return nil
+	return managedResourceRefs, nil
 }
 
-func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha1.NginxIngressController) []client.Object {
+func (n *nginxIngressControllerReconciler) ManagedResources(nic *approutingv1alpha1.NginxIngressController) *manifests.NginxResources {
 	if nic == nil {
 		return nil
 	}
@@ -178,16 +179,15 @@ func (n *nginxIngressControllerReconciler) ManagedObjects(nic *approutingv1alpha
 		ServiceConfig:   nil, // TODO: take in lb annotations
 	}
 
-	var objs []client.Object
-	objs = append(objs, manifests.NginxIngressClass(n.conf, nginxIngressCfg)...)
-	objs = append(objs, manifests.NginxIngressControllerResources(n.conf, nginxIngressCfg)...)
-
+	res := manifests.GetNginxResources(n.conf, nginxIngressCfg)
 	owner := manifests.GetOwnerRefs(nic, true)
-	for _, obj := range objs {
-		obj.SetOwnerReferences(owner)
+	for _, obj := range res.Objects() {
+		if managedByUs(obj) {
+			obj.SetOwnerReferences(owner)
+		}
 	}
 
-	return objs
+	return res
 }
 
 func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) error {
@@ -246,8 +246,12 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (collision, error) {
 	lgr := log.FromContext(ctx)
 
-	objs := n.ManagedObjects(nic)
-	for _, obj := range objs {
+	res := n.ManagedResources(nic)
+	if res == nil {
+		return collisionNone, fmt.Errorf("getting managed objects")
+	}
+
+	for _, obj := range res.Objects() {
 		lgr := lgr.WithValues("kind", obj.GetObjectKind().GroupVersionKind().Kind, "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		// if we won't own the resource, we don't care about collisions.
@@ -284,6 +288,143 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 
 	lgr.Info("no collisions detected")
 	return collisionNone, nil
+}
+
+// updateStatus updates the status of the NginxIngressController resource. If a nil controller Deployment or IngressClass is passed, the status is defaulted for those fields if they are not already set.
+func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.NginxIngressController, controllerDeployment *appsv1.Deployment, ic *netv1.IngressClass, managedResourceRefs []approutingv1alpha1.ManagedObjectReference) {
+	if managedResourceRefs != nil {
+		nic.Status.ManagedResourceRefs = managedResourceRefs
+	}
+
+	if ic == nil || ic.CreationTimestamp.IsZero() {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "IngressClassUnknown",
+			Message: "IngressClass is unknown",
+		})
+	} else {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
+			Status:  "True",
+			Reason:  "IngressClassIsReady",
+			Message: "Ingress Class is up-to-date ",
+		})
+	}
+
+	// default conditions
+	if controllerDeployment == nil || controllerDeployment.CreationTimestamp.IsZero() {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "ControllerDeploymentUnknown",
+			Message: "Controller deployment is unknown",
+		})
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeProgressing,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "ControllerDeploymentUnknown",
+			Message: "Controller deployment is unknown",
+		})
+	} else {
+		nic.Status.ControllerReadyReplicas = controllerDeployment.Status.ReadyReplicas
+		nic.Status.ControllerAvailableReplicas = controllerDeployment.Status.AvailableReplicas
+		nic.Status.ControllerUnavailableReplicas = controllerDeployment.Status.UnavailableReplicas
+		nic.Status.ControllerReplicas = controllerDeployment.Status.Replicas
+
+		for _, cond := range controllerDeployment.Status.Conditions {
+			switch cond.Type {
+			case appsv1.DeploymentProgressing:
+				n.updateStatusControllerProgressing(nic, cond)
+			case appsv1.DeploymentAvailable:
+				n.updateStatusControllerAvailable(nic, cond)
+			}
+		}
+	}
+
+	controllerAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeControllerAvailable)
+	icAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeIngressClassReady)
+	if controllerAvailable != nil && icAvailable != nil && controllerAvailable.Status == metav1.ConditionTrue && icAvailable.Status == metav1.ConditionFalse {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+			Status:  "True",
+			Reason:  "ControllerIsAvailable",
+			Message: "Controller Deployment has minimum availability and IngressClass is up-to-date",
+		})
+	} else {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+			Status:  "False",
+			Reason:  "ControllerIsNotAvailable",
+			Message: "Controller Deployment does not have minimum availability or IngressClass is not up-to-date",
+		})
+	}
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusControllerAvailable(nic *approutingv1alpha1.NginxIngressController, availableCondition appsv1.DeploymentCondition) {
+	if availableCondition.Type != appsv1.DeploymentAvailable {
+		return
+	}
+
+	var cond metav1.Condition
+	switch availableCondition.Status {
+	case corev1.ConditionTrue:
+		cond = metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+			Status:  metav1.ConditionTrue,
+			Reason:  "ControllerDeploymentAvailable",
+			Message: "Controller Deployment is available",
+		}
+	case corev1.ConditionFalse:
+		cond = metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+			Status:  metav1.ConditionFalse,
+			Reason:  "ControllerDeploymentNotAvailable",
+			Message: "Controller Deployment is not available",
+		}
+	default:
+		cond = metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "ControllerDeploymentUnknown",
+			Message: "Controller Deployment is in an unknown state",
+		}
+	}
+
+	nic.SetCondition(cond)
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusControllerProgressing(nic *approutingv1alpha1.NginxIngressController, progressingCondition appsv1.DeploymentCondition) {
+	if progressingCondition.Type != appsv1.DeploymentProgressing {
+		return
+	}
+
+	var cond metav1.Condition
+	switch progressingCondition.Status {
+	case corev1.ConditionTrue:
+		cond = metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeProgressing,
+			Status:  metav1.ConditionTrue,
+			Reason:  "ControllerDeploymentProgressing",
+			Message: "Controller Deployment has successfully progressed",
+		}
+	case corev1.ConditionFalse:
+		cond = metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeProgressing,
+			Status:  metav1.ConditionFalse,
+			Reason:  "ControllerDeploymentNotProgressing",
+			Message: "Controller Deployment has failed to progress",
+		}
+	default:
+		cond = metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeProgressing,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "ControllerDeploymentProgressingUnknown",
+			Message: "Controller Deployment progress is unknown",
+		}
+	}
+
+	nic.SetCondition(cond)
 }
 
 func managedByUs(obj client.Object) bool {

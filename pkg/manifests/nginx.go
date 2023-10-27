@@ -34,9 +34,39 @@ type resourceType struct {
 	Name string
 }
 
+type NginxResources struct {
+	IngressClass            *netv1.IngressClass
+	ServiceAccount          *corev1.ServiceAccount
+	ClusterRole             *rbacv1.ClusterRole
+	Role                    *rbacv1.Role
+	ClusterRoleBinding      *rbacv1.ClusterRoleBinding
+	RoleBinding             *rbacv1.RoleBinding
+	Service                 *corev1.Service
+	Deployment              *appsv1.Deployment
+	ConfigMap               *corev1.ConfigMap
+	HorizontalPodAutoscaler *autov1.HorizontalPodAutoscaler
+	PodDisruptionBudget     *policyv1.PodDisruptionBudget
+}
+
+func (n *NginxResources) Objects() []client.Object {
+	return []client.Object{
+		n.IngressClass,
+		n.ServiceAccount,
+		n.ClusterRole,
+		n.Role,
+		n.ClusterRoleBinding,
+		n.RoleBinding,
+		n.Service,
+		n.Deployment,
+		n.ConfigMap,
+		n.HorizontalPodAutoscaler,
+		n.PodDisruptionBudget,
+	}
+}
+
 var (
-	// NginxResources is a list of resource types used to deploy the Nginx Ingress Controller
-	NginxResources = []resourceType{
+	// NginxResourceTypes is a list of resource types used to deploy the Nginx Ingress Controller
+	NginxResourceTypes = []resourceType{
 		{
 			Group:   netv1.GroupName,
 			Version: netv1.SchemeGroupVersion.Version,
@@ -139,6 +169,29 @@ type ServiceConfig struct {
 	Hostname   string
 }
 
+func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
+	res := &NginxResources{
+		IngressClass:            newNginxIngressClass(conf, ingressConfig),
+		ServiceAccount:          newNginxIngressControllerServiceAccount(conf, ingressConfig),
+		ClusterRole:             newNginxIngressControllerClusterRole(conf, ingressConfig),
+		Role:                    newNginxIngressControllerRole(conf, ingressConfig),
+		ClusterRoleBinding:      newNginxIngressControllerClusterRoleBinding(conf, ingressConfig),
+		RoleBinding:             newNginxIngressControllerRoleBinding(conf, ingressConfig),
+		Service:                 newNginxIngressControllerService(conf, ingressConfig),
+		Deployment:              newNginxIngressControllerDeployment(conf, ingressConfig),
+		ConfigMap:               newNginxIngressControllerConfigmap(conf, ingressConfig),
+		HorizontalPodAutoscaler: newNginxIngressControllerHPA(conf, ingressConfig),
+		PodDisruptionBudget:     newNginxIngressControllerPDB(conf, ingressConfig),
+	}
+
+	for _, obj := range res.Objects() {
+		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
+		obj.SetLabels(l)
+	}
+
+	return res
+}
+
 // NginxIngressClass returns an IngressClass for the provided configuration
 func NginxIngressClass(conf *config.Config, ingressConfig *NginxIngressConfig) []client.Object {
 	ing := &netv1.IngressClass{
@@ -187,6 +240,19 @@ func NginxIngressControllerResources(conf *config.Config, ingressConfig *NginxIn
 	}
 
 	return objs
+}
+
+func newNginxIngressClass(conf *config.Config, ingressConfig *NginxIngressConfig) *netv1.IngressClass {
+	return &netv1.IngressClass{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "IngressClass",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: ingressConfig.IcName, Labels: GetTopLevelLabels()},
+		Spec: netv1.IngressClassSpec{
+			Controller: ingressConfig.ControllerClass,
+		},
+	}
 }
 
 func newNginxIngressControllerServiceAccount(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.ServiceAccount {
