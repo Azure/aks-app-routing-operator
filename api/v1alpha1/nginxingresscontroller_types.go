@@ -1,8 +1,24 @@
 package v1alpha1
 
 import (
+	"fmt"
+	"unicode"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+func init() {
+	SchemeBuilder.Register(&NginxIngressController{}, &NginxIngressControllerList{})
+}
+
+const (
+	maxNameLength           = 100
+	maxControllerNamePrefix = 253 - 10 // 253 is the max length of resource names - 10 to account for the length of the suffix https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
+)
+
+const (
+	defaultControllerNamePrefix = "nginx"
 )
 
 // Important: Run "make crd" to regenerate code after modifying this file
@@ -146,19 +162,45 @@ func (n *NginxIngressController) SetCondition(c metav1.Condition) {
 
 // Valid checks this NginxIngressController to see if it's valid. Returns a string describing the validation error, if any, or empty string if there is no error.
 func (n *NginxIngressController) Valid() string {
+	// controller name prefix must follow https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
+	// we don't check for ending because this is a prefix
 	if n.Spec.ControllerNamePrefix == "" {
 		return "spec.controllerNamePrefix must be specified"
 	}
 
+	if !startsWithAlphaNum(n.Spec.ControllerNamePrefix) {
+		return "spec.controllerNamePrefix must start with alphanumeric character"
+	}
+
+	if !onlyAlphaNumDashPeriod(n.Spec.ControllerNamePrefix) {
+		return "spec.controllerNamePrefix must contain only alphanumeric characters, dashes, and periods"
+	}
+
+	if len(n.Spec.ControllerNamePrefix) > maxControllerNamePrefix {
+		return fmt.Sprintf("spec.controllerNamePrefix length must be less than or equal to %d characters", maxControllerNamePrefix)
+
+	}
+
+	// ingress class  name must follow https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
 	if n.Spec.IngressClassName == "" {
 		return "spec.ingressClassName must be specified"
 	}
 
-	if len(n.Name) > 100 {
-		return "Name length must be less than or equal to 100 characters"
+	if !startsWithAlphaNum(n.Spec.IngressClassName) {
+		return "spec.ingressClassName must start with alphanumeric character"
 	}
 
-	// TODO: add more specific validations https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+	if !onlyAlphaNumDashPeriod(n.Spec.IngressClassName) {
+		return "spec.ingressClassName must contain only alphanumeric characters, dashes, and periods"
+	}
+
+	if !endsWithAlphaNum(n.Spec.IngressClassName) {
+		return "spec.ingressClassName must end with alphanumeric character"
+	}
+
+	if len(n.Name) > maxNameLength {
+		return fmt.Sprintf("Name length must be less than or equal to %d characters", maxNameLength)
+	}
 
 	return ""
 }
@@ -169,7 +211,7 @@ func (n *NginxIngressController) Default() {
 	}
 
 	if n.Spec.ControllerNamePrefix == "" {
-		n.Spec.ControllerNamePrefix = "nginx"
+		n.Spec.ControllerNamePrefix = defaultControllerNamePrefix
 	}
 }
 
@@ -183,6 +225,28 @@ type NginxIngressControllerList struct {
 	Items           []NginxIngressController `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&NginxIngressController{}, &NginxIngressControllerList{})
+func startsWithAlphaNum(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+
+	return unicode.IsLetter(rune(s[0])) || unicode.IsDigit(rune(s[0]))
+}
+
+func endsWithAlphaNum(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+
+	return unicode.IsLetter(rune(s[len(s)-1])) || unicode.IsDigit(rune(s[len(s)-1]))
+}
+
+func onlyAlphaNumDashPeriod(s string) bool {
+	for _, c := range s {
+		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '-' && c != '.' {
+			return false
+		}
+	}
+
+	return true
 }
