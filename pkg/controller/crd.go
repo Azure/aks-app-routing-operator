@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ import (
 // loadCRDs loads the CRDs from the specified path into the cluster
 func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 	if cfg == nil {
-		return fmt.Errorf("config cannot be nil")
+		return errors.New("config cannot be nil")
 	}
 
 	log = log.WithValues("crdPath", cfg.CrdPath)
