@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -164,6 +165,119 @@ func TestNginxIngressControllerDefault(t *testing.T) {
 			t.Errorf("NginxIngressController.Default() = %v, want %v", nic.Spec.ControllerNamePrefix, existingControllerNamePrefix)
 		}
 	})
+}
+
+func TestNginxIngressControllerGetCondition(t *testing.T) {
+	nic := validNginxIngressController()
+	cond := metav1.Condition{
+		Type:   "test",
+		Status: metav1.ConditionTrue,
+	}
+	got := nic.GetCondition(cond.Type)
+	if got != nil {
+		t.Errorf("NginxIngressController.GetCondition() = %v, want nil", got)
+	}
+
+	meta.SetStatusCondition(&nic.Status.Conditions, cond)
+	got = nic.GetCondition(cond.Type)
+	if got == nil {
+		t.Errorf("NginxIngressController.GetCondition() = nil, want %v", cond)
+	}
+	if got.Status != cond.Status {
+		t.Errorf("NginxIngressController.GetCondition() = %v, want %v", got.Status, cond.Status)
+	}
+}
+
+func TestNginxIngressControllerSetCondition(t *testing.T) {
+	// new condition
+	nic := validNginxIngressController()
+	nic.Generation = 456
+
+	cond := metav1.Condition{
+		Type:    "test",
+		Status:  metav1.ConditionTrue,
+		Reason:  "reason",
+		Message: "message",
+	}
+
+	nic.SetCondition(cond)
+	got := nic.GetCondition(cond.Type)
+	if got == nil {
+		t.Errorf("NginxIngressController.SetCondition() = nil, want %v", cond)
+	}
+	if got.Status != cond.Status {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Status, cond.Status)
+	}
+	if got.ObservedGeneration != nic.Generation {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.ObservedGeneration, nic.Generation)
+	}
+	if got.Reason != cond.Reason {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Reason, cond.Reason)
+	}
+	if got.Message != cond.Message {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Message, cond.Message)
+	}
+
+	// set same condition
+	nic.Generation = 789
+	nic.SetCondition(cond)
+	got = nic.GetCondition(cond.Type)
+	if got == nil {
+		t.Errorf("NginxIngressController.SetCondition() = nil, want %v", cond)
+	}
+	if got.Status != cond.Status {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Status, cond.Status)
+	}
+	if got.ObservedGeneration != nic.Generation {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.ObservedGeneration, nic.Generation)
+	}
+	if got.Reason != cond.Reason {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Reason, cond.Reason)
+	}
+	if got.Message != cond.Message {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Message, cond.Message)
+	}
+
+	// set different condition
+	cond2 := metav1.Condition{
+		Type:   "test2",
+		Status: metav1.ConditionTrue,
+	}
+	nic.SetCondition(cond2)
+	got = nic.GetCondition(cond2.Type)
+	if got == nil {
+		t.Errorf("NginxIngressController.SetCondition() = nil, want %v", cond2)
+	}
+	if got.Status != cond2.Status {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Status, cond2.Status)
+	}
+	if got.ObservedGeneration != nic.Generation {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.ObservedGeneration, nic.Generation)
+	}
+	if got.Reason != cond2.Reason {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Reason, cond2.Reason)
+	}
+	if got.Message != cond2.Message {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Message, cond2.Message)
+	}
+
+	// old condition should not be changed
+	got = nic.GetCondition(cond.Type)
+	if got == nil {
+		t.Errorf("NginxIngressController.SetCondition() = nil, want %v", cond)
+	}
+	if got.Status != cond.Status {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Status, cond.Status)
+	}
+	if got.ObservedGeneration != nic.Generation {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.ObservedGeneration, nic.Generation)
+	}
+	if got.Reason != cond.Reason {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Reason, cond.Reason)
+	}
+	if got.Message != cond.Message {
+		t.Errorf("NginxIngressController.SetCondition() = %v, want %v", got.Message, cond.Message)
+	}
 }
 
 func TestStartsWithAlphaNum(t *testing.T) {
