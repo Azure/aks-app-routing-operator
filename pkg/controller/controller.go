@@ -7,11 +7,13 @@ import (
 	"context"
 	"net/http"
 
+	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -33,7 +36,9 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
-var scheme = runtime.NewScheme()
+var (
+	scheme = runtime.NewScheme()
+)
 
 func init() {
 	registerSchemes(scheme)
@@ -57,6 +62,8 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(secv1.Install(s))
 	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
+	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
+	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 }
 
 func NewManager(conf *config.Config) (ctrl.Manager, error) {
@@ -84,17 +91,26 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	m.AddHealthzCheck("liveness", func(req *http.Request) error { return nil })
 
-	kcs, err := kubernetes.NewForConfig(rc) // need non-caching client since manager hasn't started yet
+	// create non-caching clients, non-caching for use before manager has started
+	kcs, err := kubernetes.NewForConfig(rc)
+	if err != nil {
+		return nil, err
+	}
+	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
 		return nil, err
 	}
 
-	log := m.GetLogger()
-	deploy, err := getSelfDeploy(kcs, conf, log)
+	setupLog := m.GetLogger().WithName("setup")
+	deploy, err := getSelfDeploy(kcs, conf, setupLog)
 	if err != nil {
 		return nil, err
 	}
-	log.V(2).Info("using namespace: " + conf.NS)
+	setupLog.V(2).Info("using namespace: " + conf.NS)
+
+	if err := loadCRDs(cl, conf, setupLog); err != nil {
+		return nil, err
+	}
 
 	if err := dns.NewExternalDns(m, conf, deploy); err != nil {
 		return nil, err

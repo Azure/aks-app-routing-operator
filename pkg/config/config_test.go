@@ -5,10 +5,17 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	validCrdPath      = "../../config/crd/bases/"
+	notADirectoryPath = "./config.go"
+	notAValidPath     = "./does/not/exist"
 )
 
 var validateTestCases = []struct {
@@ -29,6 +36,7 @@ var validateTestCases = []struct {
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
 			ClusterUid:               "cluster-uid",
+			CrdPath:                  validCrdPath,
 		},
 	},
 	{
@@ -43,7 +51,40 @@ var validateTestCases = []struct {
 			ConcurrencyWatchdogThres: 101,
 			ConcurrencyWatchdogVotes: 2,
 			ClusterUid:               "test-cluster-uid",
+			CrdPath:                  validCrdPath,
 		},
+	},
+	{
+		Name: "nonexistent crd path",
+		Conf: &Config{
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
+			CrdPath:                  notAValidPath,
+		},
+		Error: fmt.Sprintf("crd path %s does not exist", notAValidPath),
+	},
+	{
+		Name: "non-directory crd path",
+		Conf: &Config{
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "test-cluster-uid",
+			CrdPath:                  notADirectoryPath,
+		},
+		Error: fmt.Sprintf("crd path %s is not a directory", notADirectoryPath),
 	},
 	{
 		Name: "missing-namespace",
