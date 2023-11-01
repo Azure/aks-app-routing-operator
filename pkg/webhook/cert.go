@@ -32,7 +32,7 @@ type certManager struct {
 
 func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr logr.Logger) error {
 	lgr.Info("ensuring webhook cert secret")
-	if err := c.ensureSecret(ctx, mgr); err != nil {
+	if err := c.ensureSecret(ctx, mgr.GetClient()); err != nil {
 		return fmt.Errorf("ensuring secret: %w", err)
 	}
 
@@ -109,9 +109,9 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 	return nil
 }
 
-func (c *certManager) ensureSecret(ctx context.Context, mgr manager.Manager) error {
+func (c *certManager) ensureSecret(ctx context.Context, cl client.Client) error {
 	secrets := &corev1.SecretList{}
-	if err := mgr.GetAPIReader().List(ctx, secrets, client.InNamespace(c.Namespace)); err != nil {
+	if err := cl.List(ctx, secrets, client.InNamespace(c.Namespace)); err != nil {
 		return fmt.Errorf("listing secrets: %w", err)
 	}
 
@@ -130,7 +130,7 @@ func (c *certManager) ensureSecret(ctx context.Context, mgr manager.Manager) err
 		},
 	}
 
-	if err := mgr.GetClient().Create(ctx, secret); err != nil {
+	if err := cl.Create(ctx, secret); err != nil {
 		return fmt.Errorf("creating secret: %w", err)
 	}
 
