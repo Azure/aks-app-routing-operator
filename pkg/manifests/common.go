@@ -11,6 +11,14 @@ import (
 
 const operatorName = "aks-app-routing-operator"
 
+// resourceType is a struct that represents a Kubernetes resource type
+type resourceType struct {
+	Group   string
+	Version string
+	// Name is the name of the resource type
+	Name string
+}
+
 // GetTopLevelLabels returns labels that every resource App Routing manages have
 func GetTopLevelLabels() map[string]string { // this is a function to avoid any accidental mutation due to maps being reference types
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}

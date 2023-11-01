@@ -32,6 +32,33 @@ spec:
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
           command: ["/aks-app-routing-operator"]
           args: []
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            periodSeconds: 5
+          startupProbe:
+            failureThreshold: 7
+            httpGet:
+              path: /readyz
+              port: 8080
+            periodSeconds: 5
+      volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: app-routing-webhook-secret
+            optional: true
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -42,3 +69,22 @@ spec:
   selector:
     matchLabels:
       app: app-routing-operator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-routing-operator-webhook
+  namespace: kube-system
+spec:
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: client
+      port: 9443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    app: app-routing-operator
+  sessionAffinity: None
+  type: ClusterIP
