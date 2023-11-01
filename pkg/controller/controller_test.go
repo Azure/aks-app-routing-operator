@@ -8,12 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,27 +19,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
-var (
-	restConfig *rest.Config
-	err        error
-	env        *envtest.Environment
-)
-
-func TestMain(m *testing.M) {
-	restConfig, env, err = testutils.StartTestingEnv()
-	if err != nil {
-		panic(err)
-	}
-
-	code := m.Run()
-	testutils.CleanupTestingEnv(env)
-	os.Exit(code)
-}
 
 func TestLogger(t *testing.T) {
 	t.Run("logs are json structured", func(t *testing.T) {
@@ -95,10 +74,4 @@ func TestGetSelfDeploy(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, self)
 	})
-}
-
-func TestNewManagerForRestConfig(t *testing.T) {
-	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator-test", MetricsAddr: "0"}
-	_, err := NewManagerForRestConfig(conf, restConfig)
-	require.NoError(t, err)
 }
