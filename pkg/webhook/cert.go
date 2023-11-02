@@ -30,9 +30,9 @@ type certManager struct {
 	Ready chan struct{}
 }
 
-func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr logr.Logger) error {
+func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr logr.Logger, cl client.Client) error {
 	lgr.Info("ensuring webhook cert secret")
-	if err := c.ensureSecret(ctx, mgr.GetClient()); err != nil {
+	if err := c.ensureSecret(ctx, cl); err != nil {
 		return fmt.Errorf("ensuring secret: %w", err)
 	}
 

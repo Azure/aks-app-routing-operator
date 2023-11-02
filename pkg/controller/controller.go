@@ -128,7 +128,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	certsReady := make(chan struct{})
-	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady); err != nil {
+	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady, cl); err != nil {
 		return nil, fmt.Errorf("adding cert manager: %w", err)
 	}
 

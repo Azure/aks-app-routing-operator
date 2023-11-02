@@ -125,9 +125,6 @@ var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Clien
 		lgr := lgr.WithValues("sarResource", resource.Name, "sarGroup", resource.Group, "sarVersion", resource.Version)
 		lgr.Info("checking permissions for resource")
 		sar := authv1.SubjectAccessReview{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "nginx-ingress-controller-validation",
-			},
 			Spec: authv1.SubjectAccessReviewSpec{
 				ResourceAttributes: &authv1.ResourceAttributes{
 					// TODO: add namespace check, this is a bit harder because we need to check if resource is namespaced
