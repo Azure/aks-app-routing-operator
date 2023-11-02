@@ -32,8 +32,9 @@ func init() {
 		AddToManager: func(mgr manager.Manager) error {
 			mgr.GetWebhookServer().Register(validationPath, &webhook.Admission{
 				Handler: &nginxIngressResourceValidator{
-					client:  mgr.GetClient(),
-					decoder: admission.NewDecoder(mgr.GetScheme()),
+					client:       mgr.GetClient(),
+					decoder:      admission.NewDecoder(mgr.GetScheme()),
+					authenticate: sarAuthenticate,
 				},
 			})
 
@@ -103,28 +104,34 @@ func init() {
 	})
 }
 
+type authenticateFn func(ctx context.Context, lgr logr.Logger, cl client.Client, req admission.Request) (string, error)
+
 type nginxIngressResourceValidator struct {
 	client  client.Client
 	decoder *admission.Decoder
+	// authenticate is a function that checks if the request user is authorized to perform the request.
+	// The returned string indicates whether the user is allowed, empty string indicates allowed and non-empty will
+	// be equal to the reason why they're not allowed. Error will be returned if something goes wrong while verifying the user can request
+	authenticate authenticateFn
 }
 
-func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", req.Name, "namespace", req.Namespace, "operation", req.Operation).WithName("nginxIngressResourceValidator")
-
+var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Client, req admission.Request) (string, error) {
 	// ensure user has permissions required
 	lgr.Info("checking permissions")
 	extra := make(map[string]authv1.ExtraValue)
 	for k, v := range req.UserInfo.Extra {
 		extra[k] = authv1.ExtraValue(v)
 	}
-	// todo: use multiple go routines to make these calls in parallel?
 	for _, resource := range manifests.NginxResourceTypes {
 		lgr := lgr.WithValues("sarResource", resource.Name, "sarGroup", resource.Group, "sarVersion", resource.Version)
 		lgr.Info("checking permissions for resource")
 		sar := authv1.SubjectAccessReview{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nginx-ingress-controller-validation",
+			},
 			Spec: authv1.SubjectAccessReviewSpec{
 				ResourceAttributes: &authv1.ResourceAttributes{
-					// TODO: add namespace check
+					// TODO: add namespace check, this is a bit harder because we need to check if resource is namespaced
 					Namespace: "",
 					Verb:      "*",
 					Group:     resource.Group,
@@ -138,21 +145,35 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 			},
 		}
 		lgr.Info("performing SubjectAccessReview")
-		if err := n.client.Create(ctx, &sar); err != nil {
+		if err := cl.Create(ctx, &sar); err != nil {
 			lgr.Error(err, "creating SubjectAccessReview")
-			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("creating SubjectAccessReview: %w", err))
+			return "", fmt.Errorf("creating SubjectAccessReview: %w", err)
 		}
 		if sar.Status.Denied || (!sar.Status.Allowed) {
 			lgr.Info("denied due to permissions", "reason", sar.Status.Reason)
-			// TODO: add permissions check they are failing here and use sar.Status.Reason
-			return admission.Denied(
-				fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'. ",
-					req.UserInfo.Username, sar.Spec.ResourceAttributes.Verb, sar.Spec.ResourceAttributes.Resource, sar.Spec.ResourceAttributes.Group, sar.Spec.ResourceAttributes.Version,
-				))
+			return fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'. ",
+				req.UserInfo.Username, sar.Spec.ResourceAttributes.Verb, sar.Spec.ResourceAttributes.Resource, sar.Spec.ResourceAttributes.Group, sar.Spec.ResourceAttributes.Version,
+			), nil
 		}
 
 	}
 	lgr.Info("permissions check passed")
+	return "", nil
+}
+
+func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
+	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", req.Name, "namespace", req.Namespace, "operation", req.Operation).WithName("nginxIngressResourceValidator")
+
+	// ensure user has permissions required
+	cantPerform, err := n.authenticate(ctx, lgr, n.client, req)
+	if err != nil {
+		lgr.Error(err, "checking permissions")
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	if cantPerform != "" {
+		lgr.Info("denied due to permissions", "reason", cantPerform)
+		return admission.Denied(cantPerform)
+	}
 
 	if req.Operation == admissionv1.Delete {
 		return admission.Allowed("")
@@ -168,7 +189,8 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 	if invalidReason := nginxIngressController.Valid(); invalidReason != "" {
 		return admission.Denied(invalidReason)
 	}
-	// TODO: record metrics
+
+	// TODO: record metrics, will add later
 
 	if req.Operation == admissionv1.Create {
 		lgr.Info("checking if IngressClass already exists")
