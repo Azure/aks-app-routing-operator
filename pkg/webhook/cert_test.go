@@ -12,6 +12,42 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+const (
+	certDirWithoutCerts = "."
+	certDirWithCerts    = "testcerts/"
+)
+
+func TestAreCertsMounted(t *testing.T) {
+	cases := []struct {
+		name     string
+		certDir  string
+		expected bool
+	}{
+		{
+			name:     "certs not mounted",
+			certDir:  certDirWithoutCerts,
+			expected: false,
+		},
+		{
+			name:     "certs mounted",
+			certDir:  certDirWithCerts,
+			expected: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cm := certManager{
+				CertDir: c.certDir,
+			}
+
+			res, err := cm.areCertsMounted()
+			require.Equal(t, c.expected, res, "expected result to be %v", c.expected)
+			require.NoError(t, err, "expected no error")
+		})
+	}
+}
+
 func TestEnsureSecret(t *testing.T) {
 	t.Run("new secret", func(t *testing.T) {
 		cl := fake.NewClientBuilder().Build()

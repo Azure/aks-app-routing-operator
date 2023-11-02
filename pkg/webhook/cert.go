@@ -37,35 +37,11 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 	}
 
 	// workaround for https://github.com/open-policy-agent/cert-controller/issues/53
-	// this is fine for now
 	certsMounted := make(chan struct{})
-	go func() {
-		checkCertsMounted := func() (bool, error) {
-			lgr.Info("checking if certs are mounted")
-			certFile := path.Join(c.CertDir, "tls.crt")
-			_, err := os.Stat(certFile)
-			if err == nil {
-				return true, nil
-			}
-
-			return false, nil
-		}
-
-		if err := wait.ExponentialBackoff(wait.Backoff{
-			Duration: 1 * time.Second,
-			Factor:   2,
-			Jitter:   1,
-			Steps:    10,
-		}, checkCertsMounted); err != nil {
-			lgr.Error(err, "waiting for certs to be mounted")
-			return
-		}
-
-		lgr.Info("certs mounted")
-		close(certsMounted)
-	}()
-
+	go c.pollForCertsMounted(lgr, certsMounted)
 	certsRotated := make(chan struct{})
+	go c.signalReady(lgr, certsMounted, certsRotated)
+
 	if err := rotator.AddRotator(mgr, &rotator.CertRotator{
 		SecretKey: types.NamespacedName{
 			Name:      c.SecretName,
@@ -87,26 +63,51 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 		return fmt.Errorf("adding rotator: %w", err)
 	}
 
-	go func() {
+	return nil
+}
+
+func (c *certManager) signalReady(lgr logr.Logger, certsMounted, certsRotated <-chan struct{}) {
+	select {
+	case <-certsRotated:
+		lgr.Info("certs rotated")
+		close(c.Ready)
+	case <-certsMounted:
+		waitTime := 25 * time.Second
+		lgr.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s", waitTime))
+
 		select {
 		case <-certsRotated:
 			lgr.Info("certs rotated")
-			close(c.Ready)
-		case <-certsMounted:
-			waitTime := 25 * time.Second
-			lgr.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s", waitTime))
-
-			select {
-			case <-certsRotated:
-				lgr.Info("certs rotated")
-			case <-time.After(waitTime):
-				lgr.Info("waited for certs to be rotated, continuing")
-			}
-			close(c.Ready)
+		case <-time.After(waitTime):
+			lgr.Info("waited for certs to be rotated, continuing")
 		}
-	}()
+		close(c.Ready)
+	}
+}
 
-	return nil
+func (c *certManager) pollForCertsMounted(lgr logr.Logger, certsMounted chan<- struct{}) {
+	if err := wait.ExponentialBackoff(wait.Backoff{
+		Duration: 1 * time.Second,
+		Factor:   2,
+		Jitter:   1,
+		Steps:    10,
+	}, c.areCertsMounted); err != nil {
+		lgr.Error(err, "waiting for certs to be mounted")
+		return
+	}
+
+	lgr.Info("certs mounted")
+	close(certsMounted)
+}
+
+func (c *certManager) areCertsMounted() (bool, error) { // we don't use the error return but need the fn to match this form for the exponential backoff package
+	certFile := path.Join(c.CertDir, "tls.crt")
+	_, err := os.Stat(certFile)
+	if err == nil {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (c *certManager) ensureSecret(ctx context.Context, cl client.Client) error {
@@ -129,7 +130,6 @@ func (c *certManager) ensureSecret(ctx context.Context, cl client.Client) error 
 			Labels:    manifests.GetTopLevelLabels(),
 		},
 	}
-
 	if err := cl.Create(ctx, secret); err != nil {
 		return fmt.Errorf("creating secret: %w", err)
 	}

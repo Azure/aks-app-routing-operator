@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	globalCfg "github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -45,7 +46,7 @@ type config struct {
 // New returns a new webhook config
 func New(globalCfg *globalCfg.Config) (*config, error) {
 	if globalCfg == nil {
-		return nil, fmt.Errorf("config is nil")
+		return nil, errors.New("config is nil")
 	}
 
 	return &config{
@@ -122,11 +123,11 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 	whs := []client.Object{validatingWhc, mutatingWhc}
 	for _, wh := range whs {
 		copy := wh.DeepCopyObject().(client.Object)
-		lgr := lgr.WithValues("webhook", wh.GetName())
-		lgr.Info("upserting webhook configuration")
+		lgr := lgr.WithValues("resource", wh.GetName(), "resourceKind", wh.GetObjectKind().GroupVersionKind().Kind)
+		lgr.Info("upserting resource")
 
 		if err := util.Upsert(ctx, cl, copy); err != nil {
-			return fmt.Errorf("upserting webhook configuration: %w", err)
+			return fmt.Errorf("upserting resource: %w", err)
 		}
 	}
 
