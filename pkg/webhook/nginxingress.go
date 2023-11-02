@@ -70,7 +70,6 @@ func init() {
 		AddToManager: func(mgr manager.Manager) error {
 			mgr.GetWebhookServer().Register(mutationPath, &webhook.Admission{
 				Handler: &nginxIngressResourceMutator{
-					client:  mgr.GetClient(),
 					decoder: admission.NewDecoder(mgr.GetScheme()),
 				},
 			})
@@ -229,7 +228,6 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 }
 
 type nginxIngressResourceMutator struct {
-	client  client.Client
 	decoder *admission.Decoder
 }
 

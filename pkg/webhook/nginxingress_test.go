@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
+	"gomodules.xyz/jsonpatch/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +22,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
+
+var scheme = runtime.NewScheme()
+
+func init() {
+	approutingv1alpha1.AddToScheme(scheme)
+	clientgoscheme.AddToScheme(scheme)
+}
 
 var validNginxIngressController = &approutingv1alpha1.NginxIngressController{
 	ObjectMeta: metav1.ObjectMeta{
@@ -246,4 +255,80 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNginxIngressResourceMutator(t *testing.T) {
+	cases := []struct {
+		name     string
+		req      admission.Request
+		expected admission.Response
+	}{
+		{
+			name: "no mutation, all fields set",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Object: runtime.RawExtension{
+						Raw: toRaw(&approutingv1alpha1.NginxIngressController{
+							Spec: approutingv1alpha1.NginxIngressControllerSpec{
+								IngressClassName:     "ingressClassName",
+								ControllerNamePrefix: "prefix",
+							},
+						}),
+					},
+				},
+			},
+		},
+		{
+			name: "mutation",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Object: runtime.RawExtension{
+						Raw: toRaw(&approutingv1alpha1.NginxIngressController{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "name",
+							},
+							Spec: approutingv1alpha1.NginxIngressControllerSpec{
+								IngressClassName: "ingressClassName",
+							},
+						}),
+					},
+				},
+			},
+			expected: admission.Response{
+				Patches: []jsonpatch.JsonPatchOperation{
+					{
+						Operation: "add",
+						Path:      "/spec/controllerNamePrefix",
+						Value:     "nginx",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mutator := nginxIngressResourceMutator{
+				decoder: admission.NewDecoder(scheme),
+			}
+			actual := mutator.Handle(context.Background(), tc.req)
+
+			if actual.Allowed != true {
+				t.Errorf("expected allowed %v, got %v", true, actual.Allowed)
+			}
+
+			if len(actual.Patches) != len(tc.expected.Patches) {
+				t.Errorf("expected %d patches, got %d", len(tc.expected.Patches), len(actual.Patches))
+			}
+
+			for i, patch := range actual.Patches {
+				if !reflect.DeepEqual(patch, tc.expected.Patches[i]) {
+					t.Errorf("expected patch %v, got %v", tc.expected.Patches[i], patch)
+				}
+			}
+		})
+	}
+
 }
