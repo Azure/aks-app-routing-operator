@@ -67,10 +67,10 @@ func (c *certManager) addToManager(ctx context.Context, mgr manager.Manager, lgr
 }
 
 func (c *certManager) signalReady(lgr logr.Logger, certsMounted, certsRotated <-chan struct{}) {
+	// either wait for certs to be rotated or wait for them to be mounted with a wait time to allow for rotations to occur
 	select {
 	case <-certsRotated:
 		lgr.Info("certs rotated")
-		close(c.Ready)
 	case <-certsMounted:
 		waitTime := 25 * time.Second
 		lgr.Info(fmt.Sprintf("certs mounted but may not be fully rotated, waiting %s", waitTime))
@@ -81,8 +81,9 @@ func (c *certManager) signalReady(lgr logr.Logger, certsMounted, certsRotated <-
 		case <-time.After(waitTime):
 			lgr.Info("waited for certs to be rotated, continuing")
 		}
-		close(c.Ready)
 	}
+
+	close(c.Ready)
 }
 
 func (c *certManager) pollForCertsMounted(lgr logr.Logger, certsMounted chan<- struct{}) {
