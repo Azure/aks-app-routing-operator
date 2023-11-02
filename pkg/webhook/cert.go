@@ -130,7 +130,7 @@ func (c *certManager) ensureSecret(ctx context.Context, cl client.Client) error 
 			Labels:    manifests.GetTopLevelLabels(),
 		},
 	}
-	if err := cl.Create(ctx, secret); err != nil {
+	if err := client.IgnoreAlreadyExists(cl.Create(ctx, secret)); err != nil {
 		return fmt.Errorf("creating secret: %w", err)
 	}
 

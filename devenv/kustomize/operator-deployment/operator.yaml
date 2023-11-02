@@ -37,11 +37,10 @@ spec:
               name: cert
               readOnly: true
           livenessProbe:
-            failureThreshold: 6
             httpGet:
               path: /healthz
               port: 8080
-            periodSeconds: 20
+            periodSeconds: 5
           readinessProbe:
             httpGet:
               path: /readyz
