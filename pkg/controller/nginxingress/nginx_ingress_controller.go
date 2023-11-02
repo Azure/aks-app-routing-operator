@@ -36,17 +36,7 @@ var (
 	// collisionCountMu is used to prevent multiple nginxIngressController resources from determining their collisionCount at the same time. We use
 	// a hashed key mutex because collisions can only occur when the nginxIngressController resources have the same spec.ControllerName field. This
 	// is the field used to key into this mutex.
-	collisionCountMu = keymutex.NewHashed(6) // 6 is the number of "buckets". It's not too big, not too small todo: add more details
-)
-
-// collision represents the type of collision that occurred when reconciling an nginxIngressController resource.
-// will be used to help determine the way we should handle the collision.
-type collision int
-
-const (
-	collisionNone collision = iota
-	collisionIngressClass
-	collisionOther
+	collisionCountMu = keymutex.NewHashed(6) // 6 is the number of "buckets". It's not too big, not too small
 )
 
 // nginxIngressControllerReconciler reconciles a NginxIngressController object
@@ -95,7 +85,14 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, err
 	}
 
-	// no need for a finalizer, we use owner references to clean everything up since everything is in-cluster
+	lockKey := nginxIngressController.Spec.ControllerNamePrefix
+	collisionCountMu.LockKey(lockKey)
+	defer collisionCountMu.UnlockKey(lockKey)
+	if err := n.SetCollisionCount(ctx, &nginxIngressController); err != nil {
+		lgr.Error(err, "unable to set collision count")
+		return ctrl.Result{}, fmt.Errorf("setting collision count: %w", err)
+	}
+
 	resources := n.ManagedResources(&nginxIngressController)
 	if resources == nil {
 		return ctrl.Result{}, fmt.Errorf("unable to get managed resources")
@@ -129,15 +126,6 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 	ctx = log.IntoContext(ctx, lgr)
 	lgr.Info("starting to reconcile resource")
 	defer lgr.Info("finished reconciling resource", "latencySec", time.Since(start).Seconds())
-
-	lockKey := nic.Spec.ControllerNamePrefix
-	collisionCountMu.LockKey(lockKey)
-	defer collisionCountMu.UnlockKey(lockKey)
-
-	if err := n.SetCollisionCount(ctx, nic); err != nil {
-		lgr.Error(err, "unable to set collision count")
-		return nil, fmt.Errorf("setting collision count: %w", err)
-	}
 
 	var managedResourceRefs []approutingv1alpha1.ManagedObjectReference
 	for _, obj := range res.Objects() {
