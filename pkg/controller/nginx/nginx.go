@@ -4,14 +4,12 @@ import (
 	"context"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	appsv1 "k8s.io/api/apps/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -68,37 +66,11 @@ func New(m manager.Manager, conf *config.Config, self *appsv1.Deployment) ([]*ma
 		defaultIngConfig: defaultIngConfig,
 	}
 
-	if err := n.addIngressClassReconciler(); err != nil {
-		return nil, err
-	}
-
-	if err := n.addIngressControllerReconciler(); err != nil {
-		return nil, err
-	}
-
 	if err := n.addIngressReconciler(); err != nil {
 		return nil, err
 	}
 
 	return n.ingConfigs, nil
-}
-
-func (n *nginx) addIngressClassReconciler() error {
-	objs := []client.Object{}
-	for _, config := range n.ingConfigs {
-		objs = append(objs, manifests.NginxIngressClass(n.conf, n.self, config)...)
-	}
-
-	return ingress.NewIngressClassReconciler(n.manager, objs, n.name)
-}
-
-func (n *nginx) addIngressControllerReconciler() error {
-	objs := []client.Object{}
-	for _, config := range n.ingConfigs {
-		objs = append(objs, manifests.NginxIngressControllerResources(n.conf, n.self, config)...)
-	}
-
-	return ingress.NewIngressControllerReconciler(n.manager, objs, n.name)
 }
 
 func (n *nginx) addIngressReconciler() error {

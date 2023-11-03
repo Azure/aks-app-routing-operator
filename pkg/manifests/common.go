@@ -1,30 +1,23 @@
 package manifests
 
 import (
-	appsv1 "k8s.io/api/apps/v1"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 )
 
 const operatorName = "aks-app-routing-operator"
 
-// resourceType is a struct that represents a Kubernetes resource type
-type resourceType struct {
-	Group   string
-	Version string
-	// Name is the name of the resource type
-	Name string
-}
-
 // GetTopLevelLabels returns labels that every resource App Routing manages have
 func GetTopLevelLabels() map[string]string { // this is a function to avoid any accidental mutation due to maps being reference types
 	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
 }
 
-// Checks the first set of labels has the labels of the other passed in sets
+// HasTopLevelLabels returns true if the given labels match the top level labels
 func HasTopLevelLabels(objLabels map[string]string) bool {
 	if len(objLabels) == 0 {
 		return false
@@ -42,15 +35,20 @@ func HasTopLevelLabels(objLabels map[string]string) bool {
 	return true
 }
 
-func getOwnerRefs(deploy *appsv1.Deployment) []metav1.OwnerReference {
-	if deploy == nil {
-		return nil
-	}
+// GetOwnerRefs returns the owner references for the given object
+func GetOwnerRefs(owner client.Object, controller bool) []metav1.OwnerReference {
+	gvk := owner.GetObjectKind().GroupVersionKind()
+	apiVersion := gvk.GroupVersion().String()
+	kind := gvk.Kind
+	name := owner.GetName()
+	uid := owner.GetUID()
+
 	return []metav1.OwnerReference{{
-		APIVersion: "apps/v1",
-		Kind:       "Deployment",
-		Name:       deploy.Name,
-		UID:        deploy.UID,
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
+		UID:        uid,
+		Controller: util.ToPtr(controller),
 	}}
 }
 
@@ -61,8 +59,9 @@ func namespace(conf *config.Config) *corev1.Namespace {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        conf.NS,
-			Labels:      GetTopLevelLabels(),
+			Name: conf.NS,
+			// don't set top-level labels,namespace is not managed by operator
+			Labels:      map[string]string{},
 			Annotations: map[string]string{},
 		},
 	}

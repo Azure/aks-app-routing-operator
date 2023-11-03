@@ -83,7 +83,7 @@ type ExternalDnsConfig struct {
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
-func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
+func ExternalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
 	var objs []client.Object
 
 	// Can safely assume the namespace exists if using kube-system
@@ -93,11 +93,6 @@ func ExternalDnsResources(conf *config.Config, self *appsv1.Deployment, external
 
 	for _, dnsConfig := range externalDnsConfigs {
 		objs = append(objs, externalDnsResourcesFromConfig(conf, dnsConfig)...)
-	}
-
-	owners := getOwnerRefs(self)
-	for _, obj := range objs {
-		obj.SetOwnerReferences(owners)
 	}
 
 	return objs

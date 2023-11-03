@@ -7,6 +7,8 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	autov1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,10 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 const (
@@ -125,13 +123,40 @@ func (n *NginxIngressConfig) PodLabels() map[string]string {
 
 // ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
 type ServiceConfig struct {
-	IsInternal bool
-	Hostname   string
+	Annotations map[string]string
 }
 
-// NginxIngressClass returns an IngressClass for the provided configuration
-func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
-	ing := &netv1.IngressClass{
+func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
+	res := &NginxResources{
+		IngressClass:            newNginxIngressControllerIngressClass(conf, ingressConfig),
+		ServiceAccount:          newNginxIngressControllerServiceAccount(conf, ingressConfig),
+		ClusterRole:             newNginxIngressControllerClusterRole(conf, ingressConfig),
+		Role:                    newNginxIngressControllerRole(conf, ingressConfig),
+		ClusterRoleBinding:      newNginxIngressControllerClusterRoleBinding(conf, ingressConfig),
+		RoleBinding:             newNginxIngressControllerRoleBinding(conf, ingressConfig),
+		Service:                 newNginxIngressControllerService(conf, ingressConfig),
+		Deployment:              newNginxIngressControllerDeployment(conf, ingressConfig),
+		ConfigMap:               newNginxIngressControllerConfigmap(conf, ingressConfig),
+		HorizontalPodAutoscaler: newNginxIngressControllerHPA(conf, ingressConfig),
+		PodDisruptionBudget:     newNginxIngressControllerPDB(conf, ingressConfig),
+	}
+
+	for _, obj := range res.Objects() {
+		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
+		obj.SetLabels(l)
+	}
+
+	// Can safely assume the namespace exists if using kube-system.
+	// Purposefully do this after applying the labels, namespace isn't an Nginx-specific resource
+	if conf.NS != "kube-system" {
+		res.Namespace = namespace(conf)
+	}
+
+	return res
+}
+
+func newNginxIngressControllerIngressClass(conf *config.Config, ingressConfig *NginxIngressConfig) *netv1.IngressClass {
+	return &netv1.IngressClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressClass",
 			APIVersion: "networking.k8s.io/v1",
@@ -141,50 +166,6 @@ func NginxIngressClass(conf *config.Config, self *appsv1.Deployment, ingressConf
 			Controller: ingressConfig.ControllerClass,
 		},
 	}
-	objs := []client.Object{ing}
-
-	owners := getOwnerRefs(self)
-	for _, obj := range objs {
-		obj.SetOwnerReferences(owners)
-
-		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
-		obj.SetLabels(l)
-	}
-
-	return objs
-}
-
-// NginxIngressControllerResources returns Kubernetes objects required for the controller
-func NginxIngressControllerResources(conf *config.Config, self *appsv1.Deployment, ingressConfig *NginxIngressConfig) []client.Object {
-	objs := []client.Object{}
-
-	// Can safely assume the namespace exists if using kube-system
-	if conf.NS != "kube-system" {
-		objs = append(objs, namespace(conf))
-	}
-
-	objs = append(objs,
-		newNginxIngressControllerServiceAccount(conf, ingressConfig),
-		newNginxIngressControllerClusterRole(conf, ingressConfig),
-		newNginxIngressControllerClusterRoleBinding(conf, ingressConfig),
-		newNginxIngressControllerRole(conf, ingressConfig),
-		newNginxIngressControllerRoleBinding(conf, ingressConfig),
-		newNginxIngressControllerService(conf, ingressConfig),
-		newNginxIngressControllerDeployment(conf, ingressConfig),
-		newNginxIngressControllerConfigmap(conf, ingressConfig),
-		newNginxIngressControllerPDB(conf, ingressConfig),
-		newNginxIngressControllerHPA(conf, ingressConfig),
-	)
-
-	owners := getOwnerRefs(self)
-	for _, obj := range objs {
-		obj.SetOwnerReferences(owners)
-
-		l := util.MergeMaps(obj.GetLabels(), nginxLabels)
-		obj.SetLabels(l)
-	}
-
-	return objs
 }
 
 func newNginxIngressControllerServiceAccount(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.ServiceAccount {
@@ -382,26 +363,15 @@ func newNginxIngressControllerRoleBinding(conf *config.Config, ingressConfig *Ng
 }
 
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
-	isInternal := false
-	hostname := ""
-	if ingressConfig.ServiceConfig != nil { // this should always be nil prior to dynamic provisioning work
-		isInternal = ingressConfig.ServiceConfig.IsInternal
-		hostname = ingressConfig.ServiceConfig.Hostname
-	}
-
 	annotations := make(map[string]string)
-	if isInternal {
-		annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true"
-	}
-	if hostname != "" {
-		annotations["external-dns.alpha.kubernetes.io/hostname"] = "loadbalancer." + hostname
-	}
-	if hostname != "" && isInternal {
-		annotations["external-dns.alpha.kubernetes.io/internal-hostname"] = "clusterip." + hostname
-	}
-
 	for k, v := range promAnnotations {
 		annotations[k] = v
+	}
+
+	if ingressConfig != nil && ingressConfig.ServiceConfig != nil {
+		for k, v := range ingressConfig.ServiceConfig.Annotations {
+			annotations[k] = v
+		}
 	}
 
 	return &corev1.Service{

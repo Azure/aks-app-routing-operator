@@ -10,6 +10,7 @@ import (
 	"os"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/webhook"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
@@ -165,8 +166,12 @@ func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error)
 func setupControllers(mgr ctrl.Manager, conf *config.Config) error {
 	var selfDeploy *appsv1.Deployment = nil // self deploy doesn't work because operator isn't in same resources as child resources
 
-	if err := dns.NewExternalDns(mgr, conf, selfDeploy); err != nil {
+	if err := dns.NewExternalDns(mgr, conf); err != nil {
 		return fmt.Errorf("setting up external dns controller: %w", err)
+	}
+
+	if err := nginxingress.NewReconciler(conf, mgr); err != nil {
+		return fmt.Errorf("setting up nginx ingress controller reconciler: %w", err)
 	}
 
 	nginxConfigs, err := nginx.New(mgr, conf, selfDeploy)
