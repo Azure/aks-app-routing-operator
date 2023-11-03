@@ -3,7 +3,6 @@ package webhook
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -31,8 +30,8 @@ const (
 )
 
 var (
-	nginxResourceValidationName = controllername.New("nginxIngressResourceValidator")
-	nginxResourceMutationName   = controllername.New("nginxIngressResourceMutator")
+	nginxResourceValidationName = controllername.New("nginx", "ingress", "resource", "validator")
+	nginxResourceMutationName   = controllername.New("nginx", "ingress", "resource", "mutator")
 )
 
 func init() {
@@ -167,10 +166,10 @@ var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Clien
 	return "", nil
 }
 
-func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admission.Request) (resp admission.Response) {
 	var err error
 	defer func() {
-		metrics.HandleWebhookHandlerMetrics(nginxResourceValidationName, err)
+		metrics.HandleWebhookHandlerMetrics(nginxResourceValidationName, resp, err)
 	}()
 
 	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", req.Name, "namespace", req.Namespace, "operation", req.Operation).WithName(nginxResourceValidationName.LoggerName())
@@ -194,12 +193,12 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 	lgr.Info("decoding NginxIngressController resource")
 	var nginxIngressController approutingv1alpha1.NginxIngressController
 	if err = n.decoder.Decode(req, &nginxIngressController); err != nil {
+		lgr.Error(err, "decoding nginx ingress controller")
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
 	}
 
 	// basic spec validation (everything we can check without making API calls)
 	if invalidReason := nginxIngressController.Valid(); invalidReason != "" {
-		err = errors.New("invalid nginx ingress controller")
 		return admission.Denied(invalidReason)
 	}
 
@@ -215,11 +214,12 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		lgr.Info("attempting to get IngressClass " + ic.Name)
 		err = n.client.Get(ctx, client.ObjectKeyFromObject(ic), ic)
 		if err == nil {
-			err = errors.New("ingress class already exists")
+			lgr.Info("denied because IngressClass already exists")
 			return admission.Denied(fmt.Sprintf("IngressClass %s already exists. Delete or use a different spec.IngressClassName field", ic.Name))
 		}
 		// err can still be populated as not found after this so be careful to overwrite for accurate metrics if needed
 		if !k8serrors.IsNotFound(err) {
+			lgr.Error(err, "get IngressClass")
 			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("getting IngressClass %s: %w", ic.Name, err))
 		}
 
@@ -234,7 +234,6 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		for _, nic := range nginxIngressControllerList.Items {
 			if nic.Spec.IngressClassName == nginxIngressController.Spec.IngressClassName {
 				lgr.Info("denied admission. IngressClass already exists on NginxIngressController " + nic.Name)
-				err = errors.New("ingressclass already exists on nginx ingress controller")
 				return admission.Denied(fmt.Sprintf("IngressClass %s already exists on NginxIngressController %s. Use a different spec.IngressClassName field", nic.Spec.IngressClassName, nic.Name))
 			}
 		}
@@ -248,10 +247,10 @@ type nginxIngressResourceMutator struct {
 	decoder *admission.Decoder
 }
 
-func (n nginxIngressResourceMutator) Handle(ctx context.Context, request admission.Request) admission.Response {
+func (n nginxIngressResourceMutator) Handle(ctx context.Context, request admission.Request) (resp admission.Response) {
 	var err error
 	defer func() {
-		metrics.HandleWebhookHandlerMetrics(nginxResourceMutationName, err)
+		metrics.HandleWebhookHandlerMetrics(nginxResourceMutationName, resp, err)
 	}()
 
 	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", request.Name, "namespace", request.Namespace, "operation", request.Operation).WithName(nginxResourceMutationName.LoggerName())
@@ -264,6 +263,7 @@ func (n nginxIngressResourceMutator) Handle(ctx context.Context, request admissi
 	lgr.Info("decoding NginxIngressController resource")
 	var nginxIngressController approutingv1alpha1.NginxIngressController
 	if err = n.decoder.Decode(request, &nginxIngressController); err != nil {
+		lgr.Error(err, "decoding nginx ingress controller")
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
 	}
 
@@ -273,6 +273,7 @@ func (n nginxIngressResourceMutator) Handle(ctx context.Context, request admissi
 	var marshalled []byte
 	marshalled, err = json.Marshal(nginxIngressController)
 	if err != nil {
+		lgr.Error(err, "encoding nginx ingress controller")
 		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("marshalling NginxIngressController: %w", err))
 	}
 

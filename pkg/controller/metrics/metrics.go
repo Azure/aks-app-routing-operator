@@ -6,6 +6,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 var (
@@ -51,11 +52,14 @@ func HandleControllerReconcileMetrics(controllerName controllername.ControllerNa
 }
 
 // HandleWebhookHandlerMetrics is meant to be called within a defer for each webhook handler func.
-func HandleWebhookHandlerMetrics(controllerName controllername.ControllerNamer, err error) {
+func HandleWebhookHandlerMetrics(controllerName controllername.ControllerNamer, result admission.Response, err error) {
 	cn := controllerName.MetricsName()
 
 	switch {
 	case err != nil && !apierrors.IsNotFound(err):
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelError).Inc()
+		AppRoutingReconcileErrors.WithLabelValues(cn).Inc()
+	case result.Allowed == false:
 		AppRoutingReconcileTotal.WithLabelValues(cn, LabelError).Inc()
 		AppRoutingReconcileErrors.WithLabelValues(cn).Inc()
 	default:
