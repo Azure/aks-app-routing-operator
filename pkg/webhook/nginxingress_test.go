@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	"gomodules.xyz/jsonpatch/v2"
@@ -237,6 +240,10 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 		},
 	}
 
+	metrics.InitControllerMetrics(nginxResourceValidationName)
+	beforeErrCount := testutils.GetErrMetricCount(t, nginxResourceValidationName)
+	beforeSuccessCount := testutils.GetReconcileMetricCount(t, nginxResourceValidationName, metrics.LabelSuccess)
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			validator := nginxIngressResourceValidator{
@@ -255,6 +262,9 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 			}
 		})
 	}
+
+	require.Greater(t, testutils.GetErrMetricCount(t, nginxResourceValidationName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxResourceValidationName, metrics.LabelSuccess), beforeSuccessCount)
 }
 
 func TestNginxIngressResourceMutator(t *testing.T) {
@@ -278,6 +288,11 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 					},
 				},
 			},
+			expected: admission.Response{
+				AdmissionResponse: admissionv1.AdmissionResponse{
+					Allowed: true,
+				},
+			},
 		},
 		{
 			name: "mutation",
@@ -297,6 +312,9 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 				},
 			},
 			expected: admission.Response{
+				AdmissionResponse: admissionv1.AdmissionResponse{
+					Allowed: true,
+				},
 				Patches: []jsonpatch.JsonPatchOperation{
 					{
 						Operation: "add",
@@ -306,7 +324,31 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "mutation fails to decode bad input",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Object: runtime.RawExtension{
+						Raw: []byte{0, 0, 1, 2, 3},
+					},
+				},
+			},
+			expected: admission.Response{
+				AdmissionResponse: admissionv1.AdmissionResponse{
+					Allowed: false,
+					Result: &metav1.Status{
+						Code:    http.StatusBadRequest,
+						Message: fmt.Errorf("decoding NginxIngressController: %w", errors.New("failed decode")).Error(),
+					},
+				},
+			},
+		},
 	}
+
+	metrics.InitControllerMetrics(nginxResourceMutationName)
+	beforeErrCount := testutils.GetErrMetricCount(t, nginxResourceMutationName)
+	beforeSuccessCount := testutils.GetReconcileMetricCount(t, nginxResourceMutationName, metrics.LabelSuccess)
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -315,8 +357,8 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 			}
 			actual := mutator.Handle(context.Background(), tc.req)
 
-			if actual.Allowed != true {
-				t.Errorf("expected allowed %v, got %v", true, actual.Allowed)
+			if actual.Allowed != tc.expected.Allowed {
+				t.Errorf("expected allowed %v, got %v", tc.expected.Allowed, actual.Allowed)
 			}
 
 			if len(actual.Patches) != len(tc.expected.Patches) {
@@ -331,4 +373,6 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 		})
 	}
 
+	require.Greater(t, testutils.GetErrMetricCount(t, nginxResourceMutationName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxResourceMutationName, metrics.LabelSuccess), beforeSuccessCount)
 }
