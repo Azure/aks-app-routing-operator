@@ -41,9 +41,13 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
+	flag.StringVar(&Flags.OperatorNs, "operator-namespace", "kube-system", "namespace of the operator's k8s deployment")
+	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "app-routing-operator-webhook", "name of the operator's webhook service")
+	flag.IntVar(&Flags.WebhookPort, "webhook-port", 9443, "port to serve the webhook on")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
+	flag.StringVar(&Flags.CertDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "location of the certificates")
 }
 
 type DnsZoneConfig struct {
@@ -63,10 +67,14 @@ type Config struct {
 	ConcurrencyWatchdogThres            float64
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
+	OperatorNs                          string
 	OperatorDeployment                  string
+	OperatorWebhookService              string
+	WebhookPort                         int
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
 	CrdPath                             string
+	CertDir                             string
 }
 
 func (c *Config) Validate() error {
@@ -94,6 +102,18 @@ func (c *Config) Validate() error {
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
+	if c.OperatorNs == "" {
+		return errors.New("--operator-namespace is required")
+	}
+	if c.WebhookPort == 0 {
+		return errors.New("--webhook-port is required")
+	}
+	if c.OperatorDeployment == "" {
+		return errors.New("--operator-deployment is required")
+	}
+	if c.OperatorWebhookService == "" {
+		return errors.New("--operator-webhook-service is required")
+	}
 
 	if c.ClusterUid == "" {
 		return errors.New("--cluster-uid is required")
@@ -118,6 +138,10 @@ func (c *Config) Validate() error {
 	}
 	if !crdPathStat.IsDir() {
 		return fmt.Errorf("crd path %s is not a directory", c.CrdPath)
+	}
+
+	if c.CertDir == "" {
+		return errors.New("--cert-dir is required")
 	}
 
 	return nil
