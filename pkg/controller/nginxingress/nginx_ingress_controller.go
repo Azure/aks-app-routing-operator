@@ -121,7 +121,7 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	}
 	defer func() { // defer is before checking err so that we can update status even if there is an error
 		lgr.Info("updating status")
-		n.updateStatus(ctx, &nginxIngressController, controllerDeployment, ingressClass, managedRes, collisionCountErr)
+		n.updateStatus(&nginxIngressController, controllerDeployment, ingressClass, managedRes, collisionCountErr)
 		if statusErr := n.client.Status().Update(ctx, &nginxIngressController); statusErr != nil {
 			lgr.Error(statusErr, "unable to update NginxIngressController status")
 			if err == nil {
@@ -321,55 +321,15 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 }
 
 // updateStatus updates the status of the NginxIngressController resource. If a nil controller Deployment or IngressClass is passed, the status is defaulted for those fields if they are not already set.
-func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic *approutingv1alpha1.NginxIngressController, controllerDeployment *appsv1.Deployment, ic *netv1.IngressClass, managedResourceRefs []approutingv1alpha1.ManagedObjectReference, err error) {
-	lgr := log.FromContext(ctx)
+func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.NginxIngressController, controllerDeployment *appsv1.Deployment, ic *netv1.IngressClass, managedResourceRefs []approutingv1alpha1.ManagedObjectReference, err error) {
+	n.updateStatusManagedResourceRefs(nic, managedResourceRefs)
 
-	if managedResourceRefs != nil {
-		lgr.Info("updating managed resource refs status")
-		nic.Status.ManagedResourceRefs = managedResourceRefs
-	}
-
-	if ic == nil || ic.CreationTimestamp.IsZero() {
-		lgr.Info("adding IngressClassUnknown condition")
-		nic.SetCondition(metav1.Condition{
-			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
-			Status:  metav1.ConditionUnknown,
-			Reason:  "IngressClassUnknown",
-			Message: "IngressClass is unknown",
-		})
-	} else {
-		lgr.Info("adding IngressClassIsReady condition")
-		nic.SetCondition(metav1.Condition{
-			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
-			Status:  "True",
-			Reason:  "IngressClassIsReady",
-			Message: "Ingress Class is up-to-date ",
-		})
-	}
+	n.updateStatusIngressClass(nic, ic)
 
 	// default conditions
 	if controllerDeployment == nil || controllerDeployment.CreationTimestamp.IsZero() {
-		lgr.Info("adding ControllerDeploymentUnknown to ControllerAvailable condition")
-		nic.SetCondition(metav1.Condition{
-			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
-			Status:  metav1.ConditionUnknown,
-			Reason:  "ControllerDeploymentUnknown",
-			Message: "Controller deployment is unknown",
-		})
-		lgr.Info("adding ControllerDeploymentUnknown to Progressing condition")
-		nic.SetCondition(metav1.Condition{
-			Type:    approutingv1alpha1.ConditionTypeProgressing,
-			Status:  metav1.ConditionUnknown,
-			Reason:  "ControllerDeploymentUnknown",
-			Message: "Controller deployment is unknown",
-		})
+		n.updateStatusNilDeployment(nic)
 	} else {
-		lgr.Info("updating controller replicas status")
-		nic.Status.ControllerReadyReplicas = controllerDeployment.Status.ReadyReplicas
-		nic.Status.ControllerAvailableReplicas = controllerDeployment.Status.AvailableReplicas
-		nic.Status.ControllerUnavailableReplicas = controllerDeployment.Status.UnavailableReplicas
-		nic.Status.ControllerReplicas = controllerDeployment.Status.Replicas
-
 		for _, cond := range controllerDeployment.Status.Conditions {
 			switch cond.Type {
 			case appsv1.DeploymentProgressing:
@@ -380,10 +340,69 @@ func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic
 		}
 	}
 
+	n.updateStatusControllerReplicas(nic, controllerDeployment)
+	n.updateStatusAvailable(nic)
+
+	// error checking at end to take precedence over other conditions
+	n.updateStatusFromError(nic, err)
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusManagedResourceRefs(nic *approutingv1alpha1.NginxIngressController, managedResourceRefs []approutingv1alpha1.ManagedObjectReference) {
+	if managedResourceRefs == nil {
+		return
+	}
+
+	nic.Status.ManagedResourceRefs = managedResourceRefs
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusIngressClass(nic *approutingv1alpha1.NginxIngressController, ic *netv1.IngressClass) {
+	if ic == nil || ic.CreationTimestamp.IsZero() {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "IngressClassUnknown",
+			Message: "IngressClass is unknown",
+		})
+	} else {
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
+			Status:  "True",
+			Reason:  "IngressClassIsReady",
+			Message: "Ingress Class is up-to-date ",
+		})
+	}
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusNilDeployment(nic *approutingv1alpha1.NginxIngressController) {
+	nic.SetCondition(metav1.Condition{
+		Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
+		Status:  metav1.ConditionUnknown,
+		Reason:  "ControllerDeploymentUnknown",
+		Message: "Controller deployment is unknown",
+	})
+	nic.SetCondition(metav1.Condition{
+		Type:    approutingv1alpha1.ConditionTypeProgressing,
+		Status:  metav1.ConditionUnknown,
+		Reason:  "ControllerDeploymentUnknown",
+		Message: "Controller deployment is unknown",
+	})
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusControllerReplicas(nic *approutingv1alpha1.NginxIngressController, deployment *appsv1.Deployment) {
+	if deployment == nil {
+		return
+	}
+
+	nic.Status.ControllerReadyReplicas = deployment.Status.ReadyReplicas
+	nic.Status.ControllerAvailableReplicas = deployment.Status.AvailableReplicas
+	nic.Status.ControllerUnavailableReplicas = deployment.Status.UnavailableReplicas
+	nic.Status.ControllerReplicas = deployment.Status.Replicas
+}
+
+func (n *nginxIngressControllerReconciler) updateStatusAvailable(nic *approutingv1alpha1.NginxIngressController) {
 	controllerAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeControllerAvailable)
 	icAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeIngressClassReady)
 	if controllerAvailable != nil && icAvailable != nil && controllerAvailable.Status == metav1.ConditionTrue && icAvailable.Status == metav1.ConditionTrue {
-		lgr.Info("adding ControllerIsAvailable condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeAvailable,
 			Status:  metav1.ConditionTrue,
@@ -391,7 +410,6 @@ func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic
 			Message: "Controller Deployment has minimum availability and IngressClass is up-to-date",
 		})
 	} else {
-		lgr.Info("adding ControllerIsNotAvailable condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeAvailable,
 			Status:  metav1.ConditionFalse,
@@ -399,10 +417,10 @@ func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic
 			Message: "Controller Deployment does not have minimum availability or IngressClass is not up-to-date",
 		})
 	}
+}
 
-	// error checking at end to take precedence over other conditions
+func (n *nginxIngressControllerReconciler) updateStatusFromError(nic *approutingv1alpha1.NginxIngressController, err error) {
 	if errors.Is(err, icCollisionErr) {
-		lgr.Info("adding IngressClassCollision condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeProgressing,
 			Status:  metav1.ConditionFalse,
@@ -412,7 +430,6 @@ func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic
 		n.events.Event(nic, corev1.EventTypeWarning, "IngressClassCollision", "IngressClass already exists and is not owned by this controller. Change the spec.IngressClassName to an unused IngressClass name in a new NginxIngressController.")
 	}
 	if errors.Is(err, maxCollisionsErr) {
-		lgr.Info("adding TooManyCollisions condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeProgressing,
 			Status:  metav1.ConditionFalse,
