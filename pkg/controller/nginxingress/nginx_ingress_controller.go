@@ -31,11 +31,17 @@ const (
 )
 
 var (
+	icCollisionErr   = errors.New("collision on the IngressClass")
+	maxCollisionsErr = errors.New("max collisions reached")
+)
+
+var (
 	nginxIngressControllerReconcilerName = controllername.New("nginx", "ingress", "controller", "reconciler")
 
 	// collisionCountMu is used to prevent multiple nginxIngressController resources from determining their collisionCount at the same time. We use
 	// a hashed key mutex because collisions can only occur when the nginxIngressController resources have the same spec.ControllerNamePrefix field.
-	// This is the field used to key into this mutex.
+	// This is the field used to key into this mutex. Using this mutex prevents a race condition of multiple nginxIngressController resources attempting
+	// to determine their collisionCount at the same time then both attempting to create and take ownership of the same resources.
 	collisionCountMu = keymutex.NewHashed(6) // 6 is the number of "buckets". It's not too big, not too small
 )
 
@@ -67,8 +73,11 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 }
 
 func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
-	lgr := log.FromContext(ctx, "nginxIngressController", req.NamespacedName, "reconciler", "event")
+	start := time.Now()
+	lgr := log.FromContext(ctx, "nginxIngressController", req.NamespacedName)
 	ctx = log.IntoContext(ctx, lgr)
+	lgr.Info("reconciling NginxIngressController")
+	defer lgr.Info("finished reconciling resource", "latencySec", time.Since(start).String())
 
 	defer func() {
 		metrics.HandleControllerReconcileMetrics(nginxIngressControllerReconcilerName, res, err)
@@ -84,23 +93,32 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		lgr.Error(err, "unable to fetch NginxIngressController")
 		return ctrl.Result{}, err
 	}
+	lgr = lgr.WithValues("generation", nginxIngressController.Generation)
+	ctx = log.IntoContext(ctx, lgr)
+
+	var managedRes []approutingv1alpha1.ManagedObjectReference = nil
+	var controllerDeployment *appsv1.Deployment = nil
+	var ingressClass *netv1.IngressClass = nil
 
 	lockKey := nginxIngressController.Spec.ControllerNamePrefix
 	collisionCountMu.LockKey(lockKey)
 	defer collisionCountMu.UnlockKey(lockKey)
-	if err := n.SetCollisionCount(ctx, &nginxIngressController); err != nil {
-		lgr.Error(err, "unable to set collision count")
-		return ctrl.Result{}, fmt.Errorf("setting collision count: %w", err)
-	}
 
-	resources := n.ManagedResources(&nginxIngressController)
-	if resources == nil {
-		return ctrl.Result{}, fmt.Errorf("unable to get managed resources")
-	}
+	lgr.Info("determining collision count")
+	startingCollisionCount := nginxIngressController.Status.CollisionCount
+	newCollisionCount, collisionCountErr := n.GetCollisionCount(ctx, &nginxIngressController)
+	if collisionCountErr == nil && newCollisionCount != startingCollisionCount {
+		nginxIngressController.Status.CollisionCount = newCollisionCount
+		if err := n.client.Status().Update(ctx, &nginxIngressController); err != nil {
+			lgr.Error(err, "unable to update collision count status")
+			return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
+		}
 
-	managedRes, err := n.ReconcileResource(ctx, &nginxIngressController, resources)
-	defer func() {
-		n.updateStatus(&nginxIngressController, resources.Deployment, resources.IngressClass, managedRes)
+		return ctrl.Result{Requeue: true}, nil
+	}
+	defer func() { // defer is before checking err so that we can update status even if there is an error
+		lgr.Info("updating status")
+		n.updateStatus(ctx, &nginxIngressController, controllerDeployment, ingressClass, managedRes, collisionCountErr)
 		if statusErr := n.client.Status().Update(ctx, &nginxIngressController); statusErr != nil {
 			lgr.Error(statusErr, "unable to update NginxIngressController status")
 			if err == nil {
@@ -108,7 +126,28 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 			}
 		}
 	}()
+	if collisionCountErr != nil {
+		if isUnreconcilableError(collisionCountErr) {
+			lgr.Info("unreconcilable collision count")
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue in case cx fix the unreconilable reason
+		}
+
+		lgr.Error(collisionCountErr, "unable to get determine collision count")
+		return ctrl.Result{}, fmt.Errorf("determining collision count: %w", collisionCountErr)
+	}
+
+	lgr.Info("calculating managed resources")
+	resources := n.ManagedResources(&nginxIngressController)
+	if resources == nil {
+		return ctrl.Result{}, fmt.Errorf("unable to get managed resources")
+	}
+	controllerDeployment = resources.Deployment
+	ingressClass = resources.IngressClass
+
+	lgr.Info("reconciling managed resources")
+	managedRes, err = n.ReconcileResource(ctx, &nginxIngressController, resources)
 	if err != nil {
+		lgr.Error(err, "unable to reconcile resource")
 		return ctrl.Result{}, fmt.Errorf("reconciling resource: %w", err)
 	}
 
@@ -121,11 +160,7 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 		return nil, errors.New("nginxIngressController cannot be nil")
 	}
 
-	start := time.Now()
-	lgr := log.FromContext(ctx, "nginxIngressController", nic.GetName())
-	ctx = log.IntoContext(ctx, lgr)
-	lgr.Info("starting to reconcile resource")
-	defer lgr.Info("finished reconciling resource", "latencySec", time.Since(start).Seconds())
+	lgr := log.FromContext(ctx)
 
 	var managedResourceRefs []approutingv1alpha1.ManagedObjectReference
 	for _, obj := range res.Objects() {
@@ -136,14 +171,13 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 			return nil, fmt.Errorf("upserting object: %w", err)
 		}
 
-		if managedByUs(obj) {
+		if manifests.HasTopLevelLabels(obj.GetLabels()) {
 			managedResourceRefs = append(managedResourceRefs, approutingv1alpha1.ManagedObjectReference{
 				Name:      obj.GetName(),
 				Namespace: obj.GetNamespace(),
 				Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 				APIGroup:  obj.GetObjectKind().GroupVersionKind().Group,
 			})
-
 		}
 	}
 
@@ -157,7 +191,7 @@ func (n *nginxIngressControllerReconciler) ManagedResources(nic *approutingv1alp
 
 	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
 
-	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters
+	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
 	if len(cc) > controllerClassMaxLen {
 		cc = cc[:controllerClassMaxLen]
 	}
@@ -174,7 +208,7 @@ func (n *nginxIngressControllerReconciler) ManagedResources(nic *approutingv1alp
 	res := manifests.GetNginxResources(n.conf, nginxIngressCfg)
 	owner := manifests.GetOwnerRefs(nic, true)
 	for _, obj := range res.Objects() {
-		if managedByUs(obj) {
+		if manifests.HasTopLevelLabels(obj.GetLabels()) {
 			obj.SetOwnerReferences(owner)
 		}
 	}
@@ -182,21 +216,28 @@ func (n *nginxIngressControllerReconciler) ManagedResources(nic *approutingv1alp
 	return res
 }
 
-func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) error {
+func (n *nginxIngressControllerReconciler) GetCollisionCount(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (int32, error) {
 	lgr := log.FromContext(ctx)
-	startingCollisionCount := nic.Status.CollisionCount
 
-	// there's a limit to how many times we should try to find the collision count, we don't want to put too much stress on api server
-	// TODO: we should set a condition when hit + jitter retry interval
-	for i := 0; i < 10; i++ {
+	// it's not this fn's job to overwrite the collision count, so we revert any changes we make
+	startingCollisionCount := nic.Status.CollisionCount
+	defer func() {
+		nic.Status.CollisionCount = startingCollisionCount
+	}()
+
+	for {
+		lgr = lgr.WithValues("collisionCount", nic.Status.CollisionCount)
 		collision, err := n.collides(ctx, nic)
 		if err != nil {
 			lgr.Error(err, "unable to determine collision")
-			return fmt.Errorf("determining collision: %w", err)
+			return 0, fmt.Errorf("determining collision: %w", err)
 		}
 
 		if collision == collisionIngressClass {
+			// rare since our webhook guards against it, but it's possible
 			lgr.Info("ingress class collision")
+			return 0, icCollisionErr
+
 			meta.SetStatusCondition(&nic.Status.Conditions, metav1.Condition{
 				Type:               approutingv1alpha1.ConditionTypeIngressClassReady,
 				Status:             "Collision",
@@ -206,33 +247,23 @@ func (n *nginxIngressControllerReconciler) SetCollisionCount(ctx context.Context
 			})
 			if err := n.client.Status().Update(ctx, nic); err != nil {
 				lgr.Error(err, "unable to update status")
-				return fmt.Errorf("updating status with IngressClass collision")
 			}
-
-			return nil // this isn't an error, it's caused by a race condition involving our webhook
 		}
 
 		if collision == collisionNone {
 			break
 		}
 
-		lgr.Info("reconcilable collision detected, incrementing", "collisionCount", nic.Status.CollisionCount)
+		if nic.Status.CollisionCount == approutingv1alpha1.MaxCollisions {
+			lgr.Info("max collisions reached")
+			return 0, maxCollisionsErr
+		}
+
+		lgr.Info("reconcilable collision detected, incrementing")
 		nic.Status.CollisionCount++
-
-		if i == 9 {
-			return errors.New("too many collisions")
-		}
 	}
 
-	if startingCollisionCount != nic.Status.CollisionCount {
-		lgr.Info("setting new collision count", "collisionCount", nic.Status.CollisionCount, "startingCollisionCount", startingCollisionCount)
-		if err := n.client.Status().Update(ctx, nic); err != nil {
-			lgr.Error(err, "unable to update status")
-			return fmt.Errorf("updating status: %w", err)
-		}
-	}
-
-	return nil
+	return nic.Status.CollisionCount, nil
 }
 
 func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (collision, error) {
@@ -249,14 +280,13 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 		// if we won't own the resource, we don't care about collisions.
 		// this is most commonly used for namespaces since we shouldn't own
 		// namespaces
-		if !managedByUs(obj) {
+		if !manifests.HasTopLevelLabels(obj.GetLabels()) {
 			lgr.Info("skipping collision check because we don't own the resource")
 			continue
 		}
 
 		u := &unstructured.Unstructured{}
 		u.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
-
 		err := n.client.Get(ctx, client.ObjectKeyFromObject(obj), u)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -273,6 +303,7 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 
 		lgr.Info("collision detected")
 		if obj.GetObjectKind().GroupVersionKind().Kind == "IngressClass" {
+			lgr.Info("collision is with an IngressClass")
 			return collisionIngressClass, nil
 		}
 
@@ -284,12 +315,16 @@ func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *ap
 }
 
 // updateStatus updates the status of the NginxIngressController resource. If a nil controller Deployment or IngressClass is passed, the status is defaulted for those fields if they are not already set.
-func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.NginxIngressController, controllerDeployment *appsv1.Deployment, ic *netv1.IngressClass, managedResourceRefs []approutingv1alpha1.ManagedObjectReference) {
+func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic *approutingv1alpha1.NginxIngressController, controllerDeployment *appsv1.Deployment, ic *netv1.IngressClass, managedResourceRefs []approutingv1alpha1.ManagedObjectReference, err error) {
+	lgr := log.FromContext(ctx)
+
 	if managedResourceRefs != nil {
+		lgr.Info("updating managed resource refs status")
 		nic.Status.ManagedResourceRefs = managedResourceRefs
 	}
 
 	if ic == nil || ic.CreationTimestamp.IsZero() {
+		lgr.Info("adding IngressClassUnknown condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
 			Status:  metav1.ConditionUnknown,
@@ -297,6 +332,7 @@ func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.
 			Message: "IngressClass is unknown",
 		})
 	} else {
+		lgr.Info("adding IngressClassIsReady condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
 			Status:  "True",
@@ -307,12 +343,14 @@ func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.
 
 	// default conditions
 	if controllerDeployment == nil || controllerDeployment.CreationTimestamp.IsZero() {
+		lgr.Info("adding ControllerDeploymentUnknown to ControllerAvailable condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeControllerAvailable,
 			Status:  metav1.ConditionUnknown,
 			Reason:  "ControllerDeploymentUnknown",
 			Message: "Controller deployment is unknown",
 		})
+		lgr.Info("adding ControllerDeploymentUnknown to Progressing condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeProgressing,
 			Status:  metav1.ConditionUnknown,
@@ -320,6 +358,7 @@ func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.
 			Message: "Controller deployment is unknown",
 		})
 	} else {
+		lgr.Info("updating controller replicas status")
 		nic.Status.ControllerReadyReplicas = controllerDeployment.Status.ReadyReplicas
 		nic.Status.ControllerAvailableReplicas = controllerDeployment.Status.AvailableReplicas
 		nic.Status.ControllerUnavailableReplicas = controllerDeployment.Status.UnavailableReplicas
@@ -338,6 +377,7 @@ func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.
 	controllerAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeControllerAvailable)
 	icAvailable := nic.GetCondition(approutingv1alpha1.ConditionTypeIngressClassReady)
 	if controllerAvailable != nil && icAvailable != nil && controllerAvailable.Status == metav1.ConditionTrue && icAvailable.Status == metav1.ConditionTrue {
+		lgr.Info("adding ControllerIsAvailable condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeAvailable,
 			Status:  metav1.ConditionTrue,
@@ -345,11 +385,32 @@ func (n *nginxIngressControllerReconciler) updateStatus(nic *approutingv1alpha1.
 			Message: "Controller Deployment has minimum availability and IngressClass is up-to-date",
 		})
 	} else {
+		lgr.Info("adding ControllerIsNotAvailable condition")
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeAvailable,
 			Status:  metav1.ConditionFalse,
 			Reason:  "ControllerIsNotAvailable",
 			Message: "Controller Deployment does not have minimum availability or IngressClass is not up-to-date",
+		})
+	}
+
+	// error checking at end to take precedence over other conditions
+	if errors.Is(err, icCollisionErr) {
+		lgr.Info("adding IngressClassCollision condition")
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeProgressing,
+			Status:  metav1.ConditionFalse,
+			Reason:  "IngressClassCollision",
+			Message: "IngressClass already exists and is not owned by this controller",
+		})
+	}
+	if errors.Is(err, maxCollisionsErr) {
+		lgr.Info("adding TooManyCollisions condition")
+		nic.SetCondition(metav1.Condition{
+			Type:    approutingv1alpha1.ConditionTypeProgressing,
+			Status:  metav1.ConditionFalse,
+			Reason:  "TooManyCollisions",
+			Message: "Too many collisions with existing resources",
 		})
 	}
 }
@@ -420,12 +481,6 @@ func (n *nginxIngressControllerReconciler) updateStatusControllerProgressing(nic
 	nic.SetCondition(cond)
 }
 
-func managedByUs(obj client.Object) bool {
-	for k, v := range manifests.GetTopLevelLabels() {
-		if obj.GetLabels()[k] != v {
-			return false
-		}
-	}
-
-	return true
+func isUnreconcilableError(err error) bool {
+	return errors.Is(err, icCollisionErr) || errors.Is(err, maxCollisionsErr)
 }

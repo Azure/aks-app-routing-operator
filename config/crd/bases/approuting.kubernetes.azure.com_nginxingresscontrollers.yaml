@@ -80,6 +80,7 @@ spec:
                   App Routing Operator uses this field as a collision avoidance mechanism
                   when it needs to create the name for the managed resources.
                 format: int32
+                maximum: 5
                 type: integer
               conditions:
                 description: Conditions is an array of current observed conditions
