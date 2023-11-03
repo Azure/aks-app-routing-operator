@@ -17,7 +17,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/record"
@@ -132,7 +131,7 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	if collisionCountErr != nil {
 		if isUnreconcilableError(collisionCountErr) {
 			lgr.Info("unreconcilable collision count")
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue in case cx fix the unreconcilable reason
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue in case cx fixes the unreconcilable reason
 		}
 
 		lgr.Error(collisionCountErr, "unable to get determine collision count")
@@ -162,12 +161,15 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 	if nic == nil {
 		return nil, errors.New("nginxIngressController cannot be nil")
 	}
+	if res == nil {
+		return nil, errors.New("resources cannot be nil")
+	}
 
 	lgr := log.FromContext(ctx)
 
 	var managedResourceRefs []approutingv1alpha1.ManagedObjectReference
 	for _, obj := range res.Objects() {
-		// TODO: upsert works pretty well but we want to set annotations exactly on the nginx service, we should use an alternative strategy for that
+		// TODO: upsert works fine for now but we want to set annotations exactly on the nginx service, we should use an alternative strategy for that in the future
 
 		if err := util.Upsert(ctx, n.client, obj); err != nil {
 			// publish an event so cx can see things like their policy is preventing us from creating a resource
@@ -233,6 +235,12 @@ func (n *nginxIngressControllerReconciler) GetCollisionCount(ctx context.Context
 
 	for {
 		lgr = lgr.WithValues("collisionCount", nic.Status.CollisionCount)
+
+		if nic.Status.CollisionCount == approutingv1alpha1.MaxCollisions {
+			lgr.Info("max collisions reached")
+			return 0, maxCollisionsErr
+		}
+
 		collision, err := n.collides(ctx, nic)
 		if err != nil {
 			lgr.Error(err, "unable to determine collision")
@@ -243,26 +251,10 @@ func (n *nginxIngressControllerReconciler) GetCollisionCount(ctx context.Context
 			// rare since our webhook guards against it, but it's possible
 			lgr.Info("ingress class collision")
 			return 0, icCollisionErr
-
-			meta.SetStatusCondition(&nic.Status.Conditions, metav1.Condition{
-				Type:               approutingv1alpha1.ConditionTypeIngressClassReady,
-				Status:             "Collision",
-				ObservedGeneration: nic.Generation,
-				Message:            fmt.Sprintf("IngressClass %s already exists in the cluster and isn't owned by this resource. Delete the IngressClass or recreate this resource with a different spec.IngressClass field.", nic.Spec.IngressClassName),
-				Reason:             "IngressClassCollision",
-			})
-			if err := n.client.Status().Update(ctx, nic); err != nil {
-				lgr.Error(err, "unable to update status")
-			}
 		}
 
 		if collision == collisionNone {
 			break
-		}
-
-		if nic.Status.CollisionCount == approutingv1alpha1.MaxCollisions {
-			lgr.Info("max collisions reached")
-			return 0, maxCollisionsErr
 		}
 
 		lgr.Info("reconcilable collision detected, incrementing")

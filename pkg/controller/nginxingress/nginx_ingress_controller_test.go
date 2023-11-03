@@ -1,18 +1,313 @@
 package nginxingress
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func TestReconcileResources(t *testing.T) {
+	t.Run("nil nic", func(t *testing.T) {
+		n := &nginxIngressControllerReconciler{}
+		_, err := n.ReconcileResource(context.Background(), nil, nil)
+		require.ErrorContains(t, err, "nginxIngressController cannot be nil")
+	})
+
+	t.Run("nil resources", func(t *testing.T) {
+		n := &nginxIngressControllerReconciler{}
+		_, err := n.ReconcileResource(context.Background(), &approutingv1alpha1.NginxIngressController{}, nil)
+		require.Error(t, err, "resources cannot be nil")
+	})
+
+	t.Run("valid resources", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:     "ingressClassName",
+				ControllerNamePrefix: "prefix",
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
+	t.Run("invalid resources", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "otherNamespaceThatDoesntExistYet",
+			},
+			client: cl,
+			events: events,
+		}
+
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:     "ingressClassName",
+				ControllerNamePrefix: "prefix",
+			},
+		}
+		res := n.ManagedResources(nic)
+		res.Deployment = &appsv1.Deployment{} // invalid deployment
+
+		_, err := n.ReconcileResource(context.Background(), nic, res)
+		require.ErrorContains(t, err, "upserting object: ")
+
+		// prove event was created
+		e := <-events.Events
+		require.Equal(t, "Warning EnsuringManagedResourcesFailed Failed to ensure managed resource  /:  \"\" is invalid: metadata.name: Required value: name is required", e)
+	})
+}
+
+func TestManagedResources(t *testing.T) {
+	t.Run("nil nic", func(t *testing.T) {
+		n := &nginxIngressControllerReconciler{}
+		require.Nil(t, n.ManagedResources(nil))
+	})
+
+	t.Run("standard nic", func(t *testing.T) {
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+		}
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:     "ingressClassName",
+				ControllerNamePrefix: "prefix",
+			},
+		}
+
+		resources := n.ManagedResources(nic)
+		require.NotNil(t, resources)
+		require.Equal(t, nic.Spec.IngressClassName, resources.IngressClass.Name)
+		require.True(t, strings.HasPrefix(resources.Deployment.Name, nic.Spec.ControllerNamePrefix))
+
+		// check that we are only putting owner references on managed resources
+		ownerRef := manifests.GetOwnerRefs(nic, true)
+		require.Equal(t, ownerRef, resources.Deployment.OwnerReferences)
+		require.NotEqual(t, ownerRef, resources.Namespace.OwnerReferences)
+	})
+
+	t.Run("nic with load balancer annotations", func(t *testing.T) {
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+		}
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:     "ingressClassName",
+				ControllerNamePrefix: "prefix",
+				LoadBalancerAnnotations: map[string]string{
+					"foo": "bar",
+				},
+			},
+		}
+
+		resources := n.ManagedResources(nic)
+		require.NotNil(t, resources)
+		require.Equal(t, nic.Spec.IngressClassName, resources.IngressClass.Name)
+		require.True(t, strings.HasPrefix(resources.Deployment.Name, nic.Spec.ControllerNamePrefix))
+
+		// check that we are only putting owner references on managed resources
+		ownerRef := manifests.GetOwnerRefs(nic, true)
+		require.Equal(t, ownerRef, resources.Deployment.OwnerReferences)
+		require.NotEqual(t, ownerRef, resources.Namespace.OwnerReferences)
+
+		// verify load balancer annotations
+		for k, v := range nic.Spec.LoadBalancerAnnotations {
+			require.Equal(t, v, resources.Service.Annotations[k])
+		}
+	})
+}
+
+func TestGetCollisionCount(t *testing.T) {
+	ctx := context.Background()
+	cl := fake.NewClientBuilder().Build()
+
+	n := &nginxIngressControllerReconciler{
+		client: cl,
+		conf: &config.Config{
+			NS: "default",
+		},
+	}
+
+	// standard collisions
+	nic := &approutingv1alpha1.NginxIngressController{
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			ControllerNamePrefix: "sameControllerNamePrefixForAll",
+		},
+	}
+	for i := 0; i <= approutingv1alpha1.MaxCollisions; i++ {
+		copy := nic.DeepCopy()
+		copy.Name = fmt.Sprintf("nic%d", i)
+		copy.Spec.IngressClassName = fmt.Sprintf("ingressClassName%d", i)
+
+		count, err := n.GetCollisionCount(ctx, copy)
+
+		if i == approutingv1alpha1.MaxCollisions {
+			require.Equal(t, maxCollisionsErr, err)
+			continue
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, int32(i), count)
+
+		copy.Status.CollisionCount = count
+		for _, obj := range n.ManagedResources(copy).Objects() {
+			cl.Create(ctx, obj)
+		}
+	}
+
+	// ic collision
+	collisionIc := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "collisionIngressClassName",
+		},
+	}
+	require.NoError(t, cl.Create(ctx, collisionIc))
+	nic2 := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "collisionNic",
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     collisionIc.Name,
+			ControllerNamePrefix: "controllerNameUnique",
+		},
+	}
+	_, err := n.GetCollisionCount(ctx, nic2)
+	require.Equal(t, icCollisionErr, err)
+}
+
+func TestCollides(t *testing.T) {
+	ctx := context.Background()
+	cl := fake.NewClientBuilder().Build()
+
+	collisionNic := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "collision",
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     "ingressClassName",
+			ControllerNamePrefix: "controllerName",
+		},
+	}
+
+	n := &nginxIngressControllerReconciler{
+		client: cl,
+		conf:   &config.Config{NS: "default"},
+	}
+	for _, obj := range n.ManagedResources(collisionNic).Objects() {
+		cl.Create(ctx, obj)
+	}
+
+	// ic collision
+	collisionIc := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "collisionIngressClassName",
+		},
+	}
+	require.NoError(t, cl.Create(ctx, collisionIc))
+	nic := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nic1",
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     collisionIc.Name,
+			ControllerNamePrefix: "controllerName1",
+		},
+	}
+	got, err := n.collides(ctx, nic)
+	require.NoError(t, err)
+	require.Equal(t, collisionIngressClass, got)
+
+	// non ic collision
+	nic2 := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nic12",
+		},
+		Spec: collisionNic.Spec,
+	}
+	nic2.Spec.IngressClassName = "anotherIngressClassName"
+	got, err = n.collides(ctx, nic2)
+	require.NoError(t, err)
+	require.Equal(t, collisionOther, got)
+
+	// no collision
+	nic3 := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nic3",
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     "anotherIngressClassName",
+			ControllerNamePrefix: "controllerName3",
+		},
+	}
+	got, err = n.collides(ctx, nic3)
+	require.NoError(t, err)
+	require.Equal(t, collisionNone, got)
+
+	// prove that we check ownership references for collisions and there will be no collision if  ownership references match
+	for _, obj := range n.ManagedResources(collisionNic).Objects() {
+		cl.Create(ctx, obj)
+	}
+
+	got, err = n.collides(ctx, nic3)
+	require.NoError(t, err)
+	require.Equal(t, collisionNone, got)
+}
 
 func TestUpdateStatusManagedResourceRefs(t *testing.T) {
 	t.Run("nil managed resource refs", func(t *testing.T) {
