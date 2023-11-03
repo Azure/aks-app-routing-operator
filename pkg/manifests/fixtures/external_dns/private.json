@@ -4,18 +4,7 @@
       "apiVersion": "v1",
       "metadata": {
         "name": "test-namespace",
-        "creationTimestamp": null,
-        "labels": {
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        "creationTimestamp": null
       },
       "spec": {},
       "status": {}
@@ -30,15 +19,7 @@
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
           "app.kubernetes.io/name": "external-dns-private"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       }
     },
     {
@@ -50,15 +31,7 @@
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
           "app.kubernetes.io/name": "external-dns-private"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "rules": [
         {
@@ -115,15 +88,7 @@
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
           "app.kubernetes.io/name": "external-dns-private"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "subjects": [
         {
@@ -148,15 +113,7 @@
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
           "app.kubernetes.io/name": "external-dns-private"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "data": {
         "azure.json": "{\"cloud\":\"\",\"location\":\"\",\"resourceGroup\":\"test-resource-group-private\",\"subscriptionId\":\"test-subscription-id\",\"tenantId\":\"test-tenant-id\",\"useManagedIdentityExtension\":true,\"userAssignedIdentityID\":\"\"}"
@@ -172,15 +129,7 @@
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
           "app.kubernetes.io/name": "external-dns-private"
-        },
-        "ownerReferences": [
-          {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "test-operator-deploy",
-            "uid": "test-operator-deploy-uid"
-          }
-        ]
+        }
       },
       "spec": {
         "replicas": 1,

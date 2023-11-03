@@ -17,6 +17,11 @@ var (
 		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
 		ResourceName:    "nginx",
 		IcName:          "webapprouting.kubernetes.azure.com",
+		ServiceConfig: &ServiceConfig{
+			Annotations: map[string]string{
+				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
+			},
+		},
 	}
 	controllerTestCases = []struct {
 		Name      string
@@ -130,17 +135,9 @@ var (
 
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range controllerTestCases {
-		objs := NginxIngressControllerResources(tc.Conf, tc.Deploy, tc.IngConfig)
+		objs := GetNginxResources(tc.Conf, tc.IngConfig)
 		fixture := path.Join("fixtures", "nginx", tc.Name) + ".json"
-		AssertFixture(t, fixture, objs)
-	}
-}
-
-func TestIngressClassResources(t *testing.T) {
-	for _, tc := range classTestCases {
-		objs := NginxIngressClass(tc.Conf, tc.Deploy, tc.IngConfig)
-		fixture := path.Join("fixtures", "nginx", tc.Name) + "-ingressclass.json"
-		AssertFixture(t, fixture, objs)
+		AssertFixture(t, fixture, objs.Objects())
 	}
 }
 

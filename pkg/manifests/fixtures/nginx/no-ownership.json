@@ -4,14 +4,25 @@
       "apiVersion": "v1",
       "metadata": {
         "name": "test-namespace",
+        "creationTimestamp": null
+      },
+      "spec": {},
+      "status": {}
+    },
+    {
+      "kind": "IngressClass",
+      "apiVersion": "networking.k8s.io/v1",
+      "metadata": {
+        "name": "webapprouting.kubernetes.azure.com",
         "creationTimestamp": null,
         "labels": {
           "app.kubernetes.io/managed-by": "aks-app-routing-operator",
           "app.kubernetes.io/name": "nginx"
         }
       },
-      "spec": {},
-      "status": {}
+      "spec": {
+        "controller": "webapprouting.kubernetes.azure.com/nginx"
+      }
     },
     {
       "kind": "ServiceAccount",
@@ -156,31 +167,6 @@
           ]
         }
       ]
-    },
-    {
-      "kind": "ClusterRoleBinding",
-      "apiVersion": "rbac.authorization.k8s.io/v1",
-      "metadata": {
-        "name": "nginx",
-        "creationTimestamp": null,
-        "labels": {
-          "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
-          "app.kubernetes.io/name": "nginx"
-        }
-      },
-      "subjects": [
-        {
-          "kind": "ServiceAccount",
-          "name": "nginx",
-          "namespace": "test-namespace"
-        }
-      ],
-      "roleRef": {
-        "apiGroup": "rbac.authorization.k8s.io",
-        "kind": "ClusterRole",
-        "name": "nginx"
-      }
     },
     {
       "kind": "Role",
@@ -338,6 +324,31 @@
       ]
     },
     {
+      "kind": "ClusterRoleBinding",
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "metadata": {
+        "name": "nginx",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/component": "ingress-controller",
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
+        }
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "nginx",
+          "namespace": "test-namespace"
+        }
+      ],
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "nginx"
+      }
+    },
+    {
       "kind": "RoleBinding",
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "metadata": {
@@ -377,7 +388,8 @@
         },
         "annotations": {
           "prometheus.io/port": "10254",
-          "prometheus.io/scrape": "true"
+          "prometheus.io/scrape": "true",
+          "service.beta.kubernetes.io/azure-load-balancer-internal": "true"
         }
       },
       "spec": {
@@ -604,34 +616,6 @@
       }
     },
     {
-      "kind": "PodDisruptionBudget",
-      "apiVersion": "policy/v1",
-      "metadata": {
-        "name": "nginx",
-        "namespace": "test-namespace",
-        "creationTimestamp": null,
-        "labels": {
-          "app.kubernetes.io/component": "ingress-controller",
-          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
-          "app.kubernetes.io/name": "nginx"
-        }
-      },
-      "spec": {
-        "selector": {
-          "matchLabels": {
-            "app": "nginx"
-          }
-        },
-        "maxUnavailable": 1
-      },
-      "status": {
-        "disruptionsAllowed": 0,
-        "currentHealthy": 0,
-        "desiredHealthy": 0,
-        "expectedPods": 0
-      }
-    },
-    {
       "kind": "HorizontalPodAutoscaler",
       "apiVersion": "autoscaling/v1",
       "metadata": {
@@ -657,6 +641,34 @@
       "status": {
         "currentReplicas": 0,
         "desiredReplicas": 0
+      }
+    },
+    {
+      "kind": "PodDisruptionBudget",
+      "apiVersion": "policy/v1",
+      "metadata": {
+        "name": "nginx",
+        "namespace": "test-namespace",
+        "creationTimestamp": null,
+        "labels": {
+          "app.kubernetes.io/component": "ingress-controller",
+          "app.kubernetes.io/managed-by": "aks-app-routing-operator",
+          "app.kubernetes.io/name": "nginx"
+        }
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "nginx"
+          }
+        },
+        "maxUnavailable": 1
+      },
+      "status": {
+        "disruptionsAllowed": 0,
+        "currentHealthy": 0,
+        "desiredHealthy": 0,
+        "expectedPods": 0
       }
     }
   ]
