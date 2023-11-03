@@ -263,14 +263,15 @@ func (n nginxIngressResourceMutator) Handle(ctx context.Context, request admissi
 
 	lgr.Info("decoding NginxIngressController resource")
 	var nginxIngressController approutingv1alpha1.NginxIngressController
-	if err := n.decoder.Decode(request, &nginxIngressController); err != nil {
+	if err = n.decoder.Decode(request, &nginxIngressController); err != nil {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decoding NginxIngressController: %w", err))
 	}
 
 	lgr.Info("defaulting NginxIngressController resource")
 	nginxIngressController.Default()
 
-	marshalled, err := json.Marshal(nginxIngressController)
+	var marshalled []byte
+	marshalled, err = json.Marshal(nginxIngressController)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("marshalling NginxIngressController: %w", err))
 	}
