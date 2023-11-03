@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/keymutex"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,6 +50,7 @@ var (
 type nginxIngressControllerReconciler struct {
 	client client.Client
 	conf   *config.Config
+	events record.EventRecorder
 }
 
 // NewReconciler sets up the controller with the Manager.
@@ -58,6 +60,7 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 	reconciler := &nginxIngressControllerReconciler{
 		client: mgr.GetClient(),
 		conf:   conf,
+		events: mgr.GetEventRecorderFor("aks-app-routing-operator"),
 	}
 
 	if err := nginxIngressControllerReconcilerName.AddToController(
@@ -129,7 +132,7 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	if collisionCountErr != nil {
 		if isUnreconcilableError(collisionCountErr) {
 			lgr.Info("unreconcilable collision count")
-			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue in case cx fix the unreconilable reason
+			return ctrl.Result{RequeueAfter: time.Minute}, nil // requeue in case cx fix the unreconcilable reason
 		}
 
 		lgr.Error(collisionCountErr, "unable to get determine collision count")
@@ -167,6 +170,9 @@ func (n *nginxIngressControllerReconciler) ReconcileResource(ctx context.Context
 		// TODO: upsert works pretty well but we want to set annotations exactly on the nginx service, we should use an alternative strategy for that
 
 		if err := util.Upsert(ctx, n.client, obj); err != nil {
+			// publish an event so cx can see things like their policy is preventing us from creating a resource
+			n.events.Eventf(nic, corev1.EventTypeWarning, "EnsuringManagedResourcesFailed", "Failed to ensure managed resource %s %s/%s: %s", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetNamespace(), obj.GetName(), err.Error())
+
 			lgr.Error(err, "unable to upsert object", "name", obj.GetName(), "kind", obj.GetObjectKind().GroupVersionKind().Kind, "namespace", obj.GetNamespace())
 			return nil, fmt.Errorf("upserting object: %w", err)
 		}
@@ -403,6 +409,7 @@ func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic
 			Reason:  "IngressClassCollision",
 			Message: "IngressClass already exists and is not owned by this controller",
 		})
+		n.events.Event(nic, corev1.EventTypeWarning, "IngressClassCollision", "IngressClass already exists and is not owned by this controller. Change the spec.IngressClassName to an unused IngressClass name in a new NginxIngressController.")
 	}
 	if errors.Is(err, maxCollisionsErr) {
 		lgr.Info("adding TooManyCollisions condition")
@@ -412,6 +419,7 @@ func (n *nginxIngressControllerReconciler) updateStatus(ctx context.Context, nic
 			Reason:  "TooManyCollisions",
 			Message: "Too many collisions with existing resources",
 		})
+		n.events.Event(nic, corev1.EventTypeWarning, "TooManyCollisions", "Too many collisions with existing resources. Change the spec.ControllerNamePrefix to something more unique in a new NginxIngressController.")
 	}
 }
 
