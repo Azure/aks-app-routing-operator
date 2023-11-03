@@ -1,6 +1,7 @@
 package manifests
 
 import (
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"math"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ var (
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
 	AllDnsZoneCounts = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
+
+	SingleStackIPFamilyPolicy = corev1.IPFamilyPolicySingleStack
 )
 
 // OperatorVersion is an enum for the different versions of the operator
@@ -200,6 +203,64 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 								Name:  "operator",
 								Image: cfg.image(latestImage),
 								Args:  cfg.args(publicZones, privateZones),
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										MountPath: "/tmp/k8s-webhook-server/serving-certs",
+										Name:      "cert",
+										ReadOnly:  true,
+									},
+								},
+								LivenessProbe: &corev1.Probe{
+									ProbeHandler: corev1.ProbeHandler{
+										HTTPGet: &corev1.HTTPGetAction{
+											Path: "/healthz",
+											Port: intstr.IntOrString{
+												IntVal: 8080,
+												Type:   intstr.Int,
+											},
+											HTTPHeaders: nil,
+										},
+									},
+									PeriodSeconds: 5,
+								},
+								ReadinessProbe: &corev1.Probe{
+									ProbeHandler: corev1.ProbeHandler{
+										HTTPGet: &corev1.HTTPGetAction{
+											Path: "/readyz",
+											Port: intstr.IntOrString{
+												IntVal: 8080,
+												Type:   intstr.Int,
+											},
+											HTTPHeaders: nil,
+										},
+									},
+									PeriodSeconds: 5,
+								},
+								StartupProbe: &corev1.Probe{
+									ProbeHandler: corev1.ProbeHandler{
+										HTTPGet: &corev1.HTTPGetAction{
+											Path: "/readyz",
+											Port: intstr.IntOrString{
+												IntVal: 8080,
+												Type:   intstr.Int,
+											},
+											HTTPHeaders: nil,
+										},
+									},
+									PeriodSeconds: 5,
+								},
+							},
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "cert",
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName:  "app-routing-webhook-secret",
+										Optional:    util.BoolPtr(true),
+										DefaultMode: util.Int32Ptr(420),
+									},
+								},
 							},
 						},
 					},
@@ -216,6 +277,34 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 				Selector: &metav1.LabelSelector{
 					MatchLabels: operatorDeploymentLabels,
 				},
+			},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-routing-operator-webhook",
+				Namespace: "kube-system",
+			},
+			Spec: corev1.ServiceSpec{
+				IPFamilies: []corev1.IPFamily{
+					"IPv4",
+				},
+				IPFamilyPolicy: &SingleStackIPFamilyPolicy,
+				Ports: []corev1.ServicePort{
+					{
+						Name:     "client",
+						Port:     9443,
+						Protocol: corev1.ProtocolTCP,
+						TargetPort: intstr.IntOrString{
+							Type:   intstr.Int,
+							IntVal: 9443,
+						},
+					},
+				},
+				Selector: map[string]string{
+					"app": "app-routing-operator",
+				},
+				SessionAffinity: corev1.ServiceAffinityNone,
+				Type:            corev1.ServiceTypeClusterIP,
 			},
 		},
 	}
