@@ -50,6 +50,19 @@ func HandleControllerReconcileMetrics(controllerName controllername.ControllerNa
 	}
 }
 
+// HandleWebhookHandlerMetrics is meant to be called within a defer for each webhook handler func.
+func HandleWebhookHandlerMetrics(controllerName controllername.ControllerNamer, err error) {
+	cn := controllerName.MetricsName()
+
+	switch {
+	case err != nil && !apierrors.IsNotFound(err):
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelError).Inc()
+		AppRoutingReconcileErrors.WithLabelValues(cn).Inc()
+	default:
+		AppRoutingReconcileTotal.WithLabelValues(cn, LabelSuccess).Inc()
+	}
+}
+
 func InitControllerMetrics(controllerName controllername.ControllerNamer) {
 	cn := controllerName.MetricsName()
 	AppRoutingReconcileTotal.WithLabelValues(cn, LabelError).Add(0)
