@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -25,9 +24,8 @@ var (
 	env        *envtest.Environment
 	restConfig *rest.Config
 	err        error
-	self       *appsv1.Deployment = nil
-	uid                           = uuid.New().String()
-	noZones                       = config.Config{
+	uid        = uuid.New().String()
+	noZones    = config.Config{
 		ClusterUid:        uid,
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig:  config.DnsZoneConfig{},
@@ -182,12 +180,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfig(&noZones),
-					resources: manifests.ExternalDnsResources(&noZones, self, []*manifests.ExternalDnsConfig{publicConfig(&noZones)}),
+					resources: manifests.ExternalDnsResources(&noZones, []*manifests.ExternalDnsConfig{publicConfig(&noZones)}),
 					action:    clean,
 				},
 				{
 					config:    privateConfig(&noZones),
-					resources: manifests.ExternalDnsResources(&noZones, self, []*manifests.ExternalDnsConfig{privateConfig(&noZones)}),
+					resources: manifests.ExternalDnsResources(&noZones, []*manifests.ExternalDnsConfig{privateConfig(&noZones)}),
 					action:    clean,
 				},
 			},
@@ -198,12 +196,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfig(&onlyPrivZones),
-					resources: manifests.ExternalDnsResources(&onlyPrivZones, self, []*manifests.ExternalDnsConfig{publicConfig(&onlyPrivZones)}),
+					resources: manifests.ExternalDnsResources(&onlyPrivZones, []*manifests.ExternalDnsConfig{publicConfig(&onlyPrivZones)}),
 					action:    clean,
 				},
 				{
 					config:    privateConfig(&onlyPrivZones),
-					resources: manifests.ExternalDnsResources(&onlyPrivZones, self, []*manifests.ExternalDnsConfig{privateConfig(&onlyPrivZones)}),
+					resources: manifests.ExternalDnsResources(&onlyPrivZones, []*manifests.ExternalDnsConfig{privateConfig(&onlyPrivZones)}),
 					action:    deploy,
 				},
 			},
@@ -214,12 +212,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfig(&onlyPubZones),
-					resources: manifests.ExternalDnsResources(&onlyPubZones, self, []*manifests.ExternalDnsConfig{publicConfig(&onlyPubZones)}),
+					resources: manifests.ExternalDnsResources(&onlyPubZones, []*manifests.ExternalDnsConfig{publicConfig(&onlyPubZones)}),
 					action:    deploy,
 				},
 				{
 					config:    privateConfig(&onlyPubZones),
-					resources: manifests.ExternalDnsResources(&onlyPubZones, self, []*manifests.ExternalDnsConfig{privateConfig(&onlyPubZones)}),
+					resources: manifests.ExternalDnsResources(&onlyPubZones, []*manifests.ExternalDnsConfig{privateConfig(&onlyPubZones)}),
 					action:    clean,
 				},
 			},
@@ -230,12 +228,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfig(&allZones),
-					resources: manifests.ExternalDnsResources(&allZones, self, []*manifests.ExternalDnsConfig{publicConfig(&allZones)}),
+					resources: manifests.ExternalDnsResources(&allZones, []*manifests.ExternalDnsConfig{publicConfig(&allZones)}),
 					action:    deploy,
 				},
 				{
 					config:    privateConfig(&allZones),
-					resources: manifests.ExternalDnsResources(&allZones, self, []*manifests.ExternalDnsConfig{privateConfig(&allZones)}),
+					resources: manifests.ExternalDnsResources(&allZones, []*manifests.ExternalDnsConfig{privateConfig(&allZones)}),
 					action:    deploy,
 				},
 			},
@@ -243,7 +241,7 @@ func TestInstances(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		instances := instances(test.conf, self)
+		instances := instances(test.conf)
 		if !reflect.DeepEqual(instances, test.expected) {
 			t.Error(
 				"For", test.name,
@@ -255,9 +253,9 @@ func TestInstances(t *testing.T) {
 }
 
 func TestFilterAction(t *testing.T) {
-	allClean := instances(&noZones, self)
-	allDeploy := instances(&allZones, self)
-	oneDeployOneClean := instances(&onlyPrivZones, self)
+	allClean := instances(&noZones)
+	allDeploy := instances(&allZones)
+	oneDeployOneClean := instances(&onlyPrivZones)
 
 	tests := []struct {
 		name      string
@@ -318,7 +316,7 @@ func TestFilterAction(t *testing.T) {
 }
 
 func TestGetResources(t *testing.T) {
-	instances := instances(&noZones, self)
+	instances := instances(&noZones)
 	got := getResources(instances)
 	var expected []client.Object
 	for _, instance := range instances {
@@ -345,17 +343,17 @@ func TestGetLabels(t *testing.T) {
 		},
 		{
 			name:      "top level and private",
-			instances: filterAction(instances(&onlyPrivZones, self), deploy),
+			instances: filterAction(instances(&onlyPrivZones), deploy),
 			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
 		},
 		{
 			name:      "top level and public",
-			instances: filterAction(instances(&onlyPubZones, self), deploy),
+			instances: filterAction(instances(&onlyPubZones), deploy),
 			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 		},
 		{
 			name:      "all labels",
-			instances: instances(&allZones, self),
+			instances: instances(&allZones),
 			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
 		},
 	}
@@ -374,36 +372,36 @@ func TestCleanObjs(t *testing.T) {
 	}{
 		{
 			name:      "private dns clean",
-			instances: instances(&onlyPubZones, self),
+			instances: instances(&onlyPubZones),
 			expected: []cleanObj{{
-				resources: instances(&onlyPubZones, self)[1].resources,
+				resources: instances(&onlyPubZones)[1].resources,
 				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
 			}},
 		},
 		{
 			name:      "public dns clean",
-			instances: instances(&onlyPrivZones, self),
+			instances: instances(&onlyPrivZones),
 			expected: []cleanObj{{
-				resources: instances(&onlyPrivZones, self)[0].resources,
+				resources: instances(&onlyPrivZones)[0].resources,
 				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 			}},
 		},
 		{
 			name:      "all dns clean",
-			instances: instances(&noZones, self),
+			instances: instances(&noZones),
 			expected: []cleanObj{
 				{
-					resources: instances(&noZones, self)[0].resources,
+					resources: instances(&noZones)[0].resources,
 					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 				},
 				{
-					resources: instances(&noZones, self)[1].resources,
+					resources: instances(&noZones)[1].resources,
 					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
 				}},
 		},
 		{
 			name:      "no dns clean",
-			instances: instances(&allZones, self),
+			instances: instances(&allZones),
 			expected:  []cleanObj(nil),
 		},
 	}
@@ -462,7 +460,7 @@ func TestAddExternalDnsCleaner(t *testing.T) {
 
 	err = addExternalDnsCleaner(m, []cleanObj{
 		{
-			resources: instances(&noZones, self)[0].resources,
+			resources: instances(&noZones)[0].resources,
 			labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
 		}})
 	require.NoError(t, err)
@@ -473,7 +471,7 @@ func TestNewExternalDns(t *testing.T) {
 	require.NoError(t, err)
 
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
-	err = NewExternalDns(m, conf, self)
+	err = NewExternalDns(m, conf)
 	require.NoError(t, err)
 }
 

@@ -87,7 +87,7 @@ var (
 func TestExternalDnsResources(t *testing.T) {
 	for _, tc := range testCases {
 
-		objs := ExternalDnsResources(tc.Conf, tc.Deploy, tc.DnsConfigs)
+		objs := ExternalDnsResources(tc.Conf, tc.DnsConfigs)
 
 		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".json"
 		AssertFixture(t, fixture, objs)

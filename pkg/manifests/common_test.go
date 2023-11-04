@@ -10,6 +10,9 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -55,6 +58,77 @@ func TestHasTopLevelLabels(t *testing.T) {
 
 	for _, c := range cases {
 		require.Equal(t, HasTopLevelLabels(c.Labels), c.Outcome)
+	}
+}
+
+func TestGetOwnerRefs(t *testing.T) {
+	cases := []struct {
+		Name       string
+		Owner      client.Object
+		Controller bool
+		Outcome    []metav1.OwnerReference
+	}{
+		{
+			Name: "non-controller",
+			Owner: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-namespace",
+					UID:  "test-uid",
+				},
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Namespace",
+				},
+			},
+			Controller: false,
+			Outcome: []metav1.OwnerReference{
+				{
+					APIVersion: "v1",
+					Kind:       "Namespace",
+					Name:       "test-namespace",
+					UID:        "test-uid",
+					Controller: util.ToPtr(false),
+				},
+			},
+		},
+		{
+			Name: "controller",
+			Owner: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-deployment",
+					UID:  "test-uid2",
+				},
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Deployment",
+				},
+			},
+			Controller: true,
+			Outcome: []metav1.OwnerReference{
+				{
+					APIVersion: "v1",
+					Kind:       "Deployment",
+					Name:       "test-deployment",
+					UID:        "test-uid2",
+					Controller: util.ToPtr(true),
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			ret := GetOwnerRefs(c.Owner, c.Controller)
+
+			require.Equal(t, len(c.Outcome), len(ret))
+			for i, ref := range ret {
+				require.Equal(t, ref.APIVersion, c.Outcome[i].APIVersion)
+				require.Equal(t, ref.Kind, c.Outcome[i].Kind)
+				require.Equal(t, ref.Name, c.Outcome[i].Name)
+				require.Equal(t, ref.UID, c.Outcome[i].UID)
+				require.Equal(t, ref.Controller, c.Outcome[i].Controller)
+			}
+		})
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,8 +49,8 @@ func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
 }
 
 // NewExternalDns starts all resources required for external dns
-func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Deployment) error {
-	instances := instances(conf, self)
+func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
+	instances := instances(conf)
 
 	deployInstances := filterAction(instances, deploy)
 	deployRes := getResources(deployInstances)
@@ -67,16 +66,16 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config, self *appsv1.Depl
 	return nil
 }
 
-func instances(conf *config.Config, self *appsv1.Deployment) []instance {
+func instances(conf *config.Config) []instance {
 	// public
 	publicCfg := publicConfig(conf)
 	publicAction := actionFromConfig(publicCfg)
-	publicResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{publicCfg})
+	publicResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{publicCfg})
 
 	// private
 	privateCfg := privateConfig(conf)
 	privateAction := actionFromConfig(privateCfg)
-	privateResources := manifests.ExternalDnsResources(conf, self, []*manifests.ExternalDnsConfig{privateCfg})
+	privateResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{privateCfg})
 
 	return []instance{
 		{

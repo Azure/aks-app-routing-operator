@@ -13,7 +13,9 @@ func init() {
 }
 
 const (
-	maxNameLength           = 100
+	maxNameLength = 100
+	// MaxCollisions is the maximum number of collisions allowed when generating a name for a managed resource. This corresponds to the status.CollisionCount
+	MaxCollisions           = 5
 	maxControllerNamePrefix = 253 - 10 // 253 is the max length of resource names - 10 to account for the length of the suffix https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
 )
 
@@ -73,6 +75,7 @@ type NginxIngressControllerStatus struct {
 	// Count of hash collisions for the managed resources. The App Routing Operator uses this field
 	// as a collision avoidance mechanism when it needs to create the name for the managed resources.
 	// +optional
+	// +kubebuilder:validation:Maximum=5
 	CollisionCount int32 `json:"collisionCount"`
 
 	// ManagedResourceRefs is a list of references to the managed resources
