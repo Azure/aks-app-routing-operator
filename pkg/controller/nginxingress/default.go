@@ -65,7 +65,6 @@ func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
 			ControllerNamePrefix: "nginx",
 			IngressClassName:     DefaultIcName,
 		},
-		Status: approutingv1alpha1.NginxIngressControllerStatus{},
 	}
 
 	d.lgr.Info("determining if default nginx ingress controller should be created")
