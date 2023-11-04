@@ -138,13 +138,11 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
-	selectorLabels := map[string]string{"app": spc.Name}
-	labels := util.MergeMaps(selectorLabels, manifests.GetTopLevelLabels())
-
+	labels := map[string]string{"app": spc.Name}
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
-		Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels},
+		Selector:             &metav1.LabelSelector{MatchLabels: labels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: labels,

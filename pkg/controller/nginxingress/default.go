@@ -6,8 +6,10 @@ import (
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,10 +24,35 @@ const (
 	// DefaultNicName is the default Nginx Ingress Controller resource name
 	DefaultNicName         = "default"
 	DefaultNicResourceName = "nginx"
-	reconcileInterval      = time.Minute * 3
 )
 
 func NewDefaultReconciler(mgr ctrl.Manager) error {
+	name := controllername.New("default", "nginx", "ingress", "controller", "reconciler")
+	if err := mgr.Add(&defaultNicReconciler{
+		name:   name,
+		lgr:    name.AddToLogger(mgr.GetLogger()),
+		client: mgr.GetClient(),
+	}); err != nil {
+		return fmt.Errorf("adding default nginx ingress controller: %w", err)
+	}
+
+	return nil
+}
+
+type defaultNicReconciler struct {
+	name   controllername.ControllerNamer
+	client client.Client
+	lgr    logr.Logger
+}
+
+func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
+	start := time.Now()
+	d.lgr.Info("starting to reconcile default nginx ingress controller")
+	defer func() {
+		d.lgr.Info("finished reconciling default nginx ingress controller", "latencySec", time.Since(start).Seconds())
+		metrics.HandleControllerReconcileMetrics(d.name, ctrl.Result{}, err)
+	}()
+
 	nic := &approutingv1alpha1.NginxIngressController{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: approutingv1alpha1.GroupVersion.String(),
@@ -41,11 +68,48 @@ func NewDefaultReconciler(mgr ctrl.Manager) error {
 		Status: approutingv1alpha1.NginxIngressControllerStatus{},
 	}
 
-	if err := common.NewResourceReconciler(mgr, controllername.New("default", "nginx", "ingress", "controller", "reconciler"), []client.Object{nic}, reconcileInterval); err != nil {
-		return fmt.Errorf("creating default nginx ingress controller: %w", err)
+	d.lgr.Info("determining if default nginx ingress controller should be created")
+	shouldCreate, err := shouldCreateDefaultNic(d.client)
+	if err != nil {
+		d.lgr.Error(err, "checking if default nginx ingress controller should be created")
+		return fmt.Errorf("checking if default nginx ingress controller should be created: %w", err)
+	}
+
+	if !shouldCreate {
+		d.lgr.Info("default nginx ingress controller should not be created")
+		return nil
+	}
+
+	d.lgr.Info("upserting default nginx ingress controller")
+	if err := util.Upsert(ctx, d.client, nic); err != nil {
+		d.lgr.Error(err, "upserting default nginx ingress controller")
+		return fmt.Errorf("upserting default nginx ingress controller: %w", err)
 	}
 
 	return nil
+
+}
+
+func shouldCreateDefaultNic(cl client.Client) (bool, error) {
+	defaultIc := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultIcName,
+		},
+	}
+
+	err := cl.Get(context.Background(), types.NamespacedName{Name: DefaultIcName}, defaultIc)
+	switch {
+	case err == nil: // default IngressClass exists, we must create default nic for upgrade story
+		return true, nil
+	case k8serrors.IsNotFound(err):
+		// default IngressClass does not exist, we don't need to create default nic. We aren't upgrading from older App Routing versions for the first time.
+		// this is either a new user or an existing user that deleted their default nic
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("getting default ingress class: %w", err)
+	}
+
+	return false, nil
 }
 
 func getDefaultIngressClassControllerClass(cl client.Client) (string, error) {
