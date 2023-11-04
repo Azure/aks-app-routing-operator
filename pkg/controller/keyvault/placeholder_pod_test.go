@@ -218,7 +218,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := .map[string]string{"app": spc.Name}
+	expectedLabels := map[string]string{"app": spc.Name}
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
