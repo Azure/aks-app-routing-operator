@@ -115,9 +115,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("loading CRDs: %w", err)
 	}
 
-	if err := setupControllers(m, conf); err != nil {
-		return nil, fmt.Errorf("setting up controllers: %w", err)
-	}
+	go func() {
+		if err := setupControllers(m, conf, webhooksReady, setupLog); err != nil {
+			setupLog.Error(err, "unable to setup controllers")
+			os.Exit(1)
+		}
+	}()
 
 	webhookCfg, err := webhook.New(conf)
 	if err != nil {
@@ -147,8 +150,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 			setupLog.Error(err, "failed to setup webhooks")
 			os.Exit(1)
 		}
-		setupLog.Info("webhooks are ready")
 
+		setupLog.Info("webhooks are ready")
 		close(webhooksReady)
 	}()
 
@@ -163,18 +166,27 @@ func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error)
 	return nil
 }
 
-func setupControllers(mgr ctrl.Manager, conf *config.Config) error {
-	var selfDeploy *appsv1.Deployment = nil // self deploy doesn't work because operator isn't in same resources as child resources
-
+func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-chan struct{}, lgr logr.Logger) error {
+	lgr.Info("settup up ExternalDNS controller")
 	if err := dns.NewExternalDns(mgr, conf); err != nil {
 		return fmt.Errorf("setting up external dns controller: %w", err)
 	}
 
+	lgr.Info("setting up Nginx Ingress Controller reconciler")
 	if err := nginxingress.NewReconciler(conf, mgr); err != nil {
 		return fmt.Errorf("setting up nginx ingress controller reconciler: %w", err)
 	}
 
-	nginxConfigs, err := nginx.New(mgr, conf, selfDeploy)
+	lgr.Info("waiting for webhooks to be ready")
+	<-webhooksReady // some controllers need to wait for webhooks to be ready because they interact directly with our CRDs
+	lgr.Info("finished waiting for webhooks to be ready")
+
+	lgr.Info("setting up default Nginx Ingress Controller reconciler")
+	if err := nginxingress.NewDefaultReconciler(mgr); err != nil {
+		return fmt.Errorf("setting up nginx ingress default controller reconciler: %w", err)
+	}
+
+	nginxConfigs, err := nginx.New(mgr, conf, nil)
 	if err != nil {
 		return fmt.Errorf("getting nginx configs: %w", err)
 	}
@@ -187,6 +199,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config) error {
 		})
 	}
 
+	lgr.Info("setting up ingress concurrency watchdog")
 	if err := ingress.NewConcurrencyWatchdog(mgr, conf, watchdogTargets); err != nil {
 		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
 	}
@@ -201,20 +214,25 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config) error {
 	}
 
 	ingressManager := keyvault.NewIngressManager(ics)
+	lgr.Info("setting up keyvault secret provider class reconciler")
 	if err := keyvault.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
 	}
+	lgr.Info("setting up keyvault placeholder pod controller")
 	if err := keyvault.NewPlaceholderPodController(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up placeholder pod controller: %w", err)
 	}
+	lgr.Info("setting up keyvault event mirror")
 	if err = keyvault.NewEventMirror(mgr, conf); err != nil {
 		return fmt.Errorf("setting up event mirror: %w", err)
 	}
 
 	ingressControllerNamer := osm.NewIngressControllerNamer(icToController)
+	lgr.Info("setting up ingress backend reconciler")
 	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressControllerNamer); err != nil {
 		return fmt.Errorf("setting up ingress backend reconciler: %w", err)
 	}
+	lgr.Info("setting up ingress cert config reconciler")
 	if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
 		return fmt.Errorf("setting up ingress cert config reconciler: %w", err)
 	}

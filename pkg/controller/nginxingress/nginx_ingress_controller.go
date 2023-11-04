@@ -47,19 +47,32 @@ var (
 
 // nginxIngressControllerReconciler reconciles a NginxIngressController object
 type nginxIngressControllerReconciler struct {
-	client client.Client
-	conf   *config.Config
-	events record.EventRecorder
+	client                    client.Client
+	conf                      *config.Config
+	events                    record.EventRecorder
+	defaultNicControllerClass string
 }
 
 // NewReconciler sets up the controller with the Manager.
 func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
 	metrics.InitControllerMetrics(nginxIngressControllerReconcilerName)
 
+	// use non caching client since it's before manager is started
+	nonCachingCl, err := client.New(mgr.GetConfig(), client.Options{})
+	if err != nil {
+		return fmt.Errorf("creating non caching client: %w", err)
+	}
+
+	defaultNicCc, err := getDefaultIngressClassControllerClass(nonCachingCl)
+	if err != nil {
+		return fmt.Errorf("getting default ingress class controller class: %w", err)
+	}
+
 	reconciler := &nginxIngressControllerReconciler{
-		client: mgr.GetClient(),
-		conf:   conf,
-		events: mgr.GetEventRecorderFor("aks-app-routing-operator"),
+		client:                    mgr.GetClient(),
+		conf:                      conf,
+		events:                    mgr.GetEventRecorderFor("aks-app-routing-operator"),
+		defaultNicControllerClass: defaultNicCc,
 	}
 
 	if err := nginxIngressControllerReconcilerName.AddToController(
@@ -198,15 +211,21 @@ func (n *nginxIngressControllerReconciler) ManagedResources(nic *approutingv1alp
 	}
 
 	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
-
 	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
 	if len(cc) > controllerClassMaxLen {
 		cc = cc[:controllerClassMaxLen]
 	}
 
+	resourceName := fmt.Sprintf("%s-%d", nic.Spec.ControllerNamePrefix, nic.Status.CollisionCount)
+
+	if IsDefaultNic(nic) {
+		cc = n.defaultNicControllerClass
+		resourceName = DefaultNicResourceName
+	}
+
 	nginxIngressCfg := &manifests.NginxIngressConfig{
 		ControllerClass: cc,
-		ResourceName:    fmt.Sprintf("%s-%d", nic.Spec.ControllerNamePrefix, nic.Status.CollisionCount),
+		ResourceName:    resourceName,
 		IcName:          nic.Spec.IngressClassName,
 		ServiceConfig: &manifests.ServiceConfig{
 			Annotations: nic.Spec.LoadBalancerAnnotations,
@@ -266,6 +285,11 @@ func (n *nginxIngressControllerReconciler) GetCollisionCount(ctx context.Context
 
 func (n *nginxIngressControllerReconciler) collides(ctx context.Context, nic *approutingv1alpha1.NginxIngressController) (collision, error) {
 	lgr := log.FromContext(ctx)
+
+	// ignore any collisions on default nic for migration story. Need to acquire ownership of old app routing resources
+	if IsDefaultNic(nic) {
+		return collisionNone, nil
+	}
 
 	res := n.ManagedResources(nic)
 	if res == nil {
