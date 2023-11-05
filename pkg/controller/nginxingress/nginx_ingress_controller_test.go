@@ -171,6 +171,36 @@ func TestManagedResources(t *testing.T) {
 			require.Equal(t, v, resources.Service.Annotations[k])
 		}
 	})
+
+	t.Run("default nic", func(t *testing.T) {
+		defaultNicControllerClass := "defaultNicControllerClass"
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			defaultNicControllerClass: defaultNicControllerClass,
+		}
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: DefaultNicName,
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:     DefaultIcName,
+				ControllerNamePrefix: "nginx",
+			},
+		}
+
+		resources := n.ManagedResources(nic)
+		require.NotNil(t, resources)
+		require.Equal(t, nic.Spec.IngressClassName, resources.IngressClass.Name)
+		require.Equal(t, defaultNicControllerClass, resources.IngressClass.Spec.Controller)
+		require.Equal(t, nic.Spec.ControllerNamePrefix, resources.Deployment.Name)
+
+		// check that we are only putting owner references on managed resources
+		ownerRef := manifests.GetOwnerRefs(nic, true)
+		require.Equal(t, ownerRef, resources.Deployment.OwnerReferences)
+		require.NotEqual(t, ownerRef, resources.Namespace.OwnerReferences)
+	})
 }
 
 func TestGetCollisionCount(t *testing.T) {
@@ -305,6 +335,31 @@ func TestCollides(t *testing.T) {
 	}
 
 	got, err = n.collides(ctx, nic3)
+	require.NoError(t, err)
+	require.Equal(t, collisionNone, got)
+
+	// no collision for default nic
+	defaultNic := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultNicName,
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName: DefaultIcName,
+		},
+	}
+	defaultIc := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: defaultNic.Spec.IngressClassName,
+		},
+	}
+	require.NoError(t, cl.Create(ctx, defaultIc))
+	defaultSa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultNicResourceName,
+		},
+	}
+	require.NoError(t, cl.Create(ctx, defaultSa))
+	got, err = n.collides(ctx, defaultNic)
 	require.NoError(t, err)
 	require.Equal(t, collisionNone, got)
 }

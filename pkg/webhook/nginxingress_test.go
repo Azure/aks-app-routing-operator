@@ -12,6 +12,7 @@ import (
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
@@ -90,6 +91,13 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 		},
 	}
 	require.NoError(t, cl.Create(context.Background(), existingNic))
+
+	defaultIc := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nginxingress.DefaultIcName,
+		},
+	}
+	require.NoError(t, cl.Create(context.Background(), defaultIc))
 
 	cases := []struct {
 		name          string
@@ -237,6 +245,42 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 			},
 			authenticator: validUser,
 			expected:      admission.Allowed(""),
+		},
+		{
+			name: "valid nginx ingress controller, valid user, default nic",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Object: runtime.RawExtension{
+						Raw: toRaw(func() *approutingv1alpha1.NginxIngressController {
+							copy := validNginxIngressController.DeepCopy()
+							copy.Spec.IngressClassName = nginxingress.DefaultIcName
+							copy.Name = nginxingress.DefaultNicName
+							return copy
+						}()),
+					},
+				},
+			},
+			authenticator: validUser,
+			expected:      admission.Allowed(""),
+		},
+		{
+			name: "valid nginx ingress controller, invalid user, default nic",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Object: runtime.RawExtension{
+						Raw: toRaw(func() *approutingv1alpha1.NginxIngressController {
+							copy := validNginxIngressController.DeepCopy()
+							copy.Spec.IngressClassName = nginxingress.DefaultIcName
+							copy.Name = nginxingress.DefaultNicName
+							return copy
+						}()),
+					},
+				},
+			},
+			authenticator: invalidUser,
+			expected:      admission.Denied("invalid user"),
 		},
 	}
 

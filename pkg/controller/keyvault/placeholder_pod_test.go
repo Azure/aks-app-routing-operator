@@ -5,8 +5,9 @@ package keyvault
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := util.MergeMaps(spc.Labels, map[string]string{"app": spc.Name})
+	expectedLabels := map[string]string{"app": spc.Name}
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
@@ -217,7 +218,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := util.MergeMaps(map[string]string{"app": spc.Name}, manifests.GetTopLevelLabels())
+	expectedLabels := map[string]string{"app": spc.Name}
 	expected := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,

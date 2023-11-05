@@ -9,6 +9,7 @@ import (
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
@@ -202,9 +203,12 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 		return admission.Denied(invalidReason)
 	}
 
-	// TODO: record metrics, will add later
-
 	if req.Operation == admissionv1.Create {
+		if nginxingress.IsDefaultNic(&nginxIngressController) {
+			// need to allow for ic to exist already for the default migration case (migrating from non-crd versions of app routing to crd versions)
+			return admission.Allowed("")
+		}
+
 		lgr.Info("checking if IngressClass already exists")
 		ic := &netv1.IngressClass{
 			ObjectMeta: metav1.ObjectMeta{
