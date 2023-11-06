@@ -3,7 +3,7 @@ package suites
 import (
 	"context"
 	"fmt"
-	
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -38,7 +38,7 @@ func nicWebhookTests(in infra.Provisioned) []test {
 				lgr.Info("starting test")
 
 				c, err := client.New(config, client.Options{
-					Scheme: nil,
+					Scheme: scheme,
 				})
 				if err != nil {
 					return fmt.Errorf("creating client: %w")
