@@ -1,6 +1,6 @@
 # Run `make help` for usage information on commands in this file.
 
-.PHONY: help clean dev push e2e unit crd manifests generate controller-gen
+.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen
 
 -include .env
 
@@ -51,6 +51,11 @@ e2e: ## Runs end-to-end tests
 	(cd testing/e2e && \
 	 go run ./main.go infra --subscription=${SUBSCRIPTION_ID} --tenant=${TENANT_ID} --names=${INFRA_NAMES} && \
 	 go run ./main.go deploy)
+
+e2e-deploy: ## runs only deploy
+	(cd testing/e2e && \
+    	 go run ./main.go deploy)
+
 
 unit: ## Runs unit tests
 	docker build ./devenv/ -t app-routing-dev:latest

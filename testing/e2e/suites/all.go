@@ -16,6 +16,7 @@ func All(infra infra.Provisioned) tests.Ts {
 	t = append(t, basicSuite(infra)...)
 	t = append(t, osmSuite(infra)...)
 	t = append(t, promSuite(infra)...)
+	t = append(t, nicWebhookTests(infra)...)
 
 	ret := make(tests.Ts, len(t))
 	for i, t := range t {

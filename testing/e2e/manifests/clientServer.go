@@ -42,7 +42,7 @@ func (t testingResources) Objects() []client.Object {
 }
 
 func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string) testingResources {
-	host := strings.ToLower(namespace) + "." + zoneName
+	host := strings.ToLower(namespace) + "." + strings.TrimRight(zoneName, ".")
 
 	clientDeployment := newGoDeployment(clientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"

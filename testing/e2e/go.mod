@@ -3,7 +3,7 @@ module github.com/Azure/aks-app-routing-operator/testing/e2e
 go 1.20
 
 require (
-	github.com/Azure/aks-app-routing-operator v0.0.6
+	github.com/Azure/aks-app-routing-operator v0.0.3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.2
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.1.1
@@ -28,7 +28,7 @@ require (
 	k8s.io/api v0.28.1
 	k8s.io/apimachinery v0.28.1
 	k8s.io/client-go v0.28.1
-	sigs.k8s.io/controller-runtime v0.16.0
+	sigs.k8s.io/controller-runtime v0.16.1
 )
 
 require (
@@ -99,3 +99,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/Azure/aks-app-routing-operator v0.0.3 => ../../

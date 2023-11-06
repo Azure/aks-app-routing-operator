@@ -15,8 +15,9 @@ import (
 )
 
 type AuthType string
+
 const (
-	AuthTypeManagedIdentity AuthType = "" // MSI is the default
+	AuthTypeManagedIdentity  AuthType = "" // MSI is the default
 	AuthTypeServicePrincipal AuthType = "servicePrincipal"
 )
 
@@ -29,8 +30,8 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
-	AuthType 	      AuthType
-	ServicePrincipal *clients.ServicePrincipal
+	AuthType                AuthType
+	ServicePrincipal        *clients.ServicePrincipal
 }
 
 type Identifier interface {
@@ -52,7 +53,7 @@ type cluster interface {
 
 type containerRegistry interface {
 	GetName() string
-	BuildAndPush(ctx context.Context, imageName, dockerfilePath string) error
+	BuildAndPush(ctx context.Context, imageName, dockerfilePath, dockerFileName string) error
 	Identifier
 }
 

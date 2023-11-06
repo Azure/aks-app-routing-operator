@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	operatorNs        = "app-routing-system"
-	managedResourceNs = operatorNs
+	operatorNs        = "kube-system"
+	managedResourceNs = "app-routing-system"
 )
 
 var (
@@ -40,6 +40,7 @@ type OperatorVersion uint
 
 const (
 	OperatorVersion0_0_3 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
+	OperatorVersion0_0_6
 
 	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
@@ -49,6 +50,8 @@ func (o OperatorVersion) String() string {
 	switch o {
 	case OperatorVersion0_0_3:
 		return "0.0.3"
+	case OperatorVersion0_0_6:
+		return "0.0.6"
 	case OperatorVersionLatest:
 		return "latest"
 	default:
@@ -149,165 +152,194 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 }
 
 func Operator(latestImage string, publicZones, privateZones []string, cfg *OperatorConfig) []client.Object {
-	ret := []client.Object{
-		&corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: operatorNs,
-			},
+	var ret []client.Object
+
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: managedResourceNs,
 		},
-		&corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
+	}
+
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-routing-operator",
+			Namespace: operatorNs,
+		},
+	}
+
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-routing-operator",
+			Namespace: operatorNs,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
 				Name:      "app-routing-operator",
 				Namespace: operatorNs,
 			},
 		},
-		&rbacv1.ClusterRoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "app-routing-operator",
-				Namespace: operatorNs,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      "app-routing-operator",
-					Namespace: operatorNs,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				Kind:     "ClusterRole",
-				Name:     "cluster-admin",
-				APIGroup: "",
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "ClusterRole",
+			Name:     "cluster-admin",
+			APIGroup: "",
+		},
+	}
+
+	baseDeployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-routing-operator",
+			Namespace: operatorNs,
+			Labels: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
 		},
-		&appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "app-routing-operator",
-				Namespace: operatorNs,
-				Labels: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: to.Ptr(int32(2)),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: operatorDeploymentLabels,
 			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: to.Ptr(int32(2)),
-				Selector: &metav1.LabelSelector{
-					MatchLabels: operatorDeploymentLabels,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: operatorDeploymentLabels,
 				},
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: operatorDeploymentLabels,
-					},
-					Spec: corev1.PodSpec{
-						ServiceAccountName: "app-routing-operator",
-						Containers: []corev1.Container{
-							{
-								Name:  "operator",
-								Image: cfg.image(latestImage),
-								Args:  cfg.args(publicZones, privateZones),
-								VolumeMounts: []corev1.VolumeMount{
-									{
-										MountPath: "/tmp/k8s-webhook-server/serving-certs",
-										Name:      "cert",
-										ReadOnly:  true,
-									},
-								},
-								LivenessProbe: &corev1.Probe{
-									ProbeHandler: corev1.ProbeHandler{
-										HTTPGet: &corev1.HTTPGetAction{
-											Path: "/healthz",
-											Port: intstr.IntOrString{
-												IntVal: 8080,
-												Type:   intstr.Int,
-											},
-											HTTPHeaders: nil,
-										},
-									},
-									PeriodSeconds: 5,
-								},
-								ReadinessProbe: &corev1.Probe{
-									ProbeHandler: corev1.ProbeHandler{
-										HTTPGet: &corev1.HTTPGetAction{
-											Path: "/readyz",
-											Port: intstr.IntOrString{
-												IntVal: 8080,
-												Type:   intstr.Int,
-											},
-											HTTPHeaders: nil,
-										},
-									},
-									PeriodSeconds: 5,
-								},
-								StartupProbe: &corev1.Probe{
-									ProbeHandler: corev1.ProbeHandler{
-										HTTPGet: &corev1.HTTPGetAction{
-											Path: "/readyz",
-											Port: intstr.IntOrString{
-												IntVal: 8080,
-												Type:   intstr.Int,
-											},
-											HTTPHeaders: nil,
-										},
-									},
-									PeriodSeconds: 5,
+				Spec: corev1.PodSpec{
+					ServiceAccountName: "app-routing-operator",
+					Containers: []corev1.Container{
+						{
+							Name:  "operator",
+							Image: cfg.image(latestImage),
+							Args:  cfg.args(publicZones, privateZones),
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									MountPath: "/tmp/k8s-webhook-server/serving-certs",
+									Name:      "cert",
+									ReadOnly:  true,
 								},
 							},
-						},
-						Volumes: []corev1.Volume{
-							{
-								Name: "cert",
-								VolumeSource: corev1.VolumeSource{
-									Secret: &corev1.SecretVolumeSource{
-										SecretName:  "app-routing-webhook-secret",
-										Optional:    util.BoolPtr(true),
-										DefaultMode: util.Int32Ptr(420),
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/healthz",
+										Port: intstr.IntOrString{
+											IntVal: 8080,
+											Type:   intstr.Int,
+										},
+										HTTPHeaders: nil,
 									},
 								},
+								PeriodSeconds: 5,
+							},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/readyz",
+										Port: intstr.IntOrString{
+											IntVal: 8080,
+											Type:   intstr.Int,
+										},
+										HTTPHeaders: nil,
+									},
+								},
+								PeriodSeconds: 5,
+							},
+							StartupProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/readyz",
+										Port: intstr.IntOrString{
+											IntVal: 8080,
+											Type:   intstr.Int,
+										},
+										HTTPHeaders: nil,
+									},
+								},
+								PeriodSeconds:    5,
+								FailureThreshold: 12,
 							},
 						},
 					},
-				},
-			},
-		},
-		&policyv1.PodDisruptionBudget{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "app-routing-operator",
-				Namespace: "app-routing-system",
-			},
-			Spec: policyv1.PodDisruptionBudgetSpec{
-				MinAvailable: to.Ptr(intstr.FromInt(1)),
-				Selector: &metav1.LabelSelector{
-					MatchLabels: operatorDeploymentLabels,
-				},
-			},
-		},
-		&corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "app-routing-operator-webhook",
-				Namespace: "kube-system",
-			},
-			Spec: corev1.ServiceSpec{
-				IPFamilies: []corev1.IPFamily{
-					"IPv4",
-				},
-				IPFamilyPolicy: &SingleStackIPFamilyPolicy,
-				Ports: []corev1.ServicePort{
-					{
-						Name:     "client",
-						Port:     9443,
-						Protocol: corev1.ProtocolTCP,
-						TargetPort: intstr.IntOrString{
-							Type:   intstr.Int,
-							IntVal: 9443,
+					Volumes: []corev1.Volume{
+						{
+							Name: "cert",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName:  "app-routing-webhook-secret",
+									Optional:    util.BoolPtr(true),
+									DefaultMode: util.Int32Ptr(420),
+								},
+							},
 						},
 					},
 				},
-				Selector: map[string]string{
-					"app": "app-routing-operator",
-				},
-				SessionAffinity: corev1.ServiceAffinityNone,
-				Type:            corev1.ServiceTypeClusterIP,
 			},
 		},
 	}
+
+	podDisrutptionBudget := &policyv1.PodDisruptionBudget{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-routing-operator",
+			Namespace: "app-routing-system",
+		},
+		Spec: policyv1.PodDisruptionBudgetSpec{
+			MinAvailable: to.Ptr(intstr.FromInt(1)),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: operatorDeploymentLabels,
+			},
+		},
+	}
+
+	webhookService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-routing-operator-webhook",
+			Namespace: operatorNs,
+		},
+		Spec: corev1.ServiceSpec{
+			IPFamilies: []corev1.IPFamily{
+				"IPv4",
+			},
+			IPFamilyPolicy: &SingleStackIPFamilyPolicy,
+			Ports: []corev1.ServicePort{
+				{
+					Name:     "client",
+					Port:     9443,
+					Protocol: corev1.ProtocolTCP,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 9443,
+					},
+				},
+			},
+			Selector: map[string]string{
+				"app": "app-routing-operator",
+			},
+			SessionAffinity: corev1.ServiceAffinityNone,
+			Type:            corev1.ServiceTypeClusterIP,
+		},
+	}
+
+	ret = append(ret, []client.Object{
+		namespace,
+		serviceAccount,
+		clusterRoleBinding,
+		podDisrutptionBudget,
+	}...)
+
+	// edit and select relevant manifest config by version
+	switch cfg.Version {
+	case OperatorVersion0_0_3:
+		baseDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+		baseDeployment.Spec.Template.Spec.Containers[0].LivenessProbe = nil
+		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
+		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
+		baseDeployment.Spec.Template.Spec.Volumes = nil
+	case OperatorVersionLatest:
+		ret = append(ret, webhookService)
+	}
+
+	ret = append(ret, []client.Object{
+		baseDeployment,
+	}...)
 
 	for _, obj := range ret {
 		setGroupKindVersion(obj)
