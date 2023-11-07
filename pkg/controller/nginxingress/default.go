@@ -111,7 +111,8 @@ func shouldCreateDefaultNic(cl client.Client) (bool, error) {
 	return false, nil
 }
 
-func getDefaultIngressClassControllerClass(cl client.Client) (string, error) {
+// GetDefaultIngressClassControllerClass returns the default ingress class controller class
+func GetDefaultIngressClassControllerClass(cl client.Client) (string, error) {
 	defaultNicCc := "webapprouting.kubernetes.azure.com/nginx"
 
 	defaultIc := &netv1.IngressClass{

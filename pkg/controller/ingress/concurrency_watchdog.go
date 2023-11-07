@@ -12,6 +12,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	prommodel "github.com/prometheus/client_model/go"
@@ -75,26 +76,47 @@ func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 	return 0, fmt.Errorf("active connections metric not found")
 }
 
-// LabelGetter returns unique pod labels for an Ingress controller
-type LabelGetter interface {
-	PodLabels() map[string]string
-}
-
 // WatchdogTarget refers to a target the concurrency watchdog should track
 type WatchdogTarget struct {
-	ScrapeFn ScrapeFn
-	LabelGetter
+	ScrapeFn  ScrapeFn
+	PodLabels map[string]string
+}
+
+type ListWatchdogTargets func() ([]WatchdogTarget, error)
+
+func GetListNginxWatchdogTargets(cl client.Client, defaultNicControllerClass string) ListWatchdogTargets {
+	return func() ([]WatchdogTarget, error) {
+		nics, err := nginxingress.List(cl)
+		if err != nil {
+			return nil, fmt.Errorf("listing NginxIngressController objects: %w", err)
+		}
+
+		var targets []WatchdogTarget
+		for _, nic := range nics.Items {
+			ingCfg := nginxingress.ToNginxIngressConfig(&nic, defaultNicControllerClass)
+			if ingCfg == nil {
+				continue
+			}
+
+			targets = append(targets, WatchdogTarget{
+				ScrapeFn:  NginxScrapeFn,
+				PodLabels: ingCfg.PodLabels(),
+			})
+		}
+
+		return targets, nil
+	}
 }
 
 // ConcurrencyWatchdog evicts ingress controller pods that have too many active connections relative to others.
 // This helps redistribute long-running connections when the ingress controller scales up.
 type ConcurrencyWatchdog struct {
-	client     client.Client
-	clientset  kubernetes.Interface
-	restClient rest.Interface
-	logger     logr.Logger
-	config     *config.Config
-	targets    []*WatchdogTarget
+	client              client.Client
+	clientset           kubernetes.Interface
+	restClient          rest.Interface
+	logger              logr.Logger
+	config              *config.Config
+	listWatchdogTargets ListWatchdogTargets
 
 	interval, minPodAge, voteTTL time.Duration
 	minVotesBeforeEviction       int
@@ -103,7 +125,7 @@ type ConcurrencyWatchdog struct {
 	votes *ring.Ring
 }
 
-func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, targets []*WatchdogTarget) error {
+func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, target ListWatchdogTargets) error {
 	metrics.InitControllerMetrics(concurrencyWatchdogControllerName)
 	clientset, err := kubernetes.NewForConfig(manager.GetConfig())
 	if err != nil {
@@ -111,12 +133,12 @@ func NewConcurrencyWatchdog(manager ctrl.Manager, conf *config.Config, targets [
 	}
 
 	c := &ConcurrencyWatchdog{
-		client:     manager.GetClient(),
-		clientset:  clientset,
-		restClient: clientset.CoreV1().RESTClient(),
-		logger:     concurrencyWatchdogControllerName.AddToLogger(manager.GetLogger()),
-		config:     conf,
-		targets:    targets,
+		client:              manager.GetClient(),
+		clientset:           clientset,
+		restClient:          clientset.CoreV1().RESTClient(),
+		logger:              concurrencyWatchdogControllerName.AddToLogger(manager.GetLogger()),
+		config:              conf,
+		listWatchdogTargets: target,
 
 		interval:                    time.Minute,
 		minPodAge:                   time.Minute * 5,
@@ -145,10 +167,11 @@ func (c *ConcurrencyWatchdog) Start(ctx context.Context) error {
 }
 
 func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
+	lgr := c.logger
 	start := time.Now()
 	var retErr *multierror.Error
 	defer func() {
-		c.logger.Info("finished checking on ingress controller pods", "latencySec", time.Since(start).Seconds())
+		lgr.Info("finished checking on ingress controller pods", "latencySec", time.Since(start).Seconds())
 
 		//placing this call inside a closure allows for result and err to be bound after tick executes
 		//this makes sure they have the proper value
@@ -157,13 +180,21 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		metrics.HandleControllerReconcileMetrics(concurrencyWatchdogControllerName, ctrl.Result{}, retErr.ErrorOrNil())
 	}()
 
-	for _, target := range c.targets {
-		lgr := c.logger.WithValues("target", target.LabelGetter.PodLabels())
+	lgr.Info("listing watchdog targets")
+	targets, err := c.listWatchdogTargets()
+	if err != nil {
+		lgr.Error(err, "listing watchdog targets")
+		retErr = multierror.Append(retErr, fmt.Errorf("listing watchdog targets: %w", err))
+		return retErr.ErrorOrNil()
+	}
+
+	for _, target := range targets {
+		lgr := c.logger.WithValues("target", target.PodLabels)
 		lgr.Info("starting checking on ingress controller pods")
 
 		lgr.Info("listing pods")
 		list := &corev1.PodList{}
-		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.LabelGetter.PodLabels()))
+		err := c.client.List(ctx, list, client.InNamespace(c.config.NS), client.MatchingLabels(target.PodLabels))
 		if err != nil {
 			lgr.Error(err, "listing pods")
 			retErr = multierror.Append(retErr, fmt.Errorf("listing pods: %w", err))
