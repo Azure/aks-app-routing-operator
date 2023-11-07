@@ -20,7 +20,7 @@ func TestDefaultNicReconciler(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))
-	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme).t sBuild()
 
 	// when default nic doesn't exist in cluster we don't create the default nic
 	d := &defaultNicReconciler{
@@ -73,7 +73,7 @@ func TestGetDefaultIngressClassControllerClass(t *testing.T) {
 	cl := fake.NewClientBuilder().Build()
 
 	// when default IngressClass doesn't exist in cluster it defaults to webapprouting.kubernetes.azure.com/nginx
-	cc, err := getDefaultIngressClassControllerClass(cl)
+	cc, err := GetDefaultIngressClassControllerClass(cl)
 	require.NoError(t, err)
 	require.Equal(t, "webapprouting.kubernetes.azure.com/nginx", cc)
 
@@ -88,7 +88,7 @@ func TestGetDefaultIngressClassControllerClass(t *testing.T) {
 		},
 	}
 	require.NoError(t, cl.Create(context.Background(), ic))
-	cc, err = getDefaultIngressClassControllerClass(cl)
+	cc, err = GetDefaultIngressClassControllerClass(cl)
 	require.NoError(t, err)
 	require.Equal(t, controller, cc)
 }

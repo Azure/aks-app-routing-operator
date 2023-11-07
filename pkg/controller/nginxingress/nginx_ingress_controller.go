@@ -54,25 +54,14 @@ type nginxIngressControllerReconciler struct {
 }
 
 // NewReconciler sets up the controller with the Manager.
-func NewReconciler(conf *config.Config, mgr ctrl.Manager) error {
+func NewReconciler(conf *config.Config, mgr ctrl.Manager, defaultIngressClassControllerClass string) error {
 	metrics.InitControllerMetrics(nginxIngressControllerReconcilerName)
-
-	// use non caching client since it's before manager is started
-	nonCachingCl, err := client.New(mgr.GetConfig(), client.Options{})
-	if err != nil {
-		return fmt.Errorf("creating non caching client: %w", err)
-	}
-
-	defaultNicCc, err := getDefaultIngressClassControllerClass(nonCachingCl)
-	if err != nil {
-		return fmt.Errorf("getting default ingress class controller class: %w", err)
-	}
 
 	reconciler := &nginxIngressControllerReconciler{
 		client:                    mgr.GetClient(),
 		conf:                      conf,
 		events:                    mgr.GetEventRecorderFor("aks-app-routing-operator"),
-		defaultNicControllerClass: defaultNicCc,
+		defaultNicControllerClass: defaultIngressClassControllerClass,
 	}
 
 	if err := nginxIngressControllerReconcilerName.AddToController(
@@ -210,26 +199,9 @@ func (n *nginxIngressControllerReconciler) ManagedResources(nic *approutingv1alp
 		return nil
 	}
 
-	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
-	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
-	if len(cc) > controllerClassMaxLen {
-		cc = cc[:controllerClassMaxLen]
-	}
-
-	resourceName := fmt.Sprintf("%s-%d", nic.Spec.ControllerNamePrefix, nic.Status.CollisionCount)
-
-	if IsDefaultNic(nic) {
-		cc = n.defaultNicControllerClass
-		resourceName = DefaultNicResourceName
-	}
-
-	nginxIngressCfg := &manifests.NginxIngressConfig{
-		ControllerClass: cc,
-		ResourceName:    resourceName,
-		IcName:          nic.Spec.IngressClassName,
-		ServiceConfig: &manifests.ServiceConfig{
-			Annotations: nic.Spec.LoadBalancerAnnotations,
-		},
+	nginxIngressCfg := ToNginxIngressConfig(nic, n.defaultNicControllerClass)
+	if nginxIngressCfg == nil {
+		return nil
 	}
 
 	res := manifests.GetNginxResources(n.conf, nginxIngressCfg)
@@ -524,4 +496,32 @@ func (n *nginxIngressControllerReconciler) updateStatusControllerProgressing(nic
 
 func isUnreconcilableError(err error) bool {
 	return errors.Is(err, icCollisionErr) || errors.Is(err, maxCollisionsErr)
+}
+
+func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaultNicControllerClass string) *manifests.NginxIngressConfig {
+	if nic == nil {
+		return nil
+	}
+
+	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
+	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
+	if len(cc) > controllerClassMaxLen {
+		cc = cc[:controllerClassMaxLen]
+	}
+
+	resourceName := fmt.Sprintf("%s-%d", nic.Spec.ControllerNamePrefix, nic.Status.CollisionCount)
+
+	if IsDefaultNic(nic) {
+		cc = defaultNicControllerClass
+		resourceName = DefaultNicResourceName
+	}
+
+	return &manifests.NginxIngressConfig{
+		ControllerClass: cc,
+		ResourceName:    resourceName,
+		IcName:          nic.Spec.IngressClassName,
+		ServiceConfig: &manifests.ServiceConfig{
+			Annotations: nic.Spec.LoadBalancerAnnotations,
+		},
+	}
 }

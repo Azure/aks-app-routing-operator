@@ -116,7 +116,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	go func() {
-		if err := setupControllers(m, conf, webhooksReady, setupLog); err != nil {
+		if err := setupControllers(m, conf, webhooksReady, setupLog, cl); err != nil {
 			setupLog.Error(err, "unable to setup controllers")
 			os.Exit(1)
 		}
@@ -166,14 +166,20 @@ func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error)
 	return nil
 }
 
-func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-chan struct{}, lgr logr.Logger) error {
+func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-chan struct{}, lgr logr.Logger, cl client.Client) error {
+	lgr.Info("determining default IngressClass controller class")
+	defaultCc, err := nginxingress.GetDefaultIngressClassControllerClass(cl)
+	if err != nil {
+		return fmt.Errorf("determining default IngressClass controller class: %w", err)
+	}
+
 	lgr.Info("settup up ExternalDNS controller")
 	if err := dns.NewExternalDns(mgr, conf); err != nil {
 		return fmt.Errorf("setting up external dns controller: %w", err)
 	}
 
 	lgr.Info("setting up Nginx Ingress Controller reconciler")
-	if err := nginxingress.NewReconciler(conf, mgr); err != nil {
+	if err := nginxingress.NewReconciler(conf, mgr, defaultCc); err != nil {
 		return fmt.Errorf("setting up nginx ingress controller reconciler: %w", err)
 	}
 
@@ -191,16 +197,8 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 		return fmt.Errorf("getting nginx configs: %w", err)
 	}
 
-	watchdogTargets := make([]*ingress.WatchdogTarget, 0)
-	for _, nginxConfig := range nginxConfigs {
-		watchdogTargets = append(watchdogTargets, &ingress.WatchdogTarget{
-			ScrapeFn:    ingress.NginxScrapeFn,
-			LabelGetter: nginxConfig,
-		})
-	}
-
 	lgr.Info("setting up ingress concurrency watchdog")
-	if err := ingress.NewConcurrencyWatchdog(mgr, conf, watchdogTargets); err != nil {
+	if err := ingress.NewConcurrencyWatchdog(mgr, conf, ingress.GetListNginxWatchdogTargets(mgr.GetClient(), defaultCc)); err != nil {
 		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
 	}
 
