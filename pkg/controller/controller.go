@@ -127,7 +127,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("creating webhook config: %w", err)
 	}
 
-	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl); err != nil {
+	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 

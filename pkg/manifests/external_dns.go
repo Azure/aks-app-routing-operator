@@ -88,7 +88,7 @@ func ExternalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDns
 
 	// Can safely assume the namespace exists if using kube-system
 	if conf.NS != "kube-system" {
-		objs = append(objs, namespace(conf))
+		objs = append(objs, Namespace(conf))
 	}
 
 	for _, dnsConfig := range externalDnsConfigs {

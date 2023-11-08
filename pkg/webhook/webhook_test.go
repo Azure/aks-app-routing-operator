@@ -86,6 +86,9 @@ func TestNew(t *testing.T) {
 
 func TestEnsureWebhookConfigurations(t *testing.T) {
 	t.Run("valid webhooks", func(t *testing.T) {
+		globalCfg := &globalCfg.Config{
+			NS: "app-routing-system",
+		}
 		c := &config{
 			validatingWebhookConfigName: "app-routing-validating",
 			mutatingWebhookConfigName:   "app-routing-mutating",
@@ -94,17 +97,32 @@ func TestEnsureWebhookConfigurations(t *testing.T) {
 		}
 
 		cl := fake.NewClientBuilder().Build()
+		var validatingWhCfg admissionregistrationv1.ValidatingWebhookConfiguration
+		var mutatingWhCfg admissionregistrationv1.MutatingWebhookConfiguration
 		// prove webhook configurations don't exist
-		require.True(t, k8serrors.IsNotFound(cl.Get(context.Background(), types.NamespacedName{Name: c.validatingWebhookConfigName}, &admissionregistrationv1.ValidatingWebhookConfiguration{})), "expected not to find validating webhook config")
-		require.True(t, k8serrors.IsNotFound(cl.Get(context.Background(), types.NamespacedName{Name: c.mutatingWebhookConfigName}, &admissionregistrationv1.MutatingWebhookConfiguration{})), "expected not to find mutating webhook config")
+		require.True(t, k8serrors.IsNotFound(cl.Get(context.Background(), types.NamespacedName{Name: c.validatingWebhookConfigName}, &validatingWhCfg)), "expected not to find validating webhook config")
+		require.True(t, k8serrors.IsNotFound(cl.Get(context.Background(), types.NamespacedName{Name: c.mutatingWebhookConfigName}, &mutatingWhCfg)), "expected not to find mutating webhook config")
 
 		// prove webhook configurations exist after ensuring
-		require.NoError(t, c.EnsureWebhookConfigurations(context.Background(), cl), "unexpected error")
-		require.NoError(t, cl.Get(context.Background(), types.NamespacedName{Name: c.validatingWebhookConfigName}, &admissionregistrationv1.ValidatingWebhookConfiguration{}), "unexpected error getting validating webhook config")
-		require.NoError(t, cl.Get(context.Background(), types.NamespacedName{Name: c.mutatingWebhookConfigName}, &admissionregistrationv1.MutatingWebhookConfiguration{}), "unexpected error getting mutating webhook config")
+		require.NoError(t, c.EnsureWebhookConfigurations(context.Background(), cl, globalCfg), "unexpected error")
+		require.NoError(t, cl.Get(context.Background(), types.NamespacedName{Name: c.validatingWebhookConfigName}, &validatingWhCfg), "unexpected error getting validating webhook config")
+		require.NoError(t, cl.Get(context.Background(), types.NamespacedName{Name: c.mutatingWebhookConfigName}, &mutatingWhCfg), "unexpected error getting mutating webhook config")
+
+		// prove ownerReferences are set on webhook configurations
+		require.True(t, len(validatingWhCfg.OwnerReferences) == 1, "expected 1 owner reference")
+		require.True(t, validatingWhCfg.OwnerReferences[0].Name == "app-routing-system", "expected owner reference name to be app-routing-system")
+		require.True(t, validatingWhCfg.OwnerReferences[0].Kind == "Namespace", "expected owner reference kind to be Namespace")
+		require.True(t, validatingWhCfg.OwnerReferences[0].APIVersion == "v1", "expected owner reference api version to be v1")
+		require.True(t, len(mutatingWhCfg.OwnerReferences) == 1, "expected 1 owner reference")
+		require.True(t, mutatingWhCfg.OwnerReferences[0].Name == "app-routing-system", "expected owner reference name to be app-routing-system")
+		require.True(t, mutatingWhCfg.OwnerReferences[0].Kind == "Namespace", "expected owner reference kind to be Namespace")
+		require.True(t, mutatingWhCfg.OwnerReferences[0].APIVersion == "v1", "expected owner reference api version to be v1")
+
 	})
 
 	t.Run("invalid webhooks", func(t *testing.T) {
+
+		globalCfg := &globalCfg.Config{}
 		c := &config{
 			validatingWebhooks: []Webhook[admissionregistrationv1.ValidatingWebhook]{
 				{
@@ -123,10 +141,10 @@ func TestEnsureWebhookConfigurations(t *testing.T) {
 		}
 
 		cl := fake.NewClientBuilder().Build()
-		require.True(t, c.EnsureWebhookConfigurations(context.Background(), cl).Error() == "getting webhook definition: invalid webhook", "expected error")
+		require.True(t, c.EnsureWebhookConfigurations(context.Background(), cl, globalCfg).Error() == "getting webhook definition: invalid webhook", "expected error")
 
 		c.validatingWebhooks = nil
-		require.True(t, c.EnsureWebhookConfigurations(context.Background(), cl).Error() == "getting webhook definition: invalid webhook", "expected error")
+		require.True(t, c.EnsureWebhookConfigurations(context.Background(), cl, globalCfg).Error() == "getting webhook definition: invalid webhook", "expected error")
 	})
 }
 

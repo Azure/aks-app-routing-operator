@@ -52,7 +52,7 @@ func GetOwnerRefs(owner client.Object, controller bool) []metav1.OwnerReference 
 	}}
 }
 
-func namespace(conf *config.Config) *corev1.Namespace {
+func Namespace(conf *config.Config) *corev1.Namespace {
 	ns := &corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Namespace",
