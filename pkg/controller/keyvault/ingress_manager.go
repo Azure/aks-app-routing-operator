@@ -4,28 +4,18 @@ import netv1 "k8s.io/api/networking/v1"
 
 // IngressManager returns a boolean indicating whether the Ingress is being managed by us
 type IngressManager interface {
-	IsManaging(ing *netv1.Ingress) bool
+	IsManaging(ing *netv1.Ingress) (bool, error)
 }
 
 type ingressManager struct {
-	icNames map[string]struct{}
+	isManagingFn func(ing *netv1.Ingress) (bool, error)
 }
 
-// NewIngressManager returns an IngressManager from a set of ingress class names that web app routing manages
-func NewIngressManager(icNames map[string]struct{}) IngressManager {
-	return &ingressManager{icNames: icNames}
+func (i *ingressManager) IsManaging(ing *netv1.Ingress) (bool, error) {
+	return i.isManagingFn(ing)
 }
 
-func (i ingressManager) IsManaging(ing *netv1.Ingress) bool {
-	if ing == nil {
-		return false
-	}
-
-	cn := ing.Spec.IngressClassName
-	if cn == nil {
-		return false
-	}
-
-	_, ok := i.icNames[*cn]
-	return ok
+// NewIngressManagerFromFn returns an IngressManager from a function that determines whether the Ingress is being managed by us
+func NewIngressManagerFromFn(IsManaging func(ing *netv1.Ingress) (bool, error)) IngressManager {
+	return &ingressManager{isManagingFn: IsManaging}
 }

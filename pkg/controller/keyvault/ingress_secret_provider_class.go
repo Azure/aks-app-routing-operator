@@ -139,7 +139,10 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 		return false, nil
 	}
 
-	managed := i.ingressManager.IsManaging(ing)
+	managed, err := i.ingressManager.IsManaging(ing)
+	if err != nil {
+		return false, fmt.Errorf("determining if ingress is managed: %w", err)
+	}
 	if !managed {
 		return false, nil
 	}

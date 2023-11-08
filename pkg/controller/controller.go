@@ -11,12 +11,14 @@ import (
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/webhook"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
+	netv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,12 +39,15 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginx"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
 var (
 	scheme = runtime.NewScheme()
+)
+
+const (
+	nicIngressClassIndex = "spec.ingressClassName"
 )
 
 func init() {
@@ -116,7 +121,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	go func() {
-		if err := setupControllers(m, conf, webhooksReady, setupLog); err != nil {
+		if err := setupControllers(m, conf, webhooksReady, setupLog, cl); err != nil {
 			setupLog.Error(err, "unable to setup controllers")
 			os.Exit(1)
 		}
@@ -124,15 +129,18 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	webhookCfg, err := webhook.New(conf)
 	if err != nil {
+		setupLog.Error(err, "unable to create webhook config")
 		return nil, fmt.Errorf("creating webhook config: %w", err)
 	}
 
 	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
+		setupLog.Error(err, "unable to ensure webhook configurations")
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 
 	certsReady := make(chan struct{})
 	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady, cl); err != nil {
+		setupLog.Error(err, "unable to add cert manager")
 		return nil, fmt.Errorf("adding cert manager: %w", err)
 	}
 
@@ -155,7 +163,25 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		close(webhooksReady)
 	}()
 
+	if err := setupIndexers(m, setupLog); err != nil {
+		setupLog.Error(err, "unable to setup indexers")
+		return nil, fmt.Errorf("setting up indexers: %w", err)
+	}
+
 	return m, nil
+}
+
+func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
+	lgr.Info("setting up indexers")
+
+	lgr.Info("adding Nginx Ingress Controller IngressClass indexer")
+	if err := nginxingress.AddIngressClassNameIndex(mgr.GetFieldIndexer(), nicIngressClassIndex); err != nil {
+		lgr.Error(err, "adding Nginx Ingress Controller IngressClass indexer")
+		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
+	}
+
+	lgr.Info("finished setting up indexers")
+	return nil
 }
 
 func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error) error {
@@ -166,54 +192,52 @@ func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error)
 	return nil
 }
 
-func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-chan struct{}, lgr logr.Logger) error {
+func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-chan struct{}, lgr logr.Logger, cl client.Client) error {
+	lgr.Info("setting up controllers")
+
+	lgr.Info("determining default IngressClass controller class")
+	defaultCc, err := nginxingress.GetDefaultIngressClassControllerClass(cl)
+	if err != nil {
+		return fmt.Errorf("determining default IngressClass controller class: %w", err)
+	}
+
 	lgr.Info("settup up ExternalDNS controller")
 	if err := dns.NewExternalDns(mgr, conf); err != nil {
 		return fmt.Errorf("setting up external dns controller: %w", err)
 	}
 
 	lgr.Info("setting up Nginx Ingress Controller reconciler")
-	if err := nginxingress.NewReconciler(conf, mgr); err != nil {
+	if err := nginxingress.NewReconciler(conf, mgr, defaultCc); err != nil {
 		return fmt.Errorf("setting up nginx ingress controller reconciler: %w", err)
+	}
+
+	lgr.Info("setting up ingress cert config reconciler")
+	if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
+		return fmt.Errorf("setting up ingress cert config reconciler: %w", err)
 	}
 
 	lgr.Info("waiting for webhooks to be ready")
 	<-webhooksReady // some controllers need to wait for webhooks to be ready because they interact directly with our CRDs
 	lgr.Info("finished waiting for webhooks to be ready")
 
+	defaultNic := nginxingress.GetDefaultNginxIngressController()
+	if err := service.NewNginxIngressReconciler(mgr, nginxingress.ToNginxIngressConfig(&defaultNic, defaultCc)); err != nil {
+		return fmt.Errorf("setting up nginx ingress reconciler: %w", err)
+	}
+
 	lgr.Info("setting up default Nginx Ingress Controller reconciler")
 	if err := nginxingress.NewDefaultReconciler(mgr); err != nil {
 		return fmt.Errorf("setting up nginx ingress default controller reconciler: %w", err)
 	}
 
-	nginxConfigs, err := nginx.New(mgr, conf, nil)
-	if err != nil {
-		return fmt.Errorf("getting nginx configs: %w", err)
-	}
-
-	watchdogTargets := make([]*ingress.WatchdogTarget, 0)
-	for _, nginxConfig := range nginxConfigs {
-		watchdogTargets = append(watchdogTargets, &ingress.WatchdogTarget{
-			ScrapeFn:    ingress.NginxScrapeFn,
-			LabelGetter: nginxConfig,
-		})
-	}
-
 	lgr.Info("setting up ingress concurrency watchdog")
-	if err := ingress.NewConcurrencyWatchdog(mgr, conf, watchdogTargets); err != nil {
+	if err := ingress.NewConcurrencyWatchdog(mgr, conf, ingress.GetListNginxWatchdogTargets(mgr.GetClient(), defaultCc)); err != nil {
 		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
 	}
 
-	icToController := make(map[string]string)
-	for _, nginxConfig := range nginxConfigs {
-		icToController[nginxConfig.IcName] = nginxConfig.ResourceName
-	}
-	ics := make(map[string]struct{})
-	for ic := range icToController {
-		ics[ic] = struct{}{}
-	}
-
-	ingressManager := keyvault.NewIngressManager(ics)
+	ingressManager := keyvault.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
+	})
 	lgr.Info("setting up keyvault secret provider class reconciler")
 	if err := keyvault.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
@@ -227,16 +251,15 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 		return fmt.Errorf("setting up event mirror: %w", err)
 	}
 
-	ingressControllerNamer := osm.NewIngressControllerNamer(icToController)
+	ingressSourceSpecer := osm.NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
+		return nginxingress.IngressSource(context.Background(), mgr.GetClient(), conf, defaultCc, ing, nicIngressClassIndex)
+	})
 	lgr.Info("setting up ingress backend reconciler")
-	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressControllerNamer); err != nil {
+	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressSourceSpecer); err != nil {
 		return fmt.Errorf("setting up ingress backend reconciler: %w", err)
 	}
-	lgr.Info("setting up ingress cert config reconciler")
-	if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
-		return fmt.Errorf("setting up ingress cert config reconciler: %w", err)
-	}
 
+	lgr.Info("finished setting up controllers")
 	return nil
 }
 
