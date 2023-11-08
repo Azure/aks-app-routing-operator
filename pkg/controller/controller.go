@@ -21,7 +21,6 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -48,7 +47,7 @@ var (
 )
 
 const (
-	nicIngressClassNameField = "spec.ingressClassName"
+	nicIngressClassIndex = "spec.ingressClassName"
 )
 
 func init() {
@@ -176,14 +175,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 	lgr.Info("setting up indexers")
 
 	lgr.Info("adding Nginx Ingress Controller IngressClass indexer")
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &approutingv1alpha1.NginxIngressController{}, nicIngressClassNameField, func(object client.Object) []string {
-		nic, ok := object.(*approutingv1alpha1.NginxIngressController)
-		if !ok {
-			return nil
-		}
-
-		return []string{nic.Spec.IngressClassName}
-	}); err != nil {
+	if err := nginxingress.AddIngressClassNameIndex(mgr.GetFieldIndexer(), nicIngressClassIndex); err != nil {
 		lgr.Error(err, "adding Nginx Ingress Controller IngressClass indexer")
 		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
 	}
@@ -244,28 +236,8 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 	}
 
 	ingressManager := keyvault.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-		ic := ing.Spec.IngressClassName
-		if ic == nil {
-			return false, nil
-		}
-
-		// if it's the default one we should assume we own it because there's time in the upgrade from non crd app routing to crd app routing where a crd for the default doesn't exist
-		if *ic == nginxingress.DefaultIcName {
-			return true, nil
-		}
-
-		nics := &approutingv1alpha1.NginxIngressControllerList{}
-		err := mgr.GetClient().List(context.Background(), nics, client.MatchingFields{nicIngressClassNameField: *ic})
-		if err == nil {
-			return true, nil
-		}
-		if !k8serrors.IsNotFound(err) {
-			return false, fmt.Errorf("listing nginx ingress controllers: %w", err)
-		}
-
-		return false, nil
+		return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
 	})
-
 	lgr.Info("setting up keyvault secret provider class reconciler")
 	if err := keyvault.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
@@ -280,38 +252,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 	}
 
 	ingressSourceSpecer := osm.NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
-		ic := ing.Spec.IngressClassName
-		if ic == nil {
-			return policyv1alpha1.IngressSourceSpec{}, false, nil
-		}
-
-		// if it's the default one we should assume we own it because there's time in the upgrade from non crd app routing to crd app routing where a crd for the default doesn't exist
-		if *ic == nginxingress.DefaultIcName {
-			return policyv1alpha1.IngressSourceSpec{
-				Kind:      "Service",
-				Name:      nginxingress.DefaultNicResourceName,
-				Namespace: conf.NS,
-			}, true, nil
-		}
-
-		nics := &approutingv1alpha1.NginxIngressControllerList{}
-		err := mgr.GetClient().List(context.Background(), nics, client.MatchingFields{nicIngressClassNameField: *ic})
-		if err == nil && len(nics.Items) > 0 {
-			nic := nics.Items[0]
-			ingressConfig := nginxingress.ToNginxIngressConfig(&nic, defaultCc)
-
-			return policyv1alpha1.IngressSourceSpec{
-				Kind:      "Service",
-				Name:      ingressConfig.ResourceName,
-				Namespace: conf.NS,
-			}, true, nil
-		}
-		if !k8serrors.IsNotFound(err) {
-			return policyv1alpha1.IngressSourceSpec{}, false, fmt.Errorf("listing nginx ingress controllers: %w", err)
-		}
-
-		return policyv1alpha1.IngressSourceSpec{}, false, nil
-
+		return nginxingress.IngressSource(context.Background(), mgr.GetClient(), conf, defaultCc, ing, nicIngressClassIndex)
 	})
 	lgr.Info("setting up ingress backend reconciler")
 	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressSourceSpecer); err != nil {
