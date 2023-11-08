@@ -20,7 +20,7 @@ func TestDefaultNicReconciler(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))
-	cl := fake.NewClientBuilder().WithScheme(scheme).t sBuild()
+	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	// when default nic doesn't exist in cluster we don't create the default nic
 	d := &defaultNicReconciler{

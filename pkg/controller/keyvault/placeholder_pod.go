@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strconv"
 
@@ -110,7 +111,10 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	managed := p.ingressManager.IsManaging(ing)
+	managed, err := p.ingressManager.IsManaging(ing)
+	if err != nil {
+		return result, fmt.Errorf("determining if ingress is managed: %w", err)
+	}
 
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 		logger.Info("cleaning unused placeholder pod deployment")
