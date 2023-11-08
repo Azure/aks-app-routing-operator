@@ -73,7 +73,7 @@ func TestGetDefaultIngressClassControllerClass(t *testing.T) {
 	cl := fake.NewClientBuilder().Build()
 
 	// when default IngressClass doesn't exist in cluster it defaults to webapprouting.kubernetes.azure.com/nginx
-	cc, err := getDefaultIngressClassControllerClass(cl)
+	cc, err := GetDefaultIngressClassControllerClass(cl)
 	require.NoError(t, err)
 	require.Equal(t, "webapprouting.kubernetes.azure.com/nginx", cc)
 
@@ -88,7 +88,7 @@ func TestGetDefaultIngressClassControllerClass(t *testing.T) {
 		},
 	}
 	require.NoError(t, cl.Create(context.Background(), ic))
-	cc, err = getDefaultIngressClassControllerClass(cl)
+	cc, err = GetDefaultIngressClassControllerClass(cl)
 	require.NoError(t, err)
 	require.Equal(t, controller, cc)
 }
@@ -159,4 +159,12 @@ func TestIsDefaultNic(t *testing.T) {
 			require.Equal(t, c.Expected, IsDefaultNic(c.Nic))
 		})
 	}
+}
+
+func TestGetDefaultNginxIngressController(t *testing.T) {
+	ret := GetDefaultNginxIngressController()
+	require.NotNil(t, ret)
+	require.Equal(t, DefaultNicName, ret.Name)
+	require.Equal(t, DefaultIcName, ret.Spec.IngressClassName)
+	require.Equal(t, DefaultNicResourceName, ret.Spec.ControllerNamePrefix)
 }

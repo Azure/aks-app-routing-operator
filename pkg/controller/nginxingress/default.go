@@ -53,19 +53,7 @@ func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
 		metrics.HandleControllerReconcileMetrics(d.name, ctrl.Result{}, err)
 	}()
 
-	nic := &approutingv1alpha1.NginxIngressController{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: approutingv1alpha1.GroupVersion.String(),
-			Kind:       "NginxIngressController",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: DefaultNicName,
-		},
-		Spec: approutingv1alpha1.NginxIngressControllerSpec{
-			ControllerNamePrefix: "nginx",
-			IngressClassName:     DefaultIcName,
-		},
-	}
+	nic := GetDefaultNginxIngressController()
 
 	d.lgr.Info("determining if default nginx ingress controller should be created")
 	shouldCreate, err := shouldCreateDefaultNic(d.client)
@@ -80,7 +68,7 @@ func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
 	}
 
 	d.lgr.Info("upserting default nginx ingress controller")
-	if err := util.Upsert(ctx, d.client, nic); err != nil {
+	if err := util.Upsert(ctx, d.client, &nic); err != nil {
 		d.lgr.Error(err, "upserting default nginx ingress controller")
 		return fmt.Errorf("upserting default nginx ingress controller: %w", err)
 	}
@@ -111,7 +99,24 @@ func shouldCreateDefaultNic(cl client.Client) (bool, error) {
 	return false, nil
 }
 
-func getDefaultIngressClassControllerClass(cl client.Client) (string, error) {
+func GetDefaultNginxIngressController() approutingv1alpha1.NginxIngressController {
+	return approutingv1alpha1.NginxIngressController{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: approutingv1alpha1.GroupVersion.String(),
+			Kind:       "NginxIngressController",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultNicName,
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			ControllerNamePrefix: DefaultNicResourceName,
+			IngressClassName:     DefaultIcName,
+		},
+	}
+}
+
+// GetDefaultIngressClassControllerClass returns the default ingress class controller class
+func GetDefaultIngressClassControllerClass(cl client.Client) (string, error) {
 	defaultNicCc := "webapprouting.kubernetes.azure.com/nginx"
 
 	defaultIc := &netv1.IngressClass{

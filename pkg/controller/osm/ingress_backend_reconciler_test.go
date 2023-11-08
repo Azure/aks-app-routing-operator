@@ -5,6 +5,7 @@ package osm
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -82,9 +83,27 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	e := &IngressBackendReconciler{
-		client:                 c,
-		config:                 &config.Config{NS: "test-config-ns"},
-		ingressControllerNamer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
+		client: c,
+		config: &config.Config{NS: "test-config-ns"},
+		ingressControllerSourceSpecer: NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
+			if ing == nil {
+				return policyv1alpha1.IngressSourceSpec{}, false, nil
+			}
+
+			if ing.Spec.IngressClassName == nil {
+				return policyv1alpha1.IngressSourceSpec{}, false, nil
+			}
+
+			if *ing.Spec.IngressClassName == "test-ingress-class" {
+				return policyv1alpha1.IngressSourceSpec{
+					Kind:      "Service",
+					Name:      "test-name",
+					Namespace: "test-config-ns",
+				}, true, nil
+			}
+
+			return policyv1alpha1.IngressSourceSpec{}, false, nil
+		}),
 	}
 
 	// Initial reconcile
@@ -146,10 +165,29 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	ingressSourceSpec := policyv1alpha1.IngressSourceSpec{
+		Kind:      "Service",
+		Name:      "test-name",
+		Namespace: "test-config-ns",
+	}
 	e := &IngressBackendReconciler{
-		client:                 c,
-		config:                 &config.Config{NS: "test-config-ns"},
-		ingressControllerNamer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
+		client: c,
+		config: &config.Config{NS: "test-config-ns"},
+		ingressControllerSourceSpecer: NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
+			if ing == nil {
+				return policyv1alpha1.IngressSourceSpec{}, false, nil
+			}
+
+			if ing.Spec.IngressClassName == nil {
+				return policyv1alpha1.IngressSourceSpec{}, false, nil
+			}
+
+			if *ing.Spec.IngressClassName == "test-ingress-class" {
+				return ingressSourceSpec, true, nil
+			}
+
+			return policyv1alpha1.IngressSourceSpec{}, false, nil
+		}),
 	}
 
 	// Initial reconcile
@@ -169,6 +207,7 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	}
 	require.NoError(t, e.client.Get(ctx, client.ObjectKeyFromObject(backend), backend))
 	require.Len(t, backend.Spec.Backends, 1)
+	assert.Equal(t, ingressSourceSpec, backend.Spec.Sources[0])
 	assert.Equal(t, policyv1alpha1.BackendSpec{
 		Name: "test-service",
 		Port: policyv1alpha1.PortSpec{Number: 123, Protocol: "https"},
@@ -213,13 +252,64 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	require.False(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)))
 }
 
-func TestNewIngressBackendReconciler(t *testing.T) {
+func TestIngressBackendReconcilerReconcileGetSourceSpecErr(t *testing.T) {
 	ing := backendTestIng.DeepCopy()
+	c := fake.NewClientBuilder().WithObjects(ing).Build()
+	require.NoError(t, policyv1alpha1.AddToScheme(c.Scheme()))
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
+	e := &IngressBackendReconciler{
+		client: c,
+		config: &config.Config{NS: "test-config-ns"},
+		ingressControllerSourceSpecer: NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
+			return policyv1alpha1.IngressSourceSpec{}, false, fmt.Errorf("test-err")
+		}),
+	}
+
+	// Initial reconcile
+	beforeErrCount := testutils.GetErrMetricCount(t, ingressBackendControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess)
+	_, err := e.Reconcile(ctx, req)
+	require.Error(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressBackendControllerName), beforeErrCount+1)
+	require.Equal(t, testutils.GetReconcileMetricCount(t, ingressBackendControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	backend := &policyv1alpha1.IngressBackend{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ing.Name,
+			Namespace: ing.Namespace,
+		},
+	}
+	require.True(t, errors.IsNotFound(e.client.Get(ctx, client.ObjectKeyFromObject(backend), backend)))
+}
+
+func TestNewIngressBackendReconciler(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
-	ingressControllerName := NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"})
+	ingressControllerName := NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
+		if ing == nil {
+			return policyv1alpha1.IngressSourceSpec{}, false, nil
+		}
+
+		if ing.Spec.IngressClassName == nil {
+			return policyv1alpha1.IngressSourceSpec{}, false, nil
+		}
+
+		if *ing.Spec.IngressClassName == "test-name" {
+			return policyv1alpha1.IngressSourceSpec{
+				Kind:      "Service",
+				Name:      "test-name",
+				Namespace: "test-config-ns",
+			}, true, nil
+		}
+
+		return policyv1alpha1.IngressSourceSpec{}, false, nil
+	})
+
 	err = NewIngressBackendReconciler(m, conf, ingressControllerName)
 	require.NoError(t, err, "should not error")
 

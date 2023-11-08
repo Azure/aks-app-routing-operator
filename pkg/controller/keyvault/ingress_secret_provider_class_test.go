@@ -58,7 +58,13 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if *ing.Spec.IngressClassName == spcTestIngressClassName {
+				return true, nil
+			}
+
+			return false, nil
+		}),
 	}
 
 	ctx := context.Background()
@@ -162,7 +168,13 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if *ing.Spec.IngressClassName == spcTestIngressClassName {
+				return true, nil
+			}
+
+			return false, nil
+		}),
 	}
 
 	ctx := context.Background()
@@ -271,8 +283,14 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		events:         recorder,
-		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
+		events: recorder,
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if *ing.Spec.IngressClassName == spcTestIngressClassName {
+				return true, nil
+			}
+
+			return false, nil
+		}),
 	}
 
 	ctx := context.Background()
@@ -299,7 +317,13 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if *ing.Spec.IngressClassName == spcTestIngressClassName {
+				return true, nil
+			}
+
+			return false, nil
+		}),
 	}
 
 	invalidURLIng := &netv1.Ingress{
@@ -397,7 +421,13 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 				config: &config.Config{
 					Cloud: c.configCloud,
 				},
-				ingressManager: NewIngressManager(map[string]struct{}{spcTestIngressClassName: {}}),
+				ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+					if *ing.Spec.IngressClassName == spcTestIngressClassName {
+						return true, nil
+					}
+
+					return false, nil
+				}),
 			}
 
 			ing := spcTestIngress.DeepCopy()
@@ -415,4 +445,28 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
 		})
 	}
+}
+
+func TestIngressSecretProviderClassReconcilerBuildSPCFailedIsManaging(t *testing.T) {
+	i := &IngressSecretProviderClassReconciler{
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			return false, fmt.Errorf("failed to get ingress")
+		}),
+	}
+
+	ing := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-ingress",
+			Annotations: map[string]string{},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: &spcTestIngressClassName,
+		},
+	}
+	spc := &secv1.SecretProviderClass{}
+
+	ok, err := i.buildSPC(ing, spc)
+	require.False(t, ok)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "determining if ingress is managed")
 }

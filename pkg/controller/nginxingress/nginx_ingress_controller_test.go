@@ -10,6 +10,7 @@ import (
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -800,6 +801,94 @@ func TestIsUnreconcilableError(t *testing.T) {
 			if got != c.want {
 				t.Errorf("got %v, want %v", got, c.want)
 			}
+		})
+	}
+}
+
+func TestToNginxIngressConfig(t *testing.T) {
+	defaultCc := "defaultControllerClass"
+	cases := []struct {
+		name string
+		nic  *approutingv1alpha1.NginxIngressController
+		want manifests.NginxIngressConfig
+	}{
+		{
+			name: "default controller class",
+			nic:  util.ToPtr(GetDefaultNginxIngressController()),
+			want: manifests.NginxIngressConfig{
+				ControllerClass: defaultCc,
+				ResourceName:    DefaultNicResourceName,
+				IcName:          DefaultIcName,
+				ServiceConfig:   &manifests.ServiceConfig{},
+			},
+		},
+		{
+			name: "custom fields",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ResourceName:    "controllerNamePrefix-0",
+				ServiceConfig:   &manifests.ServiceConfig{},
+				IcName:          "ingressClassName",
+			},
+		},
+		{
+			name: "custom fields with annotations",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					LoadBalancerAnnotations: map[string]string{
+						"foo": "bar",
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ResourceName:    "controllerNamePrefix-0",
+				ServiceConfig: &manifests.ServiceConfig{
+					map[string]string{
+						"foo": "bar",
+					},
+				},
+				IcName: "ingressClassName",
+			},
+		},
+		{
+			name: "custom fields with long name",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: strings.Repeat("a", 1000),
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: ("webapprouting.kubernetes.azure.com/nginx/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
+				ResourceName:    "controllerNamePrefix-0",
+				ServiceConfig:   &manifests.ServiceConfig{},
+				IcName:          "ingressClassName",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := ToNginxIngressConfig(c.nic, defaultCc)
+			require.Equal(t, c.want, *got)
 		})
 	}
 }
