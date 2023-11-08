@@ -25,6 +25,8 @@ func init() {
 	log.SetLogger(logr.New(log.NullLogSink{})) // without this controller-runtime panics. We use it solely for the client so we can ignore logs
 }
 
+var operatorGeneration int64
+
 func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("determining testing order")
@@ -257,11 +259,15 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 					return false, fmt.Errorf("getting deployment: %w", err)
 				}
 
+				lgr.Info("waiting for replicas", "generation", copy.Status.ObservedGeneration, "desired", *copy.Spec.Replicas, "available", copy.Status.AvailableReplicas, "updated", copy.Status.UpdatedReplicas)
+
 				// check rollout status of deployment
-				if copy.Status.UpdatedReplicas != *copy.Spec.Replicas {
+				if copy.Status.AvailableReplicas != *copy.Spec.Replicas || copy.Status.UpdatedReplicas != *copy.Spec.Replicas || copy.Status.ObservedGeneration < operatorGeneration+1 {
 					return false, nil
 				}
 
+				lgr.Info("deployment reached available and updated replicas")
+				operatorGeneration = operatorGeneration + 1
 				return true, nil
 			}); err != nil {
 				return fmt.Errorf("waiting for deployment to be ready: %w", err)
