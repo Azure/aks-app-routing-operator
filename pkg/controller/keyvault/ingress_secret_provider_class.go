@@ -112,6 +112,9 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	if ok {
 		logger.Info("reconciling secret provider class for ingress")
 		err = util.Upsert(ctx, i.client, spc)
+		if err != nil {
+			i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+		}
 		return result, err
 	}
 
