@@ -279,10 +279,10 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 		return fmt.Errorf("setting up event mirror: %w", err)
 	}
 
-	ingressSourceSpecer := osm.NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool) {
+	ingressSourceSpecer := osm.NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
 		ic := ing.Spec.IngressClassName
 		if ic == nil {
-			return policyv1alpha1.IngressSourceSpec{}, false
+			return policyv1alpha1.IngressSourceSpec{}, false, nil
 		}
 
 		// if it's the default one we should assume we own it because there's time in the upgrade from non crd app routing to crd app routing where a crd for the default doesn't exist
@@ -291,7 +291,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 				Kind:      "Service",
 				Name:      nginxingress.DefaultNicResourceName,
 				Namespace: conf.NS,
-			}, true
+			}, true, nil
 		}
 
 		nics := &approutingv1alpha1.NginxIngressControllerList{}
@@ -304,13 +304,13 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 				Kind:      "Service",
 				Name:      ingressConfig.ResourceName,
 				Namespace: conf.NS,
-			}, true
+			}, true, nil
 		}
 		if !k8serrors.IsNotFound(err) {
-			return policyv1alpha1.IngressSourceSpec{}, false
+			return policyv1alpha1.IngressSourceSpec{}, false, fmt.Errorf("listing nginx ingress controllers: %w", err)
 		}
 
-		return policyv1alpha1.IngressSourceSpec{}, false
+		return policyv1alpha1.IngressSourceSpec{}, false, nil
 
 	})
 	lgr.Info("setting up ingress backend reconciler")

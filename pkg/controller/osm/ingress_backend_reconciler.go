@@ -27,19 +27,19 @@ var (
 // IngressControllerSourceSpecer returns the IngressSourceSpec an Ingress consumes and a boolean indicating whether it's managed by web app routing.
 // If an ingress is not managed by web app routing, the specer will return false and isn't guaranteed to return the IngressSourceSpec
 type IngressControllerSourceSpecer interface {
-	IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)
+	IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error)
 }
 
 type ingressControllerSourceSpecer struct {
-	ingressSourceSpecFn func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)
+	ingressSourceSpecFn func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error)
 }
 
 // NewIngressControllerNamer returns an IngressControllerSourceSpecer using a map from ingress class names to controller names
-func NewIngressControllerSourceSpecerFromFn(fn func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)) IngressControllerSourceSpecer {
+func NewIngressControllerSourceSpecerFromFn(fn func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error)) IngressControllerSourceSpecer {
 	return &ingressControllerSourceSpecer{ingressSourceSpecFn: fn}
 }
 
-func (i *ingressControllerSourceSpecer) IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool) {
+func (i *ingressControllerSourceSpecer) IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
 	return i.ingressSourceSpecFn(ing)
 }
 
@@ -111,7 +111,11 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("ingressBackend", backend.Name)
 
-	sourceSpec, ok := i.ingressControllerSourceSpecer.IngressSourceSpec(ing)
+	sourceSpec, ok, err := i.ingressControllerSourceSpecer.IngressSourceSpec(ing)
+	if err != nil {
+		logger.Error(err, "failed to get ingress source spec")
+		return result, err
+	}
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{
 		Backends: []policyv1alpha1.BackendSpec{},
