@@ -160,3 +160,11 @@ func TestIsDefaultNic(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDefaultNginxIngressController(t *testing.T) {
+	ret := GetDefaultNginxIngressController()
+	require.NotNil(t, ret)
+	require.Equal(t, DefaultNicName, ret.Name)
+	require.Equal(t, DefaultIcName, ret.Spec.IngressClassName)
+	require.Equal(t, DefaultNicResourceName, ret.Spec.ControllerNamePrefix)
+}

@@ -12,6 +12,7 @@ import (
 	"io"
 	"time"
 
+	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -86,8 +87,8 @@ type ListWatchdogTargets func() ([]WatchdogTarget, error)
 
 func GetListNginxWatchdogTargets(cl client.Client, defaultNicControllerClass string) ListWatchdogTargets {
 	return func() ([]WatchdogTarget, error) {
-		nics, err := nginxingress.List(cl)
-		if err != nil {
+		nics := &approutingv1alpha1.NginxIngressControllerList{}
+		if err := cl.List(nil, nics); err != nil {
 			return nil, fmt.Errorf("listing NginxIngressController objects: %w", err)
 		}
 

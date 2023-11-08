@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +25,7 @@ import (
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakecgo "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,6 +57,61 @@ func (t testLabelGetter) PodLabels() map[string]string {
 	return map[string]string{}
 }
 
+func TestGetListNginxWatchdogTargets(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	defaultCc := "default-controller-class"
+
+	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	listTargetFn := GetListNginxWatchdogTargets(cl, defaultCc)
+	require.NotNil(t, listTargetFn)
+
+	// no nics
+
+	targets, err := listTargetFn()
+	require.NoError(t, err)
+	require.Len(t, targets, 0)
+
+	// one nic
+
+	nic := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nic-1",
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     "ingressClass1",
+			ControllerNamePrefix: "controllerNamePrefix1",
+		},
+	}
+	require.NoError(t, cl.Create(context.Background(), nic))
+
+	targets, err = listTargetFn()
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+	require.Equal(t, targets[0].ScrapeFn, NginxScrapeFn)
+	require.Equal(t, targets[0].PodLabels, nginxingress.ToNginxIngressConfig(nic, defaultCc).PodLabels())
+
+	// multiple nic
+
+	nic2 := &approutingv1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nic-2",
+		},
+		Spec: approutingv1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     "ingressClass2",
+			ControllerNamePrefix: "controllerNamePrefix2",
+		},
+	}
+	require.NoError(t, cl.Create(context.Background(), nic2))
+
+	targets, err = listTargetFn()
+	require.NoError(t, err)
+	require.Len(t, targets, 2)
+	require.Equal(t, targets[0].ScrapeFn, NginxScrapeFn)
+	require.Equal(t, targets[1].PodLabels, NginxScrapeFn)
+}
+
 func TestMain(m *testing.M) {
 	restConfig, env, err = testutils.StartTestingEnv()
 	if err != nil {
@@ -75,17 +133,18 @@ func TestConcurrencyWatchdogPositive(t *testing.T) {
 	c := newTestConcurrencyWatchdog()
 	c.clientset = cs
 	c.client = cli
-	c.targets = []*WatchdogTarget{{
-		ScrapeFn: func(_ context.Context, _ rest.Interface, pod *corev1.Pod) (float64, error) {
-			if pod.Name == "pod-1" {
-				return 2000, nil
-			}
-			return 1, nil
-		},
-		LabelGetter: testLabelGetter{},
-	}}
+	c.listWatchdogTargets = func() ([]WatchdogTarget, error) {
+		return []WatchdogTarget{{
+			ScrapeFn: func(_ context.Context, _ rest.Interface, pod *corev1.Pod) (float64, error) {
+				if pod.Name == "pod-1" {
+					return 2000, nil
+				}
+				return 1, nil
+			},
+			PodLabels: testLabelGetter{}.PodLabels(),
+		}}, nil
+	}
 
-	// No eviction after first tick of the loop
 	beforeErrCount := testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName)
 	beforeReconcileCount := testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
 	require.NoError(t, c.tick(ctx))
@@ -112,16 +171,18 @@ func TestConcurrencyWatchdogPodNotReady(t *testing.T) {
 
 	c := newTestConcurrencyWatchdog()
 	c.client = cli
-	c.targets = []*WatchdogTarget{
-		{
-			ScrapeFn: func(_ context.Context, _ rest.Interface, pod *corev1.Pod) (float64, error) {
-				if pod.Name == "pod-1" {
-					return 2000, nil
-				}
-				return 1, nil
+	c.listWatchdogTargets = func() ([]WatchdogTarget, error) {
+		return []WatchdogTarget{
+			{
+				ScrapeFn: func(_ context.Context, _ rest.Interface, pod *corev1.Pod) (float64, error) {
+					if pod.Name == "pod-1" {
+						return 2000, nil
+					}
+					return 1, nil
+				},
+				PodLabels: testLabelGetter{}.PodLabels(),
 			},
-			LabelGetter: testLabelGetter{},
-		},
+		}, nil
 	}
 
 	// No eviction after first tick of the loop
