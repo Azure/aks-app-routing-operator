@@ -82,9 +82,9 @@ func TestIngressBackendReconcilerIntegration(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	e := &IngressBackendReconciler{
-		client:                 c,
-		config:                 &config.Config{NS: "test-config-ns"},
-		ingressControllerNamer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
+		client:                        c,
+		config:                        &config.Config{NS: "test-config-ns"},
+		ingressControllerSourceSpecer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
 	}
 
 	// Initial reconcile
@@ -147,9 +147,9 @@ func TestIngressBackendReconcilerIntegrationNoLabels(t *testing.T) {
 	ctx = logr.NewContext(ctx, logr.Discard())
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
 	e := &IngressBackendReconciler{
-		client:                 c,
-		config:                 &config.Config{NS: "test-config-ns"},
-		ingressControllerNamer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
+		client:                        c,
+		config:                        &config.Config{NS: "test-config-ns"},
+		ingressControllerSourceSpecer: NewIngressControllerNamer(map[string]string{*ing.Spec.IngressClassName: "test-name"}),
 	}
 
 	// Initial reconcile

@@ -24,48 +24,34 @@ var (
 	ingressBackendControllerName = controllername.New("osm", "ingress", "backend")
 )
 
-// IngressControllerNamer returns the controller name that an Ingress consumes and a boolean indicating whether it's managed by web app routing.
-// If an ingress is not managed by web app routing, the namer will return false and isn't guaranteed to return the controller name
-type IngressControllerNamer interface {
-	IngressControllerName(ing *netv1.Ingress) (string, bool)
+// IngressControllerSourceSpecer returns the IngressSourceSpec an Ingress consumes and a boolean indicating whether it's managed by web app routing.
+// If an ingress is not managed by web app routing, the namer will return false and isn't guaranteed to return the IngressSourceSpec
+type IngressControllerSourceSpecer interface {
+	IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)
 }
 
-type ingressControllerNamer struct {
-	icToController map[string]string
+type ingressControllerSourceSpecer struct {
+	ingressSourceSpecFn func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)
 }
 
-// NewIngressControllerNamer returns an IngressControllerNamer using a map from ingress class names to controller names
-func NewIngressControllerNamer(icToController map[string]string) IngressControllerNamer {
-	return &ingressControllerNamer{icToController: icToController}
+// NewIngressControllerNamer returns an IngressControllerSourceSpecer using a map from ingress class names to controller names
+func NewIngressControllerSourceSpecerFromFn(fn func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)) IngressControllerSourceSpecer {
+	return &ingressControllerSourceSpecer{ingressSourceSpecFn: fn}
 }
 
-func (i ingressControllerNamer) IngressControllerName(ing *netv1.Ingress) (string, bool) {
-	if ing == nil {
-		return "", false
-	}
-
-	cn := ing.Spec.IngressClassName
-	if cn == nil {
-		return "", false
-	}
-
-	controller, ok := i.icToController[*cn]
-	if !ok {
-		return "", false
-	}
-
-	return controller, true
+func (i *ingressControllerSourceSpecer) IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool) {
+	return i.ingressSourceSpecFn(ing)
 }
 
 // IngressBackendReconciler creates an Open Service Mesh IngressBackend for every ingress resource with "kubernetes.azure.com/use-osm-mtls=true".
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
-	client                 client.Client
-	config                 *config.Config
-	ingressControllerNamer IngressControllerNamer
+	client                        client.Client
+	config                        *config.Config
+	ingressControllerSourceSpecer IngressControllerSourceSpecer
 }
 
-func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingressControllerNamer IngressControllerNamer) error {
+func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingressControllerNamer IngressControllerSourceSpecer) error {
 	metrics.InitControllerMetrics(ingressBackendControllerName)
 	if conf.DisableOSM {
 		return nil
@@ -75,7 +61,7 @@ func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingr
 			NewControllerManagedBy(manager).
 			For(&netv1.Ingress{}),
 		manager.GetLogger(),
-	).Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerNamer: ingressControllerNamer})
+	).Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerSourceSpecer: ingressControllerNamer})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -125,17 +111,12 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("ingressBackend", backend.Name)
 
-	controllerName, ok := i.ingressControllerNamer.IngressControllerName(ing)
-	logger = logger.WithValues("ingressController", controllerName)
+	sourceSpec, ok := i.ingressControllerSourceSpecer.IngressSourceSpec(ing)
 
 	backend.Spec = policyv1alpha1.IngressBackendSpec{
 		Backends: []policyv1alpha1.BackendSpec{},
 		Sources: []policyv1alpha1.IngressSourceSpec{
-			{
-				Kind:      "Service",
-				Name:      controllerName,
-				Namespace: i.config.NS,
-			},
+			sourceSpec,
 			{
 				Kind: "AuthenticatedPrincipal",
 				Name: osmNginxSAN,
@@ -163,8 +144,8 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if ing.Annotations == nil || ing.Annotations["kubernetes.azure.com/use-osm-mtls"] == "" || !ok {
 		logger.Info("Ingress does not have osm mtls annotation, cleaning up managed IngressBackend")
-		logger.Info("getting IngressBackend")
 
+		logger.Info("getting IngressBackend")
 		toCleanBackend := &policyv1alpha1.IngressBackend{}
 		err = i.client.Get(ctx, client.ObjectKeyFromObject(backend), toCleanBackend)
 		if err != nil {
