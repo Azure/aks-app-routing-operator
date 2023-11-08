@@ -65,9 +65,15 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	p := &PlaceholderPodController{
-		client:         c,
-		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManager(map[string]struct{}{placeholderTestIngClassName: {}}),
+		client: c,
+		config: &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if *ing.Spec.IngressClassName == placeholderTestIngClassName {
+				return true, nil
+			}
+
+			return false, nil
+		}),
 	}
 
 	ctx := context.Background()
@@ -190,9 +196,15 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects(spc, ing).Build()
 	require.NoError(t, secv1.AddToScheme(c.Scheme()))
 	p := &PlaceholderPodController{
-		client:         c,
-		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManager(map[string]struct{}{placeholderTestIngClassName: {}}),
+		client: c,
+		config: &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if *ing.Spec.IngressClassName == placeholderTestIngClassName {
+				return true, nil
+			}
+
+			return false, nil
+		}),
 	}
 
 	ctx := context.Background()
@@ -293,7 +305,15 @@ func TestNewPlaceholderPodController(t *testing.T) {
 	require.NoError(t, err)
 
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
-	ingressManager := NewIngressManager(map[string]struct{}{"webapprouting.kubernetes.azure.com": {}})
+
+	ingressManager := NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		if *ing.Spec.IngressClassName == "webapprouting.kubernetes.azure" {
+			return true, nil
+		}
+
+		return false, nil
+	})
+
 	err = NewPlaceholderPodController(m, conf, ingressManager)
 	require.NoError(t, err)
 }

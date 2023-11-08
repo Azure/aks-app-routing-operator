@@ -124,6 +124,20 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestConcurrencyWatchdogFailListingTargets(t *testing.T) {
+	ctx := context.Background()
+	c := newTestConcurrencyWatchdog()
+	c.listWatchdogTargets = func() ([]WatchdogTarget, error) {
+		return nil, errors.NewBadRequest("test error")
+	}
+
+	beforeErrCount := testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
+	require.Error(t, c.tick(ctx))
+	require.Equal(t, beforeErrCount+1, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName))
+	require.Equal(t, beforeReconcileCount+1, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess))
+}
+
 func TestConcurrencyWatchdogPositive(t *testing.T) {
 	ctx := context.Background()
 	list := buildTestPods(5)
