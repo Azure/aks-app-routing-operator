@@ -68,6 +68,14 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
 		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if ing == nil {
+				return false, nil
+			}
+
+			if ing.Spec.IngressClassName == nil {
+				return false, nil
+			}
+
 			if *ing.Spec.IngressClassName == placeholderTestIngClassName {
 				return true, nil
 			}
@@ -199,6 +207,14 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
 		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if ing == nil {
+				return false, nil
+			}
+
+			if ing.Spec.IngressClassName == nil {
+				return false, nil
+			}
+
 			if *ing.Spec.IngressClassName == placeholderTestIngClassName {
 				return true, nil
 			}
@@ -307,6 +323,14 @@ func TestNewPlaceholderPodController(t *testing.T) {
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
 
 	ingressManager := NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		if ing == nil {
+			return false, nil
+		}
+
+		if ing.Spec.IngressClassName == nil {
+			return false, nil
+		}
+
 		if *ing.Spec.IngressClassName == "webapprouting.kubernetes.azure" {
 			return true, nil
 		}

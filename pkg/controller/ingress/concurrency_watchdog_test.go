@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -89,7 +90,7 @@ func TestGetListNginxWatchdogTargets(t *testing.T) {
 	targets, err = listTargetFn()
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
-	require.Equal(t, targets[0].ScrapeFn, NginxScrapeFn)
+	require.Equal(t, reflect.ValueOf(targets[0].ScrapeFn).Pointer(), reflect.ValueOf(NginxScrapeFn).Pointer()) // need to reflect to compare functions
 	require.Equal(t, targets[0].PodLabels, nginxingress.ToNginxIngressConfig(nic, defaultCc).PodLabels())
 
 	// multiple nic
@@ -108,8 +109,8 @@ func TestGetListNginxWatchdogTargets(t *testing.T) {
 	targets, err = listTargetFn()
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
-	require.Equal(t, targets[0].ScrapeFn, NginxScrapeFn)
-	require.Equal(t, targets[1].PodLabels, NginxScrapeFn)
+	require.Equal(t, reflect.ValueOf(targets[0].ScrapeFn).Pointer(), reflect.ValueOf(NginxScrapeFn).Pointer()) // need to reflect to compare functions
+	require.Equal(t, reflect.ValueOf(targets[1].ScrapeFn).Pointer(), reflect.ValueOf(NginxScrapeFn).Pointer()) // need to reflect to compare functions
 }
 
 func TestMain(m *testing.M) {
@@ -135,7 +136,7 @@ func TestConcurrencyWatchdogFailListingTargets(t *testing.T) {
 	beforeReconcileCount := testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess)
 	require.Error(t, c.tick(ctx))
 	require.Equal(t, beforeErrCount+1, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName))
-	require.Equal(t, beforeReconcileCount+1, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess))
+	require.Equal(t, beforeReconcileCount, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess))
 }
 
 func TestConcurrencyWatchdogPositive(t *testing.T) {

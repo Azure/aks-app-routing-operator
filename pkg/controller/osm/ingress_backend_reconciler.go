@@ -25,7 +25,7 @@ var (
 )
 
 // IngressControllerSourceSpecer returns the IngressSourceSpec an Ingress consumes and a boolean indicating whether it's managed by web app routing.
-// If an ingress is not managed by web app routing, the namer will return false and isn't guaranteed to return the IngressSourceSpec
+// If an ingress is not managed by web app routing, the specer will return false and isn't guaranteed to return the IngressSourceSpec
 type IngressControllerSourceSpecer interface {
 	IngressSourceSpec(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool)
 }
