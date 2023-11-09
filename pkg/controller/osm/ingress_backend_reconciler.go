@@ -10,6 +10,7 @@ import (
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,6 +48,7 @@ func (i *ingressControllerSourceSpecer) IngressSourceSpec(ing *netv1.Ingress) (p
 // This allows nginx to use mTLS provided by OSM when contacting upstreams.
 type IngressBackendReconciler struct {
 	client                        client.Client
+	events                        record.EventRecorder
 	config                        *config.Config
 	ingressControllerSourceSpecer IngressControllerSourceSpecer
 }
@@ -61,7 +63,12 @@ func NewIngressBackendReconciler(manager ctrl.Manager, conf *config.Config, ingr
 			NewControllerManagedBy(manager).
 			For(&netv1.Ingress{}),
 		manager.GetLogger(),
-	).Complete(&IngressBackendReconciler{client: manager.GetClient(), config: conf, ingressControllerSourceSpecer: ingressControllerNamer})
+	).Complete(&IngressBackendReconciler{
+		client:                        manager.GetClient(),
+		config:                        conf,
+		ingressControllerSourceSpecer: ingressControllerNamer,
+		events:                        manager.GetEventRecorderFor("aks-app-routing-operator"),
+	})
 }
 
 func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -166,5 +173,9 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	logger.Info("reconciling OSM ingress backend for ingress")
 	err = util.Upsert(ctx, i.client, backend)
+	if err != nil {
+		i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateIngressBackend", "error while creating or updating IngressBackend needed for OSM integration: %s", err)
+	}
+
 	return result, err
 }
