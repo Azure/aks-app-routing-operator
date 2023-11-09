@@ -15,6 +15,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -37,6 +38,7 @@ var (
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
 	client         client.Client
+	events         record.EventRecorder
 	config         *config.Config
 	ingressManager IngressManager
 }
@@ -50,7 +52,12 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 		ctrl.
 			NewControllerManagedBy(manager).
 			For(&secv1.SecretProviderClass{}), manager.GetLogger(),
-	).Complete(&PlaceholderPodController{client: manager.GetClient(), config: conf, ingressManager: ingressManager})
+	).Complete(&PlaceholderPodController{
+		client:         manager.GetClient(),
+		config:         conf,
+		ingressManager: ingressManager,
+		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
+	})
 }
 
 func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -135,6 +142,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	logger.Info("reconciling placeholder deployment for secret provider class")
 	p.buildDeployment(dep, spc, ing)
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
+		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %v", err)
 		return result, err
 	}
 
