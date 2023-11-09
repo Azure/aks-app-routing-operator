@@ -149,7 +149,7 @@ func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *
 	// Can safely assume the namespace exists if using kube-system.
 	// Purposefully do this after applying the labels, namespace isn't an Nginx-specific resource
 	if conf.NS != "kube-system" {
-		res.Namespace = namespace(conf)
+		res.Namespace = Namespace(conf)
 	}
 
 	return res

@@ -6,9 +6,11 @@ import (
 	"fmt"
 
 	globalCfg "github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/open-policy-agent/cert-controller/pkg/rotator"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -62,7 +64,7 @@ func New(globalCfg *globalCfg.Config) (*config, error) {
 }
 
 // EnsureWebhookConfigurations ensures the webhook configurations exist in the cluster in the desired state
-func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Client) error {
+func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Client, globalCfg *globalCfg.Config) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
 
 	lgr.Info("calculating ValidatingWebhookConfiguration")
@@ -117,11 +119,19 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 		Webhooks: mutatingWhs,
 	}
 
-	// todo: add ownership references to app-routing-system ns
+	lgr.Info("ensuring namespace exists")
+	appRoutingNamespace := &corev1.Namespace{}
+	appRoutingNamespace = manifests.Namespace(globalCfg)
+	if err := util.Upsert(ctx, cl, appRoutingNamespace); err != nil {
+		return fmt.Errorf("upserting namespace: %w", err)
+	}
+
+	ownerRef := manifests.GetOwnerRefs(appRoutingNamespace, false)
 
 	lgr.Info("ensuring webhook configuration")
 	whs := []client.Object{validatingWhc, mutatingWhc}
 	for _, wh := range whs {
+		wh.SetOwnerReferences(ownerRef)
 		copy := wh.DeepCopyObject().(client.Object)
 		lgr := lgr.WithValues("resource", wh.GetName(), "resourceKind", wh.GetObjectKind().GroupVersionKind().Kind)
 		lgr.Info("upserting resource")
