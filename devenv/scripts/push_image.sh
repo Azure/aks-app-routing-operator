@@ -24,6 +24,6 @@ if [ -z $TAG  ]; then
 fi
 
 # Push image
-CMD="kubectl set image -n kube-system deployments/app-routing-operator operator=$TAG"
+CMD="kubectl set image -n kube-system deployments/app-routing-operator operator=$TAG operator-setup=$TAG"
 
 run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP "$CMD"

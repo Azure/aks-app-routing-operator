@@ -27,6 +27,11 @@ spec:
       labels:
         app: app-routing-operator
     spec:
+      initContainers:
+        - name: operator-setup
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
+          command: ["/aks-app-routing-operator"]
+          args: ["--init-container"]
       containers:
         - name: operator
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6-hotfix.20220114
@@ -40,18 +45,10 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
-            periodSeconds: 5
           readinessProbe:
             httpGet:
               path: /readyz
               port: 8080
-            periodSeconds: 5
-          startupProbe:
-            failureThreshold: 7
-            httpGet:
-              path: /readyz
-              port: 8080
-            periodSeconds: 5
       volumes:
         - name: cert
           secret:

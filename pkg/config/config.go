@@ -26,6 +26,8 @@ var Flags = &Config{}
 var dnsZonesString string
 
 func init() {
+	flag.BoolVar(&Flags.IsInitContainer, "init-container", false, "whether the image is running as an init container for setup for the operator")
+	flag.StringVar(&Flags.CertSecretName, "cert-secret", "app-routing-webhook-secret", "name of the secret containing the webhook cert")
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
@@ -48,6 +50,9 @@ func init() {
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
 	flag.StringVar(&Flags.CertDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "location of the certificates")
+	flag.StringVar(&Flags.CertName, "cert-name", "tls.crt", "name of the certificate file in the cert-dir")
+	flag.StringVar(&Flags.KeyName, "key-name", "tls.key", "name of the key file in the cert-dir")
+	flag.StringVar(&Flags.CaName, "ca-name", "ca.crt", "name of the CA file in the cert-dir")
 }
 
 type DnsZoneConfig struct {
@@ -57,6 +62,8 @@ type DnsZoneConfig struct {
 }
 
 type Config struct {
+	IsInitContainer                     bool
+	CertSecretName                      string
 	ServiceAccountTokenPath             string
 	MetricsAddr, ProbeAddr              string
 	NS, Registry                        string
@@ -75,9 +82,36 @@ type Config struct {
 	DnsSyncInterval                     time.Duration
 	CrdPath                             string
 	CertDir                             string
+	CertName, KeyName, CaName           string
 }
 
 func (c *Config) Validate() error {
+	if c.OperatorNs == "" {
+		return errors.New("--operator-namespace is required")
+	}
+	if c.OperatorWebhookService == "" {
+		return errors.New("--operator-webhook-service is required")
+	}
+	if c.CertName == "" {
+		return errors.New("--cert-name is required")
+	}
+	if c.KeyName == "" {
+		return errors.New("--key-name is required")
+	}
+	if c.CaName == "" {
+		return errors.New("--ca-name is required")
+	}
+
+	// placement of where we check if it's the init container is very important
+	// not all flags are required for the init container os this exits early
+	if c.IsInitContainer {
+		if c.CertSecretName == "" {
+			return errors.New("--cert-secret is required")
+		}
+
+		return nil
+	}
+
 	if c.NS == "" {
 		return errors.New("--namespace is required")
 	}
@@ -102,17 +136,11 @@ func (c *Config) Validate() error {
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
 	}
-	if c.OperatorNs == "" {
-		return errors.New("--operator-namespace is required")
-	}
 	if c.WebhookPort == 0 {
 		return errors.New("--webhook-port is required")
 	}
 	if c.OperatorDeployment == "" {
 		return errors.New("--operator-deployment is required")
-	}
-	if c.OperatorWebhookService == "" {
-		return errors.New("--operator-webhook-service is required")
 	}
 
 	if c.ClusterUid == "" {
