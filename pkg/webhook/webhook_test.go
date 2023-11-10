@@ -94,6 +94,8 @@ func TestEnsureWebhookConfigurations(t *testing.T) {
 			mutatingWebhookConfigName:   "app-routing-mutating",
 			validatingWebhooks:          Validating,
 			mutatingWebhooks:            Mutating,
+			certDir: 				   "testcerts",
+			caName: 				   "tls.crt",
 		}
 
 		cl := fake.NewClientBuilder().Build()
@@ -162,6 +164,8 @@ func TestGetClientConfig(t *testing.T) {
 				serviceName: "service-name",
 				namespace:   "namespace",
 				port:        443,
+				certDir:     "testcerts",
+				caName:      "tls.crt",
 			},
 			path: "/example-path",
 			expected: admissionregistrationv1.WebhookClientConfig{
