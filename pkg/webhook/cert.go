@@ -18,9 +18,6 @@ import (
 )
 
 // this file is heavily inspired by Fleet's webhook cert gen https://github.com/Azure/fleet/blob/main/pkg/webhook/webhook.go
-
-var osExit = os.Exit
-
 type cert struct {
 	caPem   []byte
 	certPem []byte

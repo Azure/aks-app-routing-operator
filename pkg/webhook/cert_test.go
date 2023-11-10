@@ -1,18 +1,14 @@
 package webhook
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestNewCert(t *testing.T) {
@@ -62,55 +58,37 @@ func TestNewCert(t *testing.T) {
 	require.Equal(t, serverCert.PublicKey, serverKey.Public(), "expected public key to match")
 }
 func TestEnsureCertificates(t *testing.T) {
-	ctx := context.Background()
+
 	lgr := logr.Discard()
-	cl := fake.NewClientBuilder().Build()
 
-	c := &config{
-		serviceName: "test-service",
-		namespace:   "test-namespace",
-		certSecret:  "test-secret",
-		certName:    "test-cert",
-		keyName:     "test-key",
-		caName:      "test-ca",
-	}
-
-	t.Run("secret already exists", func(t *testing.T) {
-		// create a secret to simulate it already existing
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      c.certSecret,
-				Namespace: c.namespace,
-			},
+	t.Run("cert already exists", func(t *testing.T) {
+		c := &config{
+			certDir:  "testcerts",
+			certName: "tls.crt",
+			keyName:  "tls.key",
+			caName:   "ca.crt",
 		}
-		require.NoError(t, cl.Create(ctx, secret), "expected no error creating secret")
 
-		err := c.EnsureCertificates(ctx, lgr, cl)
+		err := c.EnsureCertificates(lgr)
 		require.NoError(t, err, "expected no error")
-		cl.Delete(ctx, secret)
 	})
 
-	t.Run("create new secret", func(t *testing.T) {
-		var exitCode int
-    	osExit = func(code int) {
-       		exitCode = code
-    	}
-		err := c.EnsureCertificates(ctx, lgr, cl)
-		require.Equal(t, 1, exitCode, "expected exit code 1")
-		require.NoError(t, err, "expected no error")
+	t.Run("create new certs", func(t *testing.T) {
 
-		// verify that the secret was created with the expected data
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      c.certSecret,
-				Namespace: c.namespace,
-			},
+		c := &config{
+			certDir:  "test-dir",
+			certName: "tls.crt",
+			keyName:  "tls.key",
+			caName:   "ca.crt",
 		}
-		require.NoError(t, cl.Get(ctx, client.ObjectKeyFromObject(secret), secret), "expected no error getting secret")
-		require.Equal(t, c.certSecret, secret.Name, "expected secret name to match")
-		require.Equal(t, c.namespace, secret.Namespace, "expected secret namespace to match")
-		require.NotNil(t, secret.Data[c.certName], "expected cert data to not be nil")
-		require.NotNil(t, secret.Data[c.keyName], "expected key data to not be nil")
-		require.NotNil(t, secret.Data[c.caName], "expected ca data to not be nil")
+
+		err := c.EnsureCertificates(lgr)
+		require.NoError(t, err, "expected no error")
+		require.FileExists(t, "test-dir/tls.crt", "expected tls.crt to exist")
+		require.FileExists(t, "test-dir/tls.key", "expected tls.key to exist")
+		require.FileExists(t, "test-dir/ca.crt", "expected ca.crt to exist")
+
+		os.RemoveAll("test-dir")
+
 	})
 }
