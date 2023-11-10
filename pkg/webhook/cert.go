@@ -22,6 +22,7 @@ import (
 
 // this file is heavily inspired by Fleet's webhook cert gen https://github.com/Azure/fleet/blob/main/pkg/webhook/webhook.go
 
+var osExit = os.Exit
 type cert struct {
 	caPem   []byte
 	certPem []byte
@@ -170,7 +171,7 @@ func (c *config) EnsureCertificates(ctx context.Context, lgr logr.Logger, cl cli
 
 	lgr.Info("secret created")
 	lgr.Info("exiting so pod can be restarted to mount new secret faster")
-	os.Exit(1) // it's not actually an error but for init containers to cause a pod restart we need this to be error signal
+	osExit(1) // it's not actually an error but for init containers to cause a pod restart we need this to be error signal
 
 	return nil
 }
