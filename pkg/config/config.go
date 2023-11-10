@@ -26,8 +26,6 @@ var Flags = &Config{}
 var dnsZonesString string
 
 func init() {
-	flag.BoolVar(&Flags.IsInitContainer, "init-container", false, "whether the image is running as an init container for setup for the operator")
-	flag.StringVar(&Flags.CertSecretName, "cert-secret", "app-routing-webhook-secret", "name of the secret containing the webhook cert")
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
@@ -62,8 +60,6 @@ type DnsZoneConfig struct {
 }
 
 type Config struct {
-	IsInitContainer                     bool
-	CertSecretName                      string
 	ServiceAccountTokenPath             string
 	MetricsAddr, ProbeAddr              string
 	NS, Registry                        string
@@ -103,17 +99,6 @@ func (c *Config) Validate() error {
 	}
 	if c.CaName == "" {
 		return errors.New("--ca-name is required")
-	}
-
-	if c.CertSecretName == "" {
-		return errors.New("--cert-secret is required")
-	}
-
-	// placement of where we check if it's the init container is very important
-	// not all flags are required for the init container so this exits early
-
-	if c.IsInitContainer {
-		return nil
 	}
 
 	if c.NS == "" {

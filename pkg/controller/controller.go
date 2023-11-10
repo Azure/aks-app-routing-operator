@@ -136,6 +136,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("creating webhook config: %w", err)
 	}
 
+	if err := webhookCfg.EnsureCertificates(setupLog); err != nil {
+		setupLog.Error(err, "unable to ensure certificates")
+		return nil, fmt.Errorf("ensuring certificates: %w", err)
+	}
+
 	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
 		setupLog.Error(err, "unable to ensure webhook configurations")
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)

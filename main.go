@@ -33,10 +33,6 @@ func run() error {
 
 	rc := controller.NewRestConfig(config.Flags)
 
-	if config.Flags.IsInitContainer {
-		return controller.OperatorInit(config.Flags, rc)
-	}
-
 	mgr, err := controller.NewManagerForRestConfig(config.Flags, rc)
 	if err != nil {
 		return err

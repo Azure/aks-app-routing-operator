@@ -62,7 +62,6 @@ func New(globalCfg *globalCfg.Config) (*config, error) {
 		mutatingWebhookConfigName:   "app-routing-mutating",
 		validatingWebhooks:          Validating,
 		mutatingWebhooks:            Mutating,
-		certSecret:                  globalCfg.CertSecretName,
 		certName:                    globalCfg.CertName,
 		caName:                      globalCfg.CaName,
 		keyName:                     globalCfg.KeyName,

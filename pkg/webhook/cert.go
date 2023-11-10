@@ -2,27 +2,25 @@ package webhook
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-logr/logr"
-	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // this file is heavily inspired by Fleet's webhook cert gen https://github.com/Azure/fleet/blob/main/pkg/webhook/webhook.go
 
 var osExit = os.Exit
+
 type cert struct {
 	caPem   []byte
 	certPem []byte
@@ -119,59 +117,85 @@ func (c *config) newCert() (*cert, error) {
 	}, nil
 }
 
-func (c *config) EnsureCertificates(ctx context.Context, lgr logr.Logger, cl client.Client) error {
+func (c *config) EnsureCertificates(lgr logr.Logger) error {
 	lgr.Info("ensuring certificates")
 
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      c.certSecret,
-			Namespace: c.namespace,
-		},
-	}
-	lgr.Info("checking if secret exists")
-	err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret)
-	if err == nil { // secret exists
-		lgr.Info("secret already exists")
-		return nil
-	}
-	if err != nil && !k8serrors.IsNotFound(err) {
-		lgr.Error(err, "failed to get secret")
-		return fmt.Errorf("getting secret: %w", err)
+	lgr.Info("checking if certs exists")
+	needToGen := false
+	certsFiles := []string{c.certName, c.keyName, c.caName}
+	for _, certFile := range certsFiles {
+		path := filepath.Join(c.certDir, certFile)
+		if _, err := os.ReadFile(path); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				needToGen = true
+				break
+			}
+
+			return fmt.Errorf("reading cert file %s: %w", path, err)
+		}
 	}
 
+	if !needToGen {
+		lgr.Info("certs already exist")
+		return nil
+	}
+
+	lgr.Info("certs do not exist, creating new certs")
 	newCert, err := c.newCert()
 	if err != nil {
 		return fmt.Errorf("creating new cert: %w", err)
 	}
 
-	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      c.certSecret,
-			Namespace: c.namespace,
-		},
-		Data: map[string][]byte{
-			c.certName: newCert.certPem,
-			c.keyName:  newCert.keyPem,
-			c.caName:   newCert.caPem,
-		},
-	}
-	lgr.Info("creating new secret")
-	if err := cl.Create(ctx, newSecret); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
-			// if secret already exists assume it was a race condition with another instance of this
-			lgr.Info("secret already exists")
-			lgr.Info("exiting so pod can be restarted to mount new secret faster")
-			os.Exit(1)
-			return nil
-		}
-
-		lgr.Error(err, "failed to create secret")
-		return fmt.Errorf("creating secret: %w", err)
+	// we need to fully clean any certs so we can ensure that our certs are the ones being used
+	lgr.Info("fully cleaning any old certs")
+	if err := os.RemoveAll(c.certDir); err != nil {
+		return fmt.Errorf("removing old certs: %w", err)
 	}
 
-	lgr.Info("secret created")
-	lgr.Info("exiting so pod can be restarted to mount new secret faster")
-	osExit(1) // it's not actually an error but for init containers to cause a pod restart we need this to be error signal
+	lgr.Info("creating new certs dir")
+	if err := os.MkdirAll(c.certDir, 0755); err != nil {
+		return fmt.Errorf("creating new certs dir: %w", err)
+	}
 
+	// we use O_EXCL to ensure the file doesn't exist when we open it.
+	// this ensures that another replica doesn't attempt to write the same file at the same time
+	// which would cause unintended sideeffects. Only one instance of the operator should be
+	// generating certs at a time which this guarantees.
+	openFileFlags := os.O_CREATE | os.O_EXCL | os.O_RDWR
+
+	lgr.Info("writing cert")
+	certPath := filepath.Join(c.certDir, c.certName)
+	certFile, err := os.OpenFile(certPath, openFileFlags, 0600)
+	if err != nil {
+		return fmt.Errorf("opening cert file: %w", err)
+	}
+	defer certFile.Close()
+	if _, err := certFile.Write(newCert.certPem); err != nil {
+		return fmt.Errorf("writing cert: %w", err)
+	}
+
+	lgr.Info("writing key")
+	keyPath := filepath.Join(c.certDir, c.keyName)
+	keyFile, err := os.OpenFile(keyPath, openFileFlags, 0600)
+	if err != nil {
+		return fmt.Errorf("opening key file: %w", err)
+	}
+	defer keyFile.Close()
+	if _, err := keyFile.Write(newCert.keyPem); err != nil {
+		return fmt.Errorf("writing key: %w", err)
+	}
+
+	lgr.Info("writing ca")
+	caPath := filepath.Join(c.certDir, c.caName)
+	caFile, err := os.OpenFile(caPath, openFileFlags, 0600)
+	if err != nil {
+		return fmt.Errorf("opening ca file: %w", err)
+	}
+	defer caFile.Close()
+	if _, err := caFile.Write(newCert.caPem); err != nil {
+		return fmt.Errorf("writing ca: %w", err)
+	}
+
+	lgr.Info("certs created")
 	return nil
 }
