@@ -92,6 +92,9 @@ func (c *Config) Validate() error {
 	if c.OperatorWebhookService == "" {
 		return errors.New("--operator-webhook-service is required")
 	}
+	if c.CertDir == "" {
+		return errors.New("--cert-dir is required")
+	}
 	if c.CertName == "" {
 		return errors.New("--cert-name is required")
 	}
@@ -102,13 +105,14 @@ func (c *Config) Validate() error {
 		return errors.New("--ca-name is required")
 	}
 
+	if c.CertSecretName == "" {
+		return errors.New("--cert-secret is required")
+	}
+
 	// placement of where we check if it's the init container is very important
 	// not all flags are required for the init container so this exits early
-	if c.IsInitContainer {
-		if c.CertSecretName == "" {
-			return errors.New("--cert-secret is required")
-		}
 
+	if c.IsInitContainer {
 		return nil
 	}
 
@@ -166,10 +170,6 @@ func (c *Config) Validate() error {
 	}
 	if !crdPathStat.IsDir() {
 		return fmt.Errorf("crd path %s is not a directory", c.CrdPath)
-	}
-
-	if c.CertDir == "" {
-		return errors.New("--cert-dir is required")
 	}
 
 	return nil
