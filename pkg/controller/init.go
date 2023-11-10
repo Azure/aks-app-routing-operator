@@ -19,7 +19,6 @@ func OperatorInit(conf *config.Config, rc *rest.Config) error {
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	// ensure webhook secret is okay
 	wh, err := webhook.New(conf)
 	if err != nil {
 		return fmt.Errorf("creating webhook configuration: %w", err)

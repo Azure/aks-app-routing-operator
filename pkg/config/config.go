@@ -103,7 +103,7 @@ func (c *Config) Validate() error {
 	}
 
 	// placement of where we check if it's the init container is very important
-	// not all flags are required for the init container os this exits early
+	// not all flags are required for the init container so this exits early
 	if c.IsInitContainer {
 		if c.CertSecretName == "" {
 			return errors.New("--cert-secret is required")

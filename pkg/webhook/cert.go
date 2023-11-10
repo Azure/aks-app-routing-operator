@@ -161,7 +161,7 @@ func (c *config) EnsureCertificates(ctx context.Context, lgr logr.Logger, cl cli
 			// todo: rotate pods
 			lgr.Info("secret already exists")
 			lgr.Info("exiting so pod can be restarted to mount new secret faster")
-			os.Exit(1) // does this work even though it's exit code 0, would this trigger pod restart?
+			os.Exit(1)
 			return nil
 		}
 
