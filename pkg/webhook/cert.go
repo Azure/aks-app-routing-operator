@@ -158,7 +158,6 @@ func (c *config) EnsureCertificates(ctx context.Context, lgr logr.Logger, cl cli
 	if err := cl.Create(ctx, newSecret); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			// if secret already exists assume it was a race condition with another instance of this
-			// todo: rotate pods
 			lgr.Info("secret already exists")
 			lgr.Info("exiting so pod can be restarted to mount new secret faster")
 			os.Exit(1)
