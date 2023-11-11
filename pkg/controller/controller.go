@@ -94,7 +94,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		// we use an active-passive HA model meaning only the leader performs actions
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
-		LeaderElectionID:        "aks-app-routing-operator-leader",
+		LeaderElectionID:        "aks-app-routing-operator-lease-leader",
 
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:     conf.WebhookPort,
