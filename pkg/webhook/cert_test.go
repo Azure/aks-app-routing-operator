@@ -74,7 +74,6 @@ func TestEnsureCertificates(t *testing.T) {
 	})
 
 	t.Run("create new certs", func(t *testing.T) {
-
 		c := &config{
 			certDir:  "test-dir",
 			certName: "tls.crt",
@@ -89,6 +88,5 @@ func TestEnsureCertificates(t *testing.T) {
 		require.FileExists(t, "test-dir/ca.crt", "expected ca.crt to exist")
 
 		os.RemoveAll("test-dir")
-
 	})
 }

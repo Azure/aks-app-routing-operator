@@ -35,7 +35,7 @@ var Validating []Webhook[admissionregistrationv1.ValidatingWebhook]
 var Mutating []Webhook[admissionregistrationv1.MutatingWebhook]
 
 type config struct {
-	serviceName, namespace, certSecret string
+	serviceName, namespace, serviceUrl string
 	port                               int32
 	certDir                            string
 	certName, caName, keyName          string
@@ -56,6 +56,7 @@ func New(globalCfg *globalCfg.Config) (*config, error) {
 	return &config{
 		serviceName:                 globalCfg.OperatorWebhookService,
 		namespace:                   globalCfg.OperatorNs,
+		serviceUrl:                  globalCfg.OperatorWebhookServiceUrl,
 		port:                        int32(globalCfg.WebhookPort),
 		certDir:                     globalCfg.CertDir,
 		validatingWebhookConfigName: "app-routing-validating",
@@ -169,7 +170,7 @@ func (c *config) AddWebhooks(mgr manager.Manager) error {
 	return nil
 }
 
-// GetClientConfig returns the client config for the webhook service
+// GetClientConfig returns the client config for the webhook service. path should start with a /
 func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookClientConfig, error) {
 	caPath := filepath.Join(c.certDir, c.caName)
 	caBundle, err := os.ReadFile(caPath)
@@ -177,13 +178,21 @@ func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookCl
 		return admissionregistrationv1.WebhookClientConfig{}, fmt.Errorf("reading ca bundle: %w", err)
 	}
 
-	return admissionregistrationv1.WebhookClientConfig{
-		Service: &admissionregistrationv1.ServiceReference{
+	whClient := admissionregistrationv1.WebhookClientConfig{
+		CABundle: caBundle,
+	}
+
+	if c.serviceUrl != "" {
+		whClient.URL = util.ToPtr(c.serviceUrl + path)
+
+	} else {
+		whClient.Service = &admissionregistrationv1.ServiceReference{
 			Name:      c.serviceName,
 			Namespace: c.namespace,
 			Port:      &c.port,
 			Path:      &path,
-		},
-		CABundle: caBundle,
-	}, nil
+		}
+	}
+
+	return whClient, nil
 }

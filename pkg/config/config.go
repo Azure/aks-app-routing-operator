@@ -42,7 +42,8 @@ func init() {
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
 	flag.StringVar(&Flags.OperatorNs, "operator-namespace", "kube-system", "namespace of the operator's k8s deployment")
-	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "app-routing-operator-webhook", "name of the operator's webhook service")
+	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "", "name of the operator's webhook service")
+	flag.StringVar(&Flags.OperatorWebhookServiceUrl, "operator-webhook-service-url", "", "url of the operator's webhook service")
 	flag.IntVar(&Flags.WebhookPort, "webhook-port", 9443, "port to serve the webhook on")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
@@ -73,6 +74,7 @@ type Config struct {
 	OperatorNs                          string
 	OperatorDeployment                  string
 	OperatorWebhookService              string
+	OperatorWebhookServiceUrl           string
 	WebhookPort                         int
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
@@ -85,8 +87,11 @@ func (c *Config) Validate() error {
 	if c.OperatorNs == "" {
 		return errors.New("--operator-namespace is required")
 	}
-	if c.OperatorWebhookService == "" {
-		return errors.New("--operator-webhook-service is required")
+	if c.OperatorWebhookService == "" && c.OperatorWebhookServiceUrl == "" {
+		return errors.New("--operator-webhook-service or operator-webhook-service-url is required")
+	}
+	if c.OperatorWebhookService != "" && c.OperatorWebhookServiceUrl != "" {
+		return errors.New("only one of --operator-webhook-service or --operator-webhook-service-url should be specified")
 	}
 	if c.CertDir == "" {
 		return errors.New("--cert-dir is required")

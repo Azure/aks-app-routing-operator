@@ -94,8 +94,8 @@ func TestEnsureWebhookConfigurations(t *testing.T) {
 			mutatingWebhookConfigName:   "app-routing-mutating",
 			validatingWebhooks:          Validating,
 			mutatingWebhooks:            Mutating,
-			certDir: 				   "testcerts",
-			caName: 				   "ca.crt",
+			certDir:                     "testcerts",
+			caName:                      "ca.crt",
 		}
 
 		cl := fake.NewClientBuilder().Build()
@@ -159,7 +159,7 @@ func TestGetClientConfig(t *testing.T) {
 		err      error
 	}{
 		{
-			name: "basic names",
+			name: "basic names service",
 			cfg: &config{
 				serviceName: "service-name",
 				namespace:   "namespace",
@@ -178,6 +178,18 @@ func TestGetClientConfig(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name: "basic names with service url",
+			cfg: &config{
+				serviceUrl: "service-name.namespace.svc.local",
+				certDir:    "testcerts",
+				caName:     "ca.crt",
+			},
+			path: "/example-path",
+			expected: admissionregistrationv1.WebhookClientConfig{
+				URL: util.ToPtr("service-name.namespace.svc.local/example-path"),
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -185,6 +197,14 @@ func TestGetClientConfig(t *testing.T) {
 			actual, err := c.cfg.GetClientConfig(c.path)
 			if err != c.err {
 				t.Errorf("unexpected error: %v", err)
+			}
+
+			if (actual.URL != nil || c.expected.URL != nil) && (*actual.URL != *c.expected.URL) {
+				t.Errorf("expected url %s, got %s", *c.expected.URL, *actual.URL)
+			}
+
+			if actual.Service == nil && c.expected.Service == nil {
+				return
 			}
 
 			if actual.Service.Name != c.expected.Service.Name {

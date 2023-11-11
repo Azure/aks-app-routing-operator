@@ -60,10 +60,14 @@ func (c *config) newCert() (*cert, error) {
 		return nil, fmt.Errorf("pem encoding ca certificate: %w", err)
 	}
 
-	dnsNames := []string{
-		fmt.Sprintf("%s.%s.svc", c.serviceName, c.namespace),
-		fmt.Sprintf("%s.%s.svc.cluster.local", c.serviceName, c.namespace),
+	var dnsNames []string
+	if c.serviceName != "" {
+		dnsNames = append(dnsNames, fmt.Sprintf("%s.%s.svc", c.serviceName, c.namespace))
 	}
+	if c.serviceUrl != "" {
+		dnsNames = append(dnsNames, c.serviceUrl)
+	}
+
 	// server cert config
 	certCfg := &x509.Certificate{
 		DNSNames:     dnsNames,
