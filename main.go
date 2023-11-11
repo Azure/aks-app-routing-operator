@@ -31,7 +31,9 @@ func run() error {
 		return err
 	}
 
-	mgr, err := controller.NewManager(config.Flags)
+	rc := controller.NewRestConfig(config.Flags)
+
+	mgr, err := controller.NewManagerForRestConfig(config.Flags, rc)
 	if err != nil {
 		return err
 	}

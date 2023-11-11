@@ -76,12 +76,13 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 }
 
-func NewManager(conf *config.Config) (ctrl.Manager, error) {
+func NewRestConfig(conf *config.Config) *rest.Config {
 	rc := ctrl.GetConfigOrDie()
 	if conf.ServiceAccountTokenPath != "" {
 		rc.BearerTokenFile = conf.ServiceAccountTokenPath
 	}
-	return NewManagerForRestConfig(conf, rc)
+
+	return rc
 }
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
@@ -96,8 +97,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElectionID:        "aks-app-routing-operator-leader",
 
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
-			Port:    conf.WebhookPort,
-			CertDir: conf.CertDir,
+			Port:     conf.WebhookPort,
+			CertDir:  conf.CertDir,
+			CertName: conf.CertName,
+			KeyName:  conf.KeyName,
 		}),
 	})
 	if err != nil {
@@ -133,26 +136,17 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("creating webhook config: %w", err)
 	}
 
+	if err := webhookCfg.EnsureCertificates(setupLog); err != nil {
+		setupLog.Error(err, "unable to ensure certificates")
+		return nil, fmt.Errorf("ensuring certificates: %w", err)
+	}
+
 	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
 		setupLog.Error(err, "unable to ensure webhook configurations")
 		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
 	}
 
-	certsReady := make(chan struct{})
-	if err := webhookCfg.AddCertManager(context.Background(), m, certsReady, cl); err != nil {
-		setupLog.Error(err, "unable to add cert manager")
-		return nil, fmt.Errorf("adding cert manager: %w", err)
-	}
-
 	go func() {
-		// webhooks cannot be served until certificates are created and ready.
-		// without this, the webhook server would attempt to start immediately and ctrl runtime
-		// manager will fail because the certs don't exist yet.
-
-		setupLog.Info("waiting for certs to be ready")
-		<-certsReady
-		setupLog.Info("certs are ready")
-
 		setupLog.Info("setting up webhooks")
 		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
 			setupLog.Error(err, "failed to setup webhooks")

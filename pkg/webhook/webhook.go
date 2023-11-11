@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	globalCfg "github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	"github.com/open-policy-agent/cert-controller/pkg/rotator"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,9 +35,10 @@ var Validating []Webhook[admissionregistrationv1.ValidatingWebhook]
 var Mutating []Webhook[admissionregistrationv1.MutatingWebhook]
 
 type config struct {
-	serviceName, namespace string
-	port                   int32
-	certDir                string
+	serviceName, namespace, serviceUrl string
+	port                               int32
+	certDir                            string
+	certName, caName, keyName          string
 
 	validatingWebhookConfigName string
 	mutatingWebhookConfigName   string
@@ -54,18 +56,24 @@ func New(globalCfg *globalCfg.Config) (*config, error) {
 	return &config{
 		serviceName:                 globalCfg.OperatorWebhookService,
 		namespace:                   globalCfg.OperatorNs,
+		serviceUrl:                  globalCfg.OperatorWebhookServiceUrl,
 		port:                        int32(globalCfg.WebhookPort),
 		certDir:                     globalCfg.CertDir,
 		validatingWebhookConfigName: "app-routing-validating",
 		mutatingWebhookConfigName:   "app-routing-mutating",
 		validatingWebhooks:          Validating,
 		mutatingWebhooks:            Mutating,
+		certName:                    globalCfg.CertName,
+		caName:                      globalCfg.CaName,
+		keyName:                     globalCfg.KeyName,
 	}, nil
 }
 
 // EnsureWebhookConfigurations ensures the webhook configurations exist in the cluster in the desired state
 func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Client, globalCfg *globalCfg.Config) error {
 	lgr := log.FromContext(ctx).WithName("webhooks")
+
+	// todo: need to make this a reconciler? that's constantly running
 
 	lgr.Info("calculating ValidatingWebhookConfiguration")
 	var validatingWhs []admissionregistrationv1.ValidatingWebhook
@@ -145,41 +153,6 @@ func (c *config) EnsureWebhookConfigurations(ctx context.Context, cl client.Clie
 	return nil
 }
 
-// AddCertManager adds cert-manager to the manager. The manager starting will result in the cert-manager
-// starting and generating the certificates.
-func (c *config) AddCertManager(ctx context.Context, mgr manager.Manager, certsReady chan struct{}, cl client.Client) error {
-	lgr := log.FromContext(ctx).WithName("cert-manager")
-
-	lgr.Info("calculating webhooks for cert-manager")
-	webhooks := make([]rotator.WebhookInfo, 0)
-	webhooks = append(webhooks, rotator.WebhookInfo{
-		Name: c.validatingWebhookConfigName,
-		Type: rotator.Validating,
-	})
-	webhooks = append(webhooks, rotator.WebhookInfo{
-		Name: c.mutatingWebhookConfigName,
-		Type: rotator.Mutating,
-	})
-
-	lgr.Info("adding cert-manager to controller manager")
-	cm := &certManager{
-		SecretName:     "app-routing-webhook-secret",
-		CertDir:        c.certDir,
-		ServiceName:    c.serviceName,
-		Namespace:      c.namespace,
-		Webhooks:       webhooks,
-		CAName:         "approuting.kubernetes.azure.com",
-		CAOrganization: "Microsoft",
-		Ready:          certsReady,
-	}
-	if err := cm.addToManager(ctx, mgr, lgr, cl); err != nil {
-		return fmt.Errorf("adding rotation: %w", err)
-	}
-
-	lgr.Info("finished adding cert-manager to controller manager")
-	return nil
-}
-
 // AddWebhooks adds the webhooks to the manager
 func (c *config) AddWebhooks(mgr manager.Manager) error {
 	for _, wh := range c.validatingWebhooks {
@@ -197,14 +170,29 @@ func (c *config) AddWebhooks(mgr manager.Manager) error {
 	return nil
 }
 
-// GetClientConfig returns the client config for the webhook service
+// GetClientConfig returns the client config for the webhook service. path should start with a /
 func (c *config) GetClientConfig(path string) (admissionregistrationv1.WebhookClientConfig, error) {
-	return admissionregistrationv1.WebhookClientConfig{
-		Service: &admissionregistrationv1.ServiceReference{
+	caPath := filepath.Join(c.certDir, c.caName)
+	caBundle, err := os.ReadFile(caPath)
+	if err != nil {
+		return admissionregistrationv1.WebhookClientConfig{}, fmt.Errorf("reading ca bundle: %w", err)
+	}
+
+	whClient := admissionregistrationv1.WebhookClientConfig{
+		CABundle: caBundle,
+	}
+
+	if c.serviceUrl != "" {
+		whClient.URL = util.ToPtr(c.serviceUrl + path)
+
+	} else {
+		whClient.Service = &admissionregistrationv1.ServiceReference{
 			Name:      c.serviceName,
 			Namespace: c.namespace,
 			Port:      &c.port,
 			Path:      &path,
-		},
-	}, nil
+		}
+	}
+
+	return whClient, nil
 }
