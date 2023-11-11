@@ -3,7 +3,6 @@ package suites
 import (
 	"context"
 	"fmt"
-
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -29,7 +28,7 @@ func basicSuite(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
-				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, basicNs, in, nil); err != nil {
@@ -44,13 +43,13 @@ func basicSuite(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.AllOperatorVersions...).
-				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, basicNs, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress = nil
 					annotations := service.GetAnnotations()
-					annotations["kubernetes.azure.com/ingress-host"] = z.GetNameserver()
+					annotations["kubernetes.azure.com/ingress-host"] = z.GetName()
 					annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] = in.Cert.GetId()
 					service.SetAnnotations(annotations)
 
@@ -73,6 +72,10 @@ type modifier func(ingress *netv1.Ingress, service *corev1.Service, z zoner) err
 var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod modifier) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting test")
+
+	if namespaces == nil {
+		namespaces = make(map[string]*corev1.Namespace)
+	}
 
 	c, err := client.New(config, client.Options{})
 	if err != nil {
@@ -101,6 +104,10 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 		}
 	}
 
+	if operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone {
+		zones = append(zones, zone{name: "nginx.app-routing-system.svc.cluster.local:80", nameserver: infra.Cluster.GetDnsServiceIp()})
+	}
+
 	var eg errgroup.Group
 	for _, zone := range zones {
 		zone := zone
@@ -121,7 +128,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId())
+			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId(), operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone)
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)

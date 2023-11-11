@@ -5,14 +5,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func NewNginxIngressController(ingressClassName string) *v1alpha1.NginxIngressController {
+func NewNginxIngressController(name, ingressClassName string) *v1alpha1.NginxIngressController {
 	return &v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "nginx-ingress-controller",
+			Name: name,
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName:     ingressClassName,
-			ControllerNamePrefix: "prefix",
+			ControllerNamePrefix: "nginx",
 		},
 		Status: v1alpha1.NginxIngressControllerStatus{},
 	}

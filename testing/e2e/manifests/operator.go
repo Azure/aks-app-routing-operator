@@ -30,7 +30,8 @@ var (
 	AllOperatorVersions = []OperatorVersion{OperatorVersion0_0_3, OperatorVersionLatest}
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
-	AllDnsZoneCounts = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
+	AllDnsZoneCounts     = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
+	NonZeroDnsZoneCounts = []DnsZoneCount{DnsZoneCountOne, DnsZoneCountMultiple}
 
 	SingleStackIPFamilyPolicy = corev1.IPFamilyPolicySingleStack
 )
@@ -151,7 +152,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	return ret
 }
 
-func Operator(latestImage string, publicZones, privateZones []string, cfg *OperatorConfig) []client.Object {
+func Operator(latestImage string, publicZones, privateZones []string, cfg *OperatorConfig, cleanDeploy bool) []client.Object {
 	var ret []client.Object
 
 	namespace := &corev1.Namespace{
@@ -255,7 +256,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 									},
 								},
 								PeriodSeconds:    5,
-								FailureThreshold: 12,
+								FailureThreshold: 20,
 							},
 						},
 					},
@@ -333,13 +334,20 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
 		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
 		baseDeployment.Spec.Template.Spec.Volumes = nil
+
+		ret = append(ret, []client.Object{
+			baseDeployment,
+		}...)
 	case OperatorVersionLatest:
 		ret = append(ret, webhookService)
-	}
 
-	ret = append(ret, []client.Object{
-		baseDeployment,
-	}...)
+		ret = append(ret, []client.Object{
+			baseDeployment,
+		}...)
+		if cleanDeploy {
+			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))
+		}
+	}
 
 	for _, obj := range ret {
 		setGroupKindVersion(obj)

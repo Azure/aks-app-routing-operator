@@ -7,14 +7,20 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,9 +29,17 @@ import (
 
 func init() {
 	log.SetLogger(logr.New(log.NullLogSink{})) // without this controller-runtime panics. We use it solely for the client so we can ignore logs
+	v1alpha1.AddToScheme(scheme)
+	batchv1.AddToScheme(scheme)
+	corev1.AddToScheme(scheme)
+	metav1.AddMetaToScheme(scheme)
+	appsv1.AddToScheme(scheme)
+	policyv1.AddToScheme(scheme)
+	rbacv1.AddToScheme(scheme)
 }
 
 var operatorGeneration int64
+var scheme = runtime.NewScheme()
 
 func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
@@ -72,6 +86,12 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 			"disableOsm", runStrategy.config.DisableOsm,
 		)
 	}
+
+	go func() {
+		if err := recover(); err != nil {
+			lgr.Error(fmt.Sprintf("panic occured: %w", err))
+		}
+	}()
 
 	lgr.Info("starting to run tests")
 	for _, runStrategy := range ordered {
@@ -184,21 +204,27 @@ func (t Ts) order(ctx context.Context) ordered {
 func deployOperator(ctx context.Context, config *rest.Config, strategy operatorDeployStrategy, latestImage string, publicZones, privateZones []string, operatorCfg *manifests.OperatorConfig) error {
 	lgr := logger.FromContext(ctx)
 
-	c, err := client.New(config, client.Options{})
+	c, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
 	if err != nil {
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	cl, err := client.New(config, client.Options{})
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
 	if err != nil {
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	toDeploy := manifests.Operator(latestImage, publicZones, privateZones, operatorCfg)
+	toDeploy := manifests.Operator(latestImage, publicZones, privateZones, operatorCfg, strategy == cleanDeploy)
 
 	if strategy == cleanDeploy {
 		lgr.Info("cleaning old operators")
-		for _, res := range toDeploy {
+		for idx, _ := range toDeploy {
+			// delete objects in reverse order to keep service account available on NIC delete
+			res := toDeploy[len(toDeploy)-idx-1]
 			// don't cleanup the namespace, we will reuse it. it's just wasted time
 			if res.GetObjectKind().GroupVersionKind().Kind == "Namespace" {
 				continue
@@ -242,6 +268,19 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 
 	lgr.Info("deploying operator")
 	for _, res := range toDeploy {
+		if res.GetObjectKind().GroupVersionKind().Kind == "Deployment" && res.GetName() == "app-routing-operator" {
+			var copy appsv1.Deployment
+			err := c.Get(ctx, client.ObjectKeyFromObject(res), &copy)
+			switch {
+			case apierrors.IsNotFound(err):
+				operatorGeneration = 0
+			case err != nil:
+				return fmt.Errorf("get deployment failed: %w", err)
+			default:
+				operatorGeneration = copy.Status.ObservedGeneration
+			}
+		}
+
 		lgr.Info("deploying resource", "kind", res.GetObjectKind().GroupVersionKind().Kind, "name", res.GetName())
 		err := c.Patch(ctx, res, client.Apply, client.ForceOwnership, client.FieldOwner("test-operator"))
 		if apierrors.IsNotFound(err) {

@@ -14,6 +14,7 @@ import (
 func main() {
 	nameserver := os.Getenv("NAMESERVER")
 
+	var client *http.Client
 	dialer := &net.Dialer{Resolver: &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -28,7 +29,7 @@ func main() {
 			return d.DialContext(ctx, "tcp", ns+":53")
 		},
 	}}
-	client := &http.Client{Transport: &http.Transport{
+	client = &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		DialContext:     dialer.DialContext,
 	}}

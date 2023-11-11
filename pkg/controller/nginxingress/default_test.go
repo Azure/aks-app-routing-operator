@@ -28,7 +28,8 @@ func TestDefaultNicReconciler(t *testing.T) {
 		lgr:    logr.Discard(),
 		name:   controllername.New("testing"),
 	}
-	require.NoError(t, d.Start(context.Background()))
+
+	require.NoError(t, d.tick(context.Background()))
 
 	nic := &approutingv1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
@@ -43,7 +44,7 @@ func TestDefaultNicReconciler(t *testing.T) {
 			Name: DefaultIcName,
 		},
 	}))
-	require.NoError(t, d.Start(context.Background()))
+	require.NoError(t, d.tick(context.Background()))
 	require.NoError(t, d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic))
 	require.Equal(t, "nginx", nic.Spec.ControllerNamePrefix)
 	require.Equal(t, DefaultIcName, nic.Spec.IngressClassName)
@@ -51,7 +52,10 @@ func TestDefaultNicReconciler(t *testing.T) {
 }
 
 func TestShouldCreateDefaultNic(t *testing.T) {
-	cl := fake.NewClientBuilder().Build()
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	// when default ic doesn't exist in cluster
 	shouldCreate, err := shouldCreateDefaultNic(cl)
@@ -67,6 +71,12 @@ func TestShouldCreateDefaultNic(t *testing.T) {
 	shouldCreate, err = shouldCreateDefaultNic(cl)
 	require.NoError(t, err)
 	require.True(t, shouldCreate)
+
+	defaultNic := GetDefaultNginxIngressController()
+	require.NoError(t, cl.Create(context.Background(), &defaultNic))
+	shouldCreate, err = shouldCreateDefaultNic(cl)
+	require.NoError(t, err)
+	require.False(t, shouldCreate)
 }
 
 func TestGetDefaultIngressClassControllerClass(t *testing.T) {
