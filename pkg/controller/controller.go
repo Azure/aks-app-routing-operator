@@ -6,6 +6,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
@@ -25,8 +28,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-	"net/http"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -93,7 +94,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		// we use an active-passive HA model meaning only the leader performs actions
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
-		LeaderElectionID:        "aks-app-routing-operator-lease-leader",
+		LeaderElectionID:        "aks-app-routing-operator-leader",
 
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:     conf.WebhookPort,

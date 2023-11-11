@@ -41,7 +41,6 @@ type OperatorVersion uint
 
 const (
 	OperatorVersion0_0_3 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
-	OperatorVersion0_0_6
 
 	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
@@ -51,8 +50,6 @@ func (o OperatorVersion) String() string {
 	switch o {
 	case OperatorVersion0_0_3:
 		return "0.0.3"
-	case OperatorVersion0_0_6:
-		return "0.0.6"
 	case OperatorVersionLatest:
 		return "latest"
 	default:
@@ -335,15 +332,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
 		baseDeployment.Spec.Template.Spec.Volumes = nil
 
-		ret = append(ret, []client.Object{
-			baseDeployment,
-		}...)
+		ret = append(ret, baseDeployment)
 	case OperatorVersionLatest:
-		ret = append(ret, webhookService)
+		ret = append(ret, webhookService, baseDeployment)
 
-		ret = append(ret, []client.Object{
-			baseDeployment,
-		}...)
 		if cleanDeploy {
 			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))
 		}

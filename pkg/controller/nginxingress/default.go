@@ -107,6 +107,7 @@ func shouldCreateDefaultNic(cl client.Client) (bool, error) {
 	err := cl.Get(context.Background(), types.NamespacedName{Name: DefaultIcName}, defaultIc)
 	switch {
 	case err == nil: // default IngressClass exists, we must create default nic for upgrade story
+		// but only if the NIC doesnt exist already
 		defaultNic := GetDefaultNginxIngressController()
 		err := cl.Get(context.Background(), types.NamespacedName{Name: defaultNic.Name, Namespace: defaultNic.Namespace}, &defaultNic)
 		if k8serrors.IsNotFound(err) {
