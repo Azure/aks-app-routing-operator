@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -65,7 +66,11 @@ func (c *config) newCert() (*cert, error) {
 		dnsNames = append(dnsNames, fmt.Sprintf("%s.%s.svc", c.serviceName, c.namespace))
 	}
 	if c.serviceUrl != "" {
-		dnsNames = append(dnsNames, c.serviceUrl)
+		serviceUrl, err := url.Parse(c.serviceUrl)
+		if err != nil {
+			return nil, fmt.Errorf("parsing service url: %w", err)
+		}
+		dnsNames = append(dnsNames, serviceUrl.Hostname())
 	}
 
 	// server cert config
