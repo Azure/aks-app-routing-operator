@@ -24,6 +24,9 @@ const (
 	// DefaultNicName is the default Nginx Ingress Controller resource name
 	DefaultNicName         = "default"
 	DefaultNicResourceName = "nginx"
+
+	reconcileInterval = time.Minute * 3
+	retryInterval     = time.Second
 )
 
 func NewDefaultReconciler(mgr ctrl.Manager) error {
@@ -57,7 +60,11 @@ func (d *defaultNicReconciler) Start(ctx context.Context) error {
 
 		if err := d.tick(ctx); err != nil {
 			d.lgr.Error(err, "reconciling default nginx ingress controller")
+			interval = retryInterval
+			continue
 		}
+
+		interval = reconcileInterval
 	}
 
 }
