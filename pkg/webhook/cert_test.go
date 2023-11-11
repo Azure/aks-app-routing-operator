@@ -38,10 +38,7 @@ func TestNewCert(t *testing.T) {
 	require.NotNil(t, serverCertBlock, "expected serverCertBlock to not be nil")
 	serverCert, err := x509.ParseCertificate(serverCertBlock.Bytes)
 	require.NoError(t, err, "expected no error parsing server cert")
-	require.Equal(t, []string{
-		fmt.Sprintf("%s.%s.svc", c.serviceName, c.namespace),
-		fmt.Sprintf("%s.%s.svc.cluster.local", c.serviceName, c.namespace),
-	}, serverCert.DNSNames, "expected DNS names to match")
+	require.Equal(t, []string{fmt.Sprintf("%s.%s.svc", c.serviceName, c.namespace)}, serverCert.DNSNames, "expected DNS names to match")
 	require.Equal(t, fmt.Sprintf("%s.cert.server", c.serviceName), serverCert.Subject.CommonName, "expected common name to match")
 	require.Equal(t, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth}, serverCert.ExtKeyUsage, "expected ext key usage to match")
 	require.Equal(t, x509.KeyUsageDigitalSignature, serverCert.KeyUsage, "expected key usage to match")
