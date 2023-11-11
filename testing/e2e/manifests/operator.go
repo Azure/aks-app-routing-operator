@@ -123,6 +123,8 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version == OperatorVersionLatest {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
+		ret = append(ret, "--operator-namespace", operatorNs)
+		ret = append(ret, "--operator-webhook-service", "app-routing-operator-webhook")
 	}
 
 	var zones []string
@@ -193,7 +195,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: to.Ptr(int32(2)),
+			Replicas: to.Ptr(int32(1)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: operatorDeploymentLabels,
 			},
@@ -240,20 +242,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 									},
 								},
 								PeriodSeconds: 5,
-							},
-							StartupProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/readyz",
-										Port: intstr.IntOrString{
-											IntVal: 8080,
-											Type:   intstr.Int,
-										},
-										HTTPHeaders: nil,
-									},
-								},
-								PeriodSeconds:    5,
-								FailureThreshold: 20,
 							},
 						},
 					},

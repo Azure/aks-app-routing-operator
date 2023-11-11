@@ -292,6 +292,7 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 
 		// if res is deployment, wait for it to be ready
 		if res.GetObjectKind().GroupVersionKind().Kind == "Deployment" {
+			lastDepCheckTime := time.Now()
 			if err := wait.PollImmediate(1*time.Second, 2*time.Minute, func() (bool, error) {
 				var copy appsv1.Deployment
 				if err := c.Get(ctx, client.ObjectKeyFromObject(res), &copy); err != nil {
@@ -302,11 +303,18 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 
 				// check rollout status of deployment
 				if copy.Status.AvailableReplicas != *copy.Spec.Replicas || copy.Status.UpdatedReplicas != *copy.Spec.Replicas || copy.Status.ObservedGeneration < operatorGeneration+1 {
+					lastDepCheckTime = time.Now()
+					return false, nil
+				}
+
+				// let latest image bake to get CRD in place
+				if time.Since(lastDepCheckTime) < time.Second*10 && operatorCfg.Version != manifests.OperatorVersion0_0_3 {
 					return false, nil
 				}
 
 				lgr.Info("deployment reached available and updated replicas")
 				operatorGeneration = operatorGeneration + 1
+
 				return true, nil
 			}); err != nil {
 				return fmt.Errorf("waiting for deployment to be ready: %w", err)
