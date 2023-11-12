@@ -1,7 +1,6 @@
 package manifests
 
 import (
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"math"
 	"strings"
 	"time"
@@ -210,13 +209,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 							Name:  "operator",
 							Image: cfg.image(latestImage),
 							Args:  cfg.args(publicZones, privateZones),
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									MountPath: "/tmp/k8s-webhook-server/serving-certs",
-									Name:      "cert",
-									ReadOnly:  true,
-								},
-							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -242,18 +234,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 									},
 								},
 								PeriodSeconds: 5,
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "cert",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName:  "app-routing-webhook-secret",
-									Optional:    util.BoolPtr(true),
-									DefaultMode: util.Int32Ptr(420),
-								},
 							},
 						},
 					},

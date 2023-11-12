@@ -307,6 +307,12 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 					return false, nil
 				}
 
+				// this means there's still an old replica running, we need to wait for it to be gone
+				if copy.Status.Replicas != copy.Status.UpdatedReplicas {
+					lastDepCheckTime = time.Now()
+					return false, nil
+				}
+
 				// let latest image bake to get CRD in place
 				if time.Since(lastDepCheckTime) < time.Second*10 && operatorCfg.Version != manifests.OperatorVersion0_0_3 {
 					return false, nil
