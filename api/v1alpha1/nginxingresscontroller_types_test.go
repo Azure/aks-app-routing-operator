@@ -15,8 +15,8 @@ func validNginxIngressController() NginxIngressController {
 			Name: "name",
 		},
 		Spec: NginxIngressControllerSpec{
-			IngressClassName:     "ingressClassName",
-			ControllerNamePrefix: "controllerNamePrefix",
+			IngressClassName:     "ingressclassname.com",
+			ControllerNamePrefix: "controller-name-prefix",
 		},
 	}
 }
@@ -45,19 +45,19 @@ func TestNginxIngressControllerValid(t *testing.T) {
 			name: "controller name prefix starts with non alphanum",
 			nic: func() NginxIngressController {
 				nic := validNginxIngressController()
-				nic.Spec.ControllerNamePrefix = "-controllerNamePrefix"
+				nic.Spec.ControllerNamePrefix = "-controllernameprefix"
 				return nic
 			}(),
-			want: "spec.controllerNamePrefix must start with alphanumeric character",
+			want: "spec.controllerNamePrefix must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
 		},
 		{
 			name: "controller name prefix contains invalid characters",
 			nic: func() NginxIngressController {
 				nic := validNginxIngressController()
-				nic.Spec.ControllerNamePrefix = "controllerNamePrefix!"
+				nic.Spec.ControllerNamePrefix = "controllernameprefix!"
 				return nic
 			}(),
-			want: "spec.controllerNamePrefix must contain only alphanumeric characters, dashes, and periods",
+			want: "spec.controllerNamePrefix must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
 		},
 		{
 			name: "controller name prefix too long",
@@ -69,6 +69,15 @@ func TestNginxIngressControllerValid(t *testing.T) {
 			want: fmt.Sprintf("spec.controllerNamePrefix length must be less than or equal to %d characters", maxControllerNamePrefix),
 		},
 		{
+			name: "controller name prefix capitalized",
+			nic: func() NginxIngressController {
+				nic := validNginxIngressController()
+				nic.Spec.ControllerNamePrefix = "ControllerNamePrefix"
+				return nic
+			}(),
+			want: "spec.controllerNamePrefix must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
+		},
+		{
 			name: "missing ingress class name",
 			nic: func() NginxIngressController {
 				nic := validNginxIngressController()
@@ -78,31 +87,58 @@ func TestNginxIngressControllerValid(t *testing.T) {
 			want: "spec.ingressClassName must be specified",
 		},
 		{
+			name: "ingress class name capitalized",
+			nic: func() NginxIngressController {
+				nic := validNginxIngressController()
+				nic.Spec.IngressClassName = "IngressClassName"
+				return nic
+			}(),
+			want: "spec.ingressClassName must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
+		},
+		{
+			name: "ingress class name capitalized with special characters",
+			nic: func() NginxIngressController {
+				nic := validNginxIngressController()
+				nic.Spec.IngressClassName = "ingress-Class.Name"
+				return nic
+			}(),
+			want: "spec.ingressClassName must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
+		},
+		{
+			name: "ingress class name with special characters",
+			nic: func() NginxIngressController {
+				nic := validNginxIngressController()
+				nic.Spec.IngressClassName = "ingress-class.name"
+				return nic
+			}(),
+			want: "",
+		},
+		{
 			name: "ingress class name starts with non alphanum",
 			nic: func() NginxIngressController {
 				nic := validNginxIngressController()
-				nic.Spec.IngressClassName = "-ingressClassName"
+				nic.Spec.IngressClassName = "-ingressclassname"
 				return nic
 			}(),
-			want: "spec.ingressClassName must start with alphanumeric character",
+			want: "spec.ingressClassName must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
 		},
 		{
 			name: "ingress class name contains invalid characters",
 			nic: func() NginxIngressController {
 				nic := validNginxIngressController()
-				nic.Spec.IngressClassName = "ingressClassName!"
+				nic.Spec.IngressClassName = "ingressclassname!"
 				return nic
 			}(),
-			want: "spec.ingressClassName must contain only alphanumeric characters, dashes, and periods",
+			want: "spec.ingressClassName must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
 		},
 		{
 			name: "ingress class name ends with non alphanum",
 			nic: func() NginxIngressController {
 				nic := validNginxIngressController()
-				nic.Spec.IngressClassName = "ingressClassName-"
+				nic.Spec.IngressClassName = "ingressclassname-"
 				return nic
 			}(),
-			want: "spec.ingressClassName must end with alphanumeric character",
+			want: "spec.ingressClassName must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
 		},
 		{
 			name: "long name",
@@ -439,6 +475,74 @@ func TestOnlyAlphaNumDashPeriod(t *testing.T) {
 			got := onlyAlphaNumDashPeriod(c.s)
 			if got != c.want {
 				t.Errorf("onlyAlphaNumDashPeriod(%v) = %v, want %v", c.s, got, c.want)
+			}
+		})
+	}
+}
+
+func TestIsLower(t *testing.T) {
+	cases := []struct {
+		name string
+		s    string
+		want bool
+	}{
+		{
+			name: "lower",
+			s:    "abc",
+			want: true,
+		},
+		{
+			name: "upper",
+			s:    "ABC",
+			want: false,
+		},
+		{
+			name: "mixed",
+			s:    "AbC",
+			want: false,
+		},
+		{
+			name: "empty",
+			s:    "",
+			want: true,
+		},
+		{
+			name: "lower with space",
+			s:    "abc ",
+			want: true,
+		},
+		{
+			name: "lower with underscore",
+			s:    "abc_",
+			want: true,
+		},
+		{
+			name: "lower with dash",
+			s:    "abc-",
+			want: true,
+		},
+		{
+			name: "lower with period",
+			s:    "abc.",
+			want: true,
+		},
+		{
+			name: "upper with space",
+			s:    "ABC ",
+			want: false,
+		},
+		{
+			name: "upper with underscore",
+			s:    "ABC_",
+			want: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := isLower(c.s)
+			if got != c.want {
+				t.Errorf("isLower(%v) = %v, want %v", c.s, got, c.want)
 			}
 		})
 	}
