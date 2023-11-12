@@ -60,7 +60,7 @@ func nicWebhookTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w")
 				}
 
-				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "testNICIngressClass")
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "test-nic-ingress-class")
 				lgr.Info("creating basic NginxIngressController")
 				if err := upsert(ctx, c, testNIC); err != nil {
 					return fmt.Errorf("creating NginxIngressController: %w", err)
