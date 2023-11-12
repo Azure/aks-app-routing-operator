@@ -547,3 +547,76 @@ func TestIsLower(t *testing.T) {
 		})
 	}
 }
+
+func TestIsLowercaseRfc1123Subdomain(t *testing.T) {
+	cases := []struct {
+		name string
+		s    string
+		want bool
+	}{
+		{
+			name: "lower",
+			s:    "abc",
+			want: true,
+		},
+		{
+			name: "upper",
+			s:    "ABC",
+			want: false,
+		},
+		{
+			name: "mixed",
+			s:    "AbC",
+			want: false,
+		},
+		{
+			name: "empty",
+			s:    "",
+			want: false,
+		},
+		{
+			name: "lower with space",
+			s:    "abc ",
+			want: false,
+		},
+		{
+			name: "lower with ending underscore",
+			s:    "abc_",
+			want: false,
+		},
+		{
+			name: "lower with ending dash",
+			s:    "abc-",
+			want: false,
+		},
+		{
+			name: "lower with ending period",
+			s:    "abc.",
+			want: false,
+		},
+		{
+			name: "lower with middle underscore",
+			s:    "ab_c",
+			want: false,
+		},
+		{
+			name: "lower with middle dash",
+			s:    "ab-c",
+			want: true,
+		},
+		{
+			name: "lower with middle period",
+			s:    "ab.c",
+			want: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := isLowercaseRfc1123Subdomain(c.s)
+			if got != c.want {
+				t.Errorf("isLowercaseRfc1123Subdomain(%v) = %v, want %v", c.s, got, c.want)
+			}
+		})
+	}
+}
