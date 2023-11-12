@@ -7,7 +7,7 @@ import (
 
 var (
 	rg       = "app-routing-e2e" + uuid.New().String()
-	location = "South Central US"
+	location = "North Central US"
 )
 
 // Infras is a list of infrastructure configurations the e2e tests will run against

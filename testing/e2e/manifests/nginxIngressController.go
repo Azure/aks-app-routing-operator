@@ -1,0 +1,19 @@
+package manifests
+
+import (
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+func NewNginxIngressController(name, ingressClassName string) *v1alpha1.NginxIngressController {
+	return &v1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: v1alpha1.NginxIngressControllerSpec{
+			IngressClassName:     ingressClassName,
+			ControllerNamePrefix: "nginx",
+		},
+		Status: v1alpha1.NginxIngressControllerStatus{},
+	}
+}

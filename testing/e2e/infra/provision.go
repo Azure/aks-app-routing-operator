@@ -31,7 +31,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		TenantId:       tenantId,
 	}
 
-	if i.AuthType == AuthTypeServicePrincipal{
+	if i.AuthType == AuthTypeServicePrincipal {
 		if applicationObjectId == "" {
 			return ret, logger.Error(lgr, fmt.Errorf("application object id must be provided when provisioning infrastructure with service principal options"))
 		}
@@ -59,7 +59,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 
 		resEg.Go(func() error {
 			e2eRepoAndTag := "e2e:" + i.Suffix
-			if err := ret.ContainerRegistry.BuildAndPush(ctx, e2eRepoAndTag, "."); err != nil {
+			if err := ret.ContainerRegistry.BuildAndPush(ctx, e2eRepoAndTag, "../../", "../../Dockerfile.e2e"); err != nil {
 				return logger.Error(lgr, fmt.Errorf("building and pushing e2e image: %w", err))
 			}
 			ret.E2eImage = ret.ContainerRegistry.GetName() + ".azurecr.io/" + e2eRepoAndTag
@@ -68,7 +68,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 
 		resEg.Go(func() error {
 			operatorRepoAndTag := "operator:" + i.Suffix
-			if err := ret.ContainerRegistry.BuildAndPush(ctx, operatorRepoAndTag, "../../"); err != nil {
+			if err := ret.ContainerRegistry.BuildAndPush(ctx, operatorRepoAndTag, "../../", "../../Dockerfile"); err != nil {
 				return logger.Error(lgr, fmt.Errorf("building and pushing operator image: %w", err))
 			}
 			ret.OperatorImage = ret.ContainerRegistry.GetName() + ".azurecr.io/" + operatorRepoAndTag

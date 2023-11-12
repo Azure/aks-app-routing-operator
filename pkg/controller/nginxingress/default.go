@@ -24,6 +24,9 @@ const (
 	// DefaultNicName is the default Nginx Ingress Controller resource name
 	DefaultNicName         = "default"
 	DefaultNicResourceName = "nginx"
+
+	reconcileInterval = time.Minute * 3
+	retryInterval     = time.Second
 )
 
 func NewDefaultReconciler(mgr ctrl.Manager) error {
@@ -45,17 +48,34 @@ type defaultNicReconciler struct {
 	lgr    logr.Logger
 }
 
-func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
+func (d *defaultNicReconciler) Start(ctx context.Context) error {
+	d.lgr.Info("starting default nginx ingress controller reconciler")
+	interval := time.Nanosecond
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(util.Jitter(interval, 0.3)):
+		}
+
+		if err := d.tick(ctx); err != nil {
+			d.lgr.Error(err, "reconciling default nginx ingress controller")
+			interval = retryInterval
+			continue
+		}
+
+		interval = reconcileInterval
+	}
+
+}
+
+func (d *defaultNicReconciler) tick(ctx context.Context) (err error) {
 	start := time.Now()
 	d.lgr.Info("starting to reconcile default nginx ingress controller")
 	defer func() {
 		d.lgr.Info("finished reconciling default nginx ingress controller", "latencySec", time.Since(start).Seconds())
 		metrics.HandleControllerReconcileMetrics(d.name, ctrl.Result{}, err)
 	}()
-
-	nic := GetDefaultNginxIngressController()
-
-	d.lgr.Info("determining if default nginx ingress controller should be created")
 	shouldCreate, err := shouldCreateDefaultNic(d.client)
 	if err != nil {
 		d.lgr.Error(err, "checking if default nginx ingress controller should be created")
@@ -67,6 +87,7 @@ func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
 		return nil
 	}
 
+	nic := GetDefaultNginxIngressController()
 	d.lgr.Info("upserting default nginx ingress controller")
 	if err := util.Upsert(ctx, d.client, &nic); err != nil {
 		d.lgr.Error(err, "upserting default nginx ingress controller")
@@ -74,7 +95,6 @@ func (d *defaultNicReconciler) Start(ctx context.Context) (err error) {
 	}
 
 	return nil
-
 }
 
 func shouldCreateDefaultNic(cl client.Client) (bool, error) {
@@ -87,7 +107,17 @@ func shouldCreateDefaultNic(cl client.Client) (bool, error) {
 	err := cl.Get(context.Background(), types.NamespacedName{Name: DefaultIcName}, defaultIc)
 	switch {
 	case err == nil: // default IngressClass exists, we must create default nic for upgrade story
-		return true, nil
+		// but only if the NIC doesnt exist already
+		defaultNic := GetDefaultNginxIngressController()
+		err := cl.Get(context.Background(), types.NamespacedName{Name: defaultNic.Name, Namespace: defaultNic.Namespace}, &defaultNic)
+		if k8serrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("getting default nic: %w", err)
+		}
+
+		return false, nil
 	case k8serrors.IsNotFound(err):
 		// default IngressClass does not exist, we don't need to create default nic. We aren't upgrading from older App Routing versions for the first time.
 		// this is either a new user or an existing user that deleted their default nic

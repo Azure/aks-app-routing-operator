@@ -3,6 +3,7 @@ package manifests
 import (
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -33,6 +34,7 @@ func init() {
 	appsv1.AddToScheme(scheme)
 	policyv1.AddToScheme(scheme)
 	rbacv1.AddToScheme(scheme)
+	v1alpha1.AddToScheme(scheme)
 }
 
 // MarshalJson converts an object to json
