@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2023-11-11
+
+### Added
+
+- Add NginxIngressController CRD - [#121](https://github.com/Azure/aks-app-routing-operator/pull/121)
+- Apply CRDs on operator startup - [#122](https://github.com/Azure/aks-app-routing-operator/pull/122)
+- Add CRD Webhooks - [#123](https://github.com/Azure/aks-app-routing-operator/pull/123)
+- Add prom metrics to Webhooks - [#125](https://github.com/Azure/aks-app-routing-operator/pull/125)
+- Add CRD reconciler - [#124](https://github.com/Azure/aks-app-routing-operator/pull/124)
+- Add default NginxIngressController reconciler - [#126](https://github.com/Azure/aks-app-routing-operator/pull/126)
+- Switch all controllers to use CRD as source of truth - [#128](https://github.com/Azure/aks-app-routing-operator/pull/128)
+- Add new Ingress events - [#130](https://github.com/Azure/aks-app-routing-operator/pull/130)
+- Add ownership reference to webhook config - [#129](https://github.com/Azure/aks-app-routing-operator/pull/129)
+- Generate Webhook certs - [#131](https://github.com/Azure/aks-app-routing-operator/pull/131)
+- Use dns hostname for cert - [#133](https://github.com/Azure/aks-app-routing-operator/pull/133)
+- Add E2e tests for CRD - [#132](https://github.com/Azure/aks-app-routing-operator/pull/132)
+
 ## [0.0.7] - 2023-11-04
 
 ### Changed
