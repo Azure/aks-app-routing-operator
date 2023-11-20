@@ -9,7 +9,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,61 +21,32 @@ func TestDefaultNicReconciler(t *testing.T) {
 	require.NoError(t, netv1.AddToScheme(scheme))
 	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	// when default nic doesn't exist in cluster we don't create the default nic
+	// prove we always create the default nic
 	d := &defaultNicReconciler{
 		client: cl,
 		lgr:    logr.Discard(),
 		name:   controllername.New("testing"),
 	}
 
-	require.NoError(t, d.tick(context.Background()))
-
 	nic := &approutingv1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: DefaultNicName,
 		},
 	}
-	require.True(t, k8serrors.IsNotFound(d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic)))
-
-	// when default nic exists in cluster we create the default nic
-	require.NoError(t, cl.Create(context.Background(), &netv1.IngressClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: DefaultIcName,
-		},
-	}))
 	require.NoError(t, d.tick(context.Background()))
 	require.NoError(t, d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic))
 	require.Equal(t, "nginx", nic.Spec.ControllerNamePrefix)
 	require.Equal(t, DefaultIcName, nic.Spec.IngressClassName)
 
-}
-
-func TestShouldCreateDefaultNic(t *testing.T) {
-	scheme := runtime.NewScheme()
-	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
-	require.NoError(t, netv1.AddToScheme(scheme))
-	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
-
-	// when default ic doesn't exist in cluster
-	shouldCreate, err := shouldCreateDefaultNic(cl)
-	require.NoError(t, err)
-	require.False(t, shouldCreate)
-
-	// when default ic exists in cluster
-	require.NoError(t, cl.Create(context.Background(), &netv1.IngressClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: DefaultIcName,
-		},
-	}))
-	shouldCreate, err = shouldCreateDefaultNic(cl)
-	require.NoError(t, err)
-	require.True(t, shouldCreate)
-
-	defaultNic := GetDefaultNginxIngressController()
-	require.NoError(t, cl.Create(context.Background(), &defaultNic))
-	shouldCreate, err = shouldCreateDefaultNic(cl)
-	require.NoError(t, err)
-	require.False(t, shouldCreate)
+	// prove there are no default nic lb service annotations
+	require.Equal(t, *new(map[string]string), nic.Spec.LoadBalancerAnnotations, "default nic service annotations should be empty initially")
+	// prove we don't overwrite the default nic lb service annotations
+	newLbAnnotations := map[string]string{"foo": "bar"}
+	nic.Spec.LoadBalancerAnnotations = newLbAnnotations
+	require.NoError(t, d.client.Update(context.Background(), nic))
+	require.NoError(t, d.tick(context.Background()))
+	require.NoError(t, d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic))
+	require.Equal(t, newLbAnnotations, nic.Spec.LoadBalancerAnnotations, "default nic service annotations should not be overwritten")
 }
 
 func TestGetDefaultIngressClassControllerClass(t *testing.T) {
