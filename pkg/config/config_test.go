@@ -634,6 +634,12 @@ var (
 			expectedError: errors.New("while parsing resource IDs for privatednszones: detected multiple resource groups another-rg-private and test-rg-private"),
 		},
 		{
+			name:                 "ok-resource-group",
+			zonesString:          strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com",
+			expectedPublicZones:  publicZones,
+			expectedPrivateZones: append(privateZones, "/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com"),
+		},
+		{
 			name:          "bad-subscription",
 			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/another-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com",
 			expectedError: errors.New("while parsing resource IDs for dnszones: detected multiple subscriptions another-public-subscription and test-public-subscription"),

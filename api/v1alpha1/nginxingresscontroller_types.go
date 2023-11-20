@@ -171,12 +171,8 @@ func (n *NginxIngressController) Valid() string {
 		return "spec.controllerNamePrefix must be specified"
 	}
 
-	if !startsWithAlphaNum(n.Spec.ControllerNamePrefix) {
-		return "spec.controllerNamePrefix must start with alphanumeric character"
-	}
-
-	if !onlyAlphaNumDashPeriod(n.Spec.ControllerNamePrefix) {
-		return "spec.controllerNamePrefix must contain only alphanumeric characters, dashes, and periods"
+	if !isLowercaseRfc1123Subdomain(n.Spec.ControllerNamePrefix) {
+		return "spec.controllerNamePrefix " + lowercaseRfc1123SubdomainValidationFailReason
 	}
 
 	if len(n.Spec.ControllerNamePrefix) > maxControllerNamePrefix {
@@ -184,21 +180,12 @@ func (n *NginxIngressController) Valid() string {
 
 	}
 
-	// ingress class  name must follow https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
 	if n.Spec.IngressClassName == "" {
 		return "spec.ingressClassName must be specified"
 	}
 
-	if !startsWithAlphaNum(n.Spec.IngressClassName) {
-		return "spec.ingressClassName must start with alphanumeric character"
-	}
-
-	if !onlyAlphaNumDashPeriod(n.Spec.IngressClassName) {
-		return "spec.ingressClassName must contain only alphanumeric characters, dashes, and periods"
-	}
-
-	if !endsWithAlphaNum(n.Spec.IngressClassName) {
-		return "spec.ingressClassName must end with alphanumeric character"
+	if !isLowercaseRfc1123Subdomain(n.Spec.IngressClassName) {
+		return "spec.ingressClassName " + lowercaseRfc1123SubdomainValidationFailReason
 	}
 
 	if len(n.Name) > maxNameLength {
@@ -228,6 +215,28 @@ type NginxIngressControllerList struct {
 	Items           []NginxIngressController `json:"items"`
 }
 
+var lowercaseRfc1123SubdomainValidationFailReason = "must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
+
+func isLowercaseRfc1123Subdomain(s string) bool {
+	if !startsWithAlphaNum(s) {
+		return false
+	}
+
+	if !endsWithAlphaNum(s) {
+		return false
+	}
+
+	if !onlyAlphaNumDashPeriod(s) {
+		return false
+	}
+
+	if !isLower(s) {
+		return false
+	}
+
+	return true
+}
+
 func startsWithAlphaNum(s string) bool {
 	if len(s) == 0 {
 		return false
@@ -247,6 +256,16 @@ func endsWithAlphaNum(s string) bool {
 func onlyAlphaNumDashPeriod(s string) bool {
 	for _, c := range s {
 		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '-' && c != '.' {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isLower(s string) bool {
+	for _, c := range s {
+		if unicode.IsUpper(c) && unicode.IsLetter(c) {
 			return false
 		}
 	}

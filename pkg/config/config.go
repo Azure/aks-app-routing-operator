@@ -213,7 +213,7 @@ func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup str
 		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}
 
-	if resourceGroup != "" && parsedZone.ResourceGroup != resourceGroup {
+	if resourceGroup != "" && !strings.EqualFold(parsedZone.ResourceGroup, resourceGroup) {
 		return fmt.Errorf("while parsing resource IDs for %s: detected multiple resource groups %s and %s", parsedZone.ResourceType, parsedZone.ResourceGroup, resourceGroup)
 	}
 
