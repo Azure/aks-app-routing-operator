@@ -76,16 +76,6 @@ func (d *defaultNicReconciler) tick(ctx context.Context) (err error) {
 		d.lgr.Info("finished reconciling default nginx ingress controller", "latencySec", time.Since(start).Seconds())
 		metrics.HandleControllerReconcileMetrics(d.name, ctrl.Result{}, err)
 	}()
-	shouldCreate, err := shouldCreateDefaultNic(d.client)
-	if err != nil {
-		d.lgr.Error(err, "checking if default nginx ingress controller should be created")
-		return fmt.Errorf("checking if default nginx ingress controller should be created: %w", err)
-	}
-
-	if !shouldCreate {
-		d.lgr.Info("default nginx ingress controller should not be created")
-		return nil
-	}
 
 	nic := GetDefaultNginxIngressController()
 	d.lgr.Info("upserting default nginx ingress controller")
@@ -95,38 +85,6 @@ func (d *defaultNicReconciler) tick(ctx context.Context) (err error) {
 	}
 
 	return nil
-}
-
-func shouldCreateDefaultNic(cl client.Client) (bool, error) {
-	defaultIc := &netv1.IngressClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: DefaultIcName,
-		},
-	}
-
-	err := cl.Get(context.Background(), types.NamespacedName{Name: DefaultIcName}, defaultIc)
-	switch {
-	case err == nil: // default IngressClass exists, we must create default nic for upgrade story
-		// but only if the NIC doesnt exist already
-		defaultNic := GetDefaultNginxIngressController()
-		err := cl.Get(context.Background(), types.NamespacedName{Name: defaultNic.Name, Namespace: defaultNic.Namespace}, &defaultNic)
-		if k8serrors.IsNotFound(err) {
-			return true, nil
-		}
-		if err != nil {
-			return false, fmt.Errorf("getting default nic: %w", err)
-		}
-
-		return false, nil
-	case k8serrors.IsNotFound(err):
-		// default IngressClass does not exist, we don't need to create default nic. We aren't upgrading from older App Routing versions for the first time.
-		// this is either a new user or an existing user that deleted their default nic
-		return false, nil
-	case err != nil:
-		return false, fmt.Errorf("getting default ingress class: %w", err)
-	}
-
-	return false, nil
 }
 
 func GetDefaultNginxIngressController() approutingv1alpha1.NginxIngressController {
