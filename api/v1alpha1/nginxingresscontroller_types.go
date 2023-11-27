@@ -1,11 +1,17 @@
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
 	"unicode"
 
+	"github.com/go-logr/logr"
+	netv1 "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func init() {
@@ -195,6 +201,7 @@ func (n *NginxIngressController) Valid() string {
 	return ""
 }
 
+// Default sets default spec values for this NginxIngressController
 func (n *NginxIngressController) Default() {
 	if n.Spec.IngressClassName == "" {
 		n.Spec.IngressClassName = n.Name
@@ -203,6 +210,52 @@ func (n *NginxIngressController) Default() {
 	if n.Spec.ControllerNamePrefix == "" {
 		n.Spec.ControllerNamePrefix = defaultControllerNamePrefix
 	}
+}
+
+// Collides returns whether the fields in this NginxIngressController would collide with an existing resources making it
+// impossible for this NginxIngressController to become available. This should be run before an NginxIngressController is created.
+// Returns whether there's a collision, the collision reason, and an error if one occurred. The collision reason is something that
+// the user can use to understand and resolve.
+func (n *NginxIngressController) Collides(ctx context.Context, cl client.Client) (bool, string, error) {
+	lgr := logr.FromContextOrDiscard(ctx).WithValues("name", n.Name, "ingressClassName", n.Spec.IngressClassName)
+	lgr.Info("checking for NginxIngressController collisions")
+
+	// check for NginxIngressController collisions
+	lgr.Info("checking for NginxIngressController collision")
+	var nginxIngressControllerList NginxIngressControllerList
+	if err := cl.List(ctx, &nginxIngressControllerList); err != nil {
+		lgr.Error(err, "listing NginxIngressControllers")
+		return false, "", fmt.Errorf("listing NginxIngressControllers: %w", err)
+	}
+
+	for _, nic := range nginxIngressControllerList.Items {
+		if nic.Spec.IngressClassName == n.Spec.IngressClassName && nic.Name != n.Name {
+			lgr.Info("NginxIngressController collision found")
+			return true, fmt.Sprintf("spec.ingressClassName \"%s\" is invalid because NginxIngressController \"%s\" already uses IngressClass \"%[1]s\"", n.Spec.IngressClassName, nic.Name), nil
+		}
+	}
+
+	// Check for an IngressClass collision.
+	// This is purposefully after the NginxIngressController check because if the collision is through an NginxIngressController
+	// that's the one we want to report as the reason since the user action for fixing that would involve working with the NginxIngressController
+	// resource rather than the IngressClass resource.
+	lgr.Info("checking for IngressClass collision")
+	ic := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: n.Spec.IngressClassName,
+		},
+	}
+	err := cl.Get(ctx, types.NamespacedName{Name: ic.Name}, ic)
+	if err == nil {
+		lgr.Info("IngressClass collision found")
+		return true, fmt.Sprintf("spec.ingressClassName \"%s\" is invalid because IngressClass \"%[1]s\" already exists", n.Spec.IngressClassName), nil
+	}
+	if !k8serrors.IsNotFound(err) {
+		lgr.Error(err, "checking for IngressClass collisions")
+		return false, "", fmt.Errorf("checking for IngressClass collisions: %w", err)
+	}
+
+	return false, "", nil
 }
 
 //+kubebuilder:object:root=true
