@@ -427,6 +427,10 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 func TestSarAuthenticateNginxIngressController(t *testing.T) {
 	allowedUserUid := "allowed-user-uid"
 	forbiddenUserUid := "forbidden-user-uid"
+	deniedAndAllowedUserUid := "denied-and-allowed-user-uid"
+	notAllowedAndNotDeniedUserUid := "not-allowed-and-not-denied-user-uid"
+	errUserUid := "err-user-uid"
+	failedError := errors.New("failed to create sar")
 	cl := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
 		Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
 			sar, ok := obj.(*authv1.SubjectAccessReview)
@@ -441,6 +445,16 @@ func TestSarAuthenticateNginxIngressController(t *testing.T) {
 			case forbiddenUserUid:
 				sar.Status.Allowed = false
 				sar.Status.Reason = "forbidden user"
+			case deniedAndAllowedUserUid:
+				sar.Status.Allowed = true
+				sar.Status.Denied = true
+				sar.Status.Reason = "denied and allowed user"
+			case notAllowedAndNotDeniedUserUid:
+				sar.Status.Allowed = false
+				sar.Status.Denied = false
+				sar.Status.Reason = "not allowed and not denied user"
+			case errUserUid:
+				return failedError
 			}
 
 			return nil
@@ -478,6 +492,44 @@ func TestSarAuthenticateNginxIngressController(t *testing.T) {
 			expectedDenyReason: "user 'forbidden-user' does not have permissions to create/update NginxIngressController. Verb '*' needed for resource 'IngressClass' in group 'networking.k8s.io' version 'v1'.",
 			expectedError:      nil,
 		},
+		{
+			name: "denied and allowed user",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					UserInfo: authenticationv1.UserInfo{
+						UID:      deniedAndAllowedUserUid,
+						Username: "denied-and-allowed-user",
+					},
+				},
+			},
+			expectedDenyReason: "user 'denied-and-allowed-user' does not have permissions to create/update NginxIngressController. Verb '*' needed for resource 'IngressClass' in group 'networking.k8s.io' version 'v1'.",
+			expectedError:      nil,
+		},
+		{
+			name: "not allowed and not denied user",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					UserInfo: authenticationv1.UserInfo{
+						UID:      notAllowedAndNotDeniedUserUid,
+						Username: "not-allowed-and-not-denied-user",
+					},
+				},
+			},
+			expectedDenyReason: "user 'not-allowed-and-not-denied-user' does not have permissions to create/update NginxIngressController. Verb '*' needed for resource 'IngressClass' in group 'networking.k8s.io' version 'v1'.",
+			expectedError:      nil,
+		},
+		{
+			name: "error user",
+			req: admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					UserInfo: authenticationv1.UserInfo{
+						UID: errUserUid,
+					},
+				},
+			},
+			expectedDenyReason: "",
+			expectedError:      failedError,
+		},
 	}
 
 	for _, tc := range cases {
@@ -488,8 +540,8 @@ func TestSarAuthenticateNginxIngressController(t *testing.T) {
 				t.Errorf("expected denyReason %v, got %v", tc.expectedDenyReason, denyReason)
 			}
 
-			if err != tc.expectedError {
-				t.Errorf("expected error %v, got %v", tc.expectedError, err)
+			if !errors.Is(err, tc.expectedError) {
+				t.Errorf("expected error %v, to be of type %v", tc.expectedError, err)
 			}
 		})
 	}

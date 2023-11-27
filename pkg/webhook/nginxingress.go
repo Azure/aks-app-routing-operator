@@ -208,7 +208,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 			return admission.Allowed("")
 		}
 
-		lgr.Info("checking if it collides")
+		lgr.Info("checking if NginxIngressController has unreconcilable collision")
 		collides, reason, err := nginxIngressController.Collides(ctx, n.client)
 		if err != nil {
 			lgr.Error(err, "checking if it collides")
