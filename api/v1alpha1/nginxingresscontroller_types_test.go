@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,7 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 func validNginxIngressController() NginxIngressController {
@@ -434,6 +437,31 @@ func TestNginxIngressControllerCollides(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("client errors", func(t *testing.T) {
+		listErr := errors.New("list error")
+		listErrCl := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+			List: func(_ context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
+				return listErr
+			},
+		}).WithScheme(scheme).Build()
+		getErr := errors.New("get error")
+		getErrCl := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+				return getErr
+			},
+		}).WithScheme(scheme).Build()
+
+		collision, reason, err := existingNic.Collides(context.Background(), listErrCl)
+		require.False(t, collision)
+		require.Empty(t, reason)
+		require.True(t, errors.Is(err, listErr), "expected error \"%v\", to be type \"%v\"", err, listErr)
+
+		collision, reason, err = existingNic.Collides(context.Background(), getErrCl)
+		require.False(t, collision)
+		require.Empty(t, reason)
+		require.True(t, errors.Is(err, getErr), "expected error \"%v\", to be type \"%v\"", err, getErr)
+	})
 }
 
 func TestStartsWithAlphaNum(t *testing.T) {
