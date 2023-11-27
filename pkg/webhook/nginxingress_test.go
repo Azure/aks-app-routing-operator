@@ -86,7 +86,7 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 			Name: "existing",
 		},
 		Spec: approutingv1alpha1.NginxIngressControllerSpec{
-			IngressClassName:     "existing",
+			IngressClassName:     "existing2",
 			ControllerNamePrefix: "prefix",
 		},
 	}
@@ -156,7 +156,7 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 				},
 			},
 			authenticator: validUser,
-			expected:      admission.Denied(fmt.Sprintf("IngressClass %s already exists. Delete or use a different spec.IngressClassName field", existingIc.Name)),
+			expected:      admission.Denied("spec.ingressClassName \"existing\" is invalid because IngressClass \"existing\" already exists"),
 		},
 		{
 			name: "valid nginx ingress controller, valid user, existing ingress class, update",
@@ -200,7 +200,7 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 					Object: runtime.RawExtension{
 						Raw: toRaw(func() *approutingv1alpha1.NginxIngressController {
 							copy := validNginxIngressController.DeepCopy()
-							copy.Spec.IngressClassName = existingIc.Name
+							copy.Spec.IngressClassName = existingNic.Spec.IngressClassName
 							copy.Name = "other"
 							return copy
 						}()),
@@ -208,7 +208,7 @@ func TestNginxIngressResourceValidator(t *testing.T) {
 				},
 			},
 			authenticator: validUser,
-			expected:      admission.Denied(fmt.Sprintf("IngressClass %s already exists. Delete or use a different spec.IngressClassName field", existingNic.Spec.IngressClassName)),
+			expected:      admission.Denied("spec.ingressClassName \"existing2\" is invalid because NginxIngressController \"existing\" already uses IngressClass \"existing2\""),
 		},
 		{
 			name: "valid nginx ingress controller, valid user, existing ingress class on other nginx ingress controller, updating",

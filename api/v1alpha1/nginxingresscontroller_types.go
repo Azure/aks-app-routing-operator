@@ -220,23 +220,6 @@ func (n *NginxIngressController) Collides(ctx context.Context, cl client.Client)
 	lgr := logr.FromContextOrDiscard(ctx).WithValues("name", n.Name, "ingressClassName", n.Spec.IngressClassName)
 	lgr.Info("checking for NginxIngressController collisions")
 
-	// check for an IngressClass collision
-	lgr.Info("checking for IngressClass collision")
-	ic := &netv1.IngressClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: n.Spec.IngressClassName,
-		},
-	}
-	err := cl.Get(ctx, types.NamespacedName{Name: ic.Name}, ic)
-	if err == nil {
-		lgr.Info("IngressClass collision found")
-		return true, fmt.Sprintf("spec.ingressClassName %s is invalid because IngressClass %[1]s already exists.", n.Spec.IngressClassName), nil
-	}
-	if !k8serrors.IsNotFound(err) {
-		lgr.Error(err, "checking for IngressClass collisions")
-		return false, "", fmt.Errorf("checking for IngressClass collisions: %w", err)
-	}
-
 	// check for NginxIngressController collisions
 	lgr.Info("checking for NginxIngressController collision")
 	var nginxIngressControllerList NginxIngressControllerList
@@ -248,8 +231,28 @@ func (n *NginxIngressController) Collides(ctx context.Context, cl client.Client)
 	for _, nic := range nginxIngressControllerList.Items {
 		if nic.Spec.IngressClassName == n.Spec.IngressClassName && nic.Name != n.Name {
 			lgr.Info("NginxIngressController collision found")
-			return true, fmt.Sprintf("spec.ingressClassName %s is invalid because NginxIngressController %s uses IngressClass %[1]s", n.Spec.IngressClassName, nic.Name), nil
+			return true, fmt.Sprintf("spec.ingressClassName \"%s\" is invalid because NginxIngressController \"%s\" already uses IngressClass \"%[1]s\"", n.Spec.IngressClassName, nic.Name), nil
 		}
+	}
+
+	// Check for an IngressClass collision.
+	// This is purposefully after the NginxIngressController check because if the collision is through an NginxIngressController
+	// that's the one we want to report as the reason since the user action for fixing that would involve working with the NginxIngressController
+	// resource rather than the IngressClass resource.
+	lgr.Info("checking for IngressClass collision")
+	ic := &netv1.IngressClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: n.Spec.IngressClassName,
+		},
+	}
+	err := cl.Get(ctx, types.NamespacedName{Name: ic.Name}, ic)
+	if err == nil {
+		lgr.Info("IngressClass collision found")
+		return true, fmt.Sprintf("spec.ingressClassName \"%s\" is invalid because IngressClass \"%[1]s\" already exists", n.Spec.IngressClassName), nil
+	}
+	if !k8serrors.IsNotFound(err) {
+		lgr.Error(err, "checking for IngressClass collisions")
+		return false, "", fmt.Errorf("checking for IngressClass collisions: %w", err)
 	}
 
 	return false, "", nil
