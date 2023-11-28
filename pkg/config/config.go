@@ -52,6 +52,7 @@ func init() {
 	flag.StringVar(&Flags.CertName, "cert-name", "tls.crt", "name of the certificate file in the cert-dir")
 	flag.StringVar(&Flags.KeyName, "key-name", "tls.key", "name of the key file in the cert-dir")
 	flag.StringVar(&Flags.CaName, "ca-name", "ca.crt", "name of the CA file in the cert-dir")
+	flag.BoolVar(&Flags.EnableWebhook, "enable-webhook", false, "enable the webhook server")
 }
 
 type DnsZoneConfig struct {
@@ -81,29 +82,32 @@ type Config struct {
 	CrdPath                             string
 	CertDir                             string
 	CertName, KeyName, CaName           string
+	EnableWebhook                       bool
 }
 
 func (c *Config) Validate() error {
-	if c.OperatorNs == "" {
-		return errors.New("--operator-namespace is required")
-	}
-	if c.OperatorWebhookService == "" && c.OperatorWebhookServiceUrl == "" {
-		return errors.New("--operator-webhook-service or operator-webhook-service-url is required")
-	}
-	if c.OperatorWebhookService != "" && c.OperatorWebhookServiceUrl != "" {
-		return errors.New("only one of --operator-webhook-service or --operator-webhook-service-url should be specified")
-	}
-	if c.CertDir == "" {
-		return errors.New("--cert-dir is required")
-	}
-	if c.CertName == "" {
-		return errors.New("--cert-name is required")
-	}
-	if c.KeyName == "" {
-		return errors.New("--key-name is required")
-	}
-	if c.CaName == "" {
-		return errors.New("--ca-name is required")
+	if c.EnableWebhook {
+		if c.OperatorNs == "" {
+			return errors.New("--operator-namespace is required")
+		}
+		if c.OperatorWebhookService == "" && c.OperatorWebhookServiceUrl == "" {
+			return errors.New("--operator-webhook-service or operator-webhook-service-url is required")
+		}
+		if c.OperatorWebhookService != "" && c.OperatorWebhookServiceUrl != "" {
+			return errors.New("only one of --operator-webhook-service or --operator-webhook-service-url should be specified")
+		}
+		if c.CertDir == "" {
+			return errors.New("--cert-dir is required")
+		}
+		if c.CertName == "" {
+			return errors.New("--cert-name is required")
+		}
+		if c.KeyName == "" {
+			return errors.New("--key-name is required")
+		}
+		if c.CaName == "" {
+			return errors.New("--ca-name is required")
+		}
 	}
 
 	if c.NS == "" {

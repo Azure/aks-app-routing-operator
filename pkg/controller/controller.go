@@ -95,7 +95,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
-
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:     conf.WebhookPort,
 			CertDir:  conf.CertDir,
@@ -104,19 +103,19 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		}),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating manager: %w", err)
 	}
 
 	setupLog := m.GetLogger().WithName("setup")
 	webhooksReady := make(chan struct{})
-	if err := setupProbes(m, webhooksReady, setupLog); err != nil {
+	if err := setupProbes(conf, m, webhooksReady, setupLog); err != nil {
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
 
 	// create non-caching clients, non-caching for use before manager has started
 	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating non-caching client: %w", err)
 	}
 
 	if err := loadCRDs(cl, conf, setupLog); err != nil {
@@ -130,32 +129,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		}
 	}()
 
-	webhookCfg, err := webhook.New(conf)
-	if err != nil {
-		setupLog.Error(err, "unable to create webhook config")
-		return nil, fmt.Errorf("creating webhook config: %w", err)
+	if err := setupWebhooks(conf, m, setupLog, cl, webhooksReady); err != nil {
+		setupLog.Error(err, "unable to setup webhooks")
+		return nil, fmt.Errorf("setting up webhooks: %w", err)
 	}
-
-	if err := webhookCfg.EnsureCertificates(setupLog); err != nil {
-		setupLog.Error(err, "unable to ensure certificates")
-		return nil, fmt.Errorf("ensuring certificates: %w", err)
-	}
-
-	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
-		setupLog.Error(err, "unable to ensure webhook configurations")
-		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
-	}
-
-	go func() {
-		setupLog.Info("setting up webhooks")
-		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
-			setupLog.Error(err, "failed to setup webhooks")
-			os.Exit(1)
-		}
-
-		setupLog.Info("webhooks are ready")
-		close(webhooksReady)
-	}()
 
 	if err := setupIndexers(m, setupLog); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
@@ -178,11 +155,40 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 	return nil
 }
 
-func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error) error {
-	if err := addWebhooksFn(mgr); err != nil {
-		return fmt.Errorf("adding webhooks: %w", err)
+func setupWebhooks(conf *config.Config, mgr ctrl.Manager, lgr logr.Logger, cl client.Client, webhookSetupDone chan<- struct{}) error {
+	if !conf.EnableWebhook {
+		lgr.Info("webhooks are disabled, skipping setup")
+		close(webhookSetupDone)
+		return nil
 	}
 
+	lgr.Info("setting up webhooks")
+	webhookCfg, err := webhook.New(conf)
+	if err != nil {
+		lgr.Error(err, "unable to create webhook config")
+		return fmt.Errorf("creating webhook config: %w", err)
+	}
+
+	lgr.Info("ensuring webhook certificates")
+	if err := webhookCfg.EnsureCertificates(lgr); err != nil {
+		lgr.Error(err, "unable to ensure certificates")
+		return fmt.Errorf("ensuring certificates: %w", err)
+	}
+
+	lgr.Info("ensuring webhook configurations")
+	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
+		lgr.Error(err, "unable to ensure webhook configurations")
+		return fmt.Errorf("ensuring webhook configurations: %w", err)
+	}
+
+	lgr.Info("adding webhooks to manager")
+	if err := webhookCfg.AddWebhooks(mgr); err != nil {
+		lgr.Error(err, "unable to add webhooks to manager")
+		return fmt.Errorf("adding webhooks to manager: %w", err)
+	}
+
+	lgr.Info("finished setting up webhooks")
+	close(webhookSetupDone)
 	return nil
 }
 
@@ -257,7 +263,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 	return nil
 }
 
-func setupProbes(mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logger) error {
+func setupProbes(conf *config.Config, mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logger) error {
 	log.Info("adding probes to manager")
 
 	// checks if the webhooks are ready so that the service can only serve webhook
@@ -267,8 +273,13 @@ func setupProbes(mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logge
 		case <-webhooksReady:
 			return mgr.GetWebhookServer().StartedChecker()(req)
 		default:
-			return fmt.Errorf("certs aren't ready yet")
+			return fmt.Errorf("webhooks aren't ready yet")
 		}
+	}
+
+	if !conf.EnableWebhook {
+		log.Info("webhooks are disabled, skipping webhook readiness check")
+		check = func(_ *http.Request) error { return nil }
 	}
 
 	if err := mgr.AddReadyzCheck("readyz", check); err != nil {
