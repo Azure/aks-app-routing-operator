@@ -124,6 +124,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
 		ret = append(ret, "--operator-namespace", operatorNs)
 		ret = append(ret, "--operator-webhook-service", "app-routing-operator-webhook")
+		ret = append(ret, "--enable-webhook")
 	}
 
 	var zones []string

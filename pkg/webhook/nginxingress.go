@@ -16,9 +16,6 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authv1 "k8s.io/api/authorization/v1"
-	netv1 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -43,7 +40,7 @@ func init() {
 				Handler: &nginxIngressResourceValidator{
 					client:       mgr.GetClient(),
 					decoder:      admission.NewDecoder(mgr.GetScheme()),
-					authenticate: sarAuthenticate,
+					authenticate: SarAuthenticateNginxIngressController,
 				},
 			})
 
@@ -124,7 +121,8 @@ type nginxIngressResourceValidator struct {
 	authenticate authenticateFn
 }
 
-var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Client, req admission.Request) (string, error) {
+// SarAuthenticateNginxIngressController checks if the user is allowed to perform a request against an NginxIngressController resource. If the user is allowed it returns an empty string, otherwise it returns the reason why they're not allowed.
+func SarAuthenticateNginxIngressController(ctx context.Context, lgr logr.Logger, cl client.Client, req admission.Request) (string, error) {
 	// ensure user has permissions required
 	lgr.Info("checking permissions")
 	extra := make(map[string]authv1.ExtraValue)
@@ -157,7 +155,7 @@ var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Clien
 		}
 		if sar.Status.Denied || (!sar.Status.Allowed) {
 			lgr.Info("denied due to permissions", "reason", sar.Status.Reason)
-			return fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'. ",
+			return fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'.",
 				req.UserInfo.Username, sar.Spec.ResourceAttributes.Verb, sar.Spec.ResourceAttributes.Resource, sar.Spec.ResourceAttributes.Group, sar.Spec.ResourceAttributes.Version,
 			), nil
 		}
@@ -174,6 +172,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 	}()
 
 	lgr := logr.FromContextOrDiscard(ctx).WithValues("resourceName", req.Name, "namespace", req.Namespace, "operation", req.Operation).WithName(nginxResourceValidationName.LoggerName())
+	lgr.Info("validating NginxIngressController request")
 
 	// ensure user has permissions required
 	var cantPerform string
@@ -209,41 +208,20 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 			return admission.Allowed("")
 		}
 
-		lgr.Info("checking if IngressClass already exists")
-		ic := &netv1.IngressClass{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: nginxIngressController.Spec.IngressClassName,
-			},
-		}
-		lgr.Info("attempting to get IngressClass " + ic.Name)
-		err = n.client.Get(ctx, client.ObjectKeyFromObject(ic), ic)
-		if err == nil {
-			lgr.Info("denied because IngressClass already exists")
-			return admission.Denied(fmt.Sprintf("IngressClass %s already exists. Delete or use a different spec.IngressClassName field", ic.Name))
-		}
-		// err can still be populated as not found after this so be careful to overwrite for accurate metrics if needed
-		if !k8serrors.IsNotFound(err) {
-			lgr.Error(err, "get IngressClass")
-			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("getting IngressClass %s: %w", ic.Name, err))
+		lgr.Info("checking if NginxIngressController has unreconcilable collision")
+		collides, reason, err := nginxIngressController.Collides(ctx, n.client)
+		if err != nil {
+			lgr.Error(err, "checking if it collides")
+			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("checking if it collides: %w", err))
 		}
 
-		// list nginx ingress controllers
-		lgr.Info("listing NginxIngressControllers to check for collisions")
-		var nginxIngressControllerList approutingv1alpha1.NginxIngressControllerList
-		if err = n.client.List(ctx, &nginxIngressControllerList); err != nil {
-			lgr.Error(err, "listing NginxIngressControllers")
-			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("listing NginxIngressControllers: %w", err))
+		if collides {
+			lgr.Info("denied due to collision", "reason", reason)
+			return admission.Denied(reason)
 		}
-
-		for _, nic := range nginxIngressControllerList.Items {
-			if nic.Spec.IngressClassName == nginxIngressController.Spec.IngressClassName {
-				lgr.Info("denied admission. IngressClass already exists on NginxIngressController " + nic.Name)
-				return admission.Denied(fmt.Sprintf("IngressClass %s already exists on NginxIngressController %s. Use a different spec.IngressClassName field", nic.Spec.IngressClassName, nic.Name))
-			}
-		}
-
 	}
 
+	lgr.Info("admission allowed")
 	return admission.Allowed("")
 }
 
