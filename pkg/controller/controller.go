@@ -130,7 +130,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		}
 	}()
 
-	if err := setupWebhooks(conf, m, setupLog, webhooksReady); err != nil {
+	if err := setupWebhooks(conf, m, setupLog, cl, webhooksReady); err != nil {
 		setupLog.Error(err, "unable to setup webhooks")
 		return nil, fmt.Errorf("setting up webhooks: %w", err)
 	}
@@ -156,7 +156,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 	return nil
 }
 
-func setupWebhooks(conf *config.Config, mgr ctrl.Manager, lgr logr.Logger, webhookSetupDone chan<- struct{}) error {
+func setupWebhooks(conf *config.Config, mgr ctrl.Manager, lgr logr.Logger, cl client.Client, webhookSetupDone chan<- struct{}) error {
 	if !conf.EnableWebhook {
 		lgr.Info("webhooks are disabled, skipping setup")
 		close(webhookSetupDone)
