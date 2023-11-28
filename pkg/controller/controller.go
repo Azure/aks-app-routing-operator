@@ -95,7 +95,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
-
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:     conf.WebhookPort,
 			CertDir:  conf.CertDir,
@@ -104,19 +103,19 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		}),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating manager: %w", err)
 	}
 
 	setupLog := m.GetLogger().WithName("setup")
 	webhooksReady := make(chan struct{})
-	if err := setupProbes(m, webhooksReady, setupLog); err != nil {
+	if err := setupProbes(conf, m, webhooksReady, setupLog); err != nil {
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
 
 	// create non-caching clients, non-caching for use before manager has started
 	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating non-caching client: %w", err)
 	}
 
 	if err := loadCRDs(cl, conf, setupLog); err != nil {
@@ -264,7 +263,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 	return nil
 }
 
-func setupProbes(mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logger) error {
+func setupProbes(conf *config.Config, mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logger) error {
 	log.Info("adding probes to manager")
 
 	// checks if the webhooks are ready so that the service can only serve webhook
@@ -274,8 +273,13 @@ func setupProbes(mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logge
 		case <-webhooksReady:
 			return mgr.GetWebhookServer().StartedChecker()(req)
 		default:
-			return fmt.Errorf("certs aren't ready yet")
+			return fmt.Errorf("webhooks aren't ready yet")
 		}
+	}
+
+	if !conf.EnableWebhook {
+		log.Info("webhooks are disabled, skipping webhook readiness check")
+		check = func(_ *http.Request) error { return nil }
 	}
 
 	if err := mgr.AddReadyzCheck("readyz", check); err != nil {
