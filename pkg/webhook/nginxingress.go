@@ -40,7 +40,7 @@ func init() {
 				Handler: &nginxIngressResourceValidator{
 					client:       mgr.GetClient(),
 					decoder:      admission.NewDecoder(mgr.GetScheme()),
-					authenticate: sarAuthenticate,
+					authenticate: SarAuthenticateNginxIngressController,
 				},
 			})
 
@@ -121,7 +121,8 @@ type nginxIngressResourceValidator struct {
 	authenticate authenticateFn
 }
 
-var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Client, req admission.Request) (string, error) {
+// SarAuthenticateNginxIngressController checks if the user is allowed to perform a request against an NginxIngressController resource. If the user is allowed it returns an empty string, otherwise it returns the reason why they're not allowed.
+func SarAuthenticateNginxIngressController(ctx context.Context, lgr logr.Logger, cl client.Client, req admission.Request) (string, error) {
 	// ensure user has permissions required
 	lgr.Info("checking permissions")
 	extra := make(map[string]authv1.ExtraValue)
@@ -154,7 +155,7 @@ var sarAuthenticate = func(ctx context.Context, lgr logr.Logger, cl client.Clien
 		}
 		if sar.Status.Denied || (!sar.Status.Allowed) {
 			lgr.Info("denied due to permissions", "reason", sar.Status.Reason)
-			return fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'. ",
+			return fmt.Sprintf("user '%s' does not have permissions to create/update NginxIngressController. Verb '%s' needed for resource '%s' in group '%s' version '%s'.",
 				req.UserInfo.Username, sar.Spec.ResourceAttributes.Verb, sar.Spec.ResourceAttributes.Resource, sar.Spec.ResourceAttributes.Group, sar.Spec.ResourceAttributes.Version,
 			), nil
 		}
@@ -207,7 +208,7 @@ func (n *nginxIngressResourceValidator) Handle(ctx context.Context, req admissio
 			return admission.Allowed("")
 		}
 
-		lgr.Info("checking if it collides")
+		lgr.Info("checking if NginxIngressController has unreconcilable collision")
 		collides, reason, err := nginxIngressController.Collides(ctx, n.client)
 		if err != nil {
 			lgr.Error(err, "checking if it collides")
