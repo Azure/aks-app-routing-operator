@@ -130,32 +130,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		}
 	}()
 
-	webhookCfg, err := webhook.New(conf)
-	if err != nil {
-		setupLog.Error(err, "unable to create webhook config")
-		return nil, fmt.Errorf("creating webhook config: %w", err)
+	if err := setupWebhooks(conf, m, setupLog, webhooksReady); err != nil {
+		setupLog.Error(err, "unable to setup webhooks")
+		return nil, fmt.Errorf("setting up webhooks: %w", err)
 	}
-
-	if err := webhookCfg.EnsureCertificates(setupLog); err != nil {
-		setupLog.Error(err, "unable to ensure certificates")
-		return nil, fmt.Errorf("ensuring certificates: %w", err)
-	}
-
-	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
-		setupLog.Error(err, "unable to ensure webhook configurations")
-		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
-	}
-
-	go func() {
-		setupLog.Info("setting up webhooks")
-		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
-			setupLog.Error(err, "failed to setup webhooks")
-			os.Exit(1)
-		}
-
-		setupLog.Info("webhooks are ready")
-		close(webhooksReady)
-	}()
 
 	if err := setupIndexers(m, setupLog); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
@@ -178,11 +156,40 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 	return nil
 }
 
-func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error) error {
-	if err := addWebhooksFn(mgr); err != nil {
-		return fmt.Errorf("adding webhooks: %w", err)
+func setupWebhooks(conf *config.Config, mgr ctrl.Manager, lgr logr.Logger, webhookSetupDone chan<- struct{}) error {
+	if !conf.EnableWebhook {
+		lgr.Info("webhooks are disabled, skipping setup")
+		close(webhookSetupDone)
+		return nil
 	}
 
+	lgr.Info("setting up webhooks")
+	webhookCfg, err := webhook.New(conf)
+	if err != nil {
+		lgr.Error(err, "unable to create webhook config")
+		return fmt.Errorf("creating webhook config: %w", err)
+	}
+
+	lgr.Info("ensuring webhook certificates")
+	if err := webhookCfg.EnsureCertificates(lgr); err != nil {
+		lgr.Error(err, "unable to ensure certificates")
+		return fmt.Errorf("ensuring certificates: %w", err)
+	}
+
+	lgr.Info("ensuring webhook configurations")
+	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
+		lgr.Error(err, "unable to ensure webhook configurations")
+		return fmt.Errorf("ensuring webhook configurations: %w", err)
+	}
+
+	lgr.Info("adding webhooks to manager")
+	if err := webhookCfg.AddWebhooks(mgr); err != nil {
+		lgr.Error(err, "unable to add webhooks to manager")
+		return fmt.Errorf("adding webhooks to manager: %w", err)
+	}
+
+	lgr.Info("finished setting up webhooks")
+	close(webhookSetupDone)
 	return nil
 }
 
