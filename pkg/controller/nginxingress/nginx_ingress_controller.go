@@ -154,6 +154,9 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		lgr.Error(err, "unable to reconcile resource")
 		return ctrl.Result{}, fmt.Errorf("reconciling resource: %w", err)
 	}
+	if replicas := resources.Deployment.Spec.Replicas; replicas != nil {
+		lgr.Info(fmt.Sprintf("nginx deployment targets %d replicas", *replicas), "replicas", *replicas)
+	}
 
 	return ctrl.Result{}, nil
 }
