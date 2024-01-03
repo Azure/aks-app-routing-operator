@@ -264,7 +264,7 @@
                 "operator": "Exists"
               }
             ],
-            "priorityClassName": "system-node-critical"
+            "priorityClassName": "system-cluster-critical"
           }
         },
         "strategy": {},

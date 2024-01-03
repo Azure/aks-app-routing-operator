@@ -118,7 +118,7 @@ func withLivenessProbeMatchingReadiness(contain *corev1.Container) *corev1.Conta
 
 func WithPreferSystemNodes(spec *corev1.PodSpec) *corev1.PodSpec {
 	copy := spec.DeepCopy()
-	copy.PriorityClassName = "system-node-critical"
+	copy.PriorityClassName = "system-cluster-critical"
 
 	copy.Tolerations = append(copy.Tolerations, corev1.Toleration{
 		Key:      "CriticalAddonsOnly",
