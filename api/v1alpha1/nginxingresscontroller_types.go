@@ -36,14 +36,21 @@ const (
 type NginxIngressControllerSpec struct {
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
-	// +optional
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:default=approuting.kubernetes.azure.com/nginx
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9]*[a-z0-9]$`
 	IngressClassName string `json:"ingressClassName,omitempty"`
 
 	// ControllerNamePrefix is the name to use for the managed NGINX Ingress Controller resources.
-	// +optional
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=60
 	// +kubebuilder:default=nginx
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	ControllerNamePrefix string `json:"controllerNamePrefix,omitempty"`
 
 	// LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations

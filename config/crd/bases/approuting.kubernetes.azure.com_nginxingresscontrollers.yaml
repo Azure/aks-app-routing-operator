@@ -51,14 +51,21 @@ spec:
                 default: nginx
                 description: ControllerNamePrefix is the name to use for the managed
                   NGINX Ingress Controller resources.
+                maxLength: 60
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                 type: string
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
               ingressClassName:
+                default: approuting.kubernetes.azure.com/nginx
                 description: IngressClassName is the name of the IngressClass that
                   will be used for the NGINX Ingress Controller. Defaults to metadata.name
                   if not specified.
+                maxLength: 253
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9]*[a-z0-9]$
                 type: string
                 x-kubernetes-validations:
                 - message: Value is immutable
