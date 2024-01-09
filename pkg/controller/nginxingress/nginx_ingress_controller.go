@@ -506,8 +506,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		return nil
 	}
 
-	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
-	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
+	cc := "approuting.kubernetes.azure.com/" + url.PathEscape(nic.Name)
 	if len(cc) > controllerClassMaxLen {
 		cc = cc[:controllerClassMaxLen]
 	}
