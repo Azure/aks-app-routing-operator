@@ -122,9 +122,6 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version == OperatorVersionLatest {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
-		ret = append(ret, "--operator-namespace", operatorNs)
-		ret = append(ret, "--operator-webhook-service", "app-routing-operator-webhook")
-		ret = append(ret, "--enable-webhook")
 	}
 
 	var zones []string
@@ -256,35 +253,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		},
 	}
 
-	webhookService := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "app-routing-operator-webhook",
-			Namespace: operatorNs,
-		},
-		Spec: corev1.ServiceSpec{
-			IPFamilies: []corev1.IPFamily{
-				"IPv4",
-			},
-			IPFamilyPolicy: &SingleStackIPFamilyPolicy,
-			Ports: []corev1.ServicePort{
-				{
-					Name:     "client",
-					Port:     9443,
-					Protocol: corev1.ProtocolTCP,
-					TargetPort: intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: 9443,
-					},
-				},
-			},
-			Selector: map[string]string{
-				"app": "app-routing-operator",
-			},
-			SessionAffinity: corev1.ServiceAffinityNone,
-			Type:            corev1.ServiceTypeClusterIP,
-		},
-	}
-
 	ret = append(ret, []client.Object{
 		namespace,
 		serviceAccount,
@@ -303,8 +271,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 
 		ret = append(ret, baseDeployment)
 	case OperatorVersionLatest:
-		ret = append(ret, webhookService, baseDeployment)
-
 		if cleanDeploy {
 			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))
 		}

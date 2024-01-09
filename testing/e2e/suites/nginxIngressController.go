@@ -40,10 +40,10 @@ func init() {
 	rbacv1.AddToScheme(scheme)
 }
 
-func nicWebhookTests(in infra.Provisioned) []test {
+func nicTests(in infra.Provisioned) []test {
 	return []test{
 		{
-			name: "nic webhook",
+			name: "nic validations",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
@@ -60,25 +60,21 @@ func nicWebhookTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w")
 				}
 
-				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "test-nic-ingress-class")
-				lgr.Info("creating basic NginxIngressController")
-				if err := upsert(ctx, c, testNIC); err != nil {
-					return fmt.Errorf("creating NginxIngressController: %w", err)
+				// validate that crd rejected with invalid fields
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "Invalid+Characters")
+				lgr.Info("creating NginxIngressController with invalid ingressClassName")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController with invalid ingressClassName '%s'", testNIC.Spec.IngressClassName)
 				}
 
-				oldNICName := testNIC.Spec.IngressClassName
-				testNIC.Spec.IngressClassName = existingOperatorIngressClass
-				lgr.Info("testing existing ingressclass")
-				if err := upsert(ctx, c, testNIC); err == nil {
-					return fmt.Errorf("created NginxIngressController with existing IngressClass")
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.ControllerNamePrefix = "Invalid+Characters"
+				lgr.Info("creating NginxIngressController with invalid controllerNamePrefix")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController with invalid controllerNamePrefix '%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
-				testNIC.Spec.IngressClassName = oldNICName
-				if err = c.Delete(ctx, testNIC); err != nil {
-					return fmt.Errorf("deleting NginxIngressController: %w", err)
-				}
-
-				lgr.Info("finished testing nic webhook")
+				lgr.Info("finished testing")
 				return nil
 			},
 		},
@@ -154,7 +150,7 @@ func nicWebhookTests(in infra.Provisioned) []test {
 					return fmt.Errorf("updating NIC to external: %w", err)
 				}
 
-				lgr.Info("finished testing nic webhook")
+				lgr.Info("finished testing")
 				return nil
 			},
 		},
