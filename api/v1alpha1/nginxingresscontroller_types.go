@@ -153,9 +153,8 @@ type NginxIngressController struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +required
-	// https://github.com/kubernetes-sigs/controller-tools/issues/622 defaulting doesn't cascade so we have to define it all
 	// +kubebuilder:default:={"ingressClassName":"nginx.approuting.kubernetes.azure.com","controllerNamePrefix":"nginx"}
-	Spec NginxIngressControllerSpec `json:"spec"`
+	Spec NginxIngressControllerSpec `json:"spec"` // ^ for the above thing https://github.com/kubernetes-sigs/controller-tools/issues/622 defaulting doesn't cascade, so we have to define it all. Comment on this line so it's not in crd spec.
 
 	// +optional
 	Status NginxIngressControllerStatus `json:"status,omitempty"`

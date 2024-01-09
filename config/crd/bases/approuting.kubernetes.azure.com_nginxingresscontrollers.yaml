@@ -48,8 +48,7 @@ spec:
             default:
               controllerNamePrefix: nginx
               ingressClassName: nginx.approuting.kubernetes.azure.com
-            description: https://github.com/kubernetes-sigs/controller-tools/issues/622
-              defaulting doesn't cascade so we have to define it all
+            description: NginxIngressControllerSpec defines the desired state of NginxIngressController
             properties:
               controllerNamePrefix:
                 default: nginx
@@ -215,6 +214,8 @@ spec:
                   type: object
                 type: array
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true
