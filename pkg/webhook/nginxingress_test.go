@@ -364,7 +364,7 @@ func TestNginxIngressResourceMutator(t *testing.T) {
 				},
 				Patches: []jsonpatch.JsonPatchOperation{
 					{
-						Operation: "add",
+						Operation: "replace",
 						Path:      "/spec/controllerNamePrefix",
 						Value:     "nginx",
 					},
