@@ -506,7 +506,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		return nil
 	}
 
-	cc := url.PathEscape(nic.Name)
+	cc := "approuting.kubernetes.azure.com/" + url.PathEscape(nic.Name)
 	if len(cc) > controllerClassMaxLen {
 		cc = cc[:controllerClassMaxLen]
 	}

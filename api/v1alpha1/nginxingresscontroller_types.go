@@ -36,22 +36,22 @@ const (
 type NginxIngressControllerSpec struct {
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
-	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:default=approuting.kubernetes.azure.com/nginx
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9]*[a-z0-9]$`
-	IngressClassName string `json:"ingressClassName,omitempty"`
-
-	// ControllerNamePrefix is the name to use for the managed NGINX Ingress Controller resources.
-	// +required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=60
-	// +kubebuilder:default=nginx
+	// +kubebuilder:default:=nginx.approuting.kubernetes.azure.com
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	ControllerNamePrefix string `json:"controllerNamePrefix,omitempty"`
+	// +kubebuilder:validation:Required
+	IngressClassName string `json:"ingressClassName"`
+
+	// ControllerNamePrefix is the name to use for the managed NGINX Ingress Controller resources.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=60
+	// +kubebuilder:default:=nginx
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9]*[a-z0-9]$`
+	// +kubebuilder:validation:Required
+	ControllerNamePrefix string `json:"controllerNamePrefix"`
 
 	// LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations
 	// will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
@@ -152,8 +152,10 @@ type NginxIngressController struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// +required
-	Spec NginxIngressControllerSpec `json:"spec,omitempty"`
+	// +optional
+	// https://github.com/kubernetes-sigs/controller-tools/issues/622 defaulting doesn't cascade so we have to define it all
+	// +kubebuilder:default:={"ingressClassName":"nginx.approuting.kubernetes.azure.com","controllerNamePrefix":"nginx"}
+	Spec NginxIngressControllerSpec `json:"spec"`
 
 	// +optional
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
