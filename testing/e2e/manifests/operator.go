@@ -268,9 +268,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
 		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
 		baseDeployment.Spec.Template.Spec.Volumes = nil
-
 		ret = append(ret, baseDeployment)
 	case OperatorVersionLatest:
+		ret = append(ret, baseDeployment)
+
 		if cleanDeploy {
 			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))
 		}
