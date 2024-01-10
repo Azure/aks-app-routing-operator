@@ -3,6 +3,8 @@ package suites
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -19,6 +21,8 @@ var (
 	// is used for the tests for that dns zone. Using shared namespaces
 	// allow us to appropriately test upgrade scenarios.
 	basicNs = make(map[string]*corev1.Namespace)
+	// nsMutex is a mutex that is used to protect the basicNs map. Without this we chance concurrent goroutine map access panics
+	nsMutex = sync.RWMutex{}
 )
 
 func basicSuite(in infra.Provisioned) []test {
@@ -115,10 +119,12 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr := logger.FromContext(ctx).With("zone", zone.GetName())
 			ctx := logger.WithContext(ctx, lgr)
 
+			nsMutex.Lock()
 			if val, ok := namespaces[zone.GetName()]; !ok || val == nil {
 				namespaces[zone.GetName()] = manifests.UncollisionedNs()
 			}
 			ns := namespaces[zone.GetName()]
+			nsMutex.Unlock()
 
 			lgr.Info("creating namespace")
 			if err := upsert(ctx, c, ns); err != nil {
