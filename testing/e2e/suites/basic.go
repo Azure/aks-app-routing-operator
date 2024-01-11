@@ -119,6 +119,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr := logger.FromContext(ctx).With("zone", zone.GetName())
 			ctx := logger.WithContext(ctx, lgr)
 
+			// multiple goroutines access the same map at the same time which is not safe
 			nsMutex.Lock()
 			if val, ok := namespaces[zone.GetName()]; !ok || val == nil {
 				namespaces[zone.GetName()] = manifests.UncollisionedNs()
