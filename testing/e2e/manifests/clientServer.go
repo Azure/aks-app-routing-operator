@@ -88,6 +88,10 @@ func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, 
 
 	service :=
 		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      serviceName,
 				Namespace: namespace,
@@ -107,6 +111,10 @@ func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, 
 			},
 		}
 	ingress := &netv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressName,
 			Namespace: namespace,

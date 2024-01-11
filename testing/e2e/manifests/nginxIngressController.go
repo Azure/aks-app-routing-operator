@@ -7,6 +7,10 @@ import (
 
 func NewNginxIngressController(name, ingressClassName string) *v1alpha1.NginxIngressController {
 	return &v1alpha1.NginxIngressController{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "NginxIngressController",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},

@@ -70,6 +70,10 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 	}
 
 	return &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -102,6 +106,10 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 // UncollisionedNs returns a namespace with a guaranteed unique name after creating the namespace
 func UncollisionedNs() *corev1.Namespace {
 	return &corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "app-routing-e2e-",
 			Labels: map[string]string{

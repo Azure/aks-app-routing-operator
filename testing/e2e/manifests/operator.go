@@ -152,12 +152,20 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	var ret []client.Object
 
 	namespace := &corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: managedResourceNs,
 		},
 	}
 
 	serviceAccount := &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ServiceAccount",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -165,6 +173,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRoleBinding",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -184,6 +196,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	baseDeployment := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -241,6 +257,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	podDisrutptionBudget := &policyv1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy/v1",
+			Kind:       "PodDisruptionBudget",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: "app-routing-system",
