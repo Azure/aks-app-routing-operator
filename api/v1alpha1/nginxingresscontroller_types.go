@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"unicode"
 
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
@@ -19,14 +18,8 @@ func init() {
 }
 
 const (
-	maxNameLength = 100
 	// MaxCollisions is the maximum number of collisions allowed when generating a name for a managed resource. This corresponds to the status.CollisionCount
-	MaxCollisions           = 5
-	maxControllerNamePrefix = 253 - 10 // 253 is the max length of resource names - 10 to account for the length of the suffix https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
-)
-
-const (
-	defaultControllerNamePrefix = "nginx"
+	MaxCollisions = 5
 )
 
 // Important: Run "make crd" to regenerate code after modifying this file
@@ -177,49 +170,6 @@ func (n *NginxIngressController) SetCondition(c metav1.Condition) {
 	meta.SetStatusCondition(&n.Status.Conditions, c)
 }
 
-// Valid checks this NginxIngressController to see if it's valid. Returns a string describing the validation error, if any, or empty string if there is no error.
-func (n *NginxIngressController) Valid() string {
-	// controller name prefix must follow https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
-	// we don't check for ending because this is a prefix
-	if n.Spec.ControllerNamePrefix == "" {
-		return "spec.controllerNamePrefix must be specified"
-	}
-
-	if !isLowercaseRfc1123Subdomain(n.Spec.ControllerNamePrefix) {
-		return "spec.controllerNamePrefix " + lowercaseRfc1123SubdomainValidationFailReason
-	}
-
-	if len(n.Spec.ControllerNamePrefix) > maxControllerNamePrefix {
-		return fmt.Sprintf("spec.controllerNamePrefix length must be less than or equal to %d characters", maxControllerNamePrefix)
-
-	}
-
-	if n.Spec.IngressClassName == "" {
-		return "spec.ingressClassName must be specified"
-	}
-
-	if !isLowercaseRfc1123Subdomain(n.Spec.IngressClassName) {
-		return "spec.ingressClassName " + lowercaseRfc1123SubdomainValidationFailReason
-	}
-
-	if len(n.Name) > maxNameLength {
-		return fmt.Sprintf("Name length must be less than or equal to %d characters", maxNameLength)
-	}
-
-	return ""
-}
-
-// Default sets default spec values for this NginxIngressController
-func (n *NginxIngressController) Default() {
-	if n.Spec.IngressClassName == "" {
-		n.Spec.IngressClassName = n.Name
-	}
-
-	if n.Spec.ControllerNamePrefix == "" {
-		n.Spec.ControllerNamePrefix = defaultControllerNamePrefix
-	}
-}
-
 // Collides returns whether the fields in this NginxIngressController would collide with an existing resources making it
 // impossible for this NginxIngressController to become available. This should be run before an NginxIngressController is created.
 // Returns whether there's a collision, the collision reason, and an error if one occurred. The collision reason is something that
@@ -274,62 +224,4 @@ type NginxIngressControllerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NginxIngressController `json:"items"`
-}
-
-var lowercaseRfc1123SubdomainValidationFailReason = "must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
-
-func isLowercaseRfc1123Subdomain(s string) bool {
-	if !startsWithAlphaNum(s) {
-		return false
-	}
-
-	if !endsWithAlphaNum(s) {
-		return false
-	}
-
-	if !onlyAlphaNumDashPeriod(s) {
-		return false
-	}
-
-	if !isLower(s) {
-		return false
-	}
-
-	return true
-}
-
-func startsWithAlphaNum(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
-
-	return unicode.IsLetter(rune(s[0])) || unicode.IsDigit(rune(s[0]))
-}
-
-func endsWithAlphaNum(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
-
-	return unicode.IsLetter(rune(s[len(s)-1])) || unicode.IsDigit(rune(s[len(s)-1]))
-}
-
-func onlyAlphaNumDashPeriod(s string) bool {
-	for _, c := range s {
-		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '-' && c != '.' {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isLower(s string) bool {
-	for _, c := range s {
-		if unicode.IsUpper(c) && unicode.IsLetter(c) {
-			return false
-		}
-	}
-
-	return true
 }

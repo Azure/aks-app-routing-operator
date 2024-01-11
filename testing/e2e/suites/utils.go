@@ -55,7 +55,7 @@ func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 	}
 
 	lgr.Info("object already exists, attempting to update")
-	if err := c.Update(ctx, copy); err != nil {
+	if err := c.Patch(ctx, copy, client.Apply, client.ForceOwnership, client.FieldOwner("e2e-test")); err != nil {
 		return fmt.Errorf("updating object: %w", err)
 	}
 
