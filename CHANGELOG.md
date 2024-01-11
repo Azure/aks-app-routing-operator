@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2023-01-11
+
+### Changes
+
+- Slightly lowered priority class to system cluster critical - [#148](https://github.com/Azure/aks-app-routing-operator/pull/148)
+
+### Added
+
+- Log for number of target Nginx replicas - [#144](https://github.com/Azure/aks-app-routing-operator/pull/144)
+- CRD YAML definition-based validation and defaults - [#150](https://github.com/Azure/aks-app-routing-operator/pull/150)
+
+### Removed
+
+- Webhooks and webhook logic - [#151](https://github.com/Azure/aks-app-routing-operator/pull/151)
+
 ## [0.1.2] - 2023-11-28
 
 ### Changes
