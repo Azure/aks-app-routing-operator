@@ -133,8 +133,7 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("waiting for private NIC to be ready: %w", err)
 				}
 
-				lgr.Info("validating service is contains private annotations")
-
+				lgr.Info("validating service contains private annotations")
 				var serviceCopy corev1.Service
 				if err := c.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, &serviceCopy); err != nil {
 					return fmt.Errorf("getting service: %w", err)
