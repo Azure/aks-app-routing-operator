@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -35,7 +36,7 @@ func basicSuite(in infra.Provisioned) []test {
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				if err := clientServerTest(ctx, config, operator, basicNs, in, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, basicNs, in, nil, nil); err != nil {
 					return err
 				}
 
@@ -58,7 +59,7 @@ func basicSuite(in infra.Provisioned) []test {
 					service.SetAnnotations(annotations)
 
 					return nil
-				}); err != nil {
+				}, nil); err != nil {
 					return err
 				}
 
@@ -73,12 +74,15 @@ type modifier func(ingress *netv1.Ingress, service *corev1.Service, z zoner) err
 
 // clientServerTest is a test that deploys a client and server application and ensures the client can reach the server.
 // This is the standard test used to check traffic flow is working.
-var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod modifier) error {
+var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod modifier, serviceName *string) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting test")
 
 	if namespaces == nil {
 		namespaces = make(map[string]*corev1.Namespace)
+	}
+	if serviceName == nil {
+		serviceName = to.Ptr("nginx")
 	}
 
 	c, err := client.New(config, client.Options{})
@@ -109,7 +113,10 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	}
 
 	if operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone {
-		zones = append(zones, zone{name: "nginx.app-routing-system.svc.cluster.local:80", nameserver: infra.Cluster.GetDnsServiceIp()})
+		zones = append(zones, zone{
+			name:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local:80", *serviceName),
+			nameserver: infra.Cluster.GetDnsServiceIp(),
+		})
 	}
 
 	var eg errgroup.Group

@@ -30,7 +30,7 @@ func osmSuite(in infra.Provisioned) []test {
 						ingress.SetAnnotations(annotations)
 
 						return nil
-					}); err != nil {
+					}, nil); err != nil {
 					return err
 				}
 
@@ -53,7 +53,7 @@ func osmSuite(in infra.Provisioned) []test {
 						service.SetAnnotations(annotations)
 
 						return nil
-					}); err != nil {
+					}, nil); err != nil {
 					return err
 				}
 
