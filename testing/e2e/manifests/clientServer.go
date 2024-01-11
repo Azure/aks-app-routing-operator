@@ -2,6 +2,7 @@ package manifests
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -41,10 +42,10 @@ func (t testingResources) Objects() []client.Object {
 	return ret
 }
 
-func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, isClusterScoped bool) testingResources {
+func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, isClusterScoped bool, svc string) testingResources {
 	var host string
 	if isClusterScoped {
-		host = "nginx.app-routing-system.svc.cluster.local"
+		host = fmt.Sprintf("%s.app-routing-system.svc.cluster.local", svc)
 	} else {
 		host = strings.ToLower(namespace) + "." + strings.TrimRight(zoneName, ".")
 	}
