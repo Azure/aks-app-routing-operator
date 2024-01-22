@@ -114,7 +114,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: expectedLabels,
+				Labels: util.MergeMaps(expectedLabels),
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": "123",
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
@@ -314,6 +314,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 
 	// Prove the deployment was not deleted
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
 }
 
 func TestNewPlaceholderPodController(t *testing.T) {
