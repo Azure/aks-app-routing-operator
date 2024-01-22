@@ -114,7 +114,7 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: util.MergeMaps(expectedLabels),
+				Labels: expectedLabels,
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": "123",
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
@@ -194,6 +194,23 @@ func TestPlaceholderPodControllerIntegration(t *testing.T) {
 
 	// Prove idempotence
 	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
+	// Prove that placeholder deployment retains immutable fields during updates
+	oldPlaceholder := &appsv1.Deployment{}
+	labels := map[string]string{"foo": "bar", "fizz": "buzz"}
+	oldPlaceholder.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
+	oldPlaceholder.Name = "immutable-test"
+	require.NoError(t, c.Create(ctx, oldPlaceholder), "failed to create old placeholder deployment")
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(oldPlaceholder)})
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	updatedPlaceholder := &appsv1.Deployment{}
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(oldPlaceholder), updatedPlaceholder), "failed to get updated placeholder deployment")
+	assert.Equal(t, labels, updatedPlaceholder.Spec.Selector.MatchLabels, "selector labels should have been retained")
 }
 
 func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
