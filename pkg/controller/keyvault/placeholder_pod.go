@@ -143,13 +143,13 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	logger.Info("reconciling placeholder deployment for secret provider class")
 	if err = p.buildDeployment(ctx, dep, spc, ing); err != nil {
 		err = fmt.Errorf("building deployment: %w", err)
-		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %v", err)
+		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to build placeholder deployment")
 		return result, err
 	}
 
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
-		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %v", err)
+		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		return result, err
 	}
 
