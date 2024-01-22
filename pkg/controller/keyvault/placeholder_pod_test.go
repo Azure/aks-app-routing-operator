@@ -358,3 +358,24 @@ func TestNewPlaceholderPodController(t *testing.T) {
 	err = NewPlaceholderPodController(m, conf, ingressManager)
 	require.NoError(t, err)
 }
+
+func TestGetCurrentDeployment(t *testing.T) {
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-namespace",
+		},
+	}
+	c := fake.NewFakeClient(dep)
+	p := &PlaceholderPodController{client: c}
+
+	// can find existing deployment
+	dep, err := p.getCurrentDeployment(context.Background(), client.ObjectKeyFromObject(dep))
+	require.NoError(t, err)
+	require.NotNil(t, dep)
+
+	// returns nil if deployment does not exist
+	dep, err = p.getCurrentDeployment(context.Background(), client.ObjectKey{Name: "does-not-exist", Namespace: "test-namespace"})
+	require.NoError(t, err)
+	require.Nil(t, dep)
+}
