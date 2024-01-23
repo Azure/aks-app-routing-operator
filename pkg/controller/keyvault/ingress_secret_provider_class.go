@@ -185,7 +185,7 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
-			SecretName: fmt.Sprintf("keyvault-%s", ing.Name),
+			SecretName: certSecretName(ing.Name),
 			Type:       "kubernetes.io/tls",
 			Data: []*secv1.SecretObjectData{
 				{
@@ -213,4 +213,8 @@ func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc 
 	}
 
 	return true, nil
+}
+
+func certSecretName(ingressName string) string {
+	return fmt.Sprintf("keyvault-%s", ingressName)
 }

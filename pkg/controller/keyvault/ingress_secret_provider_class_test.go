@@ -470,3 +470,8 @@ func TestIngressSecretProviderClassReconcilerBuildSPCFailedIsManaging(t *testing
 	require.Error(t, err)
 	require.ErrorContains(t, err, "determining if ingress is managed")
 }
+
+func TestCertSecretName(t *testing.T) {
+	require.Equal(t, "keyvault-ingressname", certSecretName("ingressname"))
+	require.Equal(t, "keyvault-anotheringressname", certSecretName("anotheringressname"))
+}
