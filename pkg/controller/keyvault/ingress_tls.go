@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -11,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -21,6 +23,7 @@ var ingressTlsControllerName = controllername.New("keyvault", "ingress", "tls")
 // the App Routing Key Vault annotation will have their TLS spec populated with the Key Vault secret name.
 type ingressTlsReconciler struct {
 	client         client.Client
+	events         record.EventRecorder
 	ingressManager IngressManager
 }
 
@@ -37,6 +40,7 @@ func NewIngressTlsReconciler(manager ctrl.Manager, conf *config.Config, ingressM
 			For(&netv1.Ingress{}), manager.GetLogger(),
 	).Complete(&ingressTlsReconciler{
 		client:         manager.GetClient(),
+		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
 		ingressManager: ingressManager,
 	})
 }
@@ -68,13 +72,14 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	if _, ok := ing.Annotations[tlsCertKvUriAnnotation]; !ok {
-		logger.Info("ingress does not have keyvault annotation")
+	if val, ok := ing.Annotations[tlsCertManagedAnnotation]; !ok || strings.ToLower(val) != "true" {
+		logger.Info("ingress does not have managed annotation")
 		return ctrl.Result{}, nil
 	}
 
-	if len(ing.Spec.TLS) > 0 {
-		logger.Info("ingress already has TLS spec")
+	if _, ok := ing.Annotations[tlsCertKvUriAnnotation]; !ok {
+		logger.Info("ingress does not have keyvault annotation")
+		i.events.Eventf(ing, "Warning", "KeyvaultUriAnnotationMissing", "Ingress has %[1]s annotation but is missing %[2]s annotation. %[2]s annotation is needed to manage Ingress TLS.", tlsCertManagedAnnotation, tlsCertKvUriAnnotation)
 		return ctrl.Result{}, nil
 	}
 
