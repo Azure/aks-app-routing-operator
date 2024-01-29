@@ -909,7 +909,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:    DefaultNicResourceName,
 				IcName:          DefaultIcName,
 				ServiceConfig:   &manifests.ServiceConfig{},
-				DefaultSSLCertificate: &manifests.DefaultSSLCertificate{
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{
 					Secret: approutingv1alpha1.Secret{
 						Name:      "fakename",
 						Namespace: "fakenamespace",

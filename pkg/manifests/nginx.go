@@ -113,11 +113,11 @@ var (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	ControllerClass       string                 // controller class which is equivalent to controller field of IngressClass
-	ResourceName          string                 // name given to all resources
-	IcName                string                 // IngressClass name
-	ServiceConfig         *ServiceConfig         // service config that specifies details about the LB, defaults if nil
-	DefaultSSLCertificate *DefaultSSLCertificate // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	ControllerClass       string                          // controller class which is equivalent to controller field of IngressClass
+	ResourceName          string                          // name given to all resources
+	IcName                string                          // IngressClass name
+	ServiceConfig         *ServiceConfig                  // service config that specifies details about the LB, defaults if nil
+	DefaultSSLCertificate *v1alpha1.DefaultSSLCertificate // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -127,10 +127,6 @@ func (n *NginxIngressConfig) PodLabels() map[string]string {
 // ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
 type ServiceConfig struct {
 	Annotations map[string]string
-}
-
-type DefaultSSLCertificate struct {
-	Secret v1alpha1.Secret
 }
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
@@ -413,22 +409,6 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 	}
 }
 
-func getDefaultSSLCert(secret string) string {
-	nsPattern := "^[a-z0-9]*\\/[a-z0-9]*$"
-	match, _ := regexp.MatchString(nsPattern, secret)
-	if match {
-		return secret
-	}
-
-	// TODO: Method to get the namespace/name via SPC from key vault URI
-	//kvURIPattern := "^https:\\/\\/[a-z0-9]*.vault.azure.net\\/[a-z0-9]*$"
-	//if match {
-	//	return ""
-	//}
-
-	return ""
-}
-
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
 	ingressControllerComponentName := "ingress-controller"
 	ingressControllerDeploymentLabels := addComponentLabel(GetTopLevelLabels(), ingressControllerComponentName)
@@ -461,13 +441,12 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--https-port=8443",
 	}
 
-	// TODO: Move this functionality to its own function. This only needs to hold onto the resulting namespace/name formatted string
-	//// Run function to check if the entered
-	//defaultSSLCert := getDefaultSSLCert(ingressConfig.DefaultSSLCertificate)
 	if ingressConfig.DefaultSSLCertificate != nil {
-		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+
-			ingressConfig.DefaultSSLCertificate.Secret.Namespace+"/"+
-			ingressConfig.DefaultSSLCertificate.Secret.Name)
+		if IsValidDefaultSSLCertSecret(ingressConfig.DefaultSSLCertificate) {
+			deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+
+				ingressConfig.DefaultSSLCertificate.Secret.Namespace+"/"+
+				ingressConfig.DefaultSSLCertificate.Secret.Name)
+		}
 	}
 
 	return &appsv1.Deployment{
@@ -591,4 +570,20 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
 		},
 	}
+}
+
+func IsValidDefaultSSLCertSecret(certificate *v1alpha1.DefaultSSLCertificate) bool {
+	pattern := "^[a-z0-9][-a-z0-9\\.]*[a-z0-9]$"
+
+	match, _ := regexp.MatchString(pattern, certificate.Secret.Namespace)
+	if !match {
+		return false
+	}
+
+	match, _ = regexp.MatchString(pattern, certificate.Secret.Name)
+	if !match {
+		return false
+	}
+
+	return true
 }

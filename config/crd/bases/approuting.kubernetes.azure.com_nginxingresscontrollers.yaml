@@ -69,9 +69,23 @@ spec:
                   sslSecret:
                     properties:
                       secretName:
+                        default: nginx.approuting.kubernetes.azure.com
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
+                        x-kubernetes-validations:
+                        - message: Value is immutable
+                          rule: self == oldSelf
                       secretNamespace:
+                        default: nginx.approuting.kubernetes.azure.com
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
+                        x-kubernetes-validations:
+                        - message: Value is immutable
+                          rule: self == oldSelf
                     required:
                     - secretName
                     - secretNamespace
