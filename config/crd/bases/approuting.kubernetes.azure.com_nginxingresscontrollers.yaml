@@ -80,6 +80,19 @@ spec:
                   to the NGINX Ingress Controller's Service. Common annotations will
                   be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
+              defaultSSLCertificate:
+                description: DefaultSSLCertificate is a struct that contains an SSL certificate to be 
+                  used by the default HTTPS server (catch-all). This secret comes in one of two formats exclusively:\
+                  A Secret struct containing a Name and Namespace field or a string containing a key vault URI
+                type: object
+                properties:
+                  sslSecret:
+                    type: object
+                    properties:
+                      secretName:
+                        type: string
+                      secretNamespace:
+                        type: string
             required:
             - controllerNamePrefix
             - ingressClassName

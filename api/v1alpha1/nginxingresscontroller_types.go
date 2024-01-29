@@ -50,6 +50,16 @@ type NginxIngressControllerSpec struct {
 	// will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+
+	// DefaultSSLCertificate is a string in the form of namespace/name or a keyvault uri that is used to create the default ssl certificate used by the default HTTPS server
+	DefaultSSLCertificate struct {
+		Secret SSLSecret `json:"sslSecret"`
+	}
+}
+
+type SSLSecret struct {
+	Name      string `json:"secretName"`
+	Namespace string `json:"secretNamespace"`
 }
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
