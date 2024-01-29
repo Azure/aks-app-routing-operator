@@ -55,6 +55,24 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              defaultSSLCertificate:
+                description: DefaultSSLCertificate is a struct with a secret with
+                  the fields namespace and name which is used to create the ssl certificate
+                  used by the default HTTPS server
+                properties:
+                  sslSecret:
+                    properties:
+                      secretName:
+                        type: string
+                      secretNamespace:
+                        type: string
+                    required:
+                    - secretName
+                    - secretNamespace
+                    type: object
+                required:
+                - sslSecret
+                type: object
               ingressClassName:
                 description: IngressClassName is the name of the IngressClass that
                   will be used for the NGINX Ingress Controller. Defaults to metadata.name
@@ -70,19 +88,6 @@ spec:
                   to the NGINX Ingress Controller's Service. Common annotations will
                   be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
-              defaultSSLCertificate:
-                description: DefaultSSLCertificate is a struct that contains an SSL certificate to be 
-                  used by the default HTTPS server (catch-all). This secret comes in one of two formats exclusively:\
-                  A Secret struct containing a Name and Namespace field or a string containing a key vault URI
-                type: object
-                properties:
-                  sslSecret:
-                    type: object
-                    properties:
-                      secretName:
-                        type: string
-                      secretNamespace:
-                        type: string
             required:
             - controllerNamePrefix
             - ingressClassName

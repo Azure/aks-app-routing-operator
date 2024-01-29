@@ -130,7 +130,7 @@ type ServiceConfig struct {
 }
 
 type DefaultSSLCertificate struct {
-	Secret v1alpha1.SSLSecret
+	Secret v1alpha1.Secret
 }
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
