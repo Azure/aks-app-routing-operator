@@ -4,7 +4,9 @@
 package manifests
 
 import (
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"path"
+	"regexp"
 	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -111,10 +113,11 @@ var (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	ControllerClass string         // controller class which is equivalent to controller field of IngressClass
-	ResourceName    string         // name given to all resources
-	IcName          string         // IngressClass name
-	ServiceConfig   *ServiceConfig // service config that specifies details about the LB, defaults if nil
+	ControllerClass       string                 // controller class which is equivalent to controller field of IngressClass
+	ResourceName          string                 // name given to all resources
+	IcName                string                 // IngressClass name
+	ServiceConfig         *ServiceConfig         // service config that specifies details about the LB, defaults if nil
+	DefaultSSLCertificate *DefaultSSLCertificate // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -124,6 +127,10 @@ func (n *NginxIngressConfig) PodLabels() map[string]string {
 // ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
 type ServiceConfig struct {
 	Annotations map[string]string
+}
+
+type DefaultSSLCertificate struct {
+	Secret v1alpha1.SSLSecret
 }
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
@@ -406,6 +413,22 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 	}
 }
 
+func getDefaultSSLCert(secret string) string {
+	nsPattern := "^[a-z0-9]*\\/[a-z0-9]*$"
+	match, _ := regexp.MatchString(nsPattern, secret)
+	if match {
+		return secret
+	}
+
+	// TODO: Method to get the namespace/name via SPC from key vault URI
+	//kvURIPattern := "^https:\\/\\/[a-z0-9]*.vault.azure.net\\/[a-z0-9]*$"
+	//if match {
+	//	return ""
+	//}
+
+	return ""
+}
+
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
 	ingressControllerComponentName := "ingress-controller"
 	ingressControllerDeploymentLabels := addComponentLabel(GetTopLevelLabels(), ingressControllerComponentName)
@@ -425,6 +448,27 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 	}
 
 	selector := &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()}
+
+	deploymentArgs := []string{
+		"/nginx-ingress-controller",
+		"--ingress-class=" + ingressConfig.IcName,
+		"--controller-class=" + ingressConfig.ControllerClass,
+		"--election-id=" + ingressConfig.ResourceName,
+		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+		"--enable-annotation-validation=true",
+		"--http-port=8080",
+		"--https-port=8443",
+	}
+
+	// TODO: Move this functionality to its own function. This only needs to hold onto the resulting namespace/name formatted string
+	//// Run function to check if the entered
+	//defaultSSLCert := getDefaultSSLCert(ingressConfig.DefaultSSLCertificate)
+	if ingressConfig.DefaultSSLCertificate != nil {
+		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+
+			ingressConfig.DefaultSSLCertificate.Secret.Namespace+"/"+
+			ingressConfig.DefaultSSLCertificate.Secret.Name)
+	}
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -457,17 +501,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
-						Args: []string{
-							"/nginx-ingress-controller",
-							"--ingress-class=" + ingressConfig.IcName,
-							"--controller-class=" + ingressConfig.ControllerClass,
-							"--election-id=" + ingressConfig.ResourceName,
-							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
-							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
-							"--enable-annotation-validation=true",
-							"--http-port=8080",
-							"--https-port=8443",
-						},
+						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
 							RunAsUser: util.Int64Ptr(101),
 						},
