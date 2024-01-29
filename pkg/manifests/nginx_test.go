@@ -129,7 +129,7 @@ var (
 				ResourceName:    "nginx",
 				IcName:          "nginx-private",
 				DefaultSSLCertificate: &DefaultSSLCertificate{
-					Secret: v1alpha1.SSLSecret{
+					Secret: v1alpha1.Secret{
 						Namespace: "fakenamespace",
 						Name:      "fakename",
 					},

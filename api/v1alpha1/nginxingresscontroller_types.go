@@ -51,15 +51,15 @@ type NginxIngressControllerSpec struct {
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
 
-	// DefaultSSLCertificate is a string in the form of namespace/name or a keyvault uri that is used to create the default ssl certificate used by the default HTTPS server
+	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to create the ssl certificate used by the default HTTPS server
 	DefaultSSLCertificate DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 }
 
 type DefaultSSLCertificate struct {
-	SSLSecret `json:"sslSecret"`
+	Secret `json:"sslSecret"`
 }
 
-type SSLSecret struct {
+type Secret struct {
 	Name      string `json:"secretName"`
 	Namespace string `json:"secretNamespace"`
 }

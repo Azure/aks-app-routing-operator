@@ -897,7 +897,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 					ControllerNamePrefix: DefaultNicResourceName,
 					IngressClassName:     DefaultIcName,
 					DefaultSSLCertificate: approutingv1alpha1.DefaultSSLCertificate{
-						SSLSecret: approutingv1alpha1.SSLSecret{
+						Secret: approutingv1alpha1.Secret{
 							Name:      "fakename",
 							Namespace: "fakenamespace",
 						},
@@ -910,7 +910,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:          DefaultIcName,
 				ServiceConfig:   &manifests.ServiceConfig{},
 				DefaultSSLCertificate: &manifests.DefaultSSLCertificate{
-					Secret: approutingv1alpha1.SSLSecret{
+					Secret: approutingv1alpha1.Secret{
 						Name:      "fakename",
 						Namespace: "fakenamespace",
 					},
