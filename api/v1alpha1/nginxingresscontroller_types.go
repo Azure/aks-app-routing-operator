@@ -52,6 +52,7 @@ type NginxIngressControllerSpec struct {
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
 
 	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to create the ssl certificate used by the default HTTPS server
+	// +optional
 	DefaultSSLCertificate DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 }
 
@@ -60,7 +61,18 @@ type DefaultSSLCertificate struct {
 }
 
 type Secret struct {
-	Name      string `json:"secretName"`
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:default:=nginx.approuting.kubernetes.azure.com
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Name string `json:"secretName"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:default:=nginx.approuting.kubernetes.azure.com
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	Namespace string `json:"secretNamespace"`
 }
 
