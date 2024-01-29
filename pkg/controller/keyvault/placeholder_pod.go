@@ -15,6 +15,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -140,17 +141,44 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
-	p.buildDeployment(dep, spc, ing)
+	if err = p.buildDeployment(ctx, dep, spc, ing); err != nil {
+		err = fmt.Errorf("building deployment: %w", err)
+		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		logger.Error(err, "failed to build placeholder deployment")
+		return result, err
+	}
+
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
-		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %v", err)
+		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		return result, err
 	}
 
 	return result, nil
 }
 
-func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
+// getCurrentDeployment returns the current deployment for the given name or nil if it does not exist. nil, nil is returned if the deployment is not found
+func (p *PlaceholderPodController) getCurrentDeployment(ctx context.Context, name types.NamespacedName) (*appsv1.Deployment, error) {
+	dep := &appsv1.Deployment{}
+	err := p.client.Get(ctx, name, dep)
+	if err != nil {
+		return nil, client.IgnoreNotFound(err)
+	}
+
+	return dep, nil
+}
+
+func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) error {
+	old, err := p.getCurrentDeployment(ctx, client.ObjectKeyFromObject(dep))
+	if err != nil {
+		return fmt.Errorf("getting current deployment: %w", err)
+	}
+
 	labels := map[string]string{"app": spc.Name}
+
+	if old != nil { // we need to ensure that immutable fields are not changed
+		labels = old.Spec.Selector.MatchLabels
+	}
+
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
@@ -195,4 +223,5 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 			}),
 		},
 	}
+	return nil
 }
