@@ -883,6 +883,40 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:          "ingressClassName",
 			},
 		},
+		{
+			name: "default controller class with DefaultSSLCertificate",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					DefaultSSLCertificate: approutingv1alpha1.DefaultSSLCertificate{
+						SSLSecret: approutingv1alpha1.SSLSecret{
+							Name:      "fakename",
+							Namespace: "fakenamespace",
+						},
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: defaultCc,
+				ResourceName:    DefaultNicResourceName,
+				IcName:          DefaultIcName,
+				ServiceConfig:   &manifests.ServiceConfig{},
+				DefaultSSLCertificate: &manifests.DefaultSSLCertificate{
+					Secret: approutingv1alpha1.SSLSecret{
+						Name:      "fakename",
+						Namespace: "fakenamespace",
+					},
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {
