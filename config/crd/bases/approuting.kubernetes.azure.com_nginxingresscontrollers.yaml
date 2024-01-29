@@ -45,20 +45,30 @@ spec:
           metadata:
             type: object
           spec:
+            default:
+              controllerNamePrefix: nginx
+              ingressClassName: nginx.approuting.kubernetes.azure.com
             description: NginxIngressControllerSpec defines the desired state of NginxIngressController
             properties:
               controllerNamePrefix:
                 default: nginx
                 description: ControllerNamePrefix is the name to use for the managed
                   NGINX Ingress Controller resources.
+                maxLength: 60
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9]*[a-z0-9]$
                 type: string
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
               ingressClassName:
+                default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that
                   will be used for the NGINX Ingress Controller. Defaults to metadata.name
                   if not specified.
+                maxLength: 253
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                 type: string
                 x-kubernetes-validations:
                 - message: Value is immutable
@@ -70,6 +80,9 @@ spec:
                   to the NGINX Ingress Controller's Service. Common annotations will
                   be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
+            required:
+            - controllerNamePrefix
+            - ingressClassName
             type: object
           status:
             description: NginxIngressControllerStatus defines the observed state of
@@ -201,6 +214,8 @@ spec:
                   type: object
                 type: array
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

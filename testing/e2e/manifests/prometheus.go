@@ -101,6 +101,10 @@ scrape_configs:
 
 	server := []client.Object{
 		&corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name + "-server",
 				Namespace: namespace,
@@ -110,6 +114,10 @@ scrape_configs:
 			},
 		},
 		&corev1.ServiceAccount{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ServiceAccount",
+				APIVersion: "v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name + "-server",
 				Namespace: namespace,
@@ -213,6 +221,10 @@ scrape_configs:
 			},
 		},
 		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name + "-server",
 				Namespace: namespace,
