@@ -530,7 +530,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 	DefaultSSLCert := &nic.Spec.DefaultSSLCertificate
 	if DefaultSSLCert != nil {
 		nginxIng.DefaultSSLCertificate = &manifests.DefaultSSLCertificate{
-			Secret: nic.Spec.DefaultSSLCertificate.Secret,
+			Secret: nic.Spec.DefaultSSLCertificate.SSLSecret,
 		}
 	}
 
