@@ -60,32 +60,24 @@ spec:
                   the fields namespace and name which is used to create the ssl certificate
                   used by the default HTTPS server
                 properties:
-                  sslSecret:
+                  secret:
+                    description: Secret is a struct that holds the name and namespace
+                      fields used for the default ssl secret
                     properties:
                       secretName:
-                        default: nginx.approuting.kubernetes.azure.com
                         maxLength: 253
                         minLength: 1
                         pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
-                        x-kubernetes-validations:
-                        - message: Value is immutable
-                          rule: self == oldSelf
                       secretNamespace:
-                        default: nginx.approuting.kubernetes.azure.com
                         maxLength: 253
                         minLength: 1
                         pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
-                        x-kubernetes-validations:
-                        - message: Value is immutable
-                          rule: self == oldSelf
                     required:
                     - secretName
                     - secretNamespace
                     type: object
-                required:
-                - sslSecret
                 type: object
               ingressClassName:
                 description: IngressClassName is the name of the IngressClass that

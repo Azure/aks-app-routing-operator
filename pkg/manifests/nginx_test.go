@@ -128,7 +128,7 @@ var (
 				ControllerClass: "test-controller-class",
 				ResourceName:    "nginx",
 				IcName:          "nginx-private",
-				DefaultSSLCertificate: &DefaultSSLCertificate{
+				DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
 					Secret: v1alpha1.Secret{
 						Namespace: "fakenamespace",
 						Name:      "fakename",

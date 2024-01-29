@@ -807,6 +807,12 @@ func TestIsUnreconcilableError(t *testing.T) {
 
 func TestToNginxIngressConfig(t *testing.T) {
 	defaultCc := "defaultControllerClass"
+	FakeDefaultSSLCert := approutingv1alpha1.DefaultSSLCertificate{
+		Secret: approutingv1alpha1.Secret{
+			Name:      "fakename",
+			Namespace: "fakenamespace",
+		},
+	}
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -894,27 +900,17 @@ func TestToNginxIngressConfig(t *testing.T) {
 					Name: DefaultNicName,
 				},
 				Spec: approutingv1alpha1.NginxIngressControllerSpec{
-					ControllerNamePrefix: DefaultNicResourceName,
-					IngressClassName:     DefaultIcName,
-					DefaultSSLCertificate: approutingv1alpha1.DefaultSSLCertificate{
-						Secret: approutingv1alpha1.Secret{
-							Name:      "fakename",
-							Namespace: "fakenamespace",
-						},
-					},
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: defaultCc,
-				ResourceName:    DefaultNicResourceName,
-				IcName:          DefaultIcName,
-				ServiceConfig:   &manifests.ServiceConfig{},
-				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{
-					Secret: approutingv1alpha1.Secret{
-						Name:      "fakename",
-						Namespace: "fakenamespace",
-					},
-				},
+				ControllerClass:       defaultCc,
+				ResourceName:          DefaultNicResourceName,
+				IcName:                DefaultIcName,
+				ServiceConfig:         &manifests.ServiceConfig{},
+				DefaultSSLCertificate: &FakeDefaultSSLCert,
 			},
 		},
 	}

@@ -57,21 +57,19 @@ type NginxIngressControllerSpec struct {
 }
 
 type DefaultSSLCertificate struct {
-	Secret `json:"sslSecret"`
+	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
+	// +optional
+	Secret `json:"secret"`
 }
 
 type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:default:=nginx.approuting.kubernetes.azure.com
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	Name string `json:"secretName"`
 
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:default:=nginx.approuting.kubernetes.azure.com
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	Namespace string `json:"secretNamespace"`
 }
