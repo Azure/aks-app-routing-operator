@@ -4,6 +4,7 @@
 package manifests
 
 import (
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"path"
 	"testing"
 
@@ -105,6 +106,34 @@ var (
 				ControllerClass: "test-controller-class",
 				ResourceName:    "nginx",
 				IcName:          "nginx-private",
+			},
+		},
+		{
+			Name: "internal-with-ssl-cert",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass: "test-controller-class",
+				ResourceName:    "nginx",
+				IcName:          "nginx-private",
+				DefaultSSLCertificate: &DefaultSSLCertificate{
+					Secret: v1alpha1.SSLSecret{
+						Namespace: "fakenamespace",
+						Name:      "fakename",
+					},
+				},
 			},
 		},
 	}
