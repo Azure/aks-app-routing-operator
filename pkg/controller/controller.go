@@ -7,12 +7,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
-	"github.com/Azure/aks-app-routing-operator/pkg/webhook"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -32,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -95,71 +92,34 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
-
-		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
-			Port:     conf.WebhookPort,
-			CertDir:  conf.CertDir,
-			CertName: conf.CertName,
-			KeyName:  conf.KeyName,
-		}),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating manager: %w", err)
 	}
 
 	setupLog := m.GetLogger().WithName("setup")
-	webhooksReady := make(chan struct{})
-	if err := setupProbes(m, webhooksReady, setupLog); err != nil {
+	if err := setupProbes(conf, m, setupLog); err != nil {
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
 
 	// create non-caching clients, non-caching for use before manager has started
 	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating non-caching client: %w", err)
 	}
 
 	if err := loadCRDs(cl, conf, setupLog); err != nil {
 		return nil, fmt.Errorf("loading CRDs: %w", err)
 	}
 
-	go func() {
-		if err := setupControllers(m, conf, webhooksReady, setupLog, cl); err != nil {
-			setupLog.Error(err, "unable to setup controllers")
-			os.Exit(1)
-		}
-	}()
-
-	webhookCfg, err := webhook.New(conf)
-	if err != nil {
-		setupLog.Error(err, "unable to create webhook config")
-		return nil, fmt.Errorf("creating webhook config: %w", err)
-	}
-
-	if err := webhookCfg.EnsureCertificates(setupLog); err != nil {
-		setupLog.Error(err, "unable to ensure certificates")
-		return nil, fmt.Errorf("ensuring certificates: %w", err)
-	}
-
-	if err := webhookCfg.EnsureWebhookConfigurations(context.Background(), cl, conf); err != nil {
-		setupLog.Error(err, "unable to ensure webhook configurations")
-		return nil, fmt.Errorf("ensuring webhook configurations: %w", err)
-	}
-
-	go func() {
-		setupLog.Info("setting up webhooks")
-		if err := setupWebhooks(m, webhookCfg.AddWebhooks); err != nil {
-			setupLog.Error(err, "failed to setup webhooks")
-			os.Exit(1)
-		}
-
-		setupLog.Info("webhooks are ready")
-		close(webhooksReady)
-	}()
-
 	if err := setupIndexers(m, setupLog); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
 		return nil, fmt.Errorf("setting up indexers: %w", err)
+	}
+
+	if err := setupControllers(m, conf, setupLog, cl); err != nil {
+		setupLog.Error(err, "unable to setup controllers")
+		return nil, fmt.Errorf("setting up controllers: %w", err)
 	}
 
 	return m, nil
@@ -178,15 +138,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 	return nil
 }
 
-func setupWebhooks(mgr ctrl.Manager, addWebhooksFn func(mgr ctrl.Manager) error) error {
-	if err := addWebhooksFn(mgr); err != nil {
-		return fmt.Errorf("adding webhooks: %w", err)
-	}
-
-	return nil
-}
-
-func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-chan struct{}, lgr logr.Logger, cl client.Client) error {
+func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl client.Client) error {
 	lgr.Info("setting up controllers")
 
 	lgr.Info("determining default IngressClass controller class")
@@ -209,10 +161,6 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 	if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
 		return fmt.Errorf("setting up ingress cert config reconciler: %w", err)
 	}
-
-	lgr.Info("waiting for webhooks to be ready")
-	<-webhooksReady // some controllers need to wait for webhooks to be ready because they interact directly with our CRDs
-	lgr.Info("finished waiting for webhooks to be ready")
 
 	defaultNic := nginxingress.GetDefaultNginxIngressController()
 	if err := service.NewNginxIngressReconciler(mgr, nginxingress.ToNginxIngressConfig(&defaultNic, defaultCc)); err != nil {
@@ -257,19 +205,10 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, webhooksReady <-cha
 	return nil
 }
 
-func setupProbes(mgr ctrl.Manager, webhooksReady <-chan struct{}, log logr.Logger) error {
+func setupProbes(conf *config.Config, mgr ctrl.Manager, log logr.Logger) error {
 	log.Info("adding probes to manager")
 
-	// checks if the webhooks are ready so that the service can only serve webhook
-	// traffic to ready webhooks
-	check := func(req *http.Request) error {
-		select {
-		case <-webhooksReady:
-			return mgr.GetWebhookServer().StartedChecker()(req)
-		default:
-			return fmt.Errorf("certs aren't ready yet")
-		}
-	}
+	check := func(req *http.Request) error { return nil }
 
 	if err := mgr.AddReadyzCheck("readyz", check); err != nil {
 		return fmt.Errorf("adding readyz check: %w", err)

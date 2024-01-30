@@ -2,6 +2,7 @@ package suites
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,13 +10,14 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	netv1 "k8s.io/api/networking/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -40,10 +42,10 @@ func init() {
 	rbacv1.AddToScheme(scheme)
 }
 
-func nicWebhookTests(in infra.Provisioned) []test {
+func nicTests(in infra.Provisioned) []test {
 	return []test{
 		{
-			name: "nic webhook",
+			name: "nic validations",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
@@ -60,25 +62,21 @@ func nicWebhookTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w")
 				}
 
-				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "test-nic-ingress-class")
-				lgr.Info("creating basic NginxIngressController")
-				if err := upsert(ctx, c, testNIC); err != nil {
-					return fmt.Errorf("creating NginxIngressController: %w", err)
+				// validate that crd rejected with invalid fields
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "Invalid+Characters")
+				lgr.Info("creating NginxIngressController with invalid ingressClassName")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController with invalid ingressClassName '%s'", testNIC.Spec.IngressClassName)
 				}
 
-				oldNICName := testNIC.Spec.IngressClassName
-				testNIC.Spec.IngressClassName = existingOperatorIngressClass
-				lgr.Info("testing existing ingressclass")
-				if err := upsert(ctx, c, testNIC); err == nil {
-					return fmt.Errorf("created NginxIngressController with existing IngressClass")
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.ControllerNamePrefix = "Invalid+Characters"
+				lgr.Info("creating NginxIngressController with invalid controllerNamePrefix")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController with invalid controllerNamePrefix '%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
-				testNIC.Spec.IngressClassName = oldNICName
-				if err = c.Delete(ctx, testNIC); err != nil {
-					return fmt.Errorf("deleting NginxIngressController: %w", err)
-				}
-
-				lgr.Info("finished testing nic webhook")
+				lgr.Info("finished testing")
 				return nil
 			},
 		},
@@ -100,61 +98,60 @@ func nicWebhookTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w")
 				}
 
-				testNIC := manifests.NewNginxIngressController("default", existingOperatorIngressClass)
-				var copyNIC v1alpha1.NginxIngressController
-				err = c.Get(ctx, client.ObjectKeyFromObject(testNIC), &copyNIC)
-				if err != nil {
-					return fmt.Errorf("get default nic: %w", err)
-				}
-
-				copyNIC.Spec.LoadBalancerAnnotations = map[string]string{
+				privateNic := manifests.NewNginxIngressController("private", "private.ingress.class")
+				privateNic.Spec.LoadBalancerAnnotations = map[string]string{
 					"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 				}
-
-				lgr.Info("updating NIC to internal")
-				if err := c.Update(ctx, &copyNIC); err != nil {
-					return fmt.Errorf("updating NIC to internal: %w", err)
+				if err := upsert(ctx, c, privateNic); err != nil {
+					return fmt.Errorf("ensuring private NIC: %w", err)
 				}
 
-				if err := wait.PollImmediate(1*time.Second, 3*time.Minute, func() (bool, error) {
-					lgr.Info("validating service is updated with new annotations")
-
-					var serviceCopy corev1.Service
-					if err := c.Get(ctx, client.ObjectKey{Namespace: "app-routing-system", Name: "nginx"}, &serviceCopy); err != nil {
-						if apierrors.IsNotFound(err) {
-							lgr.Info("nginx service not found")
-							return false, nil
-						}
-
-						return false, fmt.Errorf("getting nginx service: %w", err)
+				var service v1alpha1.ManagedObjectReference
+				lgr.Info("waiting for service associated with private NIC to be ready")
+				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if private NIC service is ready")
+					var nic v1alpha1.NginxIngressController
+					if err := c.Get(ctx, client.ObjectKeyFromObject(privateNic), &nic); err != nil {
+						return false, fmt.Errorf("get private nic: %w", err)
 					}
 
-					if _, ok := serviceCopy.ObjectMeta.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"]; !ok {
-						lgr.Info("nginx annotations not found")
+					if nic.Status.ManagedResourceRefs == nil {
 						return false, nil
 					}
 
-					return true, nil
+					for _, ref := range nic.Status.ManagedResourceRefs {
+						if ref.Kind == "Service" {
+							lgr.Info("found service")
+							service = ref
+							return true, nil
+						}
+					}
+
+					lgr.Info("service not found")
+					return false, nil
 				}); err != nil {
-					return fmt.Errorf("waiting for updated nginx service: %w", err)
+					return fmt.Errorf("waiting for private NIC to be ready: %w", err)
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, nil); err != nil {
+				lgr.Info("validating service contains private annotations")
+				var serviceCopy corev1.Service
+				if err := c.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, &serviceCopy); err != nil {
+					return fmt.Errorf("getting service: %w", err)
+				}
+
+				if _, ok := serviceCopy.ObjectMeta.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"]; !ok {
+					lgr.Error("private nginx annotations not found")
+					return errors.New("private nginx annotations not found")
+				}
+
+				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
+					return nil
+				}, to.Ptr(service.Name)); err != nil {
 					return err
 				}
 
-				err = c.Get(ctx, client.ObjectKeyFromObject(testNIC), &copyNIC)
-				if err != nil {
-					return fmt.Errorf("get default nic: %w", err)
-				}
-
-				copyNIC.Spec.LoadBalancerAnnotations = map[string]string{}
-				lgr.Info("reverting NIC to external")
-				if err := c.Update(ctx, &copyNIC); err != nil {
-					return fmt.Errorf("updating NIC to external: %w", err)
-				}
-
-				lgr.Info("finished testing nic webhook")
+				lgr.Info("finished testing")
 				return nil
 			},
 		},

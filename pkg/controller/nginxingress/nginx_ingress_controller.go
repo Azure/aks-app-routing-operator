@@ -161,6 +161,9 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		lgr.Error(err, "unable to reconcile resource")
 		return ctrl.Result{}, fmt.Errorf("reconciling resource: %w", err)
 	}
+	if replicas := resources.Deployment.Spec.Replicas; replicas != nil {
+		lgr.Info(fmt.Sprintf("nginx deployment targets %d replicas", *replicas), "replicas", *replicas)
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -510,8 +513,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		return nil
 	}
 
-	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
-	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
+	cc := "approuting.kubernetes.azure.com/" + url.PathEscape(nic.Name)
 	if len(cc) > controllerClassMaxLen {
 		cc = cc[:controllerClassMaxLen]
 	}

@@ -41,17 +41,9 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
-	flag.StringVar(&Flags.OperatorNs, "operator-namespace", "kube-system", "namespace of the operator's k8s deployment")
-	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "", "name of the operator's webhook service")
-	flag.StringVar(&Flags.OperatorWebhookServiceUrl, "operator-webhook-service-url", "", "url of the operator's webhook service")
-	flag.IntVar(&Flags.WebhookPort, "webhook-port", 9443, "port to serve the webhook on")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
-	flag.StringVar(&Flags.CertDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "location of the certificates")
-	flag.StringVar(&Flags.CertName, "cert-name", "tls.crt", "name of the certificate file in the cert-dir")
-	flag.StringVar(&Flags.KeyName, "key-name", "tls.key", "name of the key file in the cert-dir")
-	flag.StringVar(&Flags.CaName, "ca-name", "ca.crt", "name of the CA file in the cert-dir")
 }
 
 type DnsZoneConfig struct {
@@ -71,41 +63,13 @@ type Config struct {
 	ConcurrencyWatchdogThres            float64
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
-	OperatorNs                          string
 	OperatorDeployment                  string
-	OperatorWebhookService              string
-	OperatorWebhookServiceUrl           string
-	WebhookPort                         int
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
 	CrdPath                             string
-	CertDir                             string
-	CertName, KeyName, CaName           string
 }
 
 func (c *Config) Validate() error {
-	if c.OperatorNs == "" {
-		return errors.New("--operator-namespace is required")
-	}
-	if c.OperatorWebhookService == "" && c.OperatorWebhookServiceUrl == "" {
-		return errors.New("--operator-webhook-service or operator-webhook-service-url is required")
-	}
-	if c.OperatorWebhookService != "" && c.OperatorWebhookServiceUrl != "" {
-		return errors.New("only one of --operator-webhook-service or --operator-webhook-service-url should be specified")
-	}
-	if c.CertDir == "" {
-		return errors.New("--cert-dir is required")
-	}
-	if c.CertName == "" {
-		return errors.New("--cert-name is required")
-	}
-	if c.KeyName == "" {
-		return errors.New("--key-name is required")
-	}
-	if c.CaName == "" {
-		return errors.New("--ca-name is required")
-	}
-
 	if c.NS == "" {
 		return errors.New("--namespace is required")
 	}
@@ -129,9 +93,6 @@ func (c *Config) Validate() error {
 	}
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
-	}
-	if c.WebhookPort == 0 {
-		return errors.New("--webhook-port is required")
 	}
 	if c.OperatorDeployment == "" {
 		return errors.New("--operator-deployment is required")

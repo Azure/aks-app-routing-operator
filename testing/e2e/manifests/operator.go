@@ -122,8 +122,6 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version == OperatorVersionLatest {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
-		ret = append(ret, "--operator-namespace", operatorNs)
-		ret = append(ret, "--operator-webhook-service", "app-routing-operator-webhook")
 	}
 
 	var zones []string
@@ -154,12 +152,20 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	var ret []client.Object
 
 	namespace := &corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: managedResourceNs,
 		},
 	}
 
 	serviceAccount := &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ServiceAccount",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -167,6 +173,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRoleBinding",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -186,6 +196,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	baseDeployment := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -243,6 +257,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	podDisrutptionBudget := &policyv1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy/v1",
+			Kind:       "PodDisruptionBudget",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: "app-routing-system",
@@ -252,35 +270,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 			Selector: &metav1.LabelSelector{
 				MatchLabels: operatorDeploymentLabels,
 			},
-		},
-	}
-
-	webhookService := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "app-routing-operator-webhook",
-			Namespace: operatorNs,
-		},
-		Spec: corev1.ServiceSpec{
-			IPFamilies: []corev1.IPFamily{
-				"IPv4",
-			},
-			IPFamilyPolicy: &SingleStackIPFamilyPolicy,
-			Ports: []corev1.ServicePort{
-				{
-					Name:     "client",
-					Port:     9443,
-					Protocol: corev1.ProtocolTCP,
-					TargetPort: intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: 9443,
-					},
-				},
-			},
-			Selector: map[string]string{
-				"app": "app-routing-operator",
-			},
-			SessionAffinity: corev1.ServiceAffinityNone,
-			Type:            corev1.ServiceTypeClusterIP,
 		},
 	}
 
@@ -299,10 +288,9 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
 		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
 		baseDeployment.Spec.Template.Spec.Volumes = nil
-
 		ret = append(ret, baseDeployment)
 	case OperatorVersionLatest:
-		ret = append(ret, webhookService, baseDeployment)
+		ret = append(ret, baseDeployment)
 
 		if cleanDeploy {
 			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))

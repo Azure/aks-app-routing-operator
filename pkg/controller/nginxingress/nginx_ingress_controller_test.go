@@ -840,7 +840,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig:   &manifests.ServiceConfig{},
 				IcName:          "ingressClassName",
@@ -861,7 +861,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig: &manifests.ServiceConfig{
 					map[string]string{
@@ -883,7 +883,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: ("webapprouting.kubernetes.azure.com/nginx/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
+				ControllerClass: ("approuting.kubernetes.azure.com/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig:   &manifests.ServiceConfig{},
 				IcName:          "ingressClassName",
