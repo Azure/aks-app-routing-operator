@@ -1,7 +1,10 @@
 name: Unit Tests
 
 on:
-  push
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   unit-test:
