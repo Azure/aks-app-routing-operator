@@ -4,7 +4,6 @@
 package manifests
 
 import (
-	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"path"
 	"testing"
 
@@ -125,15 +124,10 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass: "test-controller-class",
-				ResourceName:    "nginx",
-				IcName:          "nginx-private",
-				DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
-					Secret: v1alpha1.Secret{
-						Namespace: "fakenamespace",
-						Name:      "fakename",
-					},
-				},
+				ControllerClass:       "test-controller-class",
+				ResourceName:          "nginx",
+				IcName:                "nginx-private",
+				DefaultSSLCertificate: "fakenamespace/fakename",
 			},
 		},
 	}
