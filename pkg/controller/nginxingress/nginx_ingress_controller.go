@@ -527,7 +527,8 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		},
 	}
 
-	if nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
+	if nic.Spec.DefaultSSLCertificate != nil &&
+		nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
 		nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
 	}
 
