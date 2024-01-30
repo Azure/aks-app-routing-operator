@@ -807,8 +807,8 @@ func TestIsUnreconcilableError(t *testing.T) {
 
 func TestToNginxIngressConfig(t *testing.T) {
 	defaultCc := "defaultControllerClass"
-	FakeDefaultSSLCert := approutingv1alpha1.DefaultSSLCertificate{
-		Secret: approutingv1alpha1.Secret{
+	FakeDefaultSSLCert := &approutingv1alpha1.DefaultSSLCertificate{
+		Secret: &approutingv1alpha1.Secret{
 			Name:      "fakename",
 			Namespace: "fakenamespace",
 		},
@@ -910,7 +910,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:          DefaultNicResourceName,
 				IcName:                DefaultIcName,
 				ServiceConfig:         &manifests.ServiceConfig{},
-				DefaultSSLCertificate: &FakeDefaultSSLCert,
+				DefaultSSLCertificate: FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
 			},
 		},
 	}
