@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -50,6 +49,30 @@ type NginxIngressControllerSpec struct {
 	// will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+
+	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to create the ssl certificate used by the default HTTPS server
+	// +optional
+	DefaultSSLCertificate DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+}
+
+type DefaultSSLCertificate struct {
+	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
+	// +optional
+	Secret `json:"sslSecret"`
+}
+
+type Secret struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	// +optional
+	Name string `json:"secretName"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	// +optional
+	Namespace string `json:"secretNamespace"`
 }
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController

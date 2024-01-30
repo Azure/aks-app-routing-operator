@@ -61,6 +61,27 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              defaultSSLCertificate:
+                description: DefaultSSLCertificate is a struct with a secret with
+                  the fields namespace and name which is used to create the ssl certificate
+                  used by the default HTTPS server
+                properties:
+                  sslSecret:
+                    description: Secret is a struct that holds the name and namespace
+                      fields used for the default ssl secret
+                    properties:
+                      secretName:
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
+                        type: string
+                      secretNamespace:
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
+                        type: string
+                    type: object
+                type: object
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that

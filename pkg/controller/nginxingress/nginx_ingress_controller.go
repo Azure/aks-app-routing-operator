@@ -148,6 +148,13 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	controllerDeployment = resources.Deployment
 	ingressClass = resources.IngressClass
 
+	if &nginxIngressController.Spec.DefaultSSLCertificate != nil {
+		lgr.Info("validating default ssl certificate secret")
+		if manifests.IsValidDefaultSSLCertSecret(&nginxIngressController.Spec.DefaultSSLCertificate) {
+			lgr.Info("Field in DefaultSSLCert secret left empty: default ssl cert will not be set")
+		}
+	}
+
 	lgr.Info("reconciling managed resources")
 	managedRes, err = n.ReconcileResource(ctx, &nginxIngressController, resources)
 	if err != nil {
@@ -518,7 +525,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		resourceName = DefaultNicResourceName
 	}
 
-	return &manifests.NginxIngressConfig{
+	nginxIng := &manifests.NginxIngressConfig{
 		ControllerClass: cc,
 		ResourceName:    resourceName,
 		IcName:          nic.Spec.IngressClassName,
@@ -526,4 +533,13 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 			Annotations: nic.Spec.LoadBalancerAnnotations,
 		},
 	}
+
+	DefaultSSLCert := &nic.Spec.DefaultSSLCertificate
+	if DefaultSSLCert != nil {
+		nginxIng.DefaultSSLCertificate = &approutingv1alpha1.DefaultSSLCertificate{
+			Secret: nic.Spec.DefaultSSLCertificate.Secret,
+		}
+	}
+
+	return nginxIng
 }

@@ -76,6 +76,22 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController with invalid controllerNamePrefix '%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate.Secret.Name = "Invalid+Name"
+				testNIC.Spec.DefaultSSLCertificate.Secret.Namespace = "validnamespace"
+				lgr.Info("creating NginxIngressController with invalid Secret field")
+				if err := c.Create(ctx, testNIC); err != nil {
+					return fmt.Errorf("unable to create NginxIngressController despite invalid Secret Name'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate.Secret.Name = "validname"
+				testNIC.Spec.DefaultSSLCertificate.Secret.Namespace = ""
+				lgr.Info("creating NginxIngressController with empty Secret field")
+				if err := c.Create(ctx, testNIC); err != nil {
+					return fmt.Errorf("unable to create NginxIngressController despite invalid Secret Name'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
 				lgr.Info("finished testing")
 				return nil
 			},
