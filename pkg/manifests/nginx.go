@@ -4,9 +4,7 @@
 package manifests
 
 import (
-	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"path"
-	"regexp"
 	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -113,11 +111,11 @@ var (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	ControllerClass       string                          // controller class which is equivalent to controller field of IngressClass
-	ResourceName          string                          // name given to all resources
-	IcName                string                          // IngressClass name
-	ServiceConfig         *ServiceConfig                  // service config that specifies details about the LB, defaults if nil
-	DefaultSSLCertificate *v1alpha1.DefaultSSLCertificate // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	ControllerClass       string         // controller class which is equivalent to controller field of IngressClass
+	ResourceName          string         // name given to all resources
+	IcName                string         // IngressClass name
+	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
+	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -441,12 +439,8 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--https-port=8443",
 	}
 
-	if ingressConfig.DefaultSSLCertificate != nil {
-		if IsValidDefaultSSLCertSecret(ingressConfig.DefaultSSLCertificate) {
-			deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+
-				ingressConfig.DefaultSSLCertificate.Secret.Namespace+"/"+
-				ingressConfig.DefaultSSLCertificate.Secret.Name)
-		}
+	if ingressConfig.DefaultSSLCertificate != "" {
+		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+ingressConfig.DefaultSSLCertificate)
 	}
 
 	return &appsv1.Deployment{
@@ -570,20 +564,4 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
 		},
 	}
-}
-
-func IsValidDefaultSSLCertSecret(certificate *v1alpha1.DefaultSSLCertificate) bool {
-	pattern := "^[a-z0-9][-a-z0-9\\.]*[a-z0-9]$"
-
-	match, _ := regexp.MatchString(pattern, certificate.Secret.Namespace)
-	if !match {
-		return false
-	}
-
-	match, _ = regexp.MatchString(pattern, certificate.Secret.Name)
-	if !match {
-		return false
-	}
-
-	return true
 }

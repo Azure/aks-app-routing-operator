@@ -150,7 +150,7 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 
 	if &nginxIngressController.Spec.DefaultSSLCertificate != nil {
 		lgr.Info("validating default ssl certificate secret")
-		if !manifests.IsValidDefaultSSLCertSecret(&nginxIngressController.Spec.DefaultSSLCertificate) {
+		if !manifests.IsValidDefaultSSLCertSecret(nginxIngressController.Spec.DefaultSSLCertificate) {
 			lgr.Info("Field in DefaultSSLCert secret is invalid or empty: default ssl cert will not be set")
 		}
 	}
@@ -534,10 +534,8 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		},
 	}
 
-	if manifests.IsValidDefaultSSLCertSecret(&nic.Spec.DefaultSSLCertificate) {
-		nginxIng.DefaultSSLCertificate = &approutingv1alpha1.DefaultSSLCertificate{
-			Secret: nic.Spec.DefaultSSLCertificate.Secret,
-		}
+	if nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
+		nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
 	}
 
 	return nginxIng

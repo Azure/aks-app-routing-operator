@@ -70,19 +70,19 @@ spec:
                     description: Secret is a struct that holds the name and namespace
                       fields used for the default ssl secret
                     properties:
-                      secretName:
+                      name:
                         maxLength: 253
                         minLength: 1
                         pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
-                      secretNamespace:
+                      namespace:
                         maxLength: 253
                         minLength: 1
                         pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
                     required:
-                    - secretName
-                    - secretNamespace
+                    - name
+                    - namespace
                     type: object
                 type: object
               ingressClassName:

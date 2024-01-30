@@ -53,25 +53,25 @@ type NginxIngressControllerSpec struct {
 
 	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to create the ssl certificate used by the default HTTPS server
 	// +optional
-	DefaultSSLCertificate DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 }
 
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
-	Secret Secret `json:"secret"`
+	Secret *Secret `json:"secret"`
 }
 
 type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	Name string `json:"secretName"`
+	Name string `json:"name"`
 
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	Namespace string `json:"secretNamespace"`
+	Namespace string `json:"namespace"`
 }
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
