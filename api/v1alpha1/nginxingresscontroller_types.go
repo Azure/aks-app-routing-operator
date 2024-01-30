@@ -58,7 +58,7 @@ type NginxIngressControllerSpec struct {
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
-	Secret `json:"sslSecret"`
+	Secret `json:"secret"`
 }
 
 type Secret struct {
