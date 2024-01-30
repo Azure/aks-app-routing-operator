@@ -577,7 +577,7 @@
                 "operator": "Exists"
               }
             ],
-            "priorityClassName": "system-node-critical",
+            "priorityClassName": "system-cluster-critical",
             "topologySpreadConstraints": [
               {
                 "maxSkew": 1,

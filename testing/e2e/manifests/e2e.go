@@ -16,12 +16,20 @@ const (
 func E2e(image, loadableProvisionedJson string) []client.Object {
 	ret := []client.Object{
 		&corev1.ServiceAccount{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ServiceAccount",
+				APIVersion: corev1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-e2e",
 				Namespace: e2eNamespace,
 			},
 		},
 		&rbacv1.ClusterRoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterRoleBinding",
+				APIVersion: rbacv1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-routing-e2e",
 			},
@@ -39,6 +47,10 @@ func E2e(image, loadableProvisionedJson string) []client.Object {
 			},
 		},
 		&corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: corev1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "infrastructure",
 				Namespace: e2eNamespace,
@@ -48,6 +60,10 @@ func E2e(image, loadableProvisionedJson string) []client.Object {
 			},
 		},
 		&batchv1.Job{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Job",
+				APIVersion: batchv1.SchemeGroupVersion.String(),
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "app-routing-operator-e2e",
 				Namespace: e2eNamespace,

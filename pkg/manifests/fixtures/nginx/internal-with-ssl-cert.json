@@ -466,7 +466,8 @@
                   "--configmap=$(POD_NAMESPACE)/nginx",
                   "--enable-annotation-validation=true",
                   "--http-port=8080",
-                  "--https-port=8443"
+                  "--https-port=8443",
+                  "--default-ssl-certificate=fakenamespace/fakename"
                 ],
                 "ports": [
                   {

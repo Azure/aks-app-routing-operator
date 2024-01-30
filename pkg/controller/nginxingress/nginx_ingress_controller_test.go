@@ -807,6 +807,12 @@ func TestIsUnreconcilableError(t *testing.T) {
 
 func TestToNginxIngressConfig(t *testing.T) {
 	defaultCc := "defaultControllerClass"
+	FakeDefaultSSLCert := approutingv1alpha1.DefaultSSLCertificate{
+		Secret: approutingv1alpha1.Secret{
+			Name:      "fakename",
+			Namespace: "fakenamespace",
+		},
+	}
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -834,7 +840,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig:   &manifests.ServiceConfig{},
 				IcName:          "ingressClassName",
@@ -855,7 +861,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig: &manifests.ServiceConfig{
 					map[string]string{
@@ -877,10 +883,34 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: ("webapprouting.kubernetes.azure.com/nginx/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
+				ControllerClass: ("approuting.kubernetes.azure.com/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig:   &manifests.ServiceConfig{},
 				IcName:          "ingressClassName",
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:       defaultCc,
+				ResourceName:          DefaultNicResourceName,
+				IcName:                DefaultIcName,
+				ServiceConfig:         &manifests.ServiceConfig{},
+				DefaultSSLCertificate: &FakeDefaultSSLCert,
 			},
 		},
 	}
