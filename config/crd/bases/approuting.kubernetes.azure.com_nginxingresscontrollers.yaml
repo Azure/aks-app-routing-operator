@@ -67,6 +67,8 @@ spec:
                   used by the default HTTPS server
                 properties:
                   sslSecret:
+                    description: Secret is a struct that holds the name and namespace
+                      fields used for the default ssl secret
                     properties:
                       secretName:
                         maxLength: 253
@@ -78,12 +80,7 @@ spec:
                         minLength: 1
                         pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                         type: string
-                    required:
-                    - secretName
-                    - secretNamespace
                     type: object
-                required:
-                - sslSecret
                 type: object
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
