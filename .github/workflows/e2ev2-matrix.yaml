@@ -1,6 +1,13 @@
 name: E2E Version 2 Test Matrix
 
 on:
+  push:
+    inputs:
+      ref:
+        type: string
+      skipRefCheck:
+        type: boolean
+        default: true
   workflow_call:
     inputs:
       ref:
