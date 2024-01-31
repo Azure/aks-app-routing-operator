@@ -51,7 +51,8 @@ type NginxIngressControllerSpec struct {
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
 
-	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to create the ssl certificate used by the default HTTPS server
+	// DefaultSSLCertificate is a struct with a secret with the fields namespace and name which is used to configure the NginxIngressController being managed via this CRD.
+	// If the field is not defined, no DefaultSSLCertificate will be used
 	// +optional
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 }
@@ -62,6 +63,8 @@ type DefaultSSLCertificate struct {
 	Secret *Secret `json:"secret"`
 }
 
+// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
+// +kubebuilder:validation:XValidation:rule="has(self.name) && has(self.namespace)", message="If Secret is used both fields need to have values"
 type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
