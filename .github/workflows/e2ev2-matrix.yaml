@@ -1,13 +1,7 @@
 name: E2E Version 2 Test Matrix
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        type: string
-      skipRefCheck:
-        type: boolean
-        default: true
+  push
 
 permissions:
     id-token: write
