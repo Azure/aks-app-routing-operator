@@ -62,10 +62,9 @@ spec:
                 - message: Value is immutable
                   rule: self == oldSelf
               defaultSSLCertificate:
-                description: DefaultSSLCertificate is a struct with a secret with
-                  the fields namespace and name which is used to configure the NginxIngressController
-                  being managed via this CRD. If the field is not defined, no DefaultSSLCertificate
-                  will be used
+                description: DefaultSSLCertificate defines whether the NginxIngressController
+                  should use a certain SSL certificate by default. If this field is
+                  omitted, no default certificate will be used.
                 properties:
                   secret:
                     description: Secret is a struct that holds the name and namespace
