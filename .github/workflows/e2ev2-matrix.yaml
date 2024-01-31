@@ -1,7 +1,10 @@
 name: E2E Version 2 Test Matrix
 
 on:
-  push
+  push:
+    skipRefCheck:
+      type: boolean
+      default: true
 
 permissions:
     id-token: write
