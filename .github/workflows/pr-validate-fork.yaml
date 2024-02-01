@@ -11,6 +11,7 @@ jobs:
   setup:
     permissions:
       checks: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: set-check-run-in-progress
