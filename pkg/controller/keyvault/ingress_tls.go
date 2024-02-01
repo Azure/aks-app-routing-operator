@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -83,6 +84,7 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
+	oldTls := ing.Spec.TLS
 	logger.Info("adding TLS spec to ingress")
 	ing.Spec.TLS = []netv1.IngressTLS{
 		{
@@ -92,7 +94,13 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	for _, rule := range ing.Spec.Rules {
-		ing.Spec.TLS[0].Hosts = append(ing.Spec.TLS[0].Hosts, rule.Host)
+		if host := rule.Host; host != "" {
+			ing.Spec.TLS[0].Hosts = append(ing.Spec.TLS[0].Hosts, host)
+		}
+	}
+
+	if !reflect.DeepEqual(oldTls, ing.Spec.TLS) {
+		logger.Info("overwriting TLS spec on ingress", "old", fmt.Sprintf("%s", oldTls), "new", fmt.Sprintf("%s", ing.Spec.TLS))
 	}
 
 	if err := util.Upsert(ctx, i.client, ing); err != nil {

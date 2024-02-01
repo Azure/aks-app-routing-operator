@@ -39,7 +39,6 @@ func TestIngressTlsReconciler(t *testing.T) {
 
 	// prove it does nothing to an unmanaged ingress
 	t.Run("unmanaged ingress", func(t *testing.T) {
-
 		unmanagedIngress := &netv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "unmanaged",
@@ -284,5 +283,47 @@ func TestIngressTlsReconciler(t *testing.T) {
 		require.Equal(t, "managed2.example.com", got.Spec.TLS[0].Hosts[1], "we should have added TLS to a managed ingress")
 		require.Equal(t, "managed3.example.com", got.Spec.TLS[0].Hosts[2], "we should have added TLS to a managed ingress")
 		require.Equal(t, certSecretName(managedIngressMultipleHosts.Name), got.Spec.TLS[0].SecretName, "we should have added TLS to a managed ingress")
+	})
+
+	// prove it properly reconciles multiple hosts
+	t.Run("managed ingress with some hosts", func(t *testing.T) {
+		managedIngressSomeHosts := &netv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "managed-some-hosts",
+				Annotations: map[string]string{
+					tlsCertKvUriAnnotation:   "https://mykv.vault.azure.net/secrets/mycert",
+					tlsCertManagedAnnotation: "true",
+				},
+			},
+			Spec: netv1.IngressSpec{
+				IngressClassName: &managedIngressClassName,
+				Rules: []netv1.IngressRule{
+					{
+						Host: "managed.example.com",
+					},
+					{}, // empty host, shouldn't do anything
+					{
+						Host: "managed3.example.com",
+					},
+				},
+			},
+		}
+		require.NoError(t, c.Create(ctx, managedIngressSomeHosts), "there should be no error creating a managed ingress")
+		req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: managedIngressSomeHosts.Namespace, Name: managedIngressSomeHosts.Name}}
+		beforeErrCount := testutils.GetErrMetricCount(t, ingressTlsControllerName)
+		beforeRequestCount := testutils.GetReconcileMetricCount(t, ingressTlsControllerName, metrics.LabelSuccess)
+		_, err = i.Reconcile(ctx, req)
+		require.NoError(t, err, "there should be no error reconciling a managed ingress")
+		require.Equal(t, beforeErrCount, testutils.GetErrMetricCount(t, ingressTlsControllerName), "there should be no change in the error count reconciling a managed ingress")
+		require.Equal(t, beforeRequestCount+1, testutils.GetReconcileMetricCount(t, ingressTlsControllerName, metrics.LabelSuccess), "there should be one more successful reconcile count reconciling a managed ingress")
+
+		got := &netv1.Ingress{}
+		require.NoError(t, c.Get(ctx, req.NamespacedName, got))
+		require.NotNil(t, got.Spec.TLS, "we should have added TLS to a managed ingress")
+		require.Equal(t, 1, len(got.Spec.TLS), "we should have added TLS to a managed ingress")
+		require.Equal(t, 2, len(got.Spec.TLS[0].Hosts), "we should have added TLS to a managed ingress")
+		require.Equal(t, "managed.example.com", got.Spec.TLS[0].Hosts[0], "we should have added TLS to a managed ingress")
+		require.Equal(t, "managed3.example.com", got.Spec.TLS[0].Hosts[1], "we should have added TLS to a managed ingress")
+		require.Equal(t, certSecretName(managedIngressSomeHosts.Name), got.Spec.TLS[0].SecretName, "we should have added TLS to a managed ingress")
 	})
 }
