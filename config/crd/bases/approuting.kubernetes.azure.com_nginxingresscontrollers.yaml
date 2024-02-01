@@ -84,9 +84,6 @@ spec:
                     - name
                     - namespace
                     type: object
-                    x-kubernetes-validations:
-                    - message: If Secret is used both fields need to have values
-                      rule: has(self.name) && has(self.namespace)
                 type: object
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com

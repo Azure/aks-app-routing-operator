@@ -64,7 +64,6 @@ type DefaultSSLCertificate struct {
 }
 
 // Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
-// +kubebuilder:validation:XValidation:rule="has(self.name) && has(self.namespace)", message="If Secret is used both fields need to have values"
 type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
