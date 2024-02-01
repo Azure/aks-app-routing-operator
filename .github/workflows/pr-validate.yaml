@@ -17,6 +17,7 @@ jobs:
     permissions:
       checks: write
       pull-requests: read
+      id-token: write
     needs: [e2eV2]
     runs-on: ubuntu-latest
     steps:
