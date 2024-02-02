@@ -807,6 +807,9 @@ func TestIsUnreconcilableError(t *testing.T) {
 
 func TestToNginxIngressConfig(t *testing.T) {
 	defaultCc := "defaultControllerClass"
+	FakeDefaultSSLCert := getFakeDefaultSSLCert("fake", "fakenamespace")
+	FakeDefaultSSLCertNoName := getFakeDefaultSSLCert("", "fakenamespace")
+	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -883,6 +886,76 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:          "ingressClassName",
 			},
 		},
+		{
+			name: "default controller class with DefaultSSLCertificate",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:       defaultCc,
+				ResourceName:          DefaultNicResourceName,
+				IcName:                DefaultIcName,
+				ServiceConfig:         &manifests.ServiceConfig{},
+				DefaultSSLCertificate: FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate with no name",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCertNoName,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: defaultCc,
+				ResourceName:    DefaultNicResourceName,
+				IcName:          DefaultIcName,
+				ServiceConfig:   &manifests.ServiceConfig{},
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate with no namespace",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCertNoNamespace,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: defaultCc,
+				ResourceName:    DefaultNicResourceName,
+				IcName:          DefaultIcName,
+				ServiceConfig:   &manifests.ServiceConfig{},
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -891,4 +964,14 @@ func TestToNginxIngressConfig(t *testing.T) {
 			require.Equal(t, c.want, *got)
 		})
 	}
+}
+
+func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
+	fakecert := &approutingv1alpha1.DefaultSSLCertificate{
+		Secret: &approutingv1alpha1.Secret{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	return fakecert
 }
