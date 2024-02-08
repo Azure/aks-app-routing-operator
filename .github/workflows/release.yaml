@@ -15,7 +15,7 @@ permissions:
 
 jobs: 
   release:
-    runs-on: ubuntu-latest
+    runs-on: ["self-hosted", "1ES.Pool=app-routing-operator-github-runner-pool"]
     steps:
       # always read the changelog in main
       - uses: actions/checkout@v3
