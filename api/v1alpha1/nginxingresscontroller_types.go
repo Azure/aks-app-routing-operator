@@ -61,6 +61,10 @@ type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
 	Secret *Secret `json:"secret,omitempty"`
+
+	// Secret in the form of a Key Vault URI
+	// +optional
+	KeyVaultURI string `json:"keyVaultURI"`
 }
 
 // Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate

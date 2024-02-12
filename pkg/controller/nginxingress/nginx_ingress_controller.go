@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"net/url"
 	"time"
 
@@ -532,5 +533,9 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
 	}
 
+	if nic.Spec.DefaultSSLCertificate != nil && nic.Spec.DefaultSSLCertificate.KeyVaultURI != "" {
+		defaultCert := "approutingsystem/" + keyvault.DefaultNginxCertName(nic)
+		nginxIng.DefaultSSLCertificate = defaultCert
+	}
 	return nginxIng
 }
