@@ -185,7 +185,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
 	}
 	lgr.Info("setting up nginx keyvault secret provider class reconciler")
-	if err := keyvault.NewNginxSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
+	if err := keyvault.NewNginxSecretProviderClassReconciler(mgr, conf); err != nil {
 		return fmt.Errorf("setting up crd secret provider class reconciler: %w", err)
 	}
 	lgr.Info("setting up keyvault placeholder pod controller")

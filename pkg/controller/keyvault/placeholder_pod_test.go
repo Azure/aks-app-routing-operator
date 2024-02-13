@@ -500,7 +500,7 @@ func TestPlaceholderPodControllerNoManagedByLabelsWithIng(t *testing.T) {
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
 
-func TestNewPlaceholderPodControllerWithIng(t *testing.T) {
+func TestNewPlaceholderPodController(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
 
@@ -523,6 +523,10 @@ func TestNewPlaceholderPodControllerWithIng(t *testing.T) {
 	})
 
 	err = NewPlaceholderPodController(m, conf, ingressManager)
+	require.NoError(t, err)
+
+	// test nil ingress manager for nginx ingress controller
+	err = NewPlaceholderPodController(m, conf, nil)
 	require.NoError(t, err)
 }
 

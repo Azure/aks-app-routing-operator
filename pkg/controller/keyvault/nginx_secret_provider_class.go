@@ -40,7 +40,7 @@ type NginxSecretProviderClassReconciler struct {
 	config *config.Config
 }
 
-func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config) error {
 	metrics.InitControllerMetrics(nginxSecretProviderControllerName)
 	if conf.DisableKeyvault {
 		return nil

@@ -528,14 +528,14 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		},
 	}
 
-	if nic.Spec.DefaultSSLCertificate != nil &&
-		nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
-		nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
+	if nic.Spec.DefaultSSLCertificate != nil {
+		if nic.Spec.DefaultSSLCertificate.Secret != nil && nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
+			nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
+		}
+		if nic.Spec.DefaultSSLCertificate != nil && nic.Spec.DefaultSSLCertificate.KeyVaultURI != "" {
+			nginxIng.DefaultSSLCertificate = "approutingsystem/" + keyvault.DefaultNginxCertName(nic)
+		}
 	}
 
-	if nic.Spec.DefaultSSLCertificate != nil && nic.Spec.DefaultSSLCertificate.KeyVaultURI != "" {
-		defaultCert := "approutingsystem/" + keyvault.DefaultNginxCertName(nic)
-		nginxIng.DefaultSSLCertificate = defaultCert
-	}
 	return nginxIng
 }
