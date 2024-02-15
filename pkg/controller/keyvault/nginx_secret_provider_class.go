@@ -81,7 +81,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
-	logger = logger.WithValues("name", nic.Name, "namespace", "approutingsystem", "generation", nic.Generation)
+	logger = logger.WithValues("name", nic.Name, "namespace", "app-routing-system", "generation", nic.Generation)
 
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -90,7 +90,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      DefaultNginxCertName(nic),
-			Namespace: "approutingsystem",
+			Namespace: "app-routing-system",
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,
@@ -138,6 +138,9 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 
 func (i *NginxSecretProviderClassReconciler) buildSPC(nic *approutingv1alpha1.NginxIngressController, spc *secv1.SecretProviderClass) (bool, error) {
 	if nic.Spec.IngressClassName == "" {
+		return false, nil
+	}
+	if nic.Spec.DefaultSSLCertificate == nil {
 		return false, nil
 	}
 

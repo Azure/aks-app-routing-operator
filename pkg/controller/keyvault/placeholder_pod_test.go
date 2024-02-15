@@ -380,7 +380,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	assert.Equal(t, labels, updatedPlaceholder.Spec.Selector.MatchLabels, "selector labels should have been retained")
 }
 
-func TestPlaceholderPodControllerNoManagedByLabelsWithIng(t *testing.T) {
+func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	ing := placeholderTestIng.DeepCopy()
 	spc := placeholderSpc.DeepCopy()
 	spc.Labels = map[string]string{}
@@ -559,7 +559,7 @@ func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProvi
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       DefaultNginxCertName(nic),
-			Namespace:  "approutingsystem",
+			Namespace:  "app-routing-system",
 			Labels:     manifests.GetTopLevelLabels(),
 			Generation: 123,
 			OwnerReferences: []metav1.OwnerReference{{
