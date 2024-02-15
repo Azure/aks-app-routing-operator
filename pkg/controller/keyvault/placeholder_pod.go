@@ -121,7 +121,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		}
 
-		if nic.Name == "" || nic.Spec.IngressClassName == "" || nic.Spec.DefaultSSLCertificate.KeyVaultURI == "" {
+		if nic.Name == "" || nic.Spec.IngressClassName == "" || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
 			logger.Info("cleaning unused placeholder pod deployment")
 			logger.Info("getting placeholder deployment")
 			toCleanDeployment := &appsv1.Deployment{}

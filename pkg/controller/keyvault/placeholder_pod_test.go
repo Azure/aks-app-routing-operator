@@ -48,6 +48,7 @@ var (
 			IngressClassName: &placeholderTestIngClassName,
 		},
 	}
+	placeholderTestUri          = "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
 	placeholderTestNginxIngress = &v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-nic",
@@ -57,7 +58,7 @@ var (
 			IngressClassName: spcTestNginxIngressClassName,
 			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
 				Secret:      nil, // nil Secret since SPC method for DefaultSSLCertificate using placeholder pods only uses the KeyVaultURI
-				KeyVaultURI: "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"},
+				KeyVaultURI: &placeholderTestUri},
 		},
 	}
 	placeholderSpc = &secv1.SecretProviderClass{

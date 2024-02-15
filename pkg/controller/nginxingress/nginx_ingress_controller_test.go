@@ -123,7 +123,7 @@ func TestReconcileResources(t *testing.T) {
 			client: cl,
 			events: events,
 		}
-
+		kvUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
 		nic := &approutingv1alpha1.NginxIngressController{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "nic",
@@ -131,7 +131,7 @@ func TestReconcileResources(t *testing.T) {
 			Spec: approutingv1alpha1.NginxIngressControllerSpec{
 				IngressClassName:      "ingressClassName",
 				ControllerNamePrefix:  "prefix",
-				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{KeyVaultURI: "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"},
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{KeyVaultURI: &kvUri},
 			},
 		}
 		res := n.ManagedResources(nic)

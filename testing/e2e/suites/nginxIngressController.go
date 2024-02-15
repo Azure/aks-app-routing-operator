@@ -112,9 +112,10 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite missing Secret field'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
+				invalidUri := "Invalid.URI"
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					KeyVaultURI: "Invalid.URI",
+					KeyVaultURI: &invalidUri,
 				}
 				lgr.Info("creating NginxIngressController with invalid Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {

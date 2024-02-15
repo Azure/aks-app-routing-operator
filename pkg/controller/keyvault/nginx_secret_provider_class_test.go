@@ -32,6 +32,7 @@ import (
 )
 
 var (
+	spcTestKeyVaultURI           = "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
 	spcTestNginxIngressClassName = "webapprouting.kubernetes.azure.com"
 	spcTestNginxIngress          = &v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
@@ -42,7 +43,7 @@ var (
 			IngressClassName: spcTestNginxIngressClassName,
 			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
 				Secret:      nil,
-				KeyVaultURI: "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"},
+				KeyVaultURI: &spcTestKeyVaultURI},
 		},
 	}
 )
@@ -116,7 +117,8 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 	// Remove the cert's version from the nic
-	nic.Spec.DefaultSSLCertificate.KeyVaultURI = "https://testvault.vault.azure.net/certificates/testcert"
+	testKvUri := "https://testvault.vault.azure.net/certificates/testcert"
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = &testKvUri
 	require.NoError(t, n.client.Update(ctx, nic))
 	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
@@ -131,7 +133,7 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Remove the cert annotation from the nic
-	nic.Spec.DefaultSSLCertificate.KeyVaultURI = ""
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = nil
 	require.NoError(t, n.client.Update(ctx, nic))
 	beforeErrCount = testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelSuccess)
@@ -212,8 +214,8 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 	require.NoError(t, n.client.Update(ctx, spc))
 	assert.Equal(t, 0, len(spc.Labels))
 
-	// Remove the cert annotation from the nic
-	nic.Spec.DefaultSSLCertificate.KeyVaultURI = ""
+	// Remove the cert uri from the nic
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = nil
 	require.NoError(t, n.client.Update(ctx, nic))
 
 	// Reconcile both changes
@@ -265,8 +267,9 @@ func TestNginxSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 	// Create the nic
+	invalidUri := "inv@lid URL"
 	nic := spcTestNginxIngress.DeepCopy()
-	nic.Spec.DefaultSSLCertificate.KeyVaultURI = "inv@lid URL"
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = &invalidUri
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, v1alpha1.AddToScheme(scheme))
@@ -307,7 +310,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	invalidURLIng := &v1alpha1.NginxIngressController{
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName:      spcTestNginxIngressClassName,
-			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{KeyVaultURI: ""},
+			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{KeyVaultURI: nil},
 		},
 	}
 
@@ -331,7 +334,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	t.Run("url with control character", func(t *testing.T) {
 		nic := invalidURLIng.DeepCopy()
 		cc := string([]byte{0x7f})
-		nic.Spec.DefaultSSLCertificate.KeyVaultURI = cc
+		nic.Spec.DefaultSSLCertificate.KeyVaultURI = &cc
 
 		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
@@ -341,7 +344,8 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 	t.Run("url with one path segment", func(t *testing.T) {
 		nic := invalidURLIng.DeepCopy()
-		nic.Spec.DefaultSSLCertificate.KeyVaultURI = "http://test.com/foo"
+		fooTestUri := "http://test.com/foo"
+		nic.Spec.DefaultSSLCertificate.KeyVaultURI = &fooTestUri
 
 		ok, err := n.buildSPC(nic, &secv1.SecretProviderClass{})
 		assert.False(t, ok)
@@ -382,7 +386,8 @@ func TestNginxSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			}
 
 			nic := spcTestNginxIngress.DeepCopy()
-			nic.Spec.DefaultSSLCertificate.KeyVaultURI = "https://test.vault.azure.net/secrets/test-secret"
+			testSecretUri := "https://test.vault.azure.net/secrets/test-secret"
+			nic.Spec.DefaultSSLCertificate.KeyVaultURI = &testSecretUri
 
 			spc := &secv1.SecretProviderClass{}
 			ok, err := n.buildSPC(nic, spc)

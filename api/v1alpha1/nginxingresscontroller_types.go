@@ -64,7 +64,7 @@ type DefaultSSLCertificate struct {
 
 	// Secret in the form of a Key Vault URI
 	// +optional
-	KeyVaultURI string `json:"keyVaultURI"`
+	KeyVaultURI *string `json:"keyVaultURI"`
 }
 
 // Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate

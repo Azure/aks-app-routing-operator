@@ -140,11 +140,11 @@ func (i *NginxSecretProviderClassReconciler) buildSPC(nic *approutingv1alpha1.Ng
 	if nic.Spec.IngressClassName == "" {
 		return false, nil
 	}
-	if nic.Spec.DefaultSSLCertificate == nil {
+	if nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
 		return false, nil
 	}
-
-	certURI := nic.Spec.DefaultSSLCertificate.KeyVaultURI
+	
+	certURI := *nic.Spec.DefaultSSLCertificate.KeyVaultURI
 	if certURI == "" {
 		return false, nil
 	}
