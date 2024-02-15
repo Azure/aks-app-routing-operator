@@ -5,12 +5,7 @@ package keyvault
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"net/url"
-	"strings"
-
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -23,12 +18,10 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 var (
 	nginxSecretProviderControllerName = controllername.New("keyvault", "nginx", "secret", "provider")
-	NginxNamePrefix                   = "keyvault-nginx-"
 )
 
 // NginxSecretProviderClassReconciler manages a SecretProviderClass for each nginx ingress controller that
@@ -81,7 +74,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
-	logger = logger.WithValues("name", nic.Name, "namespace", "app-routing-system", "generation", nic.Generation)
+	logger = logger.WithValues("name", nic.Name, "namespace", config.DefaultNs, "generation", nic.Generation)
 
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -90,7 +83,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      DefaultNginxCertName(nic),
-			Namespace: "app-routing-system",
+			Namespace: config.DefaultNs,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,
@@ -102,7 +95,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		},
 	}
 	logger = logger.WithValues("spc", spc.Name)
-	ok, err := i.buildSPC(nic, spc)
+	ok, err := BuildSPC(nic, spc, i.config)
 	if err != nil {
 		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
 		i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
@@ -134,90 +127,4 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	}
 
 	return result, nil
-}
-
-func (i *NginxSecretProviderClassReconciler) buildSPC(nic *approutingv1alpha1.NginxIngressController, spc *secv1.SecretProviderClass) (bool, error) {
-	if nic.Spec.IngressClassName == "" {
-		return false, nil
-	}
-	if nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
-		return false, nil
-	}
-	
-	certURI := *nic.Spec.DefaultSSLCertificate.KeyVaultURI
-	if certURI == "" {
-		return false, nil
-	}
-
-	uri, err := url.Parse(certURI)
-	if err != nil {
-		return false, err
-	}
-	vaultName := strings.Split(uri.Host, ".")[0]
-	chunks := strings.Split(uri.Path, "/")
-	if len(chunks) < 3 {
-		return false, fmt.Errorf("invalid secret uri: %s", certURI)
-	}
-	secretName := chunks[2]
-	p := map[string]interface{}{
-		"objectName": secretName,
-		"objectType": "secret",
-	}
-	if len(chunks) > 3 {
-		p["objectVersion"] = chunks[3]
-	}
-
-	params, err := json.Marshal(p)
-	if err != nil {
-		return false, err
-	}
-	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(params)}})
-	if err != nil {
-		return false, err
-	}
-
-	spc.Spec = secv1.SecretProviderClassSpec{
-		Provider: secv1.Provider("azure"),
-		SecretObjects: []*secv1.SecretObject{{
-			SecretName: DefaultNginxCertName(nic),
-			Type:       "kubernetes.io/tls",
-			Data: []*secv1.SecretObjectData{
-				{
-					ObjectName: secretName,
-					Key:        "tls.key",
-				},
-				{
-					ObjectName: secretName,
-					Key:        "tls.crt",
-				},
-			},
-		}},
-		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-		Parameters: map[string]string{
-			"keyvaultName":           vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": i.config.MSIClientID,
-			"tenantId":               i.config.TenantID,
-			"objects":                string(objects),
-		},
-	}
-
-	if i.config.Cloud != "" {
-		spc.Spec.Parameters[kvcsi.CloudNameParameter] = i.config.Cloud
-	}
-
-	return true, nil
-}
-
-// DefaultNginxCertName returns a default name for the nginx certificate name using the IngressClassName from the spec.
-// Truncates characters in the IngressClassName passed the max secret length (255) if the IngressClassName and the default namespace are over the limit
-func DefaultNginxCertName(nic *approutingv1alpha1.NginxIngressController) string {
-	secretMaxSize := 255
-	certName := NginxNamePrefix + nic.Name
-
-	if len(certName) > secretMaxSize {
-		return certName[0:secretMaxSize]
-	}
-
-	return certName
 }

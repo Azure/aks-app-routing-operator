@@ -533,7 +533,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 			nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
 		}
 		if nic.Spec.DefaultSSLCertificate != nil && nic.Spec.DefaultSSLCertificate.KeyVaultURI != nil {
-			nginxIng.DefaultSSLCertificate = "app-routing-system/" + keyvault.DefaultNginxCertName(nic)
+			nginxIng.DefaultSSLCertificate = config.DefaultNs + "/" + keyvault.DefaultNginxCertName(nic)
 		}
 	}
 

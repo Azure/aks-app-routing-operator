@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -232,7 +231,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 
 func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	ctx := context.Background()
-	ctx = logr.NewContext(ctx, zap.New())
+	ctx = logr.NewContext(ctx, logr.Discard())
 	nic := placeholderTestNginxIngress.DeepCopy()
 	spc := getDefaultNginxSpc(nic)
 	spc.SetOwnerReferences(manifests.GetOwnerRefs(nic, true))
@@ -560,7 +559,7 @@ func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProvi
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       DefaultNginxCertName(nic),
-			Namespace:  "app-routing-system",
+			Namespace:  config.DefaultNs,
 			Labels:     manifests.GetTopLevelLabels(),
 			Generation: 123,
 			OwnerReferences: []metav1.OwnerReference{{

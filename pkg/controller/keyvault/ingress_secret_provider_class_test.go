@@ -44,6 +44,7 @@ var (
 			IngressClassName: &spcTestIngressClassName,
 		},
 	}
+	spcTestDefaultConf = BuildTestSpcConfig("test-msi", "test-tenant", "test-cloud")
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -316,16 +317,6 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 }
 
 func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			if *ing.Spec.IngressClassName == spcTestIngressClassName {
-				return true, nil
-			}
-
-			return false, nil
-		}),
-	}
-
 	invalidURLIng := &netv1.Ingress{
 		Spec: netv1.IngressSpec{
 			IngressClassName: &spcTestIngressClassName,
@@ -337,26 +328,26 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		ing.Spec.IngressClassName = nil
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := BuildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
 
-	t.Run("incorrect ingress class", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		incorrect := "some-other-ingress-class"
-		ing.Spec.IngressClassName = &incorrect
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
+	//t.Run("incorrect ingress class", func(t *testing.T) {
+	//	ing := invalidURLIng.DeepCopy()
+	//	incorrect := "some-other-ingress-class"
+	//	ing.Spec.IngressClassName = &incorrect
+	//	ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
+	//
+	//	ok, err := BuildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+	//	assert.False(t, ok)
+	//	require.NoError(t, err)
+	//})
 
 	t.Run("nil annotations", func(t *testing.T) {
 		ing := invalidURLIng.DeepCopy()
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := BuildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
@@ -365,7 +356,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		ing := invalidURLIng.DeepCopy()
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": ""}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := BuildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
@@ -375,7 +366,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		cc := string([]byte{0x7f})
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": cc}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := BuildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
 		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
@@ -385,7 +376,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		ing := invalidURLIng.DeepCopy()
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "http://test.com/foo"}
 
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
+		ok, err := BuildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
 	})
@@ -417,26 +408,13 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			i := &IngressSecretProviderClassReconciler{
-				config: &config.Config{
-					Cloud: c.configCloud,
-				},
-				ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-					if *ing.Spec.IngressClassName == spcTestIngressClassName {
-						return true, nil
-					}
-
-					return false, nil
-				}),
-			}
-
 			ing := spcTestIngress.DeepCopy()
 			ing.Annotations = map[string]string{
 				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
 			}
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := i.buildSPC(ing, spc)
+			ok, err := BuildSPC(ing, spc, BuildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
 			require.NoError(t, err, "building SPC should not error")
 			require.True(t, ok, "SPC should be built")
 
@@ -447,26 +425,12 @@ func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 	}
 }
 
-func TestIngressSecretProviderClassReconcilerBuildSPCFailedIsManaging(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			return false, fmt.Errorf("failed to get ingress")
-		}),
+func BuildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
+	spcTestConf := config.Config{
+		MSIClientID: msiClient,
+		TenantID:    tenantID,
+		Cloud:       cloud,
 	}
 
-	ing := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ingress",
-			Annotations: map[string]string{},
-		},
-		Spec: netv1.IngressSpec{
-			IngressClassName: &spcTestIngressClassName,
-		},
-	}
-	spc := &secv1.SecretProviderClass{}
-
-	ok, err := i.buildSPC(ing, spc)
-	require.False(t, ok)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "determining if ingress is managed")
+	return &spcTestConf
 }

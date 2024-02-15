@@ -5,11 +5,12 @@ package keyvault
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
-
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,13 +18,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 var (
@@ -103,7 +97,19 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		},
 	}
 	logger = logger.WithValues("spc", spc.Name)
-	ok, err := i.buildSPC(ing, spc)
+
+	// Checking if we manage the ingress. All false cases without an error are assumed that we don't manage it
+	ok, err := i.ingressManager.IsManaging(ing)
+
+	if err != nil {
+		ok = false
+		err = fmt.Errorf("determining if ingress is managed: %w", err)
+	}
+
+	if ok {
+		ok, err = BuildSPC(ing, spc, i.config)
+	}
+
 	if err != nil {
 		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
 		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
@@ -135,82 +141,4 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	return result, nil
-}
-
-func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
-	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
-		return false, nil
-	}
-
-	managed, err := i.ingressManager.IsManaging(ing)
-	if err != nil {
-		return false, fmt.Errorf("determining if ingress is managed: %w", err)
-	}
-	if !managed {
-		return false, nil
-	}
-
-	certURI := ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-	if certURI == "" {
-		return false, nil
-	}
-
-	uri, err := url.Parse(certURI)
-	if err != nil {
-		return false, err
-	}
-	vaultName := strings.Split(uri.Host, ".")[0]
-	chunks := strings.Split(uri.Path, "/")
-	if len(chunks) < 3 {
-		return false, fmt.Errorf("invalid secret uri: %s", certURI)
-	}
-	secretName := chunks[2]
-	p := map[string]interface{}{
-		"objectName": secretName,
-		"objectType": "secret",
-	}
-	if len(chunks) > 3 {
-		p["objectVersion"] = chunks[3]
-	}
-
-	params, err := json.Marshal(p)
-	if err != nil {
-		return false, err
-	}
-	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(params)}})
-	if err != nil {
-		return false, err
-	}
-
-	spc.Spec = secv1.SecretProviderClassSpec{
-		Provider: secv1.Provider("azure"),
-		SecretObjects: []*secv1.SecretObject{{
-			SecretName: fmt.Sprintf("keyvault-%s", ing.Name),
-			Type:       "kubernetes.io/tls",
-			Data: []*secv1.SecretObjectData{
-				{
-					ObjectName: secretName,
-					Key:        "tls.key",
-				},
-				{
-					ObjectName: secretName,
-					Key:        "tls.crt",
-				},
-			},
-		}},
-		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-		Parameters: map[string]string{
-			"keyvaultName":           vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": i.config.MSIClientID,
-			"tenantId":               i.config.TenantID,
-			"objects":                string(objects),
-		},
-	}
-
-	if i.config.Cloud != "" {
-		spc.Spec.Parameters[kvcsi.CloudNameParameter] = i.config.Cloud
-	}
-
-	return true, nil
 }
