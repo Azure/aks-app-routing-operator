@@ -112,12 +112,22 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite missing Secret field'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
+				validUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &validUri,
+				}
+				lgr.Info("creating NginxIngressController with valid keyvault uri field")
+				if err := c.Create(ctx, testNIC); err != nil {
+					return fmt.Errorf("unable to create NginxIngressController despite valid key vault uri'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
 				invalidUri := "Invalid.URI"
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
 					KeyVaultURI: &invalidUri,
 				}
-				lgr.Info("creating NginxIngressController with invalid Secret field")
+				lgr.Info("creating NginxIngressController with invalid keyvault uri field")
 				if err := c.Create(ctx, testNIC); err == nil {
 					return fmt.Errorf("able to create NginxIngressController despite invalid key vault uri'%s'", testNIC.Spec.ControllerNamePrefix)
 				}

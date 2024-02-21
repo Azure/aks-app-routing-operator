@@ -110,92 +110,92 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("deployment", dep.Name)
 
-	if strings.HasPrefix(spc.Name, NginxNamePrefix) {
-		nic := &v1alpha1.NginxIngressController{}
-		nic.Name = util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController")
+	return p.upsertObjectDeployment(dep, spc, req, ctx, logger)
+}
 
-		if nic.Name != "" {
-			logger.Info("getting owner nginx ingress controller")
-			if err = p.client.Get(ctx, client.ObjectKeyFromObject(nic), nic); err != nil {
-				return result, client.IgnoreNotFound(err)
-			}
+func (p *PlaceholderPodController) placeholderPodCleanCheck(obj client.Object) (bool, error) {
+	nic, ok := obj.(*v1alpha1.NginxIngressController)
+	if ok {
+		if nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
+			return true, nil
 		}
-
-		if nic.Name == "" || nic.Spec.IngressClassName == "" || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
-			logger.Info("cleaning unused placeholder pod deployment")
-			logger.Info("getting placeholder deployment")
-			toCleanDeployment := &appsv1.Deployment{}
-			if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
-				return result, client.IgnoreNotFound(err)
-			}
-			if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
-				logger.Info("deleting placeholder deployment")
-				err = p.client.Delete(ctx, toCleanDeployment)
-				return result, client.IgnoreNotFound(err)
-			}
-		}
-
-		// Manage a deployment resource
-		logger.Info("reconciling placeholder deployment for secret provider class")
-		if err = p.buildDeployment(ctx, dep, spc, nic.Name); err != nil {
-			err = fmt.Errorf("building deployment: %w", err)
-			p.events.Eventf(nic, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
-			logger.Error(err, "failed to build placeholder deployment")
-			return result, err
-		}
-
-		if err = util.Upsert(ctx, p.client, dep); err != nil {
-			p.events.Eventf(nic, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
-			return result, err
-		}
-	} else {
-		if p.ingressManager == nil {
-			return result, fmt.Errorf("checking if ingressManager was not nil on non-nginx ingress: %w", err)
-		}
-		ing := &netv1.Ingress{}
-		ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
-		ing.Namespace = req.Namespace
-		logger = logger.WithValues("ingress", ing.Name)
-		if ing.Name != "" {
-			logger.Info("getting owner ingress")
-			if err = p.client.Get(ctx, client.ObjectKeyFromObject(ing), ing); err != nil {
-				return result, client.IgnoreNotFound(err)
-			}
-		}
-
+		return false, nil
+	}
+	ing, ok := obj.(*netv1.Ingress)
+	if ok {
 		managed, err := p.ingressManager.IsManaging(ing)
 		if err != nil {
-			return result, fmt.Errorf("determining if ingress is managed: %w", err)
+			return false, fmt.Errorf("determining if ingress is managed: %w", err)
 		}
-
 		if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
-			logger.Info("cleaning unused placeholder pod deployment")
-
-			logger.Info("getting placeholder deployment")
-
-			toCleanDeployment := &appsv1.Deployment{}
-			if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
-				return result, client.IgnoreNotFound(err)
-			}
-			if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
-				logger.Info("deleting placeholder deployment")
-				err = p.client.Delete(ctx, toCleanDeployment)
-				return result, client.IgnoreNotFound(err)
-			}
+			return true, nil
 		}
-		// Manage a deployment resource
-		logger.Info("reconciling placeholder deployment for secret provider class")
-		if err = p.buildDeployment(ctx, dep, spc, ing.Name); err != nil {
-			err = fmt.Errorf("building deployment: %w", err)
-			p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
-			logger.Error(err, "failed to build placeholder deployment")
-			return result, err
-		}
+		return false, nil
+	}
 
-		if err = util.Upsert(ctx, p.client, dep); err != nil {
-			p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
-			return result, err
+	return false, nil
+}
+
+func (p *PlaceholderPodController) upsertObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
+	var (
+		err error
+		obj client.Object
+	)
+
+	result := ctrl.Result{}
+
+	objName := util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController")
+	if objName != "" {
+		obj := &v1alpha1.NginxIngressController{}
+		obj.Name = objName
+	}
+
+	objName = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
+	if objName != "" {
+		obj := &netv1.Ingress{}
+		obj.Name = objName
+		obj.Namespace = req.Namespace
+	}
+
+	if obj.GetName() != "" {
+		logger.Info(fmt.Sprintf("getting owner %s", obj.GetObjectKind().GroupVersionKind().Kind))
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+			return result, client.IgnoreNotFound(err)
 		}
+	}
+
+	cleanPod, err := p.placeholderPodCleanCheck(obj)
+	if err != nil {
+		return result, err
+	}
+
+	if cleanPod {
+		logger.Info("cleaning unused placeholder pod deployment")
+		logger.Info("getting placeholder deployment")
+		toCleanDeployment := &appsv1.Deployment{}
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
+			return result, client.IgnoreNotFound(err)
+		}
+		if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
+			logger.Info("deleting placeholder deployment")
+			err = p.client.Delete(ctx, toCleanDeployment)
+			return result, client.IgnoreNotFound(err)
+		}
+	}
+
+	// Manage a deployment resource
+	logger.Info("reconciling placeholder deployment for secret provider class")
+	if err = p.buildDeployment(ctx, dep, spc, obj.GetName()); err != nil {
+		err = fmt.Errorf("building deployment: %w", err)
+		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		logger.Error(err, "failed to build placeholder deployment")
+		return result, err
+	}
+
+	if err = util.Upsert(ctx, p.client, dep); err != nil {
+		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		logger.Error(err, "failed to upsert placeholder deployment")
+		return result, err
 	}
 
 	return result, nil
@@ -223,6 +223,12 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 	if old != nil { // we need to ensure that immutable fields are not changed
 		labels = old.Spec.Selector.MatchLabels
 	}
+	var ingAnnotation string
+	if strings.HasPrefix(spc.Name, NginxNamePrefix) {
+		ingAnnotation = "kubernetes.azure.com/ingress-owner"
+	} else {
+		ingAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
+	}
 
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
@@ -234,7 +240,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"kubernetes.azure.com/ingress-owner":       ingName,
+					ingAnnotation:                              ingName,
 					"openservicemesh.io/sidecar-injection":     "disabled",
 				},
 			},
