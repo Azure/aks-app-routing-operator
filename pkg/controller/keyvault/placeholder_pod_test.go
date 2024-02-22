@@ -56,8 +56,8 @@ var (
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName: spcTestNginxIngressClassName,
 			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
-				Secret:      nil, // nil Secret since SPC method for DefaultSSLCertificate using placeholder pods only uses the KeyVaultURI
-				KeyVaultURI: &placeholderTestUri},
+				KeyVaultURI: &placeholderTestUri,
+			},
 		},
 	}
 	placeholderSpc = &secv1.SecretProviderClass{
@@ -282,10 +282,10 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: expectedLabels,
 				Annotations: map[string]string{
-					"kubernetes.azure.com/observed-generation": "123",
-					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"kubernetes.azure.com/ingress-owner":       nic.Name,
-					"openservicemesh.io/sidecar-injection":     "disabled",
+					"kubernetes.azure.com/observed-generation":            "123",
+					"kubernetes.azure.com/purpose":                        "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/nginx-ingress-controller-owner": nic.Name,
+					"openservicemesh.io/sidecar-injection":                "disabled",
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
@@ -345,8 +345,8 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
 	assert.Equal(t, expected, dep.Spec)
 
-	// Change the ingress resource's class
-	nic.Spec.IngressClassName = ""
+	// Remove Key Vault URI
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = nil
 	require.NoError(t, c.Update(ctx, nic))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)

@@ -7,10 +7,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"path"
-	"strconv"
-	"strings"
-
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,9 +15,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -144,17 +142,19 @@ func (p *PlaceholderPodController) upsertObjectDeployment(dep *appsv1.Deployment
 
 	result := ctrl.Result{}
 
-	objName := util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController")
-	if objName != "" {
-		obj := &v1alpha1.NginxIngressController{}
-		obj.Name = objName
+	if objName := util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"); objName != "" {
+		obj = &v1alpha1.NginxIngressController{}
+		obj.SetName(objName)
 	}
 
-	objName = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
-	if objName != "" {
-		obj := &netv1.Ingress{}
-		obj.Name = objName
-		obj.Namespace = req.Namespace
+	if objName := util.FindOwnerKind(spc.OwnerReferences, "Ingress"); objName != "" {
+		obj = &netv1.Ingress{}
+		obj.SetName(objName)
+		obj.SetNamespace(req.Namespace)
+	}
+
+	if obj.GetName() == "" {
+		return result, nil
 	}
 
 	if obj.GetName() != "" {
@@ -185,7 +185,7 @@ func (p *PlaceholderPodController) upsertObjectDeployment(dep *appsv1.Deployment
 
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
-	if err = p.buildDeployment(ctx, dep, spc, obj.GetName()); err != nil {
+	if err = p.buildDeployment(ctx, dep, spc, obj); err != nil {
 		err = fmt.Errorf("building deployment: %w", err)
 		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to build placeholder deployment")
@@ -212,7 +212,7 @@ func (p *PlaceholderPodController) getCurrentDeployment(ctx context.Context, nam
 	return dep, nil
 }
 
-func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ingName string) error {
+func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object) error {
 	old, err := p.getCurrentDeployment(ctx, client.ObjectKeyFromObject(dep))
 	if err != nil {
 		return fmt.Errorf("getting current deployment: %w", err)
@@ -224,10 +224,10 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 		labels = old.Spec.Selector.MatchLabels
 	}
 	var ingAnnotation string
-	if strings.HasPrefix(spc.Name, NginxNamePrefix) {
-		ingAnnotation = "kubernetes.azure.com/ingress-owner"
-	} else {
+	if _, ok := obj.(*v1alpha1.NginxIngressController); ok {
 		ingAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
+	} else {
+		ingAnnotation = "kubernetes.azure.com/ingress-owner"
 	}
 
 	dep.Spec = appsv1.DeploymentSpec{
@@ -240,7 +240,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					ingAnnotation:                              ingName,
+					ingAnnotation:                              obj.GetName(),
 					"openservicemesh.io/sidecar-injection":     "disabled",
 				},
 			},
