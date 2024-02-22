@@ -83,7 +83,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      DefaultNginxCertName(nic),
-			Namespace: config.DefaultNs,
+			Namespace: i.config.NS,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,

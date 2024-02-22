@@ -83,7 +83,7 @@ func TestNginxSecretProviderClassReconcilerIntegration(t *testing.T) {
 	// Prove it exists
 	spc := &secv1.SecretProviderClass{}
 	spc.Name = DefaultNginxCertName(nic)
-	spc.Namespace = config.DefaultNs
+	spc.Namespace = n.config.NS
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(spc), spc))
 
 	expected := &secv1.SecretProviderClass{
@@ -193,7 +193,7 @@ func TestNginxSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *testin
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      DefaultNginxCertName(nic),
-			Namespace: config.DefaultNs,
+			Namespace: n.config.NS,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,
