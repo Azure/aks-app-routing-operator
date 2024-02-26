@@ -130,6 +130,30 @@ var (
 				DefaultSSLCertificate: "fakenamespace/fakename",
 			},
 		},
+		{
+			Name: "internal-with-ssl-cert-and-force-ssl",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:       "test-controller-class",
+				ResourceName:          "nginx",
+				IcName:                "nginx-private",
+				DefaultSSLCertificate: "fakenamespace/fakename",
+				ForceSSLRedirect:      true,
+			},
+		},
 	}
 	classTestCases = []struct {
 		Name      string

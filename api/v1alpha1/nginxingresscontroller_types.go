@@ -26,6 +26,7 @@ const (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // NginxIngressControllerSpec defines the desired state of NginxIngressController
+// +kubebuilder:validation:XValidation:rule="(has(self.forceSSLRedirect) && has(self.defaultSSLCertificate)) || !has(self.forceSSLRedirect)"
 type NginxIngressControllerSpec struct {
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
@@ -55,6 +56,10 @@ type NginxIngressControllerSpec struct {
 	// If this field is omitted, no default certificate will be used.
 	// +optional
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+
+	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
+	// +optional
+	ForceSSLRedirect *bool `json:"forceSSLRedirect,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct ith name and namespace properties or a key vault uri

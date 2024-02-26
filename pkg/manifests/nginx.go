@@ -116,6 +116,7 @@ type NginxIngressConfig struct {
 	IcName                string         // IngressClass name
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -503,7 +504,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 }
 
 func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
+	confMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
 			APIVersion: "v1",
@@ -521,6 +522,16 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
 		},
 	}
+
+	if ingressConfig.DefaultSSLCertificate != "" {
+		if ingressConfig.ForceSSLRedirect {
+			confMap.Data["force-ssl-redirect"] = "true"
+		} else {
+			confMap.Data["force-ssl-redirect"] = "false"
+		}
+	}
+
+	return confMap
 }
 
 func newNginxIngressControllerPDB(conf *config.Config, ingressConfig *NginxIngressConfig) *policyv1.PodDisruptionBudget {

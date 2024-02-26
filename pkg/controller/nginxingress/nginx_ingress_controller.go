@@ -537,5 +537,10 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		}
 	}
 
+	if nic.Spec.ForceSSLRedirect != nil {
+		nginxIng.ForceSSLRedirect = *nic.Spec.ForceSSLRedirect
+	} else {
+		nginxIng.ForceSSLRedirect = false
+	}
 	return nginxIng
 }

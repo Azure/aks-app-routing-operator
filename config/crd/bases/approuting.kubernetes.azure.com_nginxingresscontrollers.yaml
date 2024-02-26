@@ -91,6 +91,11 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - rule: (isURL(self.keyVaultURI) || !has(self.keyVaultURI))
+              forceSSLRedirect:
+                description: 'ForceSSLRedirect is a flag that sets the global value
+                  of redirects to HTTPS if there is a defined DefaultSSLCertificate
+                  (TODO: CEL to validate that DefaultSSLCertificate is being used)'
+                type: boolean
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that
@@ -114,6 +119,9 @@ spec:
             - controllerNamePrefix
             - ingressClassName
             type: object
+            x-kubernetes-validations:
+            - rule: (has(self.forceSSLRedirect) && has(self.defaultSSLCertificate))
+                || !has(self.forceSSLRedirect)
           status:
             description: NginxIngressControllerStatus defines the observed state of
               NginxIngressController
