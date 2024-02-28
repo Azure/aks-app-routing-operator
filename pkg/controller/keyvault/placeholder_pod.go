@@ -108,19 +108,18 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("deployment", dep.Name)
 
-	return p.upsertObjectDeployment(dep, spc, req, ctx, logger)
+	return p.reconcileObjectDeployment(dep, spc, req, ctx, logger)
 }
 
 func (p *PlaceholderPodController) placeholderPodCleanCheck(obj client.Object) (bool, error) {
-	nic, ok := obj.(*v1alpha1.NginxIngressController)
-	if ok {
-		if nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
+	switch obj.GetObjectKind().GroupVersionKind().Kind {
+	case "NginxIngressController":
+		nic, _ := obj.(*v1alpha1.NginxIngressController)
+		if nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
 			return true, nil
 		}
-		return false, nil
-	}
-	ing, ok := obj.(*netv1.Ingress)
-	if ok {
+	case "Ingress":
+		ing, _ := obj.(*netv1.Ingress)
 		managed, err := p.ingressManager.IsManaging(ing)
 		if err != nil {
 			return false, fmt.Errorf("determining if ingress is managed: %w", err)
@@ -128,13 +127,12 @@ func (p *PlaceholderPodController) placeholderPodCleanCheck(obj client.Object) (
 		if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
 			return true, nil
 		}
-		return false, nil
 	}
 
 	return false, nil
 }
 
-func (p *PlaceholderPodController) upsertObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
+func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
 	var (
 		err error
 		obj client.Object
@@ -142,19 +140,18 @@ func (p *PlaceholderPodController) upsertObjectDeployment(dep *appsv1.Deployment
 
 	result := ctrl.Result{}
 
-	if objName := util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"); objName != "" {
+	switch {
+	case util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController") != "":
 		obj = &v1alpha1.NginxIngressController{}
-		obj.SetName(objName)
-	}
-
-	if objName := util.FindOwnerKind(spc.OwnerReferences, "Ingress"); objName != "" {
+		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"))
+		break
+	case util.FindOwnerKind(spc.OwnerReferences, "Ingress") != "":
 		obj = &netv1.Ingress{}
-		obj.SetName(objName)
+		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
 		obj.SetNamespace(req.Namespace)
-	}
-
-	if obj.GetName() == "" {
-		return result, nil
+		break
+	default:
+		return result, fmt.Errorf("failed to reconcile object deployment: object type not nginxIngressController or ingress")
 	}
 
 	if obj.GetName() != "" {
@@ -223,11 +220,15 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 	if old != nil { // we need to ensure that immutable fields are not changed
 		labels = old.Spec.Selector.MatchLabels
 	}
+
 	var ingAnnotation string
-	if _, ok := obj.(*v1alpha1.NginxIngressController); ok {
+	switch obj.GetObjectKind().GroupVersionKind().Kind {
+	case "NginxIngressController":
 		ingAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
-	} else {
+	case "Ingress":
 		ingAnnotation = "kubernetes.azure.com/ingress-owner"
+	default:
+		return fmt.Errorf("failed to build deployment: object type not ingress or nginxingresscontroller")
 	}
 
 	dep.Spec = appsv1.DeploymentSpec{

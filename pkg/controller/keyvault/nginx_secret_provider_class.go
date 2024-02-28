@@ -95,7 +95,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		},
 	}
 	logger = logger.WithValues("spc", spc.Name)
-	ok, err := BuildSPC(nic, spc, i.config)
+	ok, err := buildSPC(nic, spc, i.config)
 	if err != nil {
 		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
 		i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)

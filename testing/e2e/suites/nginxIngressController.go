@@ -78,10 +78,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.Secret{
-						Name:      "Invalid+@Name",
-						Namespace: "validnamespace",
-					},
+					Secret: getTestSecret("Invalid+@Name", "validnamespace"),
 				}
 				lgr.Info("creating NginxIngressController with invalid Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -90,10 +87,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.Secret{
-						Name:      "validname",
-						Namespace: "Invalid+@Namespace",
-					},
+					Secret: getTestSecret("validname", "Invalid+@Namespace"),
 				}
 				lgr.Info("creating NginxIngressController with invalid Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -102,10 +96,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.Secret{
-						Name:      "validname",
-						Namespace: "",
-					},
+					Secret: getTestSecret("validname", ""),
 				}
 				lgr.Info("creating NginxIngressController with empty Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -130,6 +121,16 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("creating NginxIngressController with invalid keyvault uri field")
 				if err := c.Create(ctx, testNIC); err == nil {
 					return fmt.Errorf("able to create NginxIngressController despite invalid key vault uri'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &validUri,
+					Secret:      getTestSecret("validname", "validnamespace"),
+				}
+				lgr.Info("creating NginxIngressController with both keyvault uri field and secret field")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite having both keyvaulturi and secret fields'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
 				lgr.Info("finished testing")

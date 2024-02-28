@@ -102,12 +102,11 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	ok, err := i.ingressManager.IsManaging(ing)
 
 	if err != nil {
-		ok = false
-		err = fmt.Errorf("determining if ingress is managed: %w", err)
+		return result, fmt.Errorf("determining if ingress is managed: %w", err)
 	}
 
 	if ok {
-		ok, err = BuildSPC(ing, spc, i.config)
+		ok, err = buildSPC(ing, spc, i.config)
 	}
 
 	if err != nil {

@@ -551,6 +551,89 @@ func TestGetCurrentDeploymentWithIng(t *testing.T) {
 	require.Nil(t, dep)
 }
 
+func TestPlaceholderPodCleanCheck(t *testing.T) {
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+
+	nic := placeholderTestNginxIngress.DeepCopy()
+	ing := placeholderTestIng.DeepCopy()
+	ing.TypeMeta.Kind = "Ingress"
+	unmanagedIngClassName := "unmanagedClassName"
+	errorIngClassName := "errorClassName"
+
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	require.NoError(t, c.Create(ctx, nic))
+	require.NoError(t, c.Create(ctx, ing))
+	p := &PlaceholderPodController{
+		client: c,
+		config: &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			if ing.Spec.IngressClassName != nil {
+				if *ing.Spec.IngressClassName == unmanagedIngClassName {
+					return false, nil
+				}
+
+				if *ing.Spec.IngressClassName == errorIngClassName {
+					return false, fmt.Errorf("an error has occured checking if ingress is managed")
+				}
+			}
+			return true, nil
+		}),
+	}
+
+	// Default scenarios for ingress and nginxingresscontroller. Does not clean when spc required fields are there
+	cleanPod, err := p.placeholderPodCleanCheck(nic)
+	require.NoError(t, err)
+	require.Equal(t, false, cleanPod)
+
+	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	require.NoError(t, err)
+	require.Equal(t, false, cleanPod)
+
+	// Clean Placeholder Pod scenarios
+
+	// nic without key vault uri
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = nil
+	cleanPod, err = p.placeholderPodCleanCheck(nic)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	// nic without DefaultSSLCertificate
+	nic.Spec.DefaultSSLCertificate = nil
+	cleanPod, err = p.placeholderPodCleanCheck(nic)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	// ingress without IngressClassName
+	ing.Spec.IngressClassName = nil
+	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	ing.Spec.IngressClassName = placeholderTestIng.Spec.IngressClassName //returning value to IngressClassName to test individual fields triggering clean
+
+	// ingress with empty Name field
+	ing.Name = ""
+	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	// unmanaged ingress
+	ing.Spec.IngressClassName = &unmanagedIngClassName
+	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	// ingress that hits an error while checking if it's managed
+	ing.Spec.IngressClassName = &errorIngClassName
+	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	require.Error(t, err, "determining if ingress is managed: an error has occured checking if ingress is managed")
+	require.Equal(t, false, cleanPod)
+}
 func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProviderClass {
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{

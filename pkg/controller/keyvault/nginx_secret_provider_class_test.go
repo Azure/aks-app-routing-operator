@@ -304,7 +304,7 @@ func TestNginxSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	assert.Greater(t, afterRequestCount, beforeRequestCount)
 }
 
-func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
+func TestNginxSecretProviderClassReconcilerbuildSPCInvalidURLs(t *testing.T) {
 	invalidURLIng := &v1alpha1.NginxIngressController{
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName:      spcTestNginxIngressClassName,
@@ -316,7 +316,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		nic := invalidURLIng.DeepCopy()
 		nic.Spec.IngressClassName = ""
 
-		ok, err := BuildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+		ok, err := buildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
@@ -324,7 +324,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 	t.Run("empty key vault uri", func(t *testing.T) {
 		nic := invalidURLIng.DeepCopy()
 
-		ok, err := BuildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+		ok, err := buildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.NoError(t, err)
 	})
@@ -334,7 +334,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		cc := string([]byte{0x7f})
 		nic.Spec.DefaultSSLCertificate.KeyVaultURI = &cc
 
-		ok, err := BuildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+		ok, err := buildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
 		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
@@ -345,13 +345,13 @@ func TestNginxSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		fooTestUri := "http://test.com/foo"
 		nic.Spec.DefaultSSLCertificate.KeyVaultURI = &fooTestUri
 
-		ok, err := BuildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+		ok, err := buildSPC(nic, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
 		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
 	})
 }
 
-func TestNginxSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
+func TestNginxSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 	cases := []struct {
 		name, configCloud, spcCloud string
 		expected                    bool
@@ -382,7 +382,7 @@ func TestNginxSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
 			nic.Spec.DefaultSSLCertificate.KeyVaultURI = &testSecretUri
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := BuildSPC(nic, spc, BuildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
+			ok, err := buildSPC(nic, spc, BuildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
 			require.NoError(t, err, "building SPC should not error")
 			require.True(t, ok, "SPC should be built")
 
