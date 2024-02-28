@@ -418,7 +418,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
-		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
+		podAnnotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	}
 
 	for k, v := range promAnnotations {
@@ -560,8 +560,8 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 				Name:       ingressConfig.ResourceName,
 			},
 			MinReplicas:                    util.Int32Ptr(2),
-			MaxReplicas:                    100,
-			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
+			MaxReplicas:                    500,
+			TargetCPUUtilizationPercentage: util.Int32Ptr(70),
 		},
 	}
 }
