@@ -417,6 +417,9 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 	}
 
 	podAnnotations := map[string]string{}
+	if !conf.DisableOSM {
+		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
+	}
 
 	for k, v := range promAnnotations {
 		podAnnotations[k] = v
