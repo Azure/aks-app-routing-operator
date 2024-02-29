@@ -557,8 +557,8 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 				Name:       ingressConfig.ResourceName,
 			},
 			MinReplicas:                    util.Int32Ptr(2),
-			MaxReplicas:                    500,
-			TargetCPUUtilizationPercentage: util.Int32Ptr(70),
+			MaxReplicas:                    100,
+			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
 		},
 	}
 }
