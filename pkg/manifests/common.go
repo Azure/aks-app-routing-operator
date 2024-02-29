@@ -62,8 +62,12 @@ func Namespace(conf *config.Config) *corev1.Namespace {
 			Name: conf.NS,
 			// don't set top-level labels,namespace is not managed by operator
 			Labels:      map[string]string{},
-			Annotations: map[string]string{"openservicemesh.io/sidecar-injection": "disabled"},
+			Annotations: map[string]string{},
 		},
+	}
+
+	if !conf.DisableOSM {
+		ns.ObjectMeta.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	}
 
 	return ns
