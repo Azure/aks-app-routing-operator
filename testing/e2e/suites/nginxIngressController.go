@@ -237,7 +237,7 @@ func nicTests(in infra.Provisioned) []test {
 				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &defaultSSLCert
 				if err := upsert(ctx, c, testNIC); err != nil {
-					return fmt.Errorf("ensuring private NIC: %w", err)
+					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
 				// create and validate that spc was created
@@ -250,10 +250,6 @@ func nicTests(in infra.Provisioned) []test {
 				blankSpc := &secv1.SecretProviderClass{}
 				if err := c.Get(ctx, client.ObjectKeyFromObject(spc), blankSpc); err != nil {
 					return fmt.Errorf("getting SPC: %w", err)
-				}
-
-				if err := upsert(ctx, c, testNIC); err != nil {
-					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
 				var service v1alpha1.ManagedObjectReference
