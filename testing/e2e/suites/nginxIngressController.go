@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -104,14 +107,6 @@ func nicTests(in infra.Provisioned) []test {
 				}
 
 				validUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
-				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
-				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					KeyVaultURI: &validUri,
-				}
-				lgr.Info("creating NginxIngressController with valid keyvault uri field")
-				if err := c.Create(ctx, testNIC); err != nil {
-					return fmt.Errorf("unable to create NginxIngressController despite valid key vault uri'%s'", testNIC.Spec.ControllerNamePrefix)
-				}
 
 				invalidUri := "Invalid.URI"
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
@@ -203,6 +198,90 @@ func nicTests(in infra.Provisioned) []test {
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
+					return nil
+				}, to.Ptr(service.Name)); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
+		},
+		{
+			name: "testing DefaultSSLCertificate validity",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
+
+				c, err := client.New(config, client.Options{
+					Scheme: scheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w")
+				}
+
+				// get keyvault uri
+				kvuri := in.Cert.GetId()
+
+				// create defaultSSLCert
+				defaultSSLCert := v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &kvuri,
+				}
+
+				// create nic and upsert
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate = &defaultSSLCert
+				if err := upsert(ctx, c, testNIC); err != nil {
+					return fmt.Errorf("ensuring private NIC: %w", err)
+				}
+
+				// create and validate that spc was created
+				spc := &secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      keyvault.DefaultNginxCertName(testNIC),
+						Namespace: "app-routing-system",
+					},
+				}
+				blankSpc := &secv1.SecretProviderClass{}
+				c.Get(ctx, client.ObjectKeyFromObject(spc), blankSpc)
+				if err := upsert(ctx, c, testNIC); err != nil {
+					return fmt.Errorf("upserting NIC: %w", err)
+				}
+
+				var service v1alpha1.ManagedObjectReference
+				lgr.Info("waiting for service associated with private NIC to be ready")
+				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if private NIC service is ready")
+					var nic v1alpha1.NginxIngressController
+					if err := c.Get(ctx, client.ObjectKeyFromObject(testNIC), &nic); err != nil {
+						return false, fmt.Errorf("get private nic: %w", err)
+					}
+
+					if nic.Status.ManagedResourceRefs == nil {
+						return false, nil
+					}
+
+					for _, ref := range nic.Status.ManagedResourceRefs {
+						if ref.Kind == "Service" {
+							lgr.Info("found service")
+							service = ref
+							return true, nil
+						}
+					}
+
+					lgr.Info("service not found")
+					return false, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for test NIC to be ready: %w", err)
+				}
+
+				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {
 					return err
