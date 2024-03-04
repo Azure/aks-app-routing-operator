@@ -43,6 +43,7 @@ func init() {
 	appsv1.AddToScheme(scheme)
 	policyv1.AddToScheme(scheme)
 	rbacv1.AddToScheme(scheme)
+	secv1.AddToScheme(scheme)
 }
 
 func nicTests(in infra.Provisioned) []test {
@@ -250,6 +251,10 @@ func nicTests(in infra.Provisioned) []test {
 				blankSpc := &secv1.SecretProviderClass{}
 				if err := c.Get(ctx, client.ObjectKeyFromObject(spc), blankSpc); err != nil {
 					return fmt.Errorf("getting SPC: %w", err)
+				}
+
+				if err := upsert(ctx, c, testNIC); err != nil {
+					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
 				var service v1alpha1.ManagedObjectReference
