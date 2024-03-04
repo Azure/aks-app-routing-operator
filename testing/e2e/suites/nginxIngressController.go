@@ -241,22 +241,6 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
-				// create and validate that spc was created
-				spc := &secv1.SecretProviderClass{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      keyvault.DefaultNginxCertName(testNIC),
-						Namespace: "app-routing-system",
-					},
-				}
-				blankSpc := &secv1.SecretProviderClass{}
-				if err := c.Get(ctx, client.ObjectKeyFromObject(spc), blankSpc); err != nil {
-					return fmt.Errorf("getting SPC: %w", err)
-				}
-
-				if err := upsert(ctx, c, testNIC); err != nil {
-					return fmt.Errorf("upserting NIC: %w", err)
-				}
-
 				var service v1alpha1.ManagedObjectReference
 				lgr.Info("waiting for service associated with private NIC to be ready")
 				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
@@ -282,6 +266,30 @@ func nicTests(in infra.Provisioned) []test {
 					return false, nil
 				}); err != nil {
 					return fmt.Errorf("waiting for test NIC to be ready: %w", err)
+				}
+
+				lgr.Info("waiting for spc to be created after NIC")
+				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if associated SPC is created")
+					lgr.Info("checking if spc is created")
+					spc := &secv1.SecretProviderClass{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      keyvault.DefaultNginxCertName(testNIC),
+							Namespace: "app-routing-system",
+						},
+					}
+					cleanSPC := &secv1.SecretProviderClass{}
+
+					if err := c.Get(ctx, client.ObjectKeyFromObject(spc), cleanSPC); err != nil {
+						return false, fmt.Errorf("getting SPC: %w", err)
+					} else {
+						return true, nil
+					}
+
+					lgr.Info("spc not found")
+					return false, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for SPC to be ready: %w", err)
 				}
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
