@@ -248,7 +248,10 @@ func nicTests(in infra.Provisioned) []test {
 					},
 				}
 				blankSpc := &secv1.SecretProviderClass{}
-				c.Get(ctx, client.ObjectKeyFromObject(spc), blankSpc)
+				if err := c.Get(ctx, client.ObjectKeyFromObject(spc), blankSpc); err != nil {
+					return fmt.Errorf("getting SPC: %w", err)
+				}
+
 				if err := upsert(ctx, c, testNIC); err != nil {
 					return fmt.Errorf("upserting NIC: %w", err)
 				}
