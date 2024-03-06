@@ -382,7 +382,7 @@ func TestNginxSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 			nic.Spec.DefaultSSLCertificate.KeyVaultURI = &testSecretUri
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := buildSPC(nic, spc, BuildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
+			ok, err := buildSPC(nic, spc, buildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
 			require.NoError(t, err, "building SPC should not error")
 			require.True(t, ok, "SPC should be built")
 

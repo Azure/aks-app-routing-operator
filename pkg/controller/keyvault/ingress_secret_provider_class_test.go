@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -44,7 +45,7 @@ var (
 			IngressClassName: &spcTestIngressClassName,
 		},
 	}
-	spcTestDefaultConf = BuildTestSpcConfig("test-msi", "test-tenant", "test-cloud")
+	spcTestDefaultConf = buildTestSpcConfig("test-msi", "test-tenant", "test-cloud")
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -69,7 +70,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = logr.NewContext(ctx, logr.Discard())
+	ctx = logr.NewContext(ctx, zap.New())
 
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
@@ -393,7 +394,7 @@ func TestIngressSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 			}
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := buildSPC(ing, spc, BuildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
+			ok, err := buildSPC(ing, spc, buildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
 			require.NoError(t, err, "building SPC should not error")
 			require.True(t, ok, "SPC should be built")
 
@@ -404,7 +405,7 @@ func TestIngressSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 	}
 }
 
-func BuildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
+func buildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
 	spcTestConf := config.Config{
 		MSIClientID: msiClient,
 		TenantID:    tenantID,

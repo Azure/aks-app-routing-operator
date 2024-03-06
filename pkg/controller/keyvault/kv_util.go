@@ -3,15 +3,16 @@ package keyvault
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"reflect"
+	"strings"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	v1 "k8s.io/api/networking/v1"
-	"net/url"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-	"strings"
 )
 
 var nginxNamePrefix = "keyvault-nginx-"
@@ -19,24 +20,22 @@ var nginxNamePrefix = "keyvault-nginx-"
 func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.Config) (bool, error) {
 	var certURI, specSecretName string
 
-	switch objType := reflect.TypeOf(obj).String(); objType {
-	case "*v1alpha1.NginxIngressController":
-		nic, _ := obj.(*v1alpha1.NginxIngressController)
-		if nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
+	switch t := obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
 			return false, nil
 		}
-		certURI = *nic.Spec.DefaultSSLCertificate.KeyVaultURI
-		specSecretName = DefaultNginxCertName(nic)
-	case "*v1.Ingress":
-		ing, _ := obj.(*v1.Ingress)
-		if ing.Annotations == nil {
+		certURI = *t.Spec.DefaultSSLCertificate.KeyVaultURI
+		specSecretName = DefaultNginxCertName(t)
+	case *v1.Ingress:
+		if t.Annotations == nil {
 			return false, nil
 		}
 
-		certURI = ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-		specSecretName = fmt.Sprintf("keyvault-%s", ing.Name)
+		certURI = t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
+		specSecretName = fmt.Sprintf("keyvault-%s", t.Name)
 	default:
-		return false, fmt.Errorf("incorrect object type: %s", objType)
+		return false, fmt.Errorf("incorrect object type: %s", reflect.TypeOf(obj).String())
 	}
 
 	if certURI == "" {

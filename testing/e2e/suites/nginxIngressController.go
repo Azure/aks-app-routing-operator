@@ -82,7 +82,10 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: getTestSecret("Invalid+@Name", "validnamespace"),
+					Secret: &v1alpha1.Secret{
+						Name:      "Invalid+@Name",
+						Namespace: "validnamespace",
+					},
 				}
 				lgr.Info("creating NginxIngressController with invalid Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -91,7 +94,10 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: getTestSecret("validname", "Invalid+@Namespace"),
+					Secret: &v1alpha1.Secret{
+						Name:      "validname",
+						Namespace: "Invalid+@Namespace",
+					},
 				}
 				lgr.Info("creating NginxIngressController with invalid Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -100,7 +106,10 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: getTestSecret("validname", ""),
+					Secret: &v1alpha1.Secret{
+						Name:      "validname",
+						Namespace: "",
+					},
 				}
 				lgr.Info("creating NginxIngressController with empty Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -122,7 +131,10 @@ func nicTests(in infra.Provisioned) []test {
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
 					KeyVaultURI: &validUri,
-					Secret:      getTestSecret("validname", "validnamespace"),
+					Secret: &v1alpha1.Secret{
+						Name:      "validname",
+						Namespace: "validnamespace",
+					},
 				}
 				lgr.Info("creating NginxIngressController with both keyvault uri field and secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
@@ -280,14 +292,12 @@ func nicTests(in infra.Provisioned) []test {
 					}
 					cleanSPC := &secv1.SecretProviderClass{}
 
-					if err := c.Get(ctx, client.ObjectKeyFromObject(spc), cleanSPC); err != nil {
-						return false, fmt.Errorf("getting SPC: %w", err)
-					} else {
+					if err := c.Get(ctx, client.ObjectKeyFromObject(spc), cleanSPC); err == nil {
 						return true, nil
 					}
 
 					lgr.Info("spc not found")
-					return false, nil
+					return false, fmt.Errorf("getting SPC: %w", err)
 				}); err != nil {
 					return fmt.Errorf("waiting for SPC to be ready: %w", err)
 				}

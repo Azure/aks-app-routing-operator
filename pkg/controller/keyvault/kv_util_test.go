@@ -8,13 +8,22 @@ import (
 )
 
 var (
-	maxString = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbb"
+	testName      = "testName"
+	maxSizeString = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbb"
 )
 
 func TestDefaultNginxCertName(t *testing.T) {
+
 	testStr := DefaultNginxCertName(&v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: maxString,
+			Name: testName,
+		},
+	})
+	require.Equal(t, testStr, nginxNamePrefix+testName)
+
+	testStr = DefaultNginxCertName(&v1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: maxSizeString,
 		},
 	})
 

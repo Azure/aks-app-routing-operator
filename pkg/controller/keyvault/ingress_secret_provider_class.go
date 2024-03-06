@@ -6,6 +6,7 @@ package keyvault
 import (
 	"context"
 	"fmt"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -99,28 +100,27 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	logger = logger.WithValues("spc", spc.Name)
 
 	// Checking if we manage the ingress. All false cases without an error are assumed that we don't manage it
-	ok, err := i.ingressManager.IsManaging(ing)
-
-	if err != nil {
+	var isManaged bool
+	if isManaged, err = i.ingressManager.IsManaging(ing); err != nil {
 		return result, fmt.Errorf("determining if ingress is managed: %w", err)
 	}
 
-	if ok {
-		ok, err = buildSPC(ing, spc, i.config)
-	}
+	if isManaged {
+		var upsertSPC bool
 
-	if err != nil {
-		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
-		return result, nil
-	}
-	if ok {
-		logger.Info("reconciling secret provider class for ingress")
-		err = util.Upsert(ctx, i.client, spc)
-		if err != nil {
-			i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
+			logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
+			i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
+			return result, nil
 		}
-		return result, err
+
+		if upsertSPC {
+			logger.Info("reconciling secret provider class for ingress")
+			if err = util.Upsert(ctx, i.client, spc); err != nil {
+				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+			}
+			return result, err
+		}
 	}
 
 	logger.Info("cleaning unused managed spc for ingress")
@@ -128,8 +128,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 	toCleanSPC := &secv1.SecretProviderClass{}
 
-	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC)
-	if err != nil {
+	if err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC); err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
 

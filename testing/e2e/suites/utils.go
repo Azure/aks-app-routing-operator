@@ -3,7 +3,6 @@ package suites
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -62,12 +61,4 @@ func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 
 	lgr.Info("object updated")
 	return nil
-}
-
-func getTestSecret(name, namespace string) *v1alpha1.Secret {
-	sec := &v1alpha1.Secret{
-		Name:      name,
-		Namespace: namespace,
-	}
-	return sec
 }
