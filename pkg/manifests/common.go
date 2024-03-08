@@ -67,7 +67,6 @@ func Namespace(conf *config.Config) *corev1.Namespace {
 	}
 
 	if !conf.DisableOSM {
-		ns.ObjectMeta.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 		ns.ObjectMeta.Labels["openservicemesh.io/monitored-by"] = "osm"
 	}
 
