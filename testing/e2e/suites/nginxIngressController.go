@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -253,53 +253,56 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
-				var service v1alpha1.ManagedObjectReference
-				lgr.Info("waiting for service associated with private NIC to be ready")
-				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-					lgr.Info("checking if private NIC service is ready")
-					var nic v1alpha1.NginxIngressController
+				var service *v1alpha1.ManagedObjectReference
+				var nic v1alpha1.NginxIngressController
+				lgr.Info("waiting for NIC to be available")
+				if err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if NIC is available")
 					if err := c.Get(ctx, client.ObjectKeyFromObject(testNIC), &nic); err != nil {
-						return false, fmt.Errorf("get private nic: %w", err)
+						return false, fmt.Errorf("get nic: %w", err)
 					}
 
-					if nic.Status.ManagedResourceRefs == nil {
-						return false, nil
-					}
-
-					for _, ref := range nic.Status.ManagedResourceRefs {
-						if ref.Kind == "Service" {
-							lgr.Info("found service")
-							service = ref
+					for _, cond := range nic.Status.Conditions {
+						if cond.Type == v1alpha1.ConditionTypeAvailable {
+							lgr.Info("found nic")
+							if len(nic.Status.ManagedResourceRefs) == 0 {
+								lgr.Info("nic has no ManagedResourceRefs")
+								return false, nil
+							}
 							return true, nil
 						}
 					}
-
-					lgr.Info("service not found")
+					lgr.Info("nic not available")
 					return false, nil
 				}); err != nil {
-					return fmt.Errorf("waiting for test NIC to be ready: %w", err)
+					return fmt.Errorf("waiting for test NIC to be available: %w", err)
 				}
 
-				lgr.Info("waiting for spc to be created after NIC")
-				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-					lgr.Info("checking if associated SPC is created")
-					lgr.Info("checking if spc is created")
-					spc := &secv1.SecretProviderClass{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      keyvault.DefaultNginxCertName(testNIC),
-							Namespace: "app-routing-system",
-						},
-					}
-					cleanSPC := &secv1.SecretProviderClass{}
+				lgr.Info("checking if associated SPC is created")
+				spc := &secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      keyvault.DefaultNginxCertName(testNIC),
+						Namespace: "app-routing-system",
+					},
+				}
+				cleanSPC := &secv1.SecretProviderClass{}
 
-					if err := c.Get(ctx, client.ObjectKeyFromObject(spc), cleanSPC); err == nil {
-						return true, nil
-					}
-
+				if err := c.Get(ctx, client.ObjectKeyFromObject(spc), cleanSPC); err != nil {
 					lgr.Info("spc not found")
-					return false, fmt.Errorf("getting SPC: %w", err)
-				}); err != nil {
-					return fmt.Errorf("waiting for SPC to be ready: %w", err)
+					return err
+				}
+				lgr.Info("found spc")
+
+				lgr.Info("checking for service in managed resource refs")
+				for _, ref := range nic.Status.ManagedResourceRefs {
+					if ref.Kind == "Service" {
+						lgr.Info("found service")
+						service = &ref
+					}
+				}
+
+				if service == nil {
+					return fmt.Errorf("no service available in resource refs")
 				}
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
