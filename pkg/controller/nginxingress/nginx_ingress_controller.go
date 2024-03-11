@@ -537,5 +537,11 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		}
 	}
 
+	if nic.Spec.DefaultBackendService != nil {
+		if *nic.Spec.DefaultBackendService != "" {
+			nginxIng.DefaultBackendService = *nic.Spec.DefaultBackendService
+		}
+	}
+
 	return nginxIng
 }

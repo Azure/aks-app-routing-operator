@@ -61,6 +61,12 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              defaultBackendService:
+                description: DefaultBackendService defines the service that the NginxIngressController
+                  should default to when given HTTP traffic with not matching known
+                  server names. The controller directs traffic to the first port of
+                  the service. Service should expose /health and / endpoints
+                type: string
               defaultSSLCertificate:
                 description: DefaultSSLCertificate defines whether the NginxIngressController
                   should use a certain SSL certificate by default. If this field is
