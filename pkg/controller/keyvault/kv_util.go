@@ -3,38 +3,39 @@ package keyvault
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"reflect"
+	"strings"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	v1 "k8s.io/api/networking/v1"
-	"net/url"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-	"strings"
 )
 
-var NginxNamePrefix = "keyvault-nginx-"
+var nginxNamePrefix = "keyvault-nginx-"
 
-func BuildSPC(ic interface{}, spc *secv1.SecretProviderClass, config *config.Config) (bool, error) {
+func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.Config) (bool, error) {
 	var certURI, specSecretName string
 
-	if nic, ok := ic.(*v1alpha1.NginxIngressController); ok {
-		if nic.Spec.IngressClassName == "" {
+	switch t := obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
 			return false, nil
 		}
-		if nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
-			return false, nil
-		}
-		certURI = *nic.Spec.DefaultSSLCertificate.KeyVaultURI
-		specSecretName = DefaultNginxCertName(nic)
-	}
-
-	if ing, ok := ic.(*v1.Ingress); ok {
-		if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
+		certURI = *t.Spec.DefaultSSLCertificate.KeyVaultURI
+		specSecretName = DefaultNginxCertName(t)
+	case *v1.Ingress:
+		if t.Annotations == nil {
 			return false, nil
 		}
 
-		certURI = ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-		specSecretName = fmt.Sprintf("keyvault-%s", ing.Name)
+		certURI = t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
+		specSecretName = fmt.Sprintf("keyvault-%s", t.Name)
+	default:
+		return false, fmt.Errorf("incorrect object type: %s", reflect.TypeOf(obj).String())
 	}
 
 	if certURI == "" {
@@ -105,7 +106,7 @@ func BuildSPC(ic interface{}, spc *secv1.SecretProviderClass, config *config.Con
 // Truncates characters in the IngressClassName passed the max secret length (255) if the IngressClassName and the default namespace are over the limit
 func DefaultNginxCertName(nic *v1alpha1.NginxIngressController) string {
 	secretMaxSize := 255
-	certName := NginxNamePrefix + nic.Name
+	certName := nginxNamePrefix + nic.Name
 
 	if len(certName) > secretMaxSize {
 		return certName[0:secretMaxSize]
