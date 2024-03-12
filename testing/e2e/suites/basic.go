@@ -32,7 +32,7 @@ func basicSuite(in infra.Provisioned) []test {
 			name: "basic ingress",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -47,7 +47,7 @@ func basicSuite(in infra.Provisioned) []test {
 			name: "basic service",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
