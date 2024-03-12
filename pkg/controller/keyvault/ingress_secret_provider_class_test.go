@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -70,7 +69,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = logr.NewContext(ctx, zap.New())
+	ctx = logr.NewContext(ctx, logr.Discard())
 
 	// Create the secret provider class
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ing.Namespace, Name: ing.Name}}
