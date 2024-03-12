@@ -20,7 +20,7 @@ func osmSuite(in infra.Provisioned) []test {
 			name: "osm ingress",
 			cfgs: builderFromInfra(in).
 				withOsm(in, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, osmNs, in,
@@ -41,7 +41,7 @@ func osmSuite(in infra.Provisioned) []test {
 			name: "osm service",
 			cfgs: builderFromInfra(in).
 				withOsm(in, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				if err := clientServerTest(ctx, config, operator, osmNs, in,
