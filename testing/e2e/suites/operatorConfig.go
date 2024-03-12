@@ -26,17 +26,16 @@ type cfgBuilderWithOsm struct {
 }
 
 func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWithOsm {
-	if len(enabled) == 0 {
-		enabled = []bool{false}
-	}
-
-	osms := make([]bool, 0, len(enabled))
-
 	osmCluster := false
 	if _, ok := in.Cluster.GetOptions()[clients.OsmClusterOpt.Name]; ok {
 		osmCluster = true
 	}
 
+	if len(enabled) == 0 {
+		enabled = []bool{osmCluster}
+	}
+
+	osms := make([]bool, 0, len(enabled))
 	for _, e := range enabled {
 		// osm tests can only work if the cluster has osm installed.
 		// filter out any enabled on clusters without osm
