@@ -21,7 +21,7 @@ func promSuite(in infra.Provisioned) []test {
 			name: "ingress prometheus metrics",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllOperatorVersions...).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
