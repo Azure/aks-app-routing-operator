@@ -3,13 +3,10 @@ package suites
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	appManifests "github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/rest"
@@ -20,38 +17,17 @@ var (
 	osmNs = make(map[string]*corev1.Namespace)
 )
 
-func restartNginxDeployment(config *rest.Config) error {
+func deleteNginxPods(config *rest.Config) error {
 	c, err := client.New(config, client.Options{})
 	if err != nil {
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	defaulticc, err := nginxingress.GetDefaultIngressClassControllerClass(c)
+	podLabels := appManifests.GetTopLevelLabels()
+	podLabels["app.kubernetes.io/component"] = "ingress-controller"
+	err = c.DeleteAllOf(context.Background(), &corev1.Pod{}, client.InNamespace(manifests.ManagedResourceNs), client.MatchingLabels(podLabels))
 	if err != nil {
-		return fmt.Errorf("getting default ingress class controller: %w", err)
-	}
-
-	nic := nginxingress.GetDefaultNginxIngressController()
-	nginxIngressCfg := nginxingress.ToNginxIngressConfig(&nic, defaulticc)
-
-	deploymentLabels := appManifests.GetTopLevelLabels()
-	deploymentLabels["app.kubernetes.io/component"] = "ingress-controller"
-
-	var nginxDep appsv1.Deployment
-
-	err = c.Get(context.Background(), client.ObjectKey{Namespace: manifests.ManagedResourceNs, Name: nginxIngressCfg.ResourceName}, &nginxDep)
-	if err != nil {
-		return fmt.Errorf("getting nginx deployment: %w", err)
-	}
-
-	if nginxDep.Spec.Template.ObjectMeta.Annotations == nil {
-		nginxDep.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
-	}
-	nginxDep.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
-
-	err = c.Update(context.Background(), &nginxDep)
-	if err != nil {
-		return fmt.Errorf("updating nginx deployment: %w", err)
+		return fmt.Errorf("deleting nginx pods: %w", err)
 	}
 
 	return nil
@@ -81,7 +57,7 @@ func osmSuite(in infra.Provisioned) []test {
 					return err
 				}
 
-				if err := restartNginxDeployment(config); err != nil {
+				if err := deleteNginxPods(config); err != nil {
 					return err
 				}
 
@@ -112,7 +88,7 @@ func osmSuite(in infra.Provisioned) []test {
 					return err
 				}
 
-				if err := restartNginxDeployment(config); err != nil {
+				if err := deleteNginxPods(config); err != nil {
 					return err
 				}
 
