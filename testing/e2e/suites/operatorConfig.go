@@ -43,6 +43,10 @@ func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWit
 			continue
 		}
 
+		if osmCluster && !e {
+			continue
+		}
+
 		osms = append(osms, e)
 	}
 
