@@ -538,8 +538,8 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 	}
 
 	if nic.Spec.DefaultBackendService != nil {
-		if *nic.Spec.DefaultBackendService != "" {
-			nginxIng.DefaultBackendService = *nic.Spec.DefaultBackendService
+		if nic.Spec.DefaultBackendService.Name != "" && nic.Spec.DefaultBackendService.Namespace != "" {
+			nginxIng.DefaultBackendService = nic.Spec.DefaultBackendService.Namespace + "/" + nic.Spec.DefaultBackendService.Name
 		}
 	}
 

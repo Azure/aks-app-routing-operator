@@ -82,7 +82,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.Secret{
+					Secret: &v1alpha1.NICNamespacedName{
 						Name:      "Invalid+@Name",
 						Namespace: "validnamespace",
 					},
@@ -94,7 +94,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.Secret{
+					Secret: &v1alpha1.NICNamespacedName{
 						Name:      "validname",
 						Namespace: "Invalid+@Namespace",
 					},
@@ -106,7 +106,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.Secret{
+					Secret: &v1alpha1.NICNamespacedName{
 						Name:      "validname",
 						Namespace: "",
 					},
@@ -131,7 +131,7 @@ func nicTests(in infra.Provisioned) []test {
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
 					KeyVaultURI: &validUri,
-					Secret: &v1alpha1.Secret{
+					Secret: &v1alpha1.NICNamespacedName{
 						Name:      "validname",
 						Namespace: "validnamespace",
 					},
@@ -139,6 +139,39 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("creating NginxIngressController with both keyvault uri field and secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
 					return fmt.Errorf("able to create NginxIngressController despite having both keyvaulturi and secret fields'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				// resetting DefaultSSLCertificate for testNIC
+				testNIC.Spec.DefaultSSLCertificate = nil
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{
+					Name:      "Invalid+@Name",
+					Namespace: "validnamespace",
+				}
+				lgr.Info("creating NginxIngressController with invalid Name field in DefaultBackendService")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite invalid Name field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{
+					Name:      "validname",
+					Namespace: "Invalid+@Namespace",
+				}
+				lgr.Info("creating NginxIngressController with invalid Namespace field in DefaultBackendService")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite invalid Namespace field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{
+					Name:      "validname",
+					Namespace: "",
+				}
+				lgr.Info("creating NginxIngressController with missing Namespace field in DefaultBackendService")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite missing Namespace field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
 				lgr.Info("finished testing")

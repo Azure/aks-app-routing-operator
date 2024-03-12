@@ -91,7 +91,7 @@ func TestReconcileResources(t *testing.T) {
 			Spec: approutingv1alpha1.NginxIngressControllerSpec{
 				IngressClassName:      "ingressClassName",
 				ControllerNamePrefix:  "prefix",
-				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.Secret{Name: "test-name", Namespace: "test-namespace"}},
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.NICNamespacedName{Name: "test-name", Namespace: "test-namespace"}},
 			},
 		}
 		res := n.ManagedResources(nic)
@@ -890,7 +890,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCert := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeDefaultSSLCertNoName := getFakeDefaultSSLCert("", "fakenamespace")
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
-	FakeDefaultBackend := "fakenamespace/fakename"
+	FakeDefaultBackend := approutingv1alpha1.NICNamespacedName{"fakename", "fakenamespace"}
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -1058,7 +1058,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:          DefaultNicResourceName,
 				IcName:                DefaultIcName,
 				ServiceConfig:         &manifests.ServiceConfig{},
-				DefaultBackendService: FakeDefaultBackend,
+				DefaultBackendService: FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
 			},
 		},
 	}
@@ -1073,7 +1073,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 
 func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
 	fakecert := &approutingv1alpha1.DefaultSSLCertificate{
-		Secret: &approutingv1alpha1.Secret{
+		Secret: &approutingv1alpha1.NICNamespacedName{
 			Name:      name,
 			Namespace: namespace,
 		},
