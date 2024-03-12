@@ -75,6 +75,10 @@ func osmSuite(in infra.Provisioned) []test {
 				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				if operator.DisableOsm {
+					return fmt.Errorf("running osm suite without osm enabled")
+				}
+
 				applyOsmSvcAnnotations := func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress = nil
 					annotations := service.GetAnnotations()
