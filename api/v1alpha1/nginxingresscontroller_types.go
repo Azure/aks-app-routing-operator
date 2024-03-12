@@ -50,6 +50,30 @@ type NginxIngressControllerSpec struct {
 	// will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+
+	// DefaultSSLCertificate defines whether the NginxIngressController should use a certain SSL certificate by default.
+	// If this field is omitted, no default certificate will be used.
+	// +optional
+	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+}
+
+type DefaultSSLCertificate struct {
+	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
+	// +optional
+	Secret *Secret `json:"secret,omitempty"`
+}
+
+// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
+type Secret struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Name string `json:"name"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Namespace string `json:"namespace"`
 }
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController

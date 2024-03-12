@@ -518,7 +518,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		resourceName = DefaultNicResourceName
 	}
 
-	return &manifests.NginxIngressConfig{
+	nginxIng := &manifests.NginxIngressConfig{
 		ControllerClass: cc,
 		ResourceName:    resourceName,
 		IcName:          nic.Spec.IngressClassName,
@@ -526,4 +526,11 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 			Annotations: nic.Spec.LoadBalancerAnnotations,
 		},
 	}
+
+	if nic.Spec.DefaultSSLCertificate != nil &&
+		nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
+		nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
+	}
+
+	return nginxIng
 }
