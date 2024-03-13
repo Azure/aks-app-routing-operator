@@ -45,13 +45,13 @@ type aks struct {
 // the rest of the information for testing purposes.
 type ServicePrincipal struct {
 	// ApplicationObjectID is Object ID of the application associated with the service principal
-	ApplicationObjectID          string 
+	ApplicationObjectID string
 	// ApplicationClientID is the Client ID of the application and service principal (also called AppID of the service principal)
-	ApplicationClientID          string 
+	ApplicationClientID string
 	// ServicePrincipalObjectID is Object ID of the service principal
-	ServicePrincipalObjectID     string 
+	ServicePrincipalObjectID string
 	// ServicePrincipalCredPassword is a generated password credential for the application associated with the service principal
-	ServicePrincipalCredPassword string 
+	ServicePrincipalCredPassword string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -154,8 +154,8 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 			ClientID: to.Ptr(spOpts.ApplicationClientID),
 			Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
 		}
-	}else{
-		mc.Identity= &armcontainerservice.ManagedClusterIdentity{
+	} else {
+		mc.Identity = &armcontainerservice.ManagedClusterIdentity{
 			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
 		}
 	}
@@ -357,7 +357,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 					getLogsFn := func() error { // right now this just dumps all logs on the pod, if we eventually have more logs
 						// than can be stored we will need to "stream" this by using the --since-time flag
 						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s", obj.GetName(), ns)),
+							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s --since=5m", obj.GetName(), ns)),
 						}, runCommandOpts{
 							outputFile: outputFile,
 						}); err != nil {
