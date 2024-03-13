@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"net/url"
 	"time"
 
@@ -527,9 +528,19 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		},
 	}
 
-	if nic.Spec.DefaultSSLCertificate != nil &&
-		nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
-		nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
+	if nic.Spec.DefaultSSLCertificate != nil {
+		if nic.Spec.DefaultSSLCertificate.Secret != nil && nic.Spec.DefaultSSLCertificate.Secret.Name != "" && nic.Spec.DefaultSSLCertificate.Secret.Namespace != "" {
+			nginxIng.DefaultSSLCertificate = nic.Spec.DefaultSSLCertificate.Secret.Namespace + "/" + nic.Spec.DefaultSSLCertificate.Secret.Name
+		}
+		if nic.Spec.DefaultSSLCertificate != nil && nic.Spec.DefaultSSLCertificate.KeyVaultURI != nil {
+			nginxIng.DefaultSSLCertificate = config.DefaultNs + "/" + keyvault.DefaultNginxCertName(nic)
+		}
+	}
+
+	if nic.Spec.DefaultBackendService != nil {
+		if nic.Spec.DefaultBackendService.Name != "" && nic.Spec.DefaultBackendService.Namespace != "" {
+			nginxIng.DefaultBackendService = nic.Spec.DefaultBackendService.Namespace + "/" + nic.Spec.DefaultBackendService.Name
+		}
 	}
 
 	return nginxIng

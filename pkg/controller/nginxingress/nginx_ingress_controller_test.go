@@ -73,6 +73,86 @@ func TestReconcileResources(t *testing.T) {
 		}
 	})
 
+	t.Run("valid resources with defaultSSLCertificate Secret", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:      "ingressClassName",
+				ControllerNamePrefix:  "prefix",
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.NICNamespacedName{Name: "test-name", Namespace: "test-namespace"}},
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
+	t.Run("valid resources with defaultSSLCertificate key vault URI", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+		kvUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:      "ingressClassName",
+				ControllerNamePrefix:  "prefix",
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{KeyVaultURI: &kvUri},
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
 	t.Run("invalid resources", func(t *testing.T) {
 		cl := fake.NewFakeClient()
 		events := record.NewFakeRecorder(10)
@@ -810,6 +890,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCert := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeDefaultSSLCertNoName := getFakeDefaultSSLCert("", "fakenamespace")
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
+	FakeDefaultBackend := approutingv1alpha1.NICNamespacedName{"fakename", "fakenamespace"}
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -956,6 +1037,30 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ServiceConfig:   &manifests.ServiceConfig{},
 			},
 		},
+		{
+			name: "default controller class with DefaultBackendService",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultBackendService: &FakeDefaultBackend,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:       defaultCc,
+				ResourceName:          DefaultNicResourceName,
+				IcName:                DefaultIcName,
+				ServiceConfig:         &manifests.ServiceConfig{},
+				DefaultBackendService: FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -968,7 +1073,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 
 func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
 	fakecert := &approutingv1alpha1.DefaultSSLCertificate{
-		Secret: &approutingv1alpha1.Secret{
+		Secret: &approutingv1alpha1.NICNamespacedName{
 			Name:      name,
 			Namespace: namespace,
 		},

@@ -116,6 +116,7 @@ type NginxIngressConfig struct {
 	IcName                string         // IngressClass name
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	DefaultBackendService string
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -439,8 +440,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--https-port=8443",
 	}
 
-	if ingressConfig.DefaultSSLCertificate != "" {
+	switch {
+	case ingressConfig.DefaultSSLCertificate != "":
 		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+ingressConfig.DefaultSSLCertificate)
+	case ingressConfig.DefaultBackendService != "":
+		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
 	}
 
 	return &appsv1.Deployment{

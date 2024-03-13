@@ -55,16 +55,28 @@ type NginxIngressControllerSpec struct {
 	// If this field is omitted, no default certificate will be used.
 	// +optional
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+
+	// DefaultBackendService defines the service that the NginxIngressController should default to when given HTTP traffic with not matching known server names.
+	// The controller directs traffic to the first port of the service. Service should expose /health and / endpoints
+	// +optional
+	DefaultBackendService *NICNamespacedName `json:"defaultBackendService,omitempty"`
 }
 
+// DefaultSSLCertificate holds a secret in the form of a secret struct ith name and namespace properties or a key vault uri
+// +kubebuilder:validation:MaxProperties=1
+// +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
-	Secret *Secret `json:"secret,omitempty"`
+	Secret *NICNamespacedName `json:"secret,omitempty"`
+
+	// Secret in the form of a Key Vault URI
+	// +optional
+	KeyVaultURI *string `json:"keyVaultURI"`
 }
 
-// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
-type Secret struct {
+// NICNamespacedName is a struct that holds a name and namespace with length checking on the crd
+type NICNamespacedName struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
