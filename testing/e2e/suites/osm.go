@@ -23,10 +23,8 @@ func deleteNginxPods(config *rest.Config) error {
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	podLabels := appManifests.GetTopLevelLabels()
-	podLabels["app.kubernetes.io/component"] = "ingress-controller"
-	err = c.DeleteAllOf(context.Background(), &corev1.Pod{}, client.InNamespace(manifests.ManagedResourceNs), client.MatchingLabels(podLabels))
-	if err != nil {
+	podLabels := appManifests.AddComponentLabel(appManifests.GetTopLevelLabels(), appManifests.IngressControllerComponentName)
+	if err := c.DeleteAllOf(context.Background(), &corev1.Pod{}, client.InNamespace(manifests.ManagedResourceNs), client.MatchingLabels(podLabels)); err != nil {
 		return fmt.Errorf("deleting nginx pods: %w", err)
 	}
 
@@ -42,9 +40,6 @@ func osmSuite(in infra.Provisioned) []test {
 				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				if operator.DisableOsm {
-					return fmt.Errorf("running osm suite without osm enabled")
-				}
 				osmAnnotationsModifier := func(ingress *netv1.Ingress, service *corev1.Service, _ zoner) error {
 					annotations := ingress.GetAnnotations()
 					annotations["kubernetes.azure.com/use-osm-mtls"] = "true"
@@ -75,10 +70,6 @@ func osmSuite(in infra.Provisioned) []test {
 				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				if operator.DisableOsm {
-					return fmt.Errorf("running osm suite without osm enabled")
-				}
-
 				applyOsmSvcAnnotations := func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress = nil
 					annotations := service.GetAnnotations()

@@ -39,11 +39,7 @@ func (c cfgBuilder) withOsm(in infra.Provisioned, enabled ...bool) cfgBuilderWit
 	for _, e := range enabled {
 		// osm tests can only work if the cluster has osm installed.
 		// filter out any enabled on clusters without osm
-		if !osmCluster && e {
-			continue
-		}
-
-		if osmCluster && !e {
+		if osmCluster != e {
 			continue
 		}
 
