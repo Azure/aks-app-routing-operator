@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/avast/retry-go"
 	"golang.org/x/exp/slog"
 )
 
@@ -103,6 +104,13 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 	defer lgr.Info("finished building and pushing image")
 
 	start := time.Now()
+
+	retry.Do(
+		func() error {
+			return nil
+		},
+	)
+
 	for {
 		// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
 		// I matched everything on the az cli but wasn't able to get it working with the sdk.
@@ -124,7 +132,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 				return fmt.Errorf("running build and push command: %w", err)
 			}
 
-			if time.Since(start) > 1*time.Minute {
+			if time.Since(start) > 5*time.Minute {
 				return fmt.Errorf("acr not found after 1 minute")
 			}
 
