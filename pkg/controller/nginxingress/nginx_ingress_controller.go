@@ -542,5 +542,16 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 	} else {
 		nginxIng.ForceSSLRedirect = false
 	}
+
+	if nic.Spec.CustomHTTPErrors != nil {
+		errStr := ""
+		for i, errCode := range nic.Spec.CustomHTTPErrors {
+			errStr += string(rune(errCode))
+			if i+1 < len(nic.Spec.CustomHTTPErrors) {
+				errStr += ","
+			}
+		}
+	}
+
 	return nginxIng
 }

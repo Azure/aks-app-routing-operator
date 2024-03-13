@@ -61,6 +61,11 @@ spec:
                 x-kubernetes-validations:
                 - message: Value is immutable
                   rule: self == oldSelf
+              customHTTPErrors:
+                description: CustomHTTPErrors
+                items:
+                  type: integer
+                type: array
               defaultSSLCertificate:
                 description: DefaultSSLCertificate defines whether the NginxIngressController
                   should use a certain SSL certificate by default. If this field is
@@ -92,9 +97,8 @@ spec:
                 x-kubernetes-validations:
                 - rule: (isURL(self.keyVaultURI) || !has(self.keyVaultURI))
               forceSSLRedirect:
-                description: 'ForceSSLRedirect is a flag that sets the global value
+                description: ForceSSLRedirect is a flag that sets the global value
                   of redirects to HTTPS if there is a defined DefaultSSLCertificate
-                  (TODO: CEL to validate that DefaultSSLCertificate is being used)'
                 type: boolean
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com

@@ -60,6 +60,10 @@ type NginxIngressControllerSpec struct {
 	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
 	// +optional
 	ForceSSLRedirect *bool `json:"forceSSLRedirect,omitempty"`
+
+	// CustomHTTPErrors
+	// +optional
+	CustomHTTPErrors []int `json:"customHTTPErrors,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct ith name and namespace properties or a key vault uri

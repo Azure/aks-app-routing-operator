@@ -117,6 +117,7 @@ type NginxIngressConfig struct {
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
 	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
+	CustomHTTPErrors      string
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -526,9 +527,11 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 	if ingressConfig.DefaultSSLCertificate != "" {
 		if ingressConfig.ForceSSLRedirect {
 			confMap.Data["force-ssl-redirect"] = "true"
-		} else {
-			confMap.Data["force-ssl-redirect"] = "false"
 		}
+	}
+
+	if ingressConfig.CustomHTTPErrors != "" {
+		confMap.Data["custom-http-errors"] = ingressConfig.CustomHTTPErrors
 	}
 
 	return confMap

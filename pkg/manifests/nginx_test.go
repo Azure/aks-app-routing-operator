@@ -154,6 +154,29 @@ var (
 				ForceSSLRedirect:      true,
 			},
 		},
+		{
+			Name: "internal-with-custom-http-errors",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:  "test-controller-class",
+				ResourceName:     "nginx",
+				IcName:           "nginx-private",
+				CustomHTTPErrors: "404,503",
+			},
+		},
 	}
 	classTestCases = []struct {
 		Name      string
