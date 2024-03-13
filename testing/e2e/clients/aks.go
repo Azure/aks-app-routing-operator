@@ -361,7 +361,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 						}, runCommandOpts{
 							outputFile: outputFile,
 						}); err != nil {
-							return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+							return fmt.Errorf("getting logs for for job/%s: %w", obj.GetName(), err)
 						}
 
 						return nil
