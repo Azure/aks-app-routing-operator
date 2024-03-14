@@ -88,6 +88,7 @@ type ScalingSpec struct {
 	// +optional
 	MinReplicas *int32 `json:"minReplicas"`
 	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
+	// +kubebuilder:validation:Minimum=1
 	// +optional
 	MaxReplicas *int32 `json:"maxReplicas"`
 }

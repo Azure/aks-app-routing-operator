@@ -116,6 +116,8 @@ type NginxIngressConfig struct {
 	IcName                string         // IngressClass name
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	MinReplicas           int32
+	MaxReplicas           int32
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -559,8 +561,8 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 				Kind:       "Deployment",
 				Name:       ingressConfig.ResourceName,
 			},
-			MinReplicas:                    util.Int32Ptr(2),
-			MaxReplicas:                    100,
+			MinReplicas:                    util.Int32Ptr(ingressConfig.MinReplicas),
+			MaxReplicas:                    ingressConfig.MaxReplicas,
 			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
 		},
 	}
