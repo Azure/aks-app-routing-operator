@@ -526,8 +526,6 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 	if ingressConfig.DefaultSSLCertificate != "" {
 		if ingressConfig.ForceSSLRedirect {
 			confMap.Data["force-ssl-redirect"] = "true"
-		} else {
-			confMap.Data["force-ssl-redirect"] = "false"
 		}
 	}
 
