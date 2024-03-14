@@ -101,9 +101,9 @@ spec:
                   to the NGINX Ingress Controller's Service. Common annotations will
                   be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
-              scalingSpec:
-                description: ScalingSpec defines configuration options for how the
-                  Ingress Controller scales
+              scaling:
+                description: Scaling defines configuration options for how the Ingress
+                  Controller scales
                 properties:
                   maxReplicas:
                     description: MaxReplicas is the upper limit for the number of
@@ -119,8 +119,8 @@ spec:
                     type: integer
                 type: object
                 x-kubernetes-validations:
-                - rule: (self.minReplicas == null || self.maxReplicas == null) ||
-                    (self.minReplicas <= self.maxReplicas)
+                - rule: (!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas
+                    <= self.maxReplicas)
             required:
             - controllerNamePrefix
             - ingressClassName

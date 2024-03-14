@@ -823,6 +823,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:    DefaultNicResourceName,
 				IcName:          DefaultIcName,
 				ServiceConfig:   &manifests.ServiceConfig{},
+				MaxReplicas:     defaultMaxReplicas,
+				MinReplicas:     defaultMinReplicas,
 			},
 		},
 		{
@@ -841,6 +843,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig:   &manifests.ServiceConfig{},
 				IcName:          "ingressClassName",
+				MaxReplicas:     defaultMaxReplicas,
+				MinReplicas:     defaultMinReplicas,
 			},
 		},
 		{
@@ -865,7 +869,9 @@ func TestToNginxIngressConfig(t *testing.T) {
 						"foo": "bar",
 					},
 				},
-				IcName: "ingressClassName",
+				IcName:      "ingressClassName",
+				MaxReplicas: defaultMaxReplicas,
+				MinReplicas: defaultMinReplicas,
 			},
 		},
 		{
@@ -884,6 +890,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig:   &manifests.ServiceConfig{},
 				IcName:          "ingressClassName",
+				MaxReplicas:     defaultMaxReplicas,
+				MinReplicas:     defaultMinReplicas,
 			},
 		},
 		{
@@ -908,6 +916,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:                DefaultIcName,
 				ServiceConfig:         &manifests.ServiceConfig{},
 				DefaultSSLCertificate: FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:           defaultMaxReplicas,
+				MinReplicas:           defaultMinReplicas,
 			},
 		},
 		{
@@ -931,6 +941,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:    DefaultNicResourceName,
 				IcName:          DefaultIcName,
 				ServiceConfig:   &manifests.ServiceConfig{},
+				MaxReplicas:     defaultMaxReplicas,
+				MinReplicas:     defaultMinReplicas,
 			},
 		},
 		{
@@ -954,6 +966,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ResourceName:    DefaultNicResourceName,
 				IcName:          DefaultIcName,
 				ServiceConfig:   &manifests.ServiceConfig{},
+				MaxReplicas:     defaultMaxReplicas,
+				MinReplicas:     defaultMinReplicas,
 			},
 		},
 	}
