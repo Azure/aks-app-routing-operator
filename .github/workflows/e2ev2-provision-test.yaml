@@ -91,7 +91,7 @@ jobs:
 
       - name: Print test logs
         shell: bash
-        run: head -n 100 testing/e2e/job-app-routing-operator-e2e.log && tail -n 200 testing/e2e/job-app-routing-operator-e2e.log
+        run: echo "printing first 100 lines and last 200 lines of e2e logs..." && head -n 100 testing/e2e/job-app-routing-operator-e2e.log && tail -n 200 testing/e2e/job-app-routing-operator-e2e.log
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'success')
 
       - name: Ensure ref
