@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/avast/retry-go"
 	"golang.org/x/exp/slog"
 )
 
@@ -104,12 +103,6 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 	defer lgr.Info("finished building and pushing image")
 
 	start := time.Now()
-
-	retry.Do(
-		func() error {
-			return nil
-		},
-	)
 
 	for {
 		// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
