@@ -357,7 +357,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 					getLogsFn := func() error { // right now this just dumps all logs on the pod, if we eventually have more logs
 						// than can be stored we will need to "stream" this by using the --since-time flag
 						if err := a.runCommand(ctx, armcontainerservice.RunCommandRequest{
-							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s --since=5m", obj.GetName(), ns)),
+							Command: to.Ptr(fmt.Sprintf("kubectl logs job/%s -n %s", obj.GetName(), ns)),
 						}, runCommandOpts{
 							outputFile: outputFile,
 						}); err != nil {
