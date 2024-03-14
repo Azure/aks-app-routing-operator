@@ -55,6 +55,10 @@ type NginxIngressControllerSpec struct {
 	// If this field is omitted, no default certificate will be used.
 	// +optional
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+
+	// ScalingSpec defines configuration options for how the Ingress Controller scales
+	// +optional
+	ScalingSpec *ScalingSpec `json:"scalingSpec,omitempty"`
 }
 
 type DefaultSSLCertificate struct {
@@ -68,12 +72,24 @@ type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	Namespace string `json:"namespace"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// ScalingSpec holds specification for how the Ingress Controller scales
+// +kubebuilder:validation:XValidation:rule="(self.minReplicas == null || self.maxReplicas == null) || (self.minReplicas <= self.maxReplicas)"
+type ScalingSpec struct {
+	// MinReplicas is the lower limit for the number of Ingress Controller replicas. It defaults to 2 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MinReplicas *int32 `json:"minReplicas"`
+	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
+	// +optional
+	MaxReplicas *int32 `json:"maxReplicas"`
 }
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
