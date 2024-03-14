@@ -28,7 +28,8 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 			}
 		}
 
-		if time.Since(start) > 20*time.Minute { // 20 minutes because it takes a decent amount of time for dns to "propagate"
+		// 20 minutes because it takes a decent amount of time for dns to "propagate", and up to 30 min for Azure RBAC to propagate for ExternalDNS to read the DNS zones
+		if time.Since(start) > 20*time.Minute {
 			return fmt.Errorf("timed out waiting for deployment to be available")
 		}
 

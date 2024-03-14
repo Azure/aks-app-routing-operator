@@ -125,7 +125,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 				return fmt.Errorf("running build and push command: %w", err)
 			}
 
-			if time.Since(start) > 5*time.Minute {
+			if time.Since(start) > 1*time.Minute {
 				return fmt.Errorf("acr not found after 1 minute")
 			}
 
