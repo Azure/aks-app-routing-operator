@@ -72,7 +72,7 @@ type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	Name string `json:"name,omitempty"`
+	Name string `json:"name"`
 
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
@@ -86,11 +86,11 @@ type Scaling struct {
 	// MinReplicas is the lower limit for the number of Ingress Controller replicas. It defaults to 2 pods.
 	// +kubebuilder:validation:Minimum=1
 	// +optional
-	MinReplicas *int32 `json:"minReplicas"`
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
 	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
 	// +kubebuilder:validation:Minimum=1
 	// +optional
-	MaxReplicas *int32 `json:"maxReplicas"`
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
 }
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
