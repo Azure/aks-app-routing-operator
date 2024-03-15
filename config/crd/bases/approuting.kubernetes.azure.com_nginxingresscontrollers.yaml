@@ -82,6 +82,7 @@ spec:
                         type: string
                     required:
                     - name
+                    - namespace
                     type: object
                 type: object
               ingressClassName:
