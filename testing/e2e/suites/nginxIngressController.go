@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -110,6 +111,71 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("creating NginxIngressController with empty Secret field")
 				if err := c.Create(ctx, testNIC); err == nil {
 					return fmt.Errorf("able to create NginxIngressController despite missing Secret field'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				// scaling profile
+				rejectTests := []struct {
+					name string
+					nic  *v1alpha1.NginxIngressController
+				}{
+					{
+						name: "0 min replicas",
+						nic: func() *v1alpha1.NginxIngressController {
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
+							nic.Spec.Scaling = &v1alpha1.Scaling{
+								MinReplicas: util.Int32Ptr(0),
+							}
+							return nic
+						}(),
+					},
+					{
+						name: "negative min replicas",
+						nic: func() *v1alpha1.NginxIngressController {
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
+							nic.Spec.Scaling = &v1alpha1.Scaling{
+								MinReplicas: util.Int32Ptr(-5),
+							}
+							return nic
+						}(),
+					},
+					{
+						name: "0 max replicas",
+						nic: func() *v1alpha1.NginxIngressController {
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
+							nic.Spec.Scaling = &v1alpha1.Scaling{
+								MaxReplicas: util.Int32Ptr(0),
+							}
+							return nic
+						}(),
+					},
+					{
+						name: "negative max replicas",
+						nic: func() *v1alpha1.NginxIngressController {
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
+							nic.Spec.Scaling = &v1alpha1.Scaling{
+								MaxReplicas: util.Int32Ptr(-100),
+							}
+							return nic
+						}(),
+					},
+					{
+						name: "higher min than max replicas",
+						nic: func() *v1alpha1.NginxIngressController {
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
+							nic.Spec.Scaling = &v1alpha1.Scaling{
+								MaxReplicas: util.Int32Ptr(10),
+								MinReplicas: util.Int32Ptr(20),
+							}
+							return nic
+						}(),
+					},
+				}
+
+				for _, rejectCase := range rejectTests {
+					lgr.Info("attempting to create NginxIngressController " + rejectCase.name)
+					if err := c.Create(ctx, rejectCase.nic); err == nil {
+						return fmt.Errorf("able to create NginxIngressController %s", rejectCase.name)
+					}
 				}
 
 				lgr.Info("finished testing")
