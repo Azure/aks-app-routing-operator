@@ -523,18 +523,19 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		resourceName = DefaultNicResourceName
 	}
 
+	scaling := nic.Spec.Scaling
 	var minReplicas int32 = defaultMinReplicas
-	if scaling := nic.Spec.Scaling; scaling != nil && scaling.MinReplicas != nil {
+	if scaling != nil && scaling.MinReplicas != nil {
 		minReplicas = *scaling.MinReplicas
 	}
 	var maxReplicas int32 = defaultMaxReplicas
-	if scaling := nic.Spec.Scaling; scaling != nil && scaling.MaxReplicas != nil {
+	if scaling != nil && scaling.MaxReplicas != nil {
 		maxReplicas = *scaling.MaxReplicas
 	}
 
 	// we use CEL validation on crd to enforce min <= max if it's defined. There's an edge case where they define max to 1 but don't define min which defaults to 0. The opposite is true too
 	if minReplicas > maxReplicas {
-		if nic.Spec.Scaling == nil || nic.Spec.Scaling.MinReplicas == nil {
+		if scaling == nil || scaling.MinReplicas == nil {
 			minReplicas = maxReplicas
 		} else {
 			maxReplicas = minReplicas
