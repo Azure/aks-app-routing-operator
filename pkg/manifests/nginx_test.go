@@ -107,6 +107,8 @@ var (
 				ControllerClass: "test-controller-class",
 				ResourceName:    "nginx",
 				IcName:          "nginx-private",
+				MinReplicas:     2,
+				MaxReplicas:     100,
 			},
 		},
 		{
