@@ -19,6 +19,7 @@ import (
 var (
 	cantFindAcrRegex = regexp.MustCompile(`The resource with name '.+' and type 'Microsoft\.ContainerRegistry\/registries' could not be found in subscription`)
 	throttledRegex   = regexp.MustCompile(`(SubscriptionRequestsThrottled) Number of requests for subscription '.+' and operation '.+' exceeded the backend storage limit.`)
+	hostRegex        = regexp.MustCompile(`dial tcp: lookup .+ on .+: no such host`)
 )
 
 type acr struct {
@@ -102,6 +103,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 	defer lgr.Info("finished building and pushing image")
 
 	start := time.Now()
+
 	for {
 		// Ideally, we'd use the sdk to build and push the image but I couldn't get it working.
 		// I matched everything on the az cli but wasn't able to get it working with the sdk.
@@ -118,7 +120,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 			// We've tried alternate strategies like polling the sdk to see if the acr exists but that
 			// tells us it exists then the acr command fails. This is the only reliable way we've found
 			// to wait for the acr to be ready.
-			if (!cantFindAcrRegex.Match(errLog.Bytes())) && (!throttledRegex.Match(errLog.Bytes())) {
+			if (!cantFindAcrRegex.Match(errLog.Bytes())) && (!throttledRegex.Match(errLog.Bytes())) && (!hostRegex.Match(errLog.Bytes())) {
 				lgr.Error("failed to build and push acr image")
 				return fmt.Errorf("running build and push command: %w", err)
 			}
