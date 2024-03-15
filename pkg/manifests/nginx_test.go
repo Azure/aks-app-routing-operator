@@ -195,7 +195,7 @@ func TestIngressControllerResources(t *testing.T) {
 
 func TestMapAdditions(t *testing.T) {
 	testMap := map[string]string{"testkey1": "testval1"}
-	withAdditions := addComponentLabel(testMap, "ingress-controller")
+	withAdditions := AddComponentLabel(testMap, "ingress-controller")
 
 	if withAdditions["testkey1"] != "testval1" {
 		t.Errorf("new map doesn't include original values")

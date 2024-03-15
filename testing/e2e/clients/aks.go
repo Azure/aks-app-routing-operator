@@ -45,13 +45,13 @@ type aks struct {
 // the rest of the information for testing purposes.
 type ServicePrincipal struct {
 	// ApplicationObjectID is Object ID of the application associated with the service principal
-	ApplicationObjectID          string 
+	ApplicationObjectID string
 	// ApplicationClientID is the Client ID of the application and service principal (also called AppID of the service principal)
-	ApplicationClientID          string 
+	ApplicationClientID string
 	// ServicePrincipalObjectID is Object ID of the service principal
-	ServicePrincipalObjectID     string 
+	ServicePrincipalObjectID string
 	// ServicePrincipalCredPassword is a generated password credential for the application associated with the service principal
-	ServicePrincipalCredPassword string 
+	ServicePrincipalCredPassword string
 }
 
 // McOpt specifies what kind of managed cluster to create
@@ -133,7 +133,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 				{
 					Name:   to.Ptr("default"),
 					VMSize: to.Ptr("Standard_DS3_v2"),
-					Count:  to.Ptr(int32(2)),
+					Count:  to.Ptr(int32(3)),
 					Mode:   to.Ptr(armcontainerservice.AgentPoolModeSystem),
 				},
 			},
@@ -154,8 +154,8 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 			ClientID: to.Ptr(spOpts.ApplicationClientID),
 			Secret:   to.Ptr(spOpts.ServicePrincipalCredPassword),
 		}
-	}else{
-		mc.Identity= &armcontainerservice.ManagedClusterIdentity{
+	} else {
+		mc.Identity = &armcontainerservice.ManagedClusterIdentity{
 			Type: to.Ptr(armcontainerservice.ResourceIdentityTypeSystemAssigned),
 		}
 	}
@@ -361,7 +361,7 @@ func (a *aks) waitStable(ctx context.Context, objs []client.Object) error {
 						}, runCommandOpts{
 							outputFile: outputFile,
 						}); err != nil {
-							return fmt.Errorf("waiting for job/%s to complete: %w", obj.GetName(), err)
+							return fmt.Errorf("getting logs for for job/%s: %w", obj.GetName(), err)
 						}
 
 						return nil
