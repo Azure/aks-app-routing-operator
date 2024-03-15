@@ -533,7 +533,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		maxReplicas = *scaling.MaxReplicas
 	}
 
-	// we use CEL validation on crd to enforce min <= max if it's defined. There's an edge case where they define max to 1 but don't define min which defaults to 0. The opposite is true too
+	// we use CEL validation on crd to enforce min <= max if it's defined. There's an edge case where they define max to 1 but don't define min which defaults to 2. The opposite is true too
 	if minReplicas > maxReplicas {
 		if scaling == nil || scaling.MinReplicas == nil {
 			minReplicas = maxReplicas
