@@ -634,8 +634,8 @@
           "name": "nginx",
           "apiVersion": "apps/v1"
         },
-        "minReplicas": 0,
-        "maxReplicas": 0,
+        "minReplicas": 2,
+        "maxReplicas": 100,
         "targetCPUUtilizationPercentage": 80
       },
       "status": {

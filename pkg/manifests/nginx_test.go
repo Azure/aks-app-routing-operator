@@ -132,6 +132,8 @@ var (
 				ResourceName:          "nginx",
 				IcName:                "nginx-private",
 				DefaultSSLCertificate: "fakenamespace/fakename",
+				MinReplicas:           2,
+				MaxReplicas:           100,
 			},
 		},
 		{
