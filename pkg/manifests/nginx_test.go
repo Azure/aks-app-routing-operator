@@ -22,6 +22,8 @@ var (
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
 		},
+		MinReplicas: 2,
+		MaxReplicas: 100,
 	}
 	controllerTestCases = []struct {
 		Name      string
@@ -129,6 +131,29 @@ var (
 				IcName:                "nginx-private",
 				DefaultSSLCertificate: "fakenamespace/fakename",
 			},
+		},
+		{
+			Name: "full-with-replicas",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.MinReplicas = 15
+				copy.MaxReplicas = 30
+				return &copy
+			}(),
 		},
 	}
 	classTestCases = []struct {
