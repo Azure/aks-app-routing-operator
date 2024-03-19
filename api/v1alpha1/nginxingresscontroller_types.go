@@ -102,8 +102,8 @@ type Threshold string
 
 const (
 	RapidThreshold    Threshold = "rapid"
-	BalancedThreshold           = "balanced"
-	GradualThreshold            = "gradual"
+	BalancedThreshold Threshold = "balanced"
+	GradualThreshold  Threshold = "gradual"
 )
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
