@@ -91,7 +91,20 @@ type Scaling struct {
 	// +kubebuilder:validation:Minimum=1
 	// +optional
 	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
+	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. It defaults to balanced.
+	// +kubebuilder:validation:Enum=rapid;balanced;gradual;
+	// +optional
+	Threshold *Threshold `json:"strategy,omitempty"`
 }
+
+type Threshold string
+
+const (
+	RapidThreshold    Threshold = "rapid"
+	BalancedThreshold           = "balanced"
+	GradualThreshold            = "gradual"
+)
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
 type NginxIngressControllerStatus struct {

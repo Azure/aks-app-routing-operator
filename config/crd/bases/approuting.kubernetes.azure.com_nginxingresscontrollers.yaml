@@ -120,6 +120,14 @@ spec:
                     format: int32
                     minimum: 1
                     type: integer
+                  strategy:
+                    description: Threshold defines how quickly the Ingress Controller
+                      pods should scale based on workload. It defaults to balanced.
+                    enum:
+                    - rapid
+                    - balanced
+                    - gradual
+                    type: string
                 type: object
                 x-kubernetes-validations:
                 - rule: (!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas
