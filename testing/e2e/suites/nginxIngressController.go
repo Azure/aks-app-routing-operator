@@ -173,7 +173,7 @@ func nicTests(in infra.Provisioned) []test {
 						nic: func() *v1alpha1.NginxIngressController {
 							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
-								Threshold: util.ToPtr(v1alpha1.Threshold("notValid")),
+								Threshold: util.ToPtr(v1alpha1.Threshold("invalid")),
 							}
 							return nic
 						}(),
