@@ -38,7 +38,7 @@ const (
 const (
 	rapidTargetCpuUtilization   = 55
 	defaultTargetCPUUtilization = 70
-	gradualTargetCPUUtilization = 80
+	steadyTargetCPUUtilization  = 80
 )
 
 var (
@@ -586,8 +586,8 @@ func getTargetCPUUtilizationPercentage(nic *approutingv1alpha1.NginxIngressContr
 	switch *thresh {
 	case approutingv1alpha1.RapidThreshold:
 		return rapidTargetCpuUtilization
-	case approutingv1alpha1.GradualThreshold:
-		return gradualTargetCPUUtilization
+	case approutingv1alpha1.SteadyThreshold:
+		return steadyTargetCPUUtilization
 
 	case approutingv1alpha1.BalancedThreshold:
 		return defaultTargetCPUUtilization

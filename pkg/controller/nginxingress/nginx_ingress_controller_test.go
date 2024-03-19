@@ -1145,7 +1145,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "custom fields with gradual threshold",
+			name: "custom fields with steady threshold",
 			nic: &approutingv1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "nicName",
@@ -1154,7 +1154,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 					IngressClassName:     "ingressClassName",
 					ControllerNamePrefix: "controllerNamePrefix",
 					Scaling: &approutingv1alpha1.Scaling{
-						Threshold: util.ToPtr(approutingv1alpha1.GradualThreshold),
+						Threshold: util.ToPtr(approutingv1alpha1.SteadyThreshold),
 					},
 				},
 			},
@@ -1165,7 +1165,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:                         "ingressClassName",
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
-				TargetCPUUtilizationPercentage: gradualTargetCPUUtilization,
+				TargetCPUUtilizationPercentage: steadyTargetCPUUtilization,
 			},
 		},
 	}
@@ -1228,15 +1228,15 @@ func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
 			want: defaultTargetCPUUtilization,
 		},
 		{
-			name: "gradual",
+			name: "steady",
 			nic: &approutingv1alpha1.NginxIngressController{
 				Spec: approutingv1alpha1.NginxIngressControllerSpec{
 					Scaling: &approutingv1alpha1.Scaling{
-						Threshold: util.ToPtr(approutingv1alpha1.GradualThreshold),
+						Threshold: util.ToPtr(approutingv1alpha1.SteadyThreshold),
 					},
 				},
 			},
-			want: gradualTargetCPUUtilization,
+			want: steadyTargetCPUUtilization,
 		},
 	}
 
