@@ -113,7 +113,6 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite missing Secret field'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
-				// scaling profile
 				rejectTests := []struct {
 					name string
 					nic  *v1alpha1.NginxIngressController
@@ -165,6 +164,16 @@ func nicTests(in infra.Provisioned) []test {
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								MaxReplicas: util.Int32Ptr(10),
 								MinReplicas: util.Int32Ptr(20),
+							}
+							return nic
+						}(),
+					},
+					{
+						name: "unknown threshold",
+						nic: func() *v1alpha1.NginxIngressController {
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
+							nic.Spec.Scaling = &v1alpha1.Scaling{
+								Threshold: util.ToPtr(v1alpha1.Threshold("notValid")),
 							}
 							return nic
 						}(),
