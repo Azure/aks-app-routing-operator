@@ -120,7 +120,7 @@ spec:
                     format: int32
                     minimum: 1
                     type: integer
-                  strategy:
+                  threshold:
                     description: Threshold defines how quickly the Ingress Controller
                       pods should scale based on workload. It defaults to balanced.
                     enum:

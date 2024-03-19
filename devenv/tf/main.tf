@@ -18,7 +18,7 @@ provider "azurerm" {
 variable "location" {
   type = string
   description = "The Azure Region in which resources will be created"
-  default = "South Central US"
+  default = "West US"
 }
 
 resource "random_string" "random" {

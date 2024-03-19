@@ -95,7 +95,7 @@ type Scaling struct {
 	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. It defaults to balanced.
 	// +kubebuilder:validation:Enum=rapid;balanced;gradual;
 	// +optional
-	Threshold *Threshold `json:"strategy,omitempty"`
+	Threshold *Threshold `json:"threshold,omitempty"`
 }
 
 type Threshold string
