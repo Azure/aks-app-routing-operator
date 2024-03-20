@@ -119,6 +119,8 @@ type NginxIngressConfig struct {
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
 	MinReplicas           int32
 	MaxReplicas           int32
+	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
+	TargetCPUUtilizationPercentage int32
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -563,7 +565,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 			},
 			MinReplicas:                    util.Int32Ptr(ingressConfig.MinReplicas),
 			MaxReplicas:                    ingressConfig.MaxReplicas,
-			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
+			TargetCPUUtilizationPercentage: &ingressConfig.TargetCPUUtilizationPercentage,
 		},
 	}
 }
