@@ -61,7 +61,7 @@ type NginxIngressControllerSpec struct {
 	Scaling *Scaling `json:"scaling,omitempty"`
 }
 
-// DefaultSSLCertificate holds a secret in the form of a secret struct ith name and namespace properties or a key vault uri
+// DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
 // +kubebuilder:validation:MaxProperties=1
 // +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
 type DefaultSSLCertificate struct {
