@@ -74,7 +74,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	if err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
-	logger = logger.WithValues("name", nic.Name, "namespace", config.DefaultNs, "generation", nic.Generation)
+	logger = logger.WithValues("name", nic.Name, "generation", nic.Generation)
 
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -95,6 +95,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		},
 	}
 	logger = logger.WithValues("spc", spc.Name)
+	logger.Info("building spc and upserting if managed with labels")
 	upsertSPC, err := buildSPC(nic, spc, i.config)
 	if err != nil {
 		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
@@ -108,9 +109,11 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 			i.events.Eventf(nic, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
 		}
 		return result, err
+	} else {
+		logger.Info("spc is either not managed or key vault uri was removed")
 	}
 
-	logger.Info("cleaning unused managed spc for ingress")
+	logger.Info("cleaning unused spc if ingress is managed")
 	logger.Info("getting secret provider class for ingress")
 
 	toCleanSPC := &secv1.SecretProviderClass{}
@@ -124,6 +127,8 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		logger.Info("removing secret provider class for ingress")
 		err = i.client.Delete(ctx, toCleanSPC)
 		return result, client.IgnoreNotFound(err)
+	} else {
+		logger.Info("spc was not managed so spc was not removed")
 	}
 
 	return result, nil
