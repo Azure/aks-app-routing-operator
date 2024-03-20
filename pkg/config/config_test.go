@@ -279,15 +279,15 @@ var (
 	privateZoneOne = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-one.com"
 	privateZoneTwo = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
 	privateZones   = map[string]struct{}{
-		privateZoneOne: {},
-		privateZoneTwo: {},
+		strings.ToLower(privateZoneOne): {},
+		strings.ToLower(privateZoneTwo): {},
 	}
 
 	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-one.com"
 	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com"
 	publicZones   = map[string]struct{}{
-		publicZoneOne: {},
-		publicZoneTwo: {},
+		strings.ToLower(publicZoneOne): {},
+		strings.ToLower(publicZoneTwo): {},
 	}
 
 	parseTestCases = []struct {
@@ -322,6 +322,18 @@ var (
 			expectedPublicZones:  publicZones,
 		},
 		{
+			name:                 "private-diff-casing-duplicates",
+			zonesString:          strings.Join([]string{strings.ToLower(privateZoneTwo), strings.ToUpper(privateZoneTwo)}, ","),
+			expectedPrivateZones: map[string]struct{}{strings.ToLower(privateZoneTwo): {}},
+			expectedPublicZones:  nil,
+		},
+		{
+			name:                 "public-diff-casing-duplicates",
+			zonesString:          strings.Join([]string{strings.ToLower(publicZoneOne), strings.ToUpper(publicZoneOne)}, ","),
+			expectedPrivateZones: nil,
+			expectedPublicZones:  map[string]struct{}{strings.ToLower(publicZoneOne): {}},
+		},
+		{
 			name:          "bad-provider",
 			zonesString:   strings.Join(util.Keys(publicZones), ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com",
 			expectedError: errors.New("invalid resource provider Microsoft.FakeRP from zone /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network"),
@@ -340,7 +352,7 @@ var (
 			name:                 "ok-resource-group",
 			zonesString:          strings.Join(append(util.Keys(privateZones), util.Keys(publicZones)...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com",
 			expectedPublicZones:  publicZones,
-			expectedPrivateZones: util.MergeMaps(privateZones, map[string]struct{}{"/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com": {}}),
+			expectedPrivateZones: util.MergeMaps(privateZones, map[string]struct{}{"/subscriptions/test-private-subscription/resourcegroups/test-rg-private/providers/microsoft.network/privatednszones/test-two.com": {}}),
 		},
 		{
 			name:          "bad-subscription",
@@ -352,15 +364,17 @@ var (
 
 func TestConfigParse(t *testing.T) {
 	for _, tc := range parseTestCases {
-		conf := &Config{}
-		err := conf.ParseAndValidateZoneIDs(tc.zonesString)
-		if tc.expectedError != nil {
-			require.EqualError(t, err, tc.expectedError.Error())
-		} else {
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedPrivateZones, conf.PrivateZoneConfig.ZoneIds)
-			require.Equal(t, tc.expectedPublicZones, conf.PublicZoneConfig.ZoneIds)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			conf := &Config{}
+			err := conf.ParseAndValidateZoneIDs(tc.zonesString)
+			if tc.expectedError != nil {
+				require.EqualError(t, err, tc.expectedError.Error())
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedPrivateZones, conf.PrivateZoneConfig.ZoneIds)
+				require.Equal(t, tc.expectedPublicZones, conf.PublicZoneConfig.ZoneIds)
+			}
+		})
 	}
 
 }
