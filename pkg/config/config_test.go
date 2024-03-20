@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -277,61 +278,73 @@ func TestConfigValidate(t *testing.T) {
 var (
 	privateZoneOne = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-one.com"
 	privateZoneTwo = "/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-two.com"
-	privateZones   = []string{privateZoneOne, privateZoneTwo}
+	privateZones   = map[string]struct{}{
+		privateZoneOne: {},
+		privateZoneTwo: {},
+	}
 
 	publicZoneOne = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-one.com"
 	publicZoneTwo = "/subscriptions/test-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com"
-	publicZones   = []string{publicZoneOne, publicZoneTwo}
+	publicZones   = map[string]struct{}{
+		publicZoneOne: {},
+		publicZoneTwo: {},
+	}
 
 	parseTestCases = []struct {
 		name                 string
 		zonesString          string
 		expectedError        error
-		expectedPrivateZones []string
-		expectedPublicZones  []string
+		expectedPrivateZones map[string]struct{}
+		expectedPublicZones  map[string]struct{}
 	}{
 		{
 			name:                 "full",
-			zonesString:          strings.Join(append(privateZones, publicZones...), ","),
+			zonesString:          strings.Join(append(util.Keys(privateZones), util.Keys(publicZones)...), ","),
 			expectedPrivateZones: privateZones,
 			expectedPublicZones:  publicZones,
 		},
 		{
 			name:                 "private-only",
-			zonesString:          strings.Join(privateZones, ","),
+			zonesString:          strings.Join(util.Keys(privateZones), ","),
 			expectedPrivateZones: privateZones,
 			expectedPublicZones:  nil,
 		},
 		{
 			name:                 "public-only",
-			zonesString:          strings.Join(publicZones, ","),
+			zonesString:          strings.Join(util.Keys(publicZones), ","),
 			expectedPrivateZones: nil,
 			expectedPublicZones:  publicZones,
 		},
 		{
+			name:                 "full-with-duplicates",
+			zonesString:          strings.Join(append(util.Keys(privateZones), append([]string{publicZoneOne, publicZoneTwo}, util.Keys(publicZones)...)...), ","),
+			expectedPrivateZones: privateZones,
+			expectedPublicZones:  publicZones,
+		},
+		{
 			name:          "bad-provider",
-			zonesString:   strings.Join(publicZones, ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com",
+			zonesString:   strings.Join(util.Keys(publicZones), ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com",
 			expectedError: errors.New("invalid resource provider Microsoft.FakeRP from zone /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.FakeRP/privatednszones/test-one.com: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network"),
 		},
 		{
 			name:          "bad-resource-type",
-			zonesString:   strings.Join(publicZones, ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com",
+			zonesString:   strings.Join(util.Keys(publicZones), ",") + ",/subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com",
 			expectedError: errors.New("while parsing dns zone resource ID /subscriptions/test-private-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/hybriddnszones/test-one.com: detected invalid resource type hybriddnszones"),
 		},
 		{
 			name:          "bad-resource-group",
-			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/another-rg-private/providers/Microsoft.Network/privatednszones/test-two.com",
+			zonesString:   strings.Join(append(util.Keys(privateZones), util.Keys(publicZones)...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/another-rg-private/providers/Microsoft.Network/privatednszones/test-two.com",
 			expectedError: errors.New("while parsing resource IDs for privatednszones: detected multiple resource groups another-rg-private and test-rg-private"),
 		},
 		{
 			name:                 "ok-resource-group",
-			zonesString:          strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com",
+			zonesString:          strings.Join(append(util.Keys(privateZones), util.Keys(publicZones)...), ",") + ",/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com",
 			expectedPublicZones:  publicZones,
-			expectedPrivateZones: append(privateZones, "/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com"),
+			expectedPrivateZones: util.MergeMaps(privateZones, map[string]struct{}{"/subscriptions/test-private-subscription/resourceGroups/TEST-RG-PRIVATE/providers/Microsoft.Network/privatednszones/test-two.com": {}}),
 		},
 		{
 			name:          "bad-subscription",
-			zonesString:   strings.Join(append(privateZones, publicZones...), ",") + ",/subscriptions/another-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com",
+			zonesString:   strings.Join(append(util.Keys(privateZones), util.Keys(publicZones)...), ",") + ",/subscriptions/another-public-subscription/resourceGroups/test-rg-public/providers/Microsoft.Network/dnszones/test-two.com",
 			expectedError: errors.New("while parsing resource IDs for dnszones: detected multiple subscriptions another-public-subscription and test-public-subscription"),
 		},
 	}

@@ -69,3 +69,13 @@ func MergeMaps[M ~map[K]V, K comparable, V any](src ...M) M {
 	}
 	return merged
 }
+
+// Keys returns the keys in a map
+func Keys[K comparable, v any](m map[K]v) []K {
+	keys := make([]K, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+
+	return keys
+}
