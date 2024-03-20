@@ -95,7 +95,8 @@ type Scaling struct {
 	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. Rapid means the Ingress Controller
 	// will scale quickly and aggressively, which is the best choice for handling sudden and significant traffic spikes. Steady
 	// is the opposite, prioritizing cost-effectiveness. Steady is the best choice when fewer replicas handling more work is desired or when
-	// traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. It defaults to balanced.
+	// traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. If unspecified, this field
+	// defaults to balanced.
 	// +kubebuilder:validation:Enum=rapid;balanced;steady;
 	// +optional
 	Threshold *Threshold `json:"threshold,omitempty"`

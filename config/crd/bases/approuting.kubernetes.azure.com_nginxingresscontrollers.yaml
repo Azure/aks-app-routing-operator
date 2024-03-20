@@ -129,7 +129,7 @@ spec:
                       is the best choice when fewer replicas handling more work is
                       desired or when traffic isn't expected to fluctuate. Balanced
                       is a good mix between the two that works for most use-cases.
-                      It defaults to balanced.
+                      If unspecified, this field defaults to balanced.
                     enum:
                     - rapid
                     - balanced
