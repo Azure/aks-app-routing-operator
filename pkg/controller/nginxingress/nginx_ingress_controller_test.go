@@ -1141,7 +1141,31 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:                         "ingressClassName",
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
-				TargetCPUUtilizationPercentage: rapidTargetCpuUtilization,
+				TargetCPUUtilizationPercentage: rapidTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with balanced threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.BalancedThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
 			},
 		},
 		{
@@ -1214,7 +1238,7 @@ func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
 					},
 				},
 			},
-			want: rapidTargetCpuUtilization,
+			want: rapidTargetCPUUtilization,
 		},
 		{
 			name: "balanced",
