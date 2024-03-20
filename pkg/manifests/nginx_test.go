@@ -22,8 +22,9 @@ var (
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
 		},
-		MinReplicas: 2,
-		MaxReplicas: 100,
+		MinReplicas:                    2,
+		MaxReplicas:                    100,
+		TargetCPUUtilizationPercentage: 80,
 	}
 	controllerTestCases = []struct {
 		Name      string
@@ -104,11 +105,12 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass: "test-controller-class",
-				ResourceName:    "nginx",
-				IcName:          "nginx-private",
-				MinReplicas:     2,
-				MaxReplicas:     100,
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
 			},
 		},
 		{
@@ -128,12 +130,13 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass:       "test-controller-class",
-				ResourceName:          "nginx",
-				IcName:                "nginx-private",
-				DefaultSSLCertificate: "fakenamespace/fakename",
-				MinReplicas:           2,
-				MaxReplicas:           100,
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				DefaultSSLCertificate:          "fakenamespace/fakename",
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
 			},
 		},
 		{
@@ -156,6 +159,31 @@ var (
 				copy := *ingConfig
 				copy.MinReplicas = 15
 				copy.MaxReplicas = 30
+				copy.TargetCPUUtilizationPercentage = 80
+				return &copy
+			}(),
+		},
+		{
+			Name: "full-with-target-cpu",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.MinReplicas = 15
+				copy.MaxReplicas = 30
+				copy.TargetCPUUtilizationPercentage = 63
 				return &copy
 			}(),
 		},

@@ -36,6 +36,14 @@ const (
 	defaultMaxReplicas = 100
 )
 
+const (
+	rapidTargetCPUUtilization    = 55
+	balancedTargetCPUUtilization = 70
+	steadyTargetCPUUtilization   = 80
+
+	defaultTargetCPUUtilization = balancedTargetCPUUtilization
+)
+
 var (
 	icCollisionErr   = errors.New("collision on the IngressClass")
 	maxCollisionsErr = errors.New("max collisions reached")
@@ -550,8 +558,9 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		ServiceConfig: &manifests.ServiceConfig{
 			Annotations: nic.Spec.LoadBalancerAnnotations,
 		},
-		MinReplicas: minReplicas,
-		MaxReplicas: maxReplicas,
+		MinReplicas:                    minReplicas,
+		MaxReplicas:                    maxReplicas,
+		TargetCPUUtilizationPercentage: getTargetCPUUtilizationPercentage(nic),
 	}
 
 	if cert := nic.Spec.DefaultSSLCertificate; cert != nil {
@@ -564,4 +573,32 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 	}
 
 	return nginxIng
+}
+
+func getTargetCPUUtilizationPercentage(nic *approutingv1alpha1.NginxIngressController) int32 {
+	if nic == nil {
+		return defaultTargetCPUUtilization
+	}
+
+	scaling := nic.Spec.Scaling
+	if scaling == nil {
+		return defaultTargetCPUUtilization
+	}
+
+	thresh := scaling.Threshold
+	if thresh == nil {
+		return defaultTargetCPUUtilization
+	}
+
+	switch *thresh {
+	case approutingv1alpha1.RapidThreshold:
+		return rapidTargetCPUUtilization
+	case approutingv1alpha1.BalancedThreshold:
+		return balancedTargetCPUUtilization
+	case approutingv1alpha1.SteadyThreshold:
+		return steadyTargetCPUUtilization
+
+	default:
+		return defaultTargetCPUUtilization
+	}
 }

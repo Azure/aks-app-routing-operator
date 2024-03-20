@@ -899,12 +899,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 			name: "default controller class",
 			nic:  util.ToPtr(GetDefaultNginxIngressController()),
 			want: manifests.NginxIngressConfig{
-				ControllerClass: defaultCc,
-				ResourceName:    DefaultNicResourceName,
-				IcName:          DefaultIcName,
-				ServiceConfig:   &manifests.ServiceConfig{},
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -919,12 +920,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -949,9 +951,10 @@ func TestToNginxIngressConfig(t *testing.T) {
 						"foo": "bar",
 					},
 				},
-				IcName:      "ingressClassName",
-				MaxReplicas: defaultMaxReplicas,
-				MinReplicas: defaultMinReplicas,
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -966,12 +969,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: ("approuting.kubernetes.azure.com/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                ("approuting.kubernetes.azure.com/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -991,13 +995,14 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass:       defaultCc,
-				ResourceName:          DefaultNicResourceName,
-				IcName:                DefaultIcName,
-				ServiceConfig:         &manifests.ServiceConfig{},
-				DefaultSSLCertificate: FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
-				MaxReplicas:           defaultMaxReplicas,
-				MinReplicas:           defaultMinReplicas,
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1017,12 +1022,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: defaultCc,
-				ResourceName:    DefaultNicResourceName,
-				IcName:          DefaultIcName,
-				ServiceConfig:   &manifests.ServiceConfig{},
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1042,12 +1048,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: defaultCc,
-				ResourceName:    DefaultNicResourceName,
-				IcName:          DefaultIcName,
-				ServiceConfig:   &manifests.ServiceConfig{},
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1063,12 +1070,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1086,12 +1094,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     defaultMaxReplicas,
-				MinReplicas:     12,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    12,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1109,12 +1118,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     102,
-				MinReplicas:     102,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    102,
+				MinReplicas:                    102,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1132,12 +1142,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     47,
-				MinReplicas:     defaultMinReplicas,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    47,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1155,12 +1166,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     1,
-				MinReplicas:     1,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    1,
+				MinReplicas:                    1,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -1179,12 +1191,85 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "approuting.kubernetes.azure.com/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
-				MaxReplicas:     20,
-				MinReplicas:     5,
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    20,
+				MinReplicas:                    5,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with rapid threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.RapidThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: rapidTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with balanced threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.BalancedThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with steady threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.SteadyThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: steadyTargetCPUUtilization,
 			},
 		},
 	}
@@ -1195,6 +1280,77 @@ func TestToNginxIngressConfig(t *testing.T) {
 			require.Equal(t, c.want, *got)
 		})
 	}
+}
+
+func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
+	cases := []struct {
+		name string
+		nic  *approutingv1alpha1.NginxIngressController
+		want int32
+	}{
+		{
+			name: "nil NginxIngressController",
+			nic:  nil,
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "nil NginxIngressController scaling",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{},
+			},
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "nil NginxIngressController threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{},
+				},
+			},
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "rapid",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.RapidThreshold),
+					},
+				},
+			},
+			want: rapidTargetCPUUtilization,
+		},
+		{
+			name: "balanced",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.BalancedThreshold),
+					},
+				},
+			},
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "steady",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.SteadyThreshold),
+					},
+				},
+			},
+			want: steadyTargetCPUUtilization,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := getTargetCPUUtilizationPercentage(c.nic)
+			require.Equal(t, c.want, got)
+		})
+	}
+
 }
 
 func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
