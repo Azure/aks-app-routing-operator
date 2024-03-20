@@ -59,7 +59,7 @@ func NewAcr(ctx context.Context, subscriptionId, resourceGroup, name, location s
 	r := &armcontainerregistry.Registry{
 		Location: to.Ptr(location),
 		SKU: &armcontainerregistry.SKU{
-			Name: to.Ptr(armcontainerregistry.SKUNameBasic),
+			Name: to.Ptr(armcontainerregistry.SKUNameStandard),
 		},
 	}
 	poller, err := factory.NewRegistriesClient().BeginCreate(ctx, resourceGroup, name, *r, nil)
