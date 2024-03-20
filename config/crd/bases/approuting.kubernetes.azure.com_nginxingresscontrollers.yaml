@@ -110,6 +110,26 @@ spec:
                   to the NGINX Ingress Controller's Service. Common annotations will
                   be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
+              scaling:
+                description: Scaling defines configuration options for how the Ingress
+                  Controller scales
+                properties:
+                  maxReplicas:
+                    description: MaxReplicas is the upper limit for the number of
+                      Ingress Controller replicas. It defaults to 100 pods.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  minReplicas:
+                    description: MinReplicas is the lower limit for the number of
+                      Ingress Controller replicas. It defaults to 2 pods.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                type: object
+                x-kubernetes-validations:
+                - rule: (!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas
+                    <= self.maxReplicas)
             required:
             - controllerNamePrefix
             - ingressClassName

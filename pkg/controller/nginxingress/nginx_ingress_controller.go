@@ -31,6 +31,11 @@ const (
 	controllerClassMaxLen = 250
 )
 
+const (
+	defaultMinReplicas = 2
+	defaultMaxReplicas = 100
+)
+
 var (
 	icCollisionErr   = errors.New("collision on the IngressClass")
 	maxCollisionsErr = errors.New("max collisions reached")
@@ -519,6 +524,25 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		resourceName = DefaultNicResourceName
 	}
 
+	scaling := nic.Spec.Scaling
+	var minReplicas int32 = defaultMinReplicas
+	if scaling != nil && scaling.MinReplicas != nil {
+		minReplicas = *scaling.MinReplicas
+	}
+	var maxReplicas int32 = defaultMaxReplicas
+	if scaling != nil && scaling.MaxReplicas != nil {
+		maxReplicas = *scaling.MaxReplicas
+	}
+
+	// we use CEL validation on crd to enforce min <= max if it's defined. There's an edge case where they define max to 1 but don't define min which defaults to 2. The opposite is true too
+	if minReplicas > maxReplicas {
+		if scaling == nil || scaling.MinReplicas == nil {
+			minReplicas = maxReplicas
+		} else {
+			maxReplicas = minReplicas
+		}
+	}
+
 	nginxIng := &manifests.NginxIngressConfig{
 		ControllerClass: cc,
 		ResourceName:    resourceName,
@@ -526,6 +550,8 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		ServiceConfig: &manifests.ServiceConfig{
 			Annotations: nic.Spec.LoadBalancerAnnotations,
 		},
+		MinReplicas: minReplicas,
+		MaxReplicas: maxReplicas,
 	}
 
 	if cert := nic.Spec.DefaultSSLCertificate; cert != nil {
