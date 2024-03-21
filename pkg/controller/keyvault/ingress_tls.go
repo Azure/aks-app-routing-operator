@@ -65,6 +65,7 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	managed, err := i.ingressManager.IsManaging(ing)
 	if err != nil {
+		logger.Error(err, "error checking if ingress is managed")
 		return ctrl.Result{}, fmt.Errorf("checking if ingress is managed: %w", err)
 	}
 
@@ -88,7 +89,7 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	logger.Info("adding TLS spec to ingress")
 	ing.Spec.TLS = []netv1.IngressTLS{
 		{
-			SecretName: fmt.Sprintf("keyvault-%s", ing.Name),
+			SecretName: certSecretName(ing.Name),
 			Hosts:      []string{},
 		},
 	}
