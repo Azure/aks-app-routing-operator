@@ -50,7 +50,65 @@ type NginxIngressControllerSpec struct {
 	// will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+
+	// DefaultSSLCertificate defines whether the NginxIngressController should use a certain SSL certificate by default.
+	// If this field is omitted, no default certificate will be used.
+	// +optional
+	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+
+	// Scaling defines configuration options for how the Ingress Controller scales
+	// +optional
+	Scaling *Scaling `json:"scaling,omitempty"`
 }
+
+type DefaultSSLCertificate struct {
+	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
+	// +optional
+	Secret *Secret `json:"secret,omitempty"`
+}
+
+// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
+type Secret struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Name string `json:"name"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Namespace string `json:"namespace"`
+}
+
+// Scaling holds specification for how the Ingress Controller scales
+// +kubebuilder:validation:XValidation:rule="(!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas <= self.maxReplicas)"
+type Scaling struct {
+	// MinReplicas is the lower limit for the number of Ingress Controller replicas. It defaults to 2 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
+	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. Rapid means the Ingress Controller
+	// will scale quickly and aggressively, which is the best choice for handling sudden and significant traffic spikes. Steady
+	// is the opposite, prioritizing cost-effectiveness. Steady is the best choice when fewer replicas handling more work is desired or when
+	// traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. If unspecified, this field
+	// defaults to balanced.
+	// +kubebuilder:validation:Enum=rapid;balanced;steady;
+	// +optional
+	Threshold *Threshold `json:"threshold,omitempty"`
+}
+
+type Threshold string
+
+const (
+	RapidThreshold    Threshold = "rapid"
+	BalancedThreshold Threshold = "balanced"
+	SteadyThreshold   Threshold = "steady"
+)
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
 type NginxIngressControllerStatus struct {
