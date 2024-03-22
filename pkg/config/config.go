@@ -49,7 +49,7 @@ func init() {
 type DnsZoneConfig struct {
 	Subscription  string
 	ResourceGroup string
-	ZoneIds       []string
+	ZoneIds       map[string]struct{}
 }
 
 type Config struct {
@@ -127,7 +127,6 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
-
 	c.PrivateZoneConfig = DnsZoneConfig{}
 	c.PublicZoneConfig = DnsZoneConfig{}
 
@@ -151,7 +150,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
-			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+
+			if c.PrivateZoneConfig.ZoneIds == nil {
+				c.PrivateZoneConfig.ZoneIds = map[string]struct{}{}
+			}
+			c.PrivateZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		case PublicZoneType:
 			// it's a public zone
 			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PublicZoneConfig.ResourceGroup); err != nil {
@@ -160,7 +163,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
-			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
+
+			if c.PublicZoneConfig.ZoneIds == nil {
+				c.PublicZoneConfig.ZoneIds = map[string]struct{}{}
+			}
+			c.PublicZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		default:
 			return fmt.Errorf("while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
@@ -170,7 +177,7 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 }
 
 func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
-	if subscription != "" && parsedZone.SubscriptionID != subscription {
+	if subscription != "" && !strings.EqualFold(parsedZone.SubscriptionID, subscription) {
 		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}
 
