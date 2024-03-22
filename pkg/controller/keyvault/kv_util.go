@@ -32,7 +32,7 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		}
 
 		certURI = t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-		specSecretName = fmt.Sprintf("keyvault-%s", t.Name)
+		specSecretName = certSecretName(t.Name)
 	default:
 		return false, fmt.Errorf("incorrect object type: %s", t)
 	}
@@ -116,4 +116,8 @@ func DefaultNginxCertName(nic *v1alpha1.NginxIngressController) string {
 
 type buildSPCUserError interface {
 	error
+}
+
+func certSecretName(ingressName string) string {
+	return fmt.Sprintf("keyvault-%s", ingressName)
 }

@@ -30,3 +30,8 @@ func TestDefaultNginxCertName(t *testing.T) {
 	require.NotContains(t, testStr, "b")
 	require.Contains(t, testStr, nginxNamePrefix)
 }
+
+func TestCertSecretName(t *testing.T) {
+	require.Equal(t, "keyvault-ingressname", certSecretName("ingressname"))
+	require.Equal(t, "keyvault-anotheringressname", certSecretName("anotheringressname"))
+}
