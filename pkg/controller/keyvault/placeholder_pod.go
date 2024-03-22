@@ -147,7 +147,8 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
 		obj.SetNamespace(req.Namespace)
 	default:
-		return result, fmt.Errorf("failed to reconcile object deployment: object type not nginxIngressController or ingress")
+		p.events.Eventf(obj, "Waring", "FailedReconcileObjectDeployment", "failed to reconcile object deployment: object type not nginxIngressController or ingress")
+		return result, nil
 	}
 
 	if obj.GetName() != "" {

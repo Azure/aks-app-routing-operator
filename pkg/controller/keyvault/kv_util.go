@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"reflect"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -35,7 +34,7 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		certURI = t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
 		specSecretName = fmt.Sprintf("keyvault-%s", t.Name)
 	default:
-		return false, fmt.Errorf("incorrect object type: %s", reflect.TypeOf(obj).String())
+		return false, fmt.Errorf("incorrect object type: %s", t)
 	}
 
 	if certURI == "" {
@@ -44,12 +43,12 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return false, err
+		return false, buildSPCUserError(err)
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 	if len(chunks) < 3 {
-		return false, fmt.Errorf("invalid secret uri: %s", certURI)
+		return false, buildSPCUserError(fmt.Errorf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -113,4 +112,8 @@ func DefaultNginxCertName(nic *v1alpha1.NginxIngressController) string {
 	}
 
 	return certName
+}
+
+type buildSPCUserError interface {
+	error
 }
