@@ -71,6 +71,16 @@ var (
 			}},
 		},
 	}
+	placeholderDeployment = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "default",
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+	}
 )
 
 func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
@@ -634,6 +644,39 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	require.Error(t, err, "determining if ingress is managed: an error has occured checking if ingress is managed")
 	require.Equal(t, false, cleanPod)
 }
+
+func TestBuildDeployment(t *testing.T) {
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+
+	spc := placeholderSpc.DeepCopy()
+
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	p := &PlaceholderPodController{
+		client: c,
+		config: &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			return true, nil
+		}),
+	}
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spc.Name,
+			Namespace: spc.Namespace,
+		},
+	}
+
+	var emptyObj client.Object
+
+	err := p.buildDeployment(ctx, dep, spc, emptyObj)
+	require.EqualError(t, err, "failed to build deployment: object type not ingress or nginxingresscontroller")
+}
+
 func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProviderClass {
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
