@@ -188,6 +188,10 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	if err := keyvault.NewPlaceholderPodController(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up placeholder pod controller: %w", err)
 	}
+	lgr.Info("setting up ingress tls reconciler")
+	if err := keyvault.NewIngressTlsReconciler(mgr, conf, ingressManager); err != nil {
+		return fmt.Errorf("setting up ingress tls reconciler: %w", err)
+	}
 	lgr.Info("setting up keyvault event mirror")
 	if err = keyvault.NewEventMirror(mgr, conf); err != nil {
 		return fmt.Errorf("setting up event mirror: %w", err)
