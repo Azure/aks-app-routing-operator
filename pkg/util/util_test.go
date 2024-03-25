@@ -4,7 +4,79 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestFindOwnerKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		owners   []metav1.OwnerReference
+		kind     string
+		expected string
+	}{
+		{
+			name:     "nil owners",
+			owners:   nil,
+			kind:     "kind",
+			expected: "",
+		},
+		{
+			name:     "empty owners",
+			owners:   []metav1.OwnerReference{},
+			kind:     "kind",
+			expected: "",
+		},
+		{
+			name: "non-existent owner",
+			owners: []metav1.OwnerReference{{
+				Kind: "Kind",
+				Name: "Name",
+			}},
+			kind:     "kind2",
+			expected: "",
+		},
+		{
+			name: "existent owner",
+			owners: []metav1.OwnerReference{{
+				Kind: "Kind",
+				Name: "Name",
+			}},
+			kind:     "Kind",
+			expected: "Name",
+		},
+		{
+			name: "existent owner different casing",
+			owners: []metav1.OwnerReference{{
+				Kind: "kind",
+				Name: "name",
+			}},
+			kind:     "Kind",
+			expected: "name",
+		},
+		{
+			name: "existent owner multiple owners",
+			owners: []metav1.OwnerReference{
+				{
+					Kind: "kind",
+					Name: "name",
+				},
+				{
+					Kind: "kind2",
+					Name: "name2",
+				},
+			},
+			kind:     "Kind2",
+			expected: "name2",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := FindOwnerKind(c.owners, c.kind)
+			require.Equal(t, c.expected, got)
+		})
+	}
+}
 
 func TestMergeMaps(t *testing.T) {
 	cases := []struct {

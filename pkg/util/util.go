@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"math/rand"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -45,7 +46,7 @@ func ToPtr[T any](t T) *T          { return &t }
 
 func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
 	for _, cur := range owners {
-		if cur.Kind == kind {
+		if strings.EqualFold(cur.Kind, kind) {
 			return cur.Name
 		}
 	}
