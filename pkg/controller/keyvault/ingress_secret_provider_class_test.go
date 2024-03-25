@@ -61,7 +61,9 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			if *ing.Spec.IngressClassName == spcTestIngressClassName {
 				return true, nil
 			}
-
+			if *ing.Spec.IngressClassName == "error" {
+				return false, fmt.Errorf("ingressClassNameError")
+			}
 			return false, nil
 		}),
 	}
@@ -109,6 +111,28 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Error check for isManaged function
+	ingClassName := ing.Spec.IngressClassName
+	errorName := "error"
+	ing.Spec.IngressClassName = &errorName
+
+	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.Errorf(t, err, fmt.Sprintf("determining if ingress is managed: %w", "ingressClassNameError"))
+	require.Greater(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Equal(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	ing.Spec.IngressClassName = ingClassName
+	require.NoError(t, i.client.Update(ctx, ing))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
