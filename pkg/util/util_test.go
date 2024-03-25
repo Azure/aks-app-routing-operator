@@ -1,7 +1,9 @@
 package util
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,6 +84,31 @@ func TestFindOwnerKind(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			got := FindOwnerKind(c.owners, c.kind)
 			require.Equal(t, c.expected, got)
+		})
+	}
+}
+
+func TestJitter(t *testing.T) {
+	base := time.Minute
+
+	// out of bounds ratio testing
+	require.Equal(t, base, Jitter(base, 0))
+	require.Equal(t, base, Jitter(base, 1.2))
+	require.Equal(t, base, Jitter(base, 3))
+	require.Equal(t, base, Jitter(base, -0.2))
+	require.Equal(t, base, Jitter(base, -2))
+
+	// ensure jitter is within bounds
+	cases := []float64{0.2, 0.3, 0.75, 0.9, 0.543}
+	for _, ratio := range cases {
+		t.Run(fmt.Sprintf("ratio-%f", ratio), func(t *testing.T) {
+			for i := 0; i < 100; i++ { // run a few times to get the full "range"
+				got := Jitter(base, ratio)
+				upper := base + time.Duration((float64(base)*ratio)-(float64(base)*(ratio/2)))
+				lower := (base + time.Duration(float64(base)*(ratio/2))) * -1
+				require.LessOrEqual(t, got, upper)
+				require.GreaterOrEqual(t, got, lower)
+			}
 		})
 	}
 }

@@ -54,9 +54,10 @@ func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
 }
 
 func Jitter(base time.Duration, ratio float64) time.Duration {
-	if ratio >= 1 || ratio == 0 {
+	if ratio >= 1 || ratio <= 0 {
 		return base
 	}
+
 	jitter := (rand.Float64() * float64(base) * ratio) - (float64(base) * (ratio / 2))
 	return base + time.Duration(jitter)
 }
