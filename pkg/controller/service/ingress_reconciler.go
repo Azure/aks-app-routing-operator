@@ -106,7 +106,7 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			Namespace: svc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: svc.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       svc.Kind,
 				Name:       svc.Name,
 				UID:        svc.UID,
@@ -116,7 +116,7 @@ func (i *NginxIngressReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(i.ingConfig.IcName),
+			IngressClassName: util.ToPtr(i.ingConfig.IcName),
 			Rules: []netv1.IngressRule{{
 				Host: svc.Annotations["kubernetes.azure.com/ingress-host"],
 				IngressRuleValue: netv1.IngressRuleValue{

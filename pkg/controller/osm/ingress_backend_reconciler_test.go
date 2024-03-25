@@ -43,7 +43,7 @@ var (
 			Annotations: map[string]string{"kubernetes.azure.com/use-osm-mtls": "true"},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr("test-ingress-class"),
+			IngressClassName: util.ToPtr("test-ingress-class"),
 			Rules: []netv1.IngressRule{{}, {
 				IngressRuleValue: netv1.IngressRuleValue{
 					HTTP: &netv1.HTTPIngressRuleValue{
