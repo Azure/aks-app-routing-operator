@@ -7,6 +7,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestToPtr(t *testing.T) {
+	intVar := 2
+	require.Equal(t, &intVar, ToPtr(intVar))
+
+	stringVar := "string"
+	require.Equal(t, &stringVar, ToPtr(stringVar))
+}
+
 func TestFindOwnerKind(t *testing.T) {
 	cases := []struct {
 		name     string
