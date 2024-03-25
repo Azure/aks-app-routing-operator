@@ -127,7 +127,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
-	require.Errorf(t, err, fmt.Sprintf("determining if ingress is managed: %w", "ingressClassNameError"))
+	require.Errorf(t, err, fmt.Sprintf("determining if ingress is managed: %s", "ingressClassNameError"))
 	require.Greater(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
 	require.Equal(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 
