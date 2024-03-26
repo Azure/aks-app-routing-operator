@@ -99,7 +99,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       spc.Kind,
 				Name:       spc.Name,
 				UID:        spc.UID,
@@ -194,7 +194,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.6-hotfix.20220114"),
@@ -215,7 +215,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
