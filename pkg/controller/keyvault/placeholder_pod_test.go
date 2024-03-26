@@ -299,7 +299,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
@@ -320,7 +320,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
@@ -690,7 +690,7 @@ func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProvi
 			Generation: 123,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       "NginxIngressController",
 				Name:       nic.Name,
 				UID:        nic.UID,
