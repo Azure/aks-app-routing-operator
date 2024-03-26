@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,8 +100,8 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	upsertSPC, err := buildSPC(nic, spc, i.config)
 
 	if err != nil {
-		if userErr := err.(buildSPCUserError); userErr != nil {
-			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.Error())
+		if errors.As(err, &buildSPCUserError{}) {
+			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err.Error())
 			return result, nil
 		}
 		return result, err

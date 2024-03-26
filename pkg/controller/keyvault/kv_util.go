@@ -43,12 +43,12 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return false, buildSPCUserError(err)
+		return false, newBuildSPCUserError(err.Error())
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 	if len(chunks) < 3 {
-		return false, buildSPCUserError(fmt.Errorf("invalid secret uri: %s", certURI))
+		return false, newBuildSPCUserError(fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -114,10 +114,27 @@ func DefaultNginxCertName(nic *v1alpha1.NginxIngressController) string {
 	return certName
 }
 
-type buildSPCUserError interface {
-	error
-}
-
 func certSecretName(ingressName string) string {
 	return fmt.Sprintf("keyvault-%s", ingressName)
+}
+
+type userError interface {
+	error
+	UserError() string
+}
+
+type buildSPCUserError struct {
+	errMessage string
+}
+
+func (b buildSPCUserError) Error() string {
+	return b.UserError()
+}
+
+func (b buildSPCUserError) UserError() string {
+	return b.errMessage
+}
+
+func newBuildSPCUserError(msg string) buildSPCUserError {
+	return buildSPCUserError{msg}
 }

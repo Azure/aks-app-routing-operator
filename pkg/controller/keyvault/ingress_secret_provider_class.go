@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -109,9 +110,9 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		var upsertSPC bool
 
 		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
-			if userErr := err.(buildSPCUserError); userErr != nil {
+			if errors.As(err, &buildSPCUserError{}) {
 				logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.Error())
+				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err.Error())
 				return result, nil
 			}
 			return result, err

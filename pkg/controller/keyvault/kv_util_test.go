@@ -1,6 +1,7 @@
 package keyvault
 
 import (
+	"errors"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
@@ -205,4 +206,14 @@ func TestBuildSPCWithWrongObject(t *testing.T) {
 	ok, err := buildSPC(obj, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 	assert.False(t, ok)
 	require.EqualError(t, err, fmt.Sprintf("incorrect object type: %s", obj))
+}
+
+func TestUserErrors(t *testing.T) {
+	testMsg := "test error message"
+	testError := newBuildSPCUserError(testMsg)
+
+	assert.True(t, testError.UserError() == testMsg)
+	assert.True(t, testError.UserError() == testError.Error())
+	assert.True(t, errors.As(testError, &buildSPCUserError{}))
+	assert.True(t, errors.As(testError, &buildSPCUserError{}))
 }
