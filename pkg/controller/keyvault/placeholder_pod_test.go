@@ -149,7 +149,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
@@ -170,7 +170,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
@@ -456,7 +456,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
@@ -477,7 +477,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},

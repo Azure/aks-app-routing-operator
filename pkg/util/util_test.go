@@ -1,10 +1,184 @@
 package util
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestToPtr(t *testing.T) {
+	intVar := 2
+	require.Equal(t, &intVar, ToPtr(intVar))
+
+	stringVar := "string"
+	require.Equal(t, &stringVar, ToPtr(stringVar))
+}
+
+func TestFindOwnerKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		owners   []metav1.OwnerReference
+		kind     string
+		expected string
+	}{
+		{
+			name:     "nil owners",
+			owners:   nil,
+			kind:     "kind",
+			expected: "",
+		},
+		{
+			name:     "empty owners",
+			owners:   []metav1.OwnerReference{},
+			kind:     "kind",
+			expected: "",
+		},
+		{
+			name: "non-existent owner",
+			owners: []metav1.OwnerReference{{
+				Kind: "Kind",
+				Name: "Name",
+			}},
+			kind:     "kind2",
+			expected: "",
+		},
+		{
+			name: "existent owner",
+			owners: []metav1.OwnerReference{{
+				Kind: "Kind",
+				Name: "Name",
+			}},
+			kind:     "Kind",
+			expected: "Name",
+		},
+		{
+			name: "existent owner different casing",
+			owners: []metav1.OwnerReference{{
+				Kind: "kind",
+				Name: "name",
+			}},
+			kind:     "Kind",
+			expected: "name",
+		},
+		{
+			name: "existent owner multiple owners",
+			owners: []metav1.OwnerReference{
+				{
+					Kind: "kind",
+					Name: "name",
+				},
+				{
+					Kind: "kind2",
+					Name: "name2",
+				},
+			},
+			kind:     "Kind2",
+			expected: "name2",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := FindOwnerKind(c.owners, c.kind)
+			require.Equal(t, c.expected, got)
+		})
+	}
+}
+
+func TestJitter(t *testing.T) {
+	base := time.Minute
+
+	// out of bounds ratio testing
+	require.Equal(t, base, Jitter(base, 0))
+	require.Equal(t, base, Jitter(base, 1.2))
+	require.Equal(t, base, Jitter(base, 3))
+	require.Equal(t, base, Jitter(base, -0.2))
+	require.Equal(t, base, Jitter(base, -2))
+
+	// ensure jitter is within bounds
+	cases := []float64{0.2, 0.3, 0.75, 0.9, 0.543}
+	for _, ratio := range cases {
+		t.Run(fmt.Sprintf("ratio-%f", ratio), func(t *testing.T) {
+			for i := 0; i < 100; i++ { // run a few times to get the full "range"
+				got := Jitter(base, ratio)
+				upper := base + time.Duration((float64(base)*ratio)-(float64(base)*(ratio/2)))
+				lower := (base + time.Duration(float64(base)*(ratio/2))) * -1
+				require.LessOrEqual(t, got, upper)
+				require.GreaterOrEqual(t, got, lower)
+			}
+		})
+	}
+}
+
+func TestMergeMaps(t *testing.T) {
+	cases := []struct {
+		name     string
+		m1       map[string]string
+		m2       map[string]string
+		m3       map[string]string
+		expected map[string]string
+	}{
+		{
+			name:     "nil maps",
+			m1:       nil,
+			m2:       nil,
+			m3:       nil,
+			expected: map[string]string{},
+		},
+		{
+			name:     "empty maps",
+			m1:       map[string]string{},
+			m2:       map[string]string{},
+			m3:       map[string]string{},
+			expected: map[string]string{},
+		},
+		{
+			name:     "some nil maps",
+			m1:       nil,
+			m2:       map[string]string{"one": "two"},
+			m3:       nil,
+			expected: map[string]string{"one": "two"},
+		},
+		{
+			name:     "equivalent maps",
+			m1:       map[string]string{"one": "two"},
+			m2:       map[string]string{"one": "two"},
+			m3:       map[string]string{"one": "two"},
+			expected: map[string]string{"one": "two"},
+		},
+		{
+			name:     "different maps",
+			m1:       map[string]string{"one": "two"},
+			m2:       map[string]string{"three": "four"},
+			m3:       map[string]string{"five": "six"},
+			expected: map[string]string{"one": "two", "three": "four", "five": "six"},
+		},
+		{
+			name:     "some overlap",
+			m1:       map[string]string{"one": "two"},
+			m2:       map[string]string{"one": "two"},
+			m3:       map[string]string{"three": "four"},
+			expected: map[string]string{"one": "two", "three": "four"},
+		},
+		{
+			name:     "multiple keys",
+			m1:       map[string]string{"one": "two", "three": "four"},
+			m2:       map[string]string{"three": "four", "five": "six"},
+			m3:       map[string]string{"seven": "eight"},
+			expected: map[string]string{"one": "two", "three": "four", "five": "six", "seven": "eight"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := MergeMaps(c.m1, c.m2, c.m3)
+			require.Equal(t, c.expected, got)
+		})
+	}
+}
 
 func TestKeys(t *testing.T) {
 	type Case[K comparable, v any] struct {

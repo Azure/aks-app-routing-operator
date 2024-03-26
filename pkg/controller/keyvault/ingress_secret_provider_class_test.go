@@ -224,7 +224,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       ing.Kind,
 				Name:       ing.Name,
 				UID:        ing.UID,
