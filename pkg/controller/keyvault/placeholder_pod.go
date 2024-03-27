@@ -148,6 +148,9 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
 		obj.SetNamespace(req.Namespace)
 		logger.Info(fmt.Sprint("getting owner Ingress"))
+	default:
+		logger.Info("owner type not found")
+		return result, nil
 	}
 
 	if obj.GetName() != "" {
