@@ -116,6 +116,8 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
 				return result, nil
 			}
+
+			logger.Info(fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s."), err.Error())
 			return result, err
 		}
 
