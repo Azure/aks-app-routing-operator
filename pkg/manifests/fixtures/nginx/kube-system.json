@@ -438,7 +438,7 @@
               "app.kubernetes.io/managed-by": "aks-app-routing-operator"
             },
             "annotations": {
-              "openservicemesh.io/sidecar-injection": "enabled",
+              "openservicemesh.io/sidecar-injection": "disabled",
               "prometheus.io/port": "10254",
               "prometheus.io/scrape": "true"
             }
@@ -447,7 +447,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.9.4",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.10.0",
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",

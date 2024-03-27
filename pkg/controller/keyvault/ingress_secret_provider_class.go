@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -90,7 +91,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       ing.Kind,
 				Name:       ing.Name,
 				UID:        ing.UID,
@@ -109,15 +110,18 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		var upsertSPC bool
 
 		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
-			logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-			i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
-			return result, nil
+			if errors.As(err, &UserError) {
+				logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
+				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", UserError.UserError())
+				return result, nil
+			}
+			return result, err
 		}
 
 		if upsertSPC {
 			logger.Info("reconciling secret provider class for ingress")
 			if err = util.Upsert(ctx, i.client, spc); err != nil {
-				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
 			}
 			return result, err
 		}

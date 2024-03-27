@@ -71,6 +71,16 @@ var (
 			}},
 		},
 	}
+	placeholderDeployment = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "default",
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+	}
 )
 
 func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
@@ -139,7 +149,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
@@ -160,7 +170,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
@@ -289,7 +299,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
@@ -310,7 +320,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
@@ -446,7 +456,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
@@ -467,7 +477,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
@@ -634,6 +644,39 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	require.Error(t, err, "determining if ingress is managed: an error has occured checking if ingress is managed")
 	require.Equal(t, false, cleanPod)
 }
+
+func TestBuildDeployment(t *testing.T) {
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+
+	spc := placeholderSpc.DeepCopy()
+
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	p := &PlaceholderPodController{
+		client: c,
+		config: &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			return true, nil
+		}),
+	}
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spc.Name,
+			Namespace: spc.Namespace,
+		},
+	}
+
+	var emptyObj client.Object
+
+	err := p.buildDeployment(ctx, dep, spc, emptyObj)
+	require.EqualError(t, err, "failed to build deployment: object type not ingress or nginxingresscontroller")
+}
+
 func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProviderClass {
 	spc := &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
@@ -647,7 +690,7 @@ func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProvi
 			Generation: 123,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: nic.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       "NginxIngressController",
 				Name:       nic.Name,
 				UID:        nic.UID,

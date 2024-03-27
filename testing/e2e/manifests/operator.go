@@ -17,7 +17,7 @@ import (
 
 const (
 	operatorNs        = "kube-system"
-	managedResourceNs = "app-routing-system"
+	ManagedResourceNs = "app-routing-system"
 )
 
 var (
@@ -121,7 +121,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
 		"--location", o.Location,
-		"--namespace", managedResourceNs,
+		"--namespace", ManagedResourceNs,
 		"--cluster-uid", "test-cluster-uid",
 	}
 
@@ -162,7 +162,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 			Kind:       "Namespace",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: managedResourceNs,
+			Name: ManagedResourceNs,
 		},
 	}
 

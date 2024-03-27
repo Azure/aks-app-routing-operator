@@ -60,9 +60,13 @@ type NginxIngressControllerSpec struct {
 	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
 	// +optional
 	ForceSSLRedirect *bool `json:"forceSSLRedirect,omitempty"`
+
+	// Scaling defines configuration options for how the Ingress Controller scales
+	// +optional
+	Scaling *Scaling `json:"scaling,omitempty"`
 }
 
-// DefaultSSLCertificate holds a secret in the form of a secret struct ith name and namespace properties or a key vault uri
+// DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
 // +kubebuilder:validation:MaxProperties=1
 // +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
 type DefaultSSLCertificate struct {
@@ -87,6 +91,36 @@ type Secret struct {
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	Namespace string `json:"namespace"`
 }
+
+// Scaling holds specification for how the Ingress Controller scales
+// +kubebuilder:validation:XValidation:rule="(!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas <= self.maxReplicas)"
+type Scaling struct {
+	// MinReplicas is the lower limit for the number of Ingress Controller replicas. It defaults to 2 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
+	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. Rapid means the Ingress Controller
+	// will scale quickly and aggressively, which is the best choice for handling sudden and significant traffic spikes. Steady
+	// is the opposite, prioritizing cost-effectiveness. Steady is the best choice when fewer replicas handling more work is desired or when
+	// traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. If unspecified, this field
+	// defaults to balanced.
+	// +kubebuilder:validation:Enum=rapid;balanced;steady;
+	// +optional
+	Threshold *Threshold `json:"threshold,omitempty"`
+}
+
+type Threshold string
+
+const (
+	RapidThreshold    Threshold = "rapid"
+	BalancedThreshold Threshold = "balanced"
+	SteadyThreshold   Threshold = "steady"
+)
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
 type NginxIngressControllerStatus struct {

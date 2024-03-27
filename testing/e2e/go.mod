@@ -16,6 +16,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v0.11.0
 	github.com/Azure/go-autorest/autorest v0.11.29
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/go-logr/logr v1.2.4
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/uuid v1.3.1
