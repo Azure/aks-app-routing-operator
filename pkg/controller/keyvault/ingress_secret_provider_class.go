@@ -110,9 +110,9 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		var upsertSPC bool
 
 		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
-			if errors.As(err, &buildSPCUserError{}) {
+			if errors.As(err, &UserError) {
 				logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err.Error())
+				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", UserError.UserError())
 				return result, nil
 			}
 			return result, err

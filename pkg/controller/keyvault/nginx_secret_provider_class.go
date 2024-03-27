@@ -100,8 +100,8 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	upsertSPC, err := buildSPC(nic, spc, i.config)
 
 	if err != nil {
-		if errors.As(err, &buildSPCUserError{}) {
-			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err.Error())
+		if errors.As(err, &UserError) {
+			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", UserError.UserError())
 			return result, nil
 		}
 		return result, err

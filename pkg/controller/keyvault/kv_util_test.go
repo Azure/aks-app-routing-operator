@@ -196,7 +196,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 
 		ok, err := buildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
 		assert.False(t, ok)
-		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
+		require.EqualError(t, err, "uri Path contains too few segments: has: 2 requires greater than: 3 uri path: /foo")
 	})
 }
 
@@ -210,10 +210,9 @@ func TestBuildSPCWithWrongObject(t *testing.T) {
 
 func TestUserErrors(t *testing.T) {
 	testMsg := "test error message"
-	testError := newBuildSPCUserError(testMsg)
+	testError := newBuildSPCUserError(errors.New("test"), testMsg)
 
 	assert.True(t, testError.UserError() == testMsg)
-	assert.True(t, testError.UserError() == testError.Error())
-	assert.True(t, errors.As(testError, &buildSPCUserError{}))
-	assert.True(t, errors.As(testError, &buildSPCUserError{}))
+	assert.True(t, errors.As(testError, &UserError))
+	assert.True(t, errors.As(testError, &BuildSPCUserError))
 }
