@@ -142,17 +142,18 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	case util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController") != "":
 		obj = &v1alpha1.NginxIngressController{}
 		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"))
+		logger.Info(fmt.Sprint("getting owner NginxIngressController"))
 	case util.FindOwnerKind(spc.OwnerReferences, "Ingress") != "":
 		obj = &netv1.Ingress{}
 		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
 		obj.SetNamespace(req.Namespace)
+		logger.Info(fmt.Sprint("getting owner Ingress"))
 	default:
-		p.events.Eventf(obj, "Waring", "FailedReconcileObjectDeployment", "failed to reconcile object deployment: object type not nginxIngressController or ingress")
+		logger.Info("owner type not found")
 		return result, nil
 	}
 
 	if obj.GetName() != "" {
-		logger.Info(fmt.Sprintf("getting owner %s", obj.GetObjectKind().GroupVersionKind().Kind))
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 			return result, client.IgnoreNotFound(err)
 		}

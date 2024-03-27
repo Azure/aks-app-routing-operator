@@ -43,13 +43,13 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return false, newBuildSPCUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
+		return false, newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 
 	if len(chunks) < 3 {
-		return false, newBuildSPCUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
+		return false, newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -119,26 +119,21 @@ func certSecretName(ingressName string) string {
 	return fmt.Sprintf("keyvault-%s", ingressName)
 }
 
-type userError interface {
-	error
-	UserError() string
-}
-
-type buildSPCUserError struct {
+type userError struct {
 	err         error
 	userMessage string
 }
 
 // for internal use
-func (b buildSPCUserError) Error() string {
+func (b userError) Error() string {
 	return b.err.Error()
 }
 
 // for user facing messages
-func (b buildSPCUserError) UserError() string {
+func (b userError) UserError() string {
 	return b.userMessage
 }
 
-func newBuildSPCUserError(err error, msg string) buildSPCUserError {
-	return buildSPCUserError{err, msg}
+func newUserError(err error, msg string) userError {
+	return userError{err, msg}
 }
