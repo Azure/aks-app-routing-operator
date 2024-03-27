@@ -103,7 +103,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	// Checking if we manage the ingress. All false cases without an error are assumed that we don't manage it
 	var isManaged bool
 	if isManaged, err = i.ingressManager.IsManaging(ing); err != nil {
-		logger.Info(fmt.Sprintf("failed while checking if ingress was managed with error: %s.", err.Error()))
+		logger.Error(err, fmt.Sprintf("failed while checking if ingress was managed with error: %s.", err.Error()))
 		return result, fmt.Errorf("determining if ingress is managed: %w", err)
 	}
 
@@ -113,7 +113,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
 			var userErr userError
 			if errors.As(err, &userErr) {
-				logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
+				logger.Error(err, fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
 				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
 				return result, nil
 			}
@@ -126,7 +126,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			logger.Info("reconciling secret provider class for ingress")
 			if err = util.Upsert(ctx, i.client, spc); err != nil {
 				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
-				logger.Info(fmt.Sprintf("failed to upsert secret provider class for ingress with error: %s.", err.Error()))
+				logger.Error(err, fmt.Sprintf("failed to upsert secret provider class for ingress with error: %s.", err.Error()))
 			}
 			return result, err
 		}

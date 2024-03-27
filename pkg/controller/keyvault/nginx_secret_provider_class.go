@@ -103,7 +103,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	if err != nil {
 		var userErr userError
 		if errors.As(err, &userErr) {
-			logger.Info(fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s. sending warning event", userErr.Error()))
+			logger.Error(err, fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s. sending warning event", userErr.Error()))
 			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
 			return result, nil
 		}
@@ -117,7 +117,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 		err = util.Upsert(ctx, i.client, spc)
 		if err != nil {
 			i.events.Eventf(nic, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
-			logger.Info(fmt.Sprintf("failed to upsert secret provider class for nginx ingress class with error: %s.", err.Error()))
+			logger.Error(err, fmt.Sprintf("failed to upsert secret provider class for nginx ingress class with error: %s.", err.Error()))
 		}
 		return result, err
 	} else {
