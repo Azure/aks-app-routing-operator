@@ -142,8 +142,3 @@ func (b buildSPCUserError) UserError() string {
 func newBuildSPCUserError(err error, msg string) buildSPCUserError {
 	return buildSPCUserError{err, msg}
 }
-
-var (
-	UserError         userError
-	BuildSPCUserError buildSPCUserError
-)
