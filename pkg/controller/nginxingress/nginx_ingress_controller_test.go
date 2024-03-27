@@ -73,6 +73,86 @@ func TestReconcileResources(t *testing.T) {
 		}
 	})
 
+	t.Run("valid resources with defaultSSLCertificate Secret", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:      "ingressClassName",
+				ControllerNamePrefix:  "prefix",
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.Secret{Name: "test-name", Namespace: "test-namespace"}},
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
+	t.Run("valid resources with defaultSSLCertificate key vault URI", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+		kvUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:      "ingressClassName",
+				ControllerNamePrefix:  "prefix",
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{KeyVaultURI: &kvUri},
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
 	t.Run("invalid resources", func(t *testing.T) {
 		cl := fake.NewFakeClient()
 		events := record.NewFakeRecorder(10)

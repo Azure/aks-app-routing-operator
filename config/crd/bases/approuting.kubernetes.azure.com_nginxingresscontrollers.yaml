@@ -65,7 +65,11 @@ spec:
                 description: DefaultSSLCertificate defines whether the NginxIngressController
                   should use a certain SSL certificate by default. If this field is
                   omitted, no default certificate will be used.
+                maxProperties: 1
                 properties:
+                  keyVaultURI:
+                    description: Secret in the form of a Key Vault URI
+                    type: string
                   secret:
                     description: Secret is a struct that holds the name and namespace
                       fields used for the default ssl secret
@@ -85,6 +89,8 @@ spec:
                     - namespace
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - rule: (isURL(self.keyVaultURI) || !has(self.keyVaultURI))
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that

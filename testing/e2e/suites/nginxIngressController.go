@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"time"
+
+	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -41,6 +44,7 @@ func init() {
 	appsv1.AddToScheme(scheme)
 	policyv1.AddToScheme(scheme)
 	rbacv1.AddToScheme(scheme)
+	secv1.AddToScheme(scheme)
 }
 
 func nicTests(in infra.Provisioned) []test {
@@ -113,6 +117,32 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite missing Secret field'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
+				validUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
+
+				invalidUri := "Invalid.URI"
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &invalidUri,
+				}
+				lgr.Info("creating NginxIngressController with invalid keyvault uri field")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite invalid key vault uri'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &validUri,
+					Secret: &v1alpha1.Secret{
+						Name:      "validname",
+						Namespace: "validnamespace",
+					},
+				}
+				lgr.Info("creating NginxIngressController with both keyvault uri field and secret field")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite having both keyvaulturi and secret fields'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				// scaling profile
 				rejectTests := []struct {
 					name string
 					nic  *v1alpha1.NginxIngressController
@@ -257,6 +287,102 @@ func nicTests(in infra.Provisioned) []test {
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
+					return nil
+				}, to.Ptr(service.Name)); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
+		},
+		{
+			name: "testing DefaultSSLCertificate validity",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
+
+				c, err := client.New(config, client.Options{
+					Scheme: scheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w")
+				}
+
+				// get keyvault uri
+				kvuri := in.Cert.GetId()
+
+				// create defaultSSLCert
+				defaultSSLCert := v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &kvuri,
+				}
+
+				// create nic and upsert
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultSSLCertificate = &defaultSSLCert
+				if err := upsert(ctx, c, testNIC); err != nil {
+					return fmt.Errorf("upserting NIC: %w", err)
+				}
+
+				var service *v1alpha1.ManagedObjectReference
+				var nic v1alpha1.NginxIngressController
+				lgr.Info("waiting for NIC to be available")
+				if err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if NIC is available")
+					if err := c.Get(ctx, client.ObjectKeyFromObject(testNIC), &nic); err != nil {
+						return false, fmt.Errorf("get nic: %w", err)
+					}
+
+					for _, cond := range nic.Status.Conditions {
+						if cond.Type == v1alpha1.ConditionTypeAvailable {
+							lgr.Info("found nic")
+							if len(nic.Status.ManagedResourceRefs) == 0 {
+								lgr.Info("nic has no ManagedResourceRefs")
+								return false, nil
+							}
+							return true, nil
+						}
+					}
+					lgr.Info("nic not available")
+					return false, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for test NIC to be available: %w", err)
+				}
+
+				lgr.Info("checking if associated SPC is created")
+				spc := &secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      keyvault.DefaultNginxCertName(testNIC),
+						Namespace: "app-routing-system",
+					},
+				}
+				cleanSPC := &secv1.SecretProviderClass{}
+
+				if err := c.Get(ctx, client.ObjectKeyFromObject(spc), cleanSPC); err != nil {
+					lgr.Info("spc not found")
+					return err
+				}
+				lgr.Info("found spc")
+
+				lgr.Info("checking for service in managed resource refs")
+				for _, ref := range nic.Status.ManagedResourceRefs {
+					if ref.Kind == "Service" {
+						lgr.Info("found service")
+						service = &ref
+					}
+				}
+
+				if service == nil {
+					return fmt.Errorf("no service available in resource refs")
+				}
+
+				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {
 					return err
