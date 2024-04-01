@@ -117,7 +117,7 @@ func withTypicalReadinessProbe(port int, contain *corev1.Container) *corev1.Cont
 func withLivenessProbeMatchingReadinessNewFailureThresh(contain *corev1.Container, failureThresh int32) *corev1.Container {
 	copy := withLivenessProbeMatchingReadiness(contain)
 
-	if copy.LivenessProbe != nil {
+	if copy != nil && copy.LivenessProbe != nil {
 		copy.LivenessProbe.FailureThreshold = failureThresh
 	}
 
