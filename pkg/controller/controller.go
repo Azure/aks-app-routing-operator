@@ -168,7 +168,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	}
 
 	lgr.Info("setting up default Nginx Ingress Controller reconciler")
-	if err := nginxingress.NewDefaultReconciler(mgr); err != nil {
+	if err := nginxingress.NewDefaultReconciler(mgr, conf); err != nil {
 		return fmt.Errorf("setting up nginx ingress default controller reconciler: %w", err)
 	}
 
