@@ -2,11 +2,13 @@ package nginxingress
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
@@ -14,7 +16,20 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
+
+func TestNewDefaultReconciler(t *testing.T) {
+	fakeManager := &testutils.FakeManager{
+		AddFn: func(runnable manager.Runnable) error {
+			require.Fail(t, "expected manager.Add not to be called")
+			return nil
+		},
+	}
+
+	require.Equal(t, errors.New("nil config"), NewDefaultReconciler(fakeManager, nil))
+	require.Nil(t, NewDefaultReconciler(fakeManager, &config.Config{DefaultController: config.Off}))
+}
 
 func TestDefaultNicReconciler(t *testing.T) {
 	scheme := runtime.NewScheme()
