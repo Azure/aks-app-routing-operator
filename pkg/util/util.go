@@ -79,3 +79,13 @@ func Keys[K comparable, v any](m map[K]v) []K {
 
 	return keys
 }
+
+// ReverseMap creates a map with the values in the map pointing to the keys, effectively reversing it
+func ReverseMap[K comparable, V comparable](m map[K]V) map[V]K {
+	new := make(map[V]K)
+	for key, val := range m {
+		new[val] = key
+	}
+
+	return new
+}

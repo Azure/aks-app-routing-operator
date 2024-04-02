@@ -28,6 +28,7 @@ var validateTestCases = []struct {
 	{
 		Name: "valid-minimal",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -44,6 +45,7 @@ var validateTestCases = []struct {
 	{
 		Name: "valid-full",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -60,6 +62,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing operator deployment",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -76,6 +79,7 @@ var validateTestCases = []struct {
 	{
 		Name: "nonexistent crd path",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -93,6 +97,7 @@ var validateTestCases = []struct {
 	{
 		Name: "non-directory crd path",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -110,6 +115,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-namespace",
 		Conf: &Config{
+			DefaultController:        Standard,
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
 			TenantID:                 "test-tenant-id",
@@ -125,6 +131,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-registry",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			MSIClientID:              "test-msi-client-id",
 			TenantID:                 "test-tenant-id",
@@ -140,6 +147,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-msi",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			TenantID:                 "test-tenant-id",
@@ -155,6 +163,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-tenant-id",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -170,6 +179,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-cloud",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -185,6 +195,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-location",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -200,6 +211,7 @@ var validateTestCases = []struct {
 	{
 		Name: "low-concurrency-watchdog-thres",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -216,6 +228,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-concurrency-watchdog-thres",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -230,6 +243,7 @@ var validateTestCases = []struct {
 	{
 		Name: "missing-cluster-uid",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
@@ -245,6 +259,7 @@ var validateTestCases = []struct {
 	{
 		Name: "invalid-dns-zone-id",
 		Conf: &Config{
+			DefaultController:        Standard,
 			NS:                       "test-namespace",
 			Registry:                 "test-registry",
 			MSIClientID:              "test-msi-client-id",
