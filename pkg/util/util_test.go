@@ -230,3 +230,55 @@ func TestKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestReverseMap(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    map[string]int
+		expected map[int]string
+	}{
+		{
+			name:     "nil",
+			input:    nil,
+			expected: make(map[int]string),
+		},
+		{
+			name:     "empty",
+			input:    map[string]int{},
+			expected: make(map[int]string),
+		},
+		{
+			name: "basic map",
+			input: map[string]int{
+				"one": 1,
+				"two": 2,
+			},
+			expected: map[int]string{
+				1: "one",
+				2: "two",
+			},
+		},
+		{
+			name: "another basic map",
+			input: map[string]int{
+				"hello": 5,
+				"world": 3,
+				"foo":   1210,
+				"bar":   52,
+			},
+			expected: map[int]string{
+				5:    "hello",
+				3:    "world",
+				1210: "foo",
+				52:   "bar",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := ReverseMap(c.input)
+			require.Equal(t, c.expected, got)
+		})
+	}
+}
