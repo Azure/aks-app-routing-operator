@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
@@ -26,6 +27,7 @@ func TestDefaultNicReconciler(t *testing.T) {
 		client: cl,
 		lgr:    logr.Discard(),
 		name:   controllername.New("testing"),
+		conf:   config.Config{},
 	}
 
 	nic := &approutingv1alpha1.NginxIngressController{
@@ -47,6 +49,21 @@ func TestDefaultNicReconciler(t *testing.T) {
 	require.NoError(t, d.tick(context.Background()))
 	require.NoError(t, d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic))
 	require.Equal(t, newLbAnnotations, nic.Spec.LoadBalancerAnnotations, "default nic service annotations should not be overwritten")
+	// clear old arbitrary annotations
+	nic.Spec.LoadBalancerAnnotations = map[string]string{}
+	require.NoError(t, d.client.Update(context.Background(), nic))
+
+	// prove that a private nic lb service annotation is used when the configuration specifies
+	d.conf.DefaultController = config.Private
+	require.NoError(t, d.tick(context.Background()))
+	require.NoError(t, d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic))
+	require.Equal(t, map[string]string{internalLbAnnotation: "true"}, nic.Spec.LoadBalancerAnnotations, "default nic service annotations should have private lb annotation")
+
+	// prove that a public nic lb service annotation is used when the configuration specifies
+	d.conf.DefaultController = config.Public
+	require.NoError(t, d.tick(context.Background()))
+	require.NoError(t, d.client.Get(context.Background(), types.NamespacedName{Name: nic.Name}, nic))
+	require.Equal(t, map[string]string{internalLbAnnotation: "false"}, nic.Spec.LoadBalancerAnnotations, "default nic service annotations should have private lb annotation")
 }
 
 func TestGetDefaultIngressClassControllerClass(t *testing.T) {
