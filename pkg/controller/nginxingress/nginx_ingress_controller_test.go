@@ -890,6 +890,9 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCert := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeDefaultSSLCertNoName := getFakeDefaultSSLCert("", "fakenamespace")
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
+	ForceSSLRedirectTrue := true
+	ForceSSLRedirectFalse := false
+
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -1055,6 +1058,93 @@ func TestToNginxIngressConfig(t *testing.T) {
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
 				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate and true ForceSSLRedirect",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
+					ForceSSLRedirect:      &ForceSSLRedirectTrue,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+				ForceSSLRedirect:               true,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate and false ForceSSLRedirect",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
+					ForceSSLRedirect:      &ForceSSLRedirectFalse,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+				ForceSSLRedirect:               false,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate and nil ForceSSLRedirect",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
+					ForceSSLRedirect:      nil,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+				ForceSSLRedirect:               false,
 			},
 		},
 		{

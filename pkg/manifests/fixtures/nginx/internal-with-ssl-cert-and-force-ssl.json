@@ -510,6 +510,18 @@
                   "memory": "127Mi"
                 }
               },
+              "livenessProbe": {
+                "httpGet": {
+                  "path": "/healthz",
+                  "port": 10254,
+                  "scheme": "HTTP"
+                },
+                "initialDelaySeconds": 10,
+                "timeoutSeconds": 1,
+                "periodSeconds": 5,
+                "successThreshold": 1,
+                "failureThreshold": 6
+              },
               "readinessProbe": {
                 "httpGet": {
                   "path": "/healthz",
