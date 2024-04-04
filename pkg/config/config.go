@@ -26,6 +26,7 @@ var Flags = &Config{}
 var dnsZonesString string
 
 func init() {
+	flag.Var(&Flags.DefaultController, "default-controller", "kind of default controller to use. should be one of 'standard', 'public', 'private', or 'off'.")
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
@@ -44,29 +45,6 @@ func init() {
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
-}
-
-type DnsZoneConfig struct {
-	Subscription  string
-	ResourceGroup string
-	ZoneIds       map[string]struct{}
-}
-
-type Config struct {
-	ServiceAccountTokenPath             string
-	MetricsAddr, ProbeAddr              string
-	NS, Registry                        string
-	DisableKeyvault                     bool
-	MSIClientID, TenantID               string
-	Cloud, Location                     string
-	PrivateZoneConfig, PublicZoneConfig DnsZoneConfig
-	ConcurrencyWatchdogThres            float64
-	ConcurrencyWatchdogVotes            int
-	DisableOSM                          bool
-	OperatorDeployment                  string
-	ClusterUid                          string
-	DnsSyncInterval                     time.Duration
-	CrdPath                             string
 }
 
 func (c *Config) Validate() error {

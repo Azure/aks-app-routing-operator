@@ -476,7 +476,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						},
 					},
 					ServiceAccountName: ingressConfig.ResourceName,
-					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
+					Containers: []corev1.Container{*withPodRefEnvVars(withLivenessProbeMatchingReadinessNewFailureThresh(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
 						Args:  deploymentArgs,
@@ -500,7 +500,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 								corev1.ResourceMemory: resource.MustParse("127Mi"),
 							},
 						},
-					}))},
+					}), 6))},
 				}),
 			},
 		},

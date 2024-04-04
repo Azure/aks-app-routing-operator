@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2024-04-03
+
+### Added
+
+- default SSL certificate secret configuration through CRD - [#160](https://github.com/Azure/aks-app-routing-operator/pull/160)
+- min and max replica configuration through CRD - [#178](https://github.com/Azure/aks-app-routing-operator/pull/178)
+- scaling threshold configuration through CRD - [#180](https://github.com/Azure/aks-app-routing-operator/pull/180)
+- tls reconciler that allows us to manage Ingress TLS fields - [#155](https://github.com/Azure/aks-app-routing-operator/pull/155)
+- bumped to Nginx 1.10.0 - [#184](https://github.com/Azure/aks-app-routing-operator/pull/184)
+- default SSL certificate keyvault uri configuration through CRD - [#166](https://github.com/Azure/aks-app-routing-operator/pull/166)
+- liveness probe to Nginx - [#188](https://github.com/Azure/aks-app-routing-operator/pull/188)
+- default NginxIngressController configuration through CLI args - [#189](https://github.com/Azure/aks-app-routing-operator/pull/189)
+
+### Changes
+
+- switched to distroless base image - [#164](https://github.com/Azure/aks-app-routing-operator/pull/164)
+- changed OSM integration to disable sidecar injection on Nginx deployment - [#170](https://github.com/Azure/aks-app-routing-operator/pull/170)
+
 ## [0.2.1] - 2024-01-23
 
 ### Fixed
