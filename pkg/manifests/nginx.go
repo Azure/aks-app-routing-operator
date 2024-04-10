@@ -480,7 +480,16 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
 						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
-							RunAsUser: util.Int64Ptr(101),
+							AllowPrivilegeEscalation: util.ToPtr(false),
+							Capabilities: &corev1.Capabilities{
+								Add:  []corev1.Capability{"NET_BIND_SERVICE"}, // needed to bind to 80/443 ports https://github.com/kubernetes/ingress-nginx/blob/ca6d3622e5c2819a29f4a407ed272f42d10a91a9/docs/troubleshooting.md?plain=1#L369
+								Drop: []corev1.Capability{"ALL"},
+							},
+							RunAsNonRoot: util.ToPtr(true),
+							RunAsUser:    util.Int64Ptr(101),
+							SeccompProfile: &corev1.SeccompProfile{
+								Type: corev1.SeccompProfileTypeRuntimeDefault,
+							},
 						},
 						Ports: []corev1.ContainerPort{
 							{
