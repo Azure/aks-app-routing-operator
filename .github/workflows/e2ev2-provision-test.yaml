@@ -45,7 +45,7 @@ jobs:
           Architectures: $(dpkg --print-architecture)
           Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
           AZ_VER=2.58.0
-          sudo apt-get update && sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST}
+          sudo apt-get update && sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST} --allow-downgrades
 
       - name: Azure login
         uses: azure/login@v1
@@ -103,7 +103,7 @@ jobs:
           Architectures: $(dpkg --print-architecture)
           Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
           AZ_VER=2.58.0
-          sudo apt-get update && sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST}
+          sudo apt-get update && sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST} --allow-downgrades
 
       - name: Azure login
         uses: azure/login@v1
