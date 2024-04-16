@@ -6,10 +6,11 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"testing"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -152,7 +153,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
+					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -162,6 +163,20 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("20m"),
 							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
 				}},
@@ -302,7 +317,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
+					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -312,6 +327,20 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("20m"),
 							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
 				}},
@@ -459,7 +488,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.6-hotfix.20220114",
+					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -469,6 +498,20 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("20m"),
 							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
 				}},
