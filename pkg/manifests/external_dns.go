@@ -272,6 +272,17 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 								corev1.ResourceMemory: resource.MustParse("250Mi"),
 							},
 						},
+						SecurityContext: &corev1.SecurityContext{
+							Privileged:               util.ToPtr(false),
+							AllowPrivilegeEscalation: util.ToPtr(false),
+							ReadOnlyRootFilesystem:   util.ToPtr(true),
+							RunAsNonRoot:             util.ToPtr(true),
+							RunAsUser:                util.Int64Ptr(65532),
+							RunAsGroup:               util.Int64Ptr(65532),
+							Capabilities: &corev1.Capabilities{
+								Drop: []corev1.Capability{"ALL"},
+							},
+						},
 					}))},
 					Volumes: []corev1.Volume{{
 						Name: "azure-config",
