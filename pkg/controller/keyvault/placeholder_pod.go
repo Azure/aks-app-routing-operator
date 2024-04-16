@@ -6,6 +6,9 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"path"
+	"strconv"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,11 +18,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -247,7 +248,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.6-hotfix.20220114"),
+					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.9-hotfix-20230808"),
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -257,6 +258,20 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("20m"),
 							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
 				}},
