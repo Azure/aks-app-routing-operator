@@ -89,12 +89,13 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 
 	kvDone := make(chan struct{})
 	resEg.Go(func() error {
+		defer close(kvDone)
+
 		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating key vault: %w", err))
 		}
 
-		close(kvDone)
 		return nil
 	})
 
