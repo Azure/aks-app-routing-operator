@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"time"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
@@ -315,7 +316,7 @@ func nicTests(in infra.Provisioned) []test {
 				}
 
 				// get keyvault uri
-				kvuri := in.Cert.GetId()
+				kvuri := in.Zones[0].Cert.GetId()
 
 				// create defaultSSLCert
 				defaultSSLCert := v1alpha1.DefaultSSLCertificate{

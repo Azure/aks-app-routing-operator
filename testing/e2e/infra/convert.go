@@ -19,25 +19,33 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		return LoadableProvisioned{}, fmt.Errorf("parsing container registry resource id: %w", err)
 	}
 
-	zones := make([]LoadableZone, len(p.Zones))
+	zones := make([]withLoadableCert[LoadableZone], len(p.Zones))
 	for i, zone := range p.Zones {
-		z, err := azure.ParseResourceID(zone.GetId())
+		z, err := azure.ParseResourceID(zone.Zone.GetId())
 		if err != nil {
 			return LoadableProvisioned{}, fmt.Errorf("parsing zone resource id: %w", err)
 		}
-		zones[i] = LoadableZone{
-			ResourceId:  z,
-			Nameservers: zone.GetNameservers(),
+		zones[i] = withLoadableCert[LoadableZone]{
+			Zone: LoadableZone{
+				ResourceId:  z,
+				Nameservers: zone.Zone.GetNameservers(),
+			},
+			CertName: zone.Cert.GetName(),
+			CertId:   zone.Cert.GetId(),
 		}
 	}
 
-	privateZones := make([]azure.Resource, len(p.PrivateZones))
+	privateZones := make([]withLoadableCert[azure.Resource], len(p.PrivateZones))
 	for i, privateZone := range p.PrivateZones {
-		z, err := azure.ParseResourceID(privateZone.GetId())
+		z, err := azure.ParseResourceID(privateZone.Zone.GetId())
 		if err != nil {
 			return LoadableProvisioned{}, fmt.Errorf("parsing private zone resource id: %w", err)
 		}
-		privateZones[i] = z
+		privateZones[i] = withLoadableCert[azure.Resource]{
+			Zone:     z,
+			CertName: privateZone.Cert.GetName(),
+			CertId:   privateZone.Cert.GetId(),
+		}
 	}
 
 	keyVault, err := azure.ParseResourceID(p.KeyVault.GetId())
@@ -62,8 +70,6 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		Zones:               zones,
 		PrivateZones:        privateZones,
 		KeyVault:            keyVault,
-		CertName:            p.Cert.GetName(),
-		CertId:              p.Cert.GetId(),
 		ResourceGroup:       *resourceGroup,
 		SubscriptionId:      p.SubscriptionId,
 		TenantId:            p.TenantId,
@@ -97,13 +103,19 @@ func ToProvisioned(l []LoadableProvisioned) ([]Provisioned, error) {
 }
 
 func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
-	zs := make([]zone, len(l.Zones))
+	zs := make([]withCert[zone], len(l.Zones))
 	for i, z := range l.Zones {
-		zs[i] = clients.LoadZone(z.ResourceId, z.Nameservers)
+		zs[i] = withCert[zone]{
+			Zone: clients.LoadZone(z.Zone.ResourceId, z.Zone.Nameservers),
+			Cert: clients.LoadCert(z.CertName, z.CertId),
+		}
 	}
-	pzs := make([]privateZone, len(l.PrivateZones))
+	pzs := make([]withCert[privateZone], len(l.PrivateZones))
 	for i, pz := range l.PrivateZones {
-		pzs[i] = clients.LoadPrivateZone(pz)
+		pzs[i] = withCert[privateZone]{
+			Zone: clients.LoadPrivateZone(pz.Zone),
+			Cert: clients.LoadCert(pz.CertName, pz.CertId),
+		}
 	}
 
 	return Provisioned{
@@ -113,7 +125,6 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 		Zones:             zs,
 		PrivateZones:      pzs,
 		KeyVault:          clients.LoadAkv(l.KeyVault),
-		Cert:              clients.LoadCert(l.CertName, l.CertId),
 		ResourceGroup:     clients.LoadRg(l.ResourceGroup),
 		SubscriptionId:    l.SubscriptionId,
 		TenantId:          l.TenantId,

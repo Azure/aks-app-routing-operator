@@ -55,7 +55,7 @@ func basicSuite(in infra.Provisioned) []test {
 					ingress = nil
 					annotations := service.GetAnnotations()
 					annotations["kubernetes.azure.com/ingress-host"] = z.GetName()
-					annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] = in.Cert.GetId()
+					annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] = z.GetCertId()
 					service.SetAnnotations(annotations)
 
 					return nil
@@ -95,20 +95,30 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
 		z := infra.Zones[0]
-		zones = append(zones, zone{name: z.GetName(), nameserver: z.GetNameservers()[0]})
+		zones = append(zones, zone{
+			name:       z.Zone.GetName(),
+			nameserver: z.Zone.GetNameservers()[0],
+			certName:   z.Cert.GetName(),
+			certId:     z.Cert.GetId(),
+		})
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zones = append(zones, zone{name: z.GetName(), nameserver: z.GetNameservers()[0]})
+			zones = append(zones, zone{
+				name:       z.Zone.GetName(),
+				nameserver: z.Zone.GetNameservers()[0],
+				certName:   z.Cert.GetName(),
+				certId:     z.Cert.GetId(),
+			})
 		}
 	}
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
 		z := infra.PrivateZones[0]
-		zones = append(zones, zone{name: z.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
+		zones = append(zones, zone{name: z.Zone.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zones = append(zones, zone{name: z.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
+			zones = append(zones, zone{name: z.Zone.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
 		}
 	}
 
@@ -142,7 +152,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), infra.Cert.GetId(), operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone, *serviceName)
+			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), zone.GetCertId(), operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone, *serviceName)
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
@@ -175,11 +185,15 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 type zoner interface {
 	GetName() string
 	GetNameserver() string
+	GetCertName() string
+	GetCertId() string
 }
 
 type zone struct {
 	name       string
 	nameserver string
+	certName   string
+	certId     string
 }
 
 func (z zone) GetName() string {
@@ -188,4 +202,12 @@ func (z zone) GetName() string {
 
 func (z zone) GetNameserver() string {
 	return z.nameserver
+}
+
+func (z zone) GetCertName() string {
+	return z.certName
+}
+
+func (z zone) GetCertId() string {
+	return z.certId
 }
