@@ -23,7 +23,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 	for i, zone := range p.Zones {
 		z, err := azure.ParseResourceID(zone.Zone.GetId())
 		if err != nil {
-			return LoadableProvisioned{}, fmt.Errorf("parsing zone resource id: %w", err)
+			return LoadableProvisioned{}, fmt.Errorf("parsing Zone resource id: %w", err)
 		}
 		zones[i] = withLoadableCert[LoadableZone]{
 			Zone: LoadableZone{
@@ -39,7 +39,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 	for i, privateZone := range p.PrivateZones {
 		z, err := azure.ParseResourceID(privateZone.Zone.GetId())
 		if err != nil {
-			return LoadableProvisioned{}, fmt.Errorf("parsing private zone resource id: %w", err)
+			return LoadableProvisioned{}, fmt.Errorf("parsing private Zone resource id: %w", err)
 		}
 		privateZones[i] = withLoadableCert[azure.Resource]{
 			Zone:     z,
@@ -103,16 +103,16 @@ func ToProvisioned(l []LoadableProvisioned) ([]Provisioned, error) {
 }
 
 func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
-	zs := make([]withCert[zone], len(l.Zones))
+	zs := make([]WithCert[Zone], len(l.Zones))
 	for i, z := range l.Zones {
-		zs[i] = withCert[zone]{
+		zs[i] = WithCert[Zone]{
 			Zone: clients.LoadZone(z.Zone.ResourceId, z.Zone.Nameservers),
 			Cert: clients.LoadCert(z.CertName, z.CertId),
 		}
 	}
-	pzs := make([]withCert[privateZone], len(l.PrivateZones))
+	pzs := make([]WithCert[PrivateZone], len(l.PrivateZones))
 	for i, pz := range l.PrivateZones {
-		pzs[i] = withCert[privateZone]{
+		pzs[i] = WithCert[PrivateZone]{
 			Zone: clients.LoadPrivateZone(pz.Zone),
 			Cert: clients.LoadCert(pz.CertName, pz.CertId),
 		}

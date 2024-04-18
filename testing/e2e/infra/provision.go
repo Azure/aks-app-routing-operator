@@ -105,19 +105,19 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		// that will change the loop variable capture to be the standard way loops work.
 		func(idx int) {
 			resEg.Go(func() error {
-				z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
+				z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("Zone-%d-%s", idx, i.Suffix))
 				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating zone: %w", err))
+					return logger.Error(lgr, fmt.Errorf("creating Zone: %w", err))
 				}
 
 				<-kvDone
 
-				cert, err := ret.KeyVault.CreateCertificate(ctx, fmt.Sprintf("zone-%d", idx), z.GetName(), []string{z.GetName()})
+				cert, err := ret.KeyVault.CreateCertificate(ctx, fmt.Sprintf("Zone-%d", idx), z.GetName(), []string{z.GetName()})
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("creating certificate: %w", err))
 				}
 
-				ret.Zones = append(ret.Zones, withCert[zone]{
+				ret.Zones = append(ret.Zones, WithCert[Zone]{
 					Zone: z,
 					Cert: cert,
 				})
@@ -128,9 +128,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	for idx := 0; idx < lenPrivateZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
-				pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix))
+				pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-Zone-%d-%s", idx, i.Suffix))
 				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating private zone: %w", err))
+					return logger.Error(lgr, fmt.Errorf("creating private Zone: %w", err))
 				}
 
 				<-kvDone
@@ -140,7 +140,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("creating certificate: %w", err))
 				}
 
-				ret.PrivateZones = append(ret.PrivateZones, withCert[privateZone]{
+				ret.PrivateZones = append(ret.PrivateZones, WithCert[PrivateZone]{
 					Zone: pz,
 					Cert: cert,
 				})
@@ -157,7 +157,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	var permEg errgroup.Group
 
 	for _, pz := range ret.PrivateZones {
-		func(pz withCert[privateZone]) {
+		func(pz WithCert[PrivateZone]) {
 			permEg.Go(func() error {
 				dns, err := pz.Zone.GetDnsZone(ctx)
 				if err != nil {
@@ -184,7 +184,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	}
 
 	for _, z := range ret.Zones {
-		func(z withCert[zone]) {
+		func(z WithCert[Zone]) {
 			permEg.Go(func() error {
 				dns, err := z.Zone.GetDnsZone(ctx)
 				if err != nil {

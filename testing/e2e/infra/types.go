@@ -57,14 +57,14 @@ type containerRegistry interface {
 	Identifier
 }
 
-type zone interface {
+type Zone interface {
 	GetDnsZone(ctx context.Context) (*armdns.Zone, error)
 	GetName() string
 	GetNameservers() []string
 	Identifier
 }
 
-type privateZone interface {
+type PrivateZone interface {
 	GetDnsZone(ctx context.Context) (*armprivatedns.PrivateZone, error)
 	LinkVnet(ctx context.Context, linkName, vnetId string) error
 	GetName() string
@@ -88,8 +88,8 @@ type cert interface {
 	GetId() string
 }
 
-// withCert is a resource with a tls certificate valid for that resource. This is used to bundle DNS Zones
-type withCert[T any] struct {
+// WithCert is a resource with a tls certificate valid for that resource. This is used to bundle DNS Zones
+type WithCert[T any] struct {
 	Zone T
 	Cert cert
 }
@@ -98,8 +98,8 @@ type Provisioned struct {
 	Name              string
 	Cluster           cluster
 	ContainerRegistry containerRegistry
-	Zones             []withCert[zone]
-	PrivateZones      []withCert[privateZone]
+	Zones             []WithCert[Zone]
+	PrivateZones      []WithCert[PrivateZone]
 	KeyVault          keyVault
 	ResourceGroup     resourceGroup
 	SubscriptionId    string

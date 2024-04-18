@@ -3,6 +3,7 @@ package suites
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
@@ -25,6 +26,22 @@ var (
 	// nsMutex is a mutex that is used to protect the basicNs map. Without this we chance concurrent goroutine map access panics
 	nsMutex = sync.RWMutex{}
 )
+
+func getNamespace(ctx context.Context, cl client.Client, namespaces map[string]*corev1.Namespace, key string) (*corev1.Namespace, error) {
+	// multiple goroutines access the same map at the same time which is not safe
+	nsMutex.Lock()
+	if val, ok := namespaces[key]; !ok || val == nil {
+		namespaces[key] = manifests.UncollisionedNs()
+	}
+	ns := namespaces[key]
+	nsMutex.Unlock()
+
+	if err := upsert(ctx, cl, ns); err != nil {
+		return nil, fmt.Errorf("upserting ns: %w", err)
+	}
+
+	return ns, nil
+}
 
 func basicSuite(in infra.Provisioned) []test {
 	return []test{
@@ -90,69 +107,66 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	var zones []zoner
+	var zoners []zoner
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		z := infra.Zones[0]
-		zones = append(zones, zone{
-			name:       z.Zone.GetName(),
-			nameserver: z.Zone.GetNameservers()[0],
-			certName:   z.Cert.GetName(),
-			certId:     z.Cert.GetId(),
-		})
+		zoners, err := toZoners(ctx, c, namespaces, infra.Zones[0])
+		if err != nil {
+			return fmt.Errorf("converting to zoners: %w", err)
+		}
+		zoners = append(zoners, zoners...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zones = append(zones, zone{
-				name:       z.Zone.GetName(),
-				nameserver: z.Zone.GetNameservers()[0],
-				certName:   z.Cert.GetName(),
-				certId:     z.Cert.GetId(),
-			})
+			zoners, err := toZoners(ctx, c, namespaces, z)
+			if err != nil {
+				return fmt.Errorf("converting to zoners: %w", err)
+			}
+			zoners = append(zoners, zoners...)
 		}
 	}
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		z := infra.PrivateZones[0]
-		zones = append(zones, zone{name: z.Zone.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
+		zoners, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		if err != nil {
+			return fmt.Errorf("converting to zoners: %w", err)
+		}
+		zoners = append(zoners, zoners...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zones = append(zones, zone{name: z.Zone.GetName(), nameserver: infra.Cluster.GetDnsServiceIp()})
+			zoners, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
+			if err != nil {
+				return fmt.Errorf("converting to zoners: %w", err)
+			}
+			zoners = append(zoners, zoners...)
 		}
 	}
 
 	if operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone {
-		zones = append(zones, zone{
+		zoners = append(zoners, zone{
 			name:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local:80", *serviceName),
 			nameserver: infra.Cluster.GetDnsServiceIp(),
+			host:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local", *serviceName),
 		})
 	}
 
 	var eg errgroup.Group
-	for _, zone := range zones {
+	for _, zone := range zoners {
 		zone := zone
 		eg.Go(func() error {
 			lgr := logger.FromContext(ctx).With("zone", zone.GetName())
 			ctx := logger.WithContext(ctx, lgr)
 
-			// multiple goroutines access the same map at the same time which is not safe
-			nsMutex.Lock()
-			if val, ok := namespaces[zone.GetName()]; !ok || val == nil {
-				namespaces[zone.GetName()] = manifests.UncollisionedNs()
-			}
-			ns := namespaces[zone.GetName()]
-			nsMutex.Unlock()
-
-			lgr.Info("creating namespace")
-			if err := upsert(ctx, c, ns); err != nil {
-				return fmt.Errorf("upserting ns: %w", err)
+			ns, err := getNamespace(ctx, c, namespaces, zone.GetName())
+			if err != nil {
+				return fmt.Errorf("getting namespace: %w", err)
 			}
 
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, "e2e-testing", zone.GetName(), zone.GetNameserver(), zone.GetCertId(), operator.Zones.Public == manifests.DnsZoneCountNone && operator.Zones.Private == manifests.DnsZoneCountNone, *serviceName)
+			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName(), zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
@@ -182,11 +196,73 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	return nil
 }
 
+func toZoners(ctx context.Context, cl client.Client, namespaces map[string]*corev1.Namespace, z infra.WithCert[infra.Zone]) ([]zoner, error) {
+	name := z.Zone.GetName()
+	nameserver := z.Zone.GetNameservers()[0]
+	certName := z.Cert.GetName()
+	certId := z.Cert.GetId()
+	ns, err := getNamespace(ctx, cl, namespaces, name)
+	if err != nil {
+		return nil, fmt.Errorf("getting namespaces: %w", err)
+	}
+
+	return []zoner{
+		zone{
+			name:       name,
+			nameserver: nameserver,
+			certName:   certName,
+			certId:     certId,
+			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+		},
+		zone{
+			name:       name + "wildcard",
+			nameserver: nameserver,
+			certName:   certName,
+			certId:     certId,
+			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    "*" + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+		},
+	}, nil
+}
+
+func toPrivateZoners(ctx context.Context, cl client.Client, namespaces map[string]*corev1.Namespace, z infra.WithCert[infra.PrivateZone], nameserver string) ([]zoner, error) {
+	name := z.Zone.GetName()
+	certName := z.Cert.GetName()
+	certId := z.Cert.GetId()
+	ns, err := getNamespace(ctx, cl, namespaces, name)
+	if err != nil {
+		return nil, fmt.Errorf("getting namespaces: %w", err)
+	}
+
+	return []zoner{
+		zone{
+			name:       name,
+			nameserver: nameserver,
+			certName:   certName,
+			certId:     certId,
+			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+		},
+		zone{
+			name:       name + "wildcard",
+			nameserver: nameserver,
+			certName:   certName,
+			certId:     certId,
+			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    "*" + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+		},
+	}, nil
+}
+
+// zoner represents a DNS endpoint and the host, nameserver, and cert information used to connect to it
 type zoner interface {
 	GetName() string
 	GetNameserver() string
 	GetCertName() string
 	GetCertId() string
+	GetHost() string
+	GetTlsHost() string
 }
 
 type zone struct {
@@ -194,6 +270,8 @@ type zone struct {
 	nameserver string
 	certName   string
 	certId     string
+	host       string
+	tlsHost    string
 }
 
 func (z zone) GetName() string {
@@ -210,4 +288,12 @@ func (z zone) GetCertName() string {
 
 func (z zone) GetCertId() string {
 	return z.certId
+}
+
+func (z zone) GetHost() string {
+	return z.host
+}
+
+func (z zone) GetTlsHost() string {
+	return z.tlsHost
 }
