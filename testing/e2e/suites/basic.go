@@ -118,11 +118,11 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 		zoners = append(zoners, zoners...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zoners, err := toZoners(ctx, c, namespaces, z)
+			zs, err := toZoners(ctx, c, namespaces, z)
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
-			zoners = append(zoners, zoners...)
+			zoners = append(zoners, zs...)
 		}
 	}
 	switch operator.Zones.Private {
@@ -135,11 +135,11 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 		zoners = append(zoners, zoners...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zoners, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
+			zs, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
-			zoners = append(zoners, zoners...)
+			zoners = append(zoners, zs...)
 		}
 	}
 
@@ -166,7 +166,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName(), zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
+			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:40], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
@@ -216,12 +216,12 @@ func toZoners(ctx context.Context, cl client.Client, namespaces map[string]*core
 			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
 		zone{
-			name:       name + "wildcard",
+			name:       "wildcard" + name,
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
 			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
-			tlsHost:    "*" + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
 	}, nil
 }
@@ -245,12 +245,12 @@ func toPrivateZoners(ctx context.Context, cl client.Client, namespaces map[strin
 			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
 		zone{
-			name:       name + "wildcard",
+			name:       "wildcard" + name,
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
 			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
-			tlsHost:    "*" + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
 	}, nil
 }
