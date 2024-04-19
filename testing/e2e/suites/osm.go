@@ -74,7 +74,7 @@ func osmSuite(in infra.Provisioned) []test {
 					ingress = nil
 					annotations := service.GetAnnotations()
 					annotations["kubernetes.azure.com/ingress-host"] = z.GetNameserver()
-					annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] = in.Cert.GetId()
+					annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] = z.GetCertId()
 					service.SetAnnotations(annotations)
 
 					return nil
