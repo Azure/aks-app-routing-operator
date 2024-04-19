@@ -26,7 +26,7 @@ const (
 	replicas                = 1 // this must stay at 1 unless external-dns adds support for multiple replicas https://github.com/kubernetes-sigs/external-dns/issues/2430
 	k8sNameKey              = "app.kubernetes.io/name"
 	externalDnsResourceName = "external-dns"
-	txtWildcardReplacement  = "wildcard"
+	txtWildcardReplacement  = "approutingwildcard"
 )
 
 var (

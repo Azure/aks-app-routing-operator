@@ -168,7 +168,7 @@
                   "--source=ingress",
                   "--interval=10s",
                   "--txt-owner-id=test-cluster-uid",
-                  "--txt-wildcard-replacement=wildcard",
+                  "--txt-wildcard-replacement=approutingwildcard",
                   "--domain-filter=test-one.com",
                   "--domain-filter=test-two.com"
                 ],
@@ -445,7 +445,7 @@
                   "--source=ingress",
                   "--interval=10s",
                   "--txt-owner-id=test-cluster-uid",
-                  "--txt-wildcard-replacement=wildcard",
+                  "--txt-wildcard-replacement=approutingwildcard",
                   "--domain-filter=test-three.com",
                   "--domain-filter=test-four.com"
                 ],
