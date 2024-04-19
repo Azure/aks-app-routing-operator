@@ -13,8 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type Host int
-
 //go:embed embedded/client.go
 var clientContents string
 
