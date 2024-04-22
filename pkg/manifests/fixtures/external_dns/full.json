@@ -162,12 +162,13 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "/oss/kubernetes/external-dns:v0.11.0.2",
+                "image": "/oss/kubernetes/external-dns:v0.13.5-5",
                 "args": [
                   "--provider=azure",
                   "--source=ingress",
                   "--interval=3m0s",
                   "--txt-owner-id=test-cluster-uid",
+                  "--txt-wildcard-replacement=approutingwildcard",
                   "--domain-filter=test-one.com",
                   "--domain-filter=test-two.com"
                 ],
@@ -438,12 +439,13 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "/oss/kubernetes/external-dns:v0.11.0.2",
+                "image": "/oss/kubernetes/external-dns:v0.13.5-5",
                 "args": [
                   "--provider=azure-private-dns",
                   "--source=ingress",
                   "--interval=3m0s",
                   "--txt-owner-id=test-cluster-uid",
+                  "--txt-wildcard-replacement=approutingwildcard",
                   "--domain-filter=test-three.com",
                   "--domain-filter=test-four.com"
                 ],

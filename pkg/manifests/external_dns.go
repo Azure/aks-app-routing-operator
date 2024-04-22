@@ -26,6 +26,7 @@ const (
 	replicas                = 1 // this must stay at 1 unless external-dns adds support for multiple replicas https://github.com/kubernetes-sigs/external-dns/issues/2430
 	k8sNameKey              = "app.kubernetes.io/name"
 	externalDnsResourceName = "external-dns"
+	txtWildcardReplacement  = "approutingwildcard"
 )
 
 var (
@@ -250,12 +251,13 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: externalDnsConfig.Provider.ResourceName(),
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.11.0.2"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.13.5-5"),
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
+							"--txt-wildcard-replacement=" + txtWildcardReplacement,
 						}, domainFilters...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
