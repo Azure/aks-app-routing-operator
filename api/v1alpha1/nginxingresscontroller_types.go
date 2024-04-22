@@ -26,7 +26,6 @@ const (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // NginxIngressControllerSpec defines the desired state of NginxIngressController
-// +kubebuilder:validation:XValidation:rule="(has(self.forceSSLRedirect) && has(self.defaultSSLCertificate)) || !has(self.forceSSLRedirect)"
 type NginxIngressControllerSpec struct {
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
@@ -57,18 +56,15 @@ type NginxIngressControllerSpec struct {
 	// +optional
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 
-	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
-	// +optional
-	ForceSSLRedirect *bool `json:"forceSSLRedirect,omitempty"`
-
 	// Scaling defines configuration options for how the Ingress Controller scales
 	// +optional
 	Scaling *Scaling `json:"scaling,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
-// +kubebuilder:validation:MaxProperties=1
+// +kubebuilder:validation:MaxProperties=2
 // +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
+// +kubebuilder:validation:XValidation:rule="((self.forceSSLRedirect == true) && (has(self.secret) || has(self.keyVaultURI)) || (self.forceSSLRedirect == false))"
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
@@ -77,6 +73,10 @@ type DefaultSSLCertificate struct {
 	// Secret in the form of a Key Vault URI
 	// +optional
 	KeyVaultURI *string `json:"keyVaultURI"`
+
+	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
+	// +kubebuilder:default:=false
+	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
 }
 
 // Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate

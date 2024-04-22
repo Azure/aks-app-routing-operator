@@ -123,11 +123,6 @@ func (in *NginxIngressControllerSpec) DeepCopyInto(out *NginxIngressControllerSp
 		*out = new(DefaultSSLCertificate)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.ForceSSLRedirect != nil {
-		in, out := &in.ForceSSLRedirect, &out.ForceSSLRedirect
-		*out = new(bool)
-		**out = **in
-	}
 	if in.Scaling != nil {
 		in, out := &in.Scaling, &out.Scaling
 		*out = new(Scaling)

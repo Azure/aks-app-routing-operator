@@ -890,8 +890,9 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCert := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeDefaultSSLCertNoName := getFakeDefaultSSLCert("", "fakenamespace")
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
-	ForceSSLRedirectTrue := true
-	ForceSSLRedirectFalse := false
+
+	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
+	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
 
 	cases := []struct {
 		name string
@@ -1073,8 +1074,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 				Spec: approutingv1alpha1.NginxIngressControllerSpec{
 					ControllerNamePrefix:  DefaultNicResourceName,
 					IngressClassName:      DefaultIcName,
-					DefaultSSLCertificate: FakeDefaultSSLCert,
-					ForceSSLRedirect:      &ForceSSLRedirectTrue,
+					DefaultSSLCertificate: FakeCertWithForceSSLRedirectTrue,
 				},
 			},
 			want: manifests.NginxIngressConfig{
@@ -1087,64 +1087,6 @@ func TestToNginxIngressConfig(t *testing.T) {
 				MinReplicas:                    defaultMinReplicas,
 				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 				ForceSSLRedirect:               true,
-			},
-		},
-		{
-			name: "default controller class with DefaultSSLCertificate and false ForceSSLRedirect",
-			nic: &approutingv1alpha1.NginxIngressController{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: approutingv1alpha1.GroupVersion.String(),
-					Kind:       "NginxIngressController",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: DefaultNicName,
-				},
-				Spec: approutingv1alpha1.NginxIngressControllerSpec{
-					ControllerNamePrefix:  DefaultNicResourceName,
-					IngressClassName:      DefaultIcName,
-					DefaultSSLCertificate: FakeDefaultSSLCert,
-					ForceSSLRedirect:      &ForceSSLRedirectFalse,
-				},
-			},
-			want: manifests.NginxIngressConfig{
-				ControllerClass:                defaultCc,
-				ResourceName:                   DefaultNicResourceName,
-				IcName:                         DefaultIcName,
-				ServiceConfig:                  &manifests.ServiceConfig{},
-				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
-				MaxReplicas:                    defaultMaxReplicas,
-				MinReplicas:                    defaultMinReplicas,
-				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
-				ForceSSLRedirect:               false,
-			},
-		},
-		{
-			name: "default controller class with DefaultSSLCertificate and nil ForceSSLRedirect",
-			nic: &approutingv1alpha1.NginxIngressController{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: approutingv1alpha1.GroupVersion.String(),
-					Kind:       "NginxIngressController",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: DefaultNicName,
-				},
-				Spec: approutingv1alpha1.NginxIngressControllerSpec{
-					ControllerNamePrefix:  DefaultNicResourceName,
-					IngressClassName:      DefaultIcName,
-					DefaultSSLCertificate: FakeDefaultSSLCert,
-					ForceSSLRedirect:      nil,
-				},
-			},
-			want: manifests.NginxIngressConfig{
-				ControllerClass:                defaultCc,
-				ResourceName:                   DefaultNicResourceName,
-				IcName:                         DefaultIcName,
-				ServiceConfig:                  &manifests.ServiceConfig{},
-				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
-				MaxReplicas:                    defaultMaxReplicas,
-				MinReplicas:                    defaultMinReplicas,
-				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
-				ForceSSLRedirect:               false,
 			},
 		},
 		{
@@ -1449,6 +1391,7 @@ func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSS
 			Name:      name,
 			Namespace: namespace,
 		},
+		ForceSSLRedirect: false,
 	}
 	return fakecert
 }
