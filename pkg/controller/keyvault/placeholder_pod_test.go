@@ -357,7 +357,6 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 			}),
 		},
 	}
-	fmt.Printf("%v", dep)
 	assert.Equal(t, expected, dep.Spec)
 
 	// Prove idempotence
