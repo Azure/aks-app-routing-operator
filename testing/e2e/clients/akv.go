@@ -158,7 +158,7 @@ func LoadCert(name, id string) *Cert {
 	}
 }
 
-func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {
+func (a *akv) CreateCertificate(ctx context.Context, name string, cnName string, dnsnames []string, certOpts ...CertOpt) (*Cert, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "dnsnames", dnsnames, "resourceGroup", a.resourceGroup, "subscriptionId", a.subscriptionId)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create certificate")
@@ -210,7 +210,7 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, dnsnames []str
 					to.Ptr(azcertificates.KeyUsageTypeKeyCertSign),
 					to.Ptr(azcertificates.KeyUsageTypeKeyEncipherment),
 				},
-				Subject: to.Ptr("CN=testcert"),
+				Subject: to.Ptr("CN=" + cnName),
 				SubjectAlternativeNames: &azcertificates.SubjectAlternativeNames{
 					DNSNames: dnsnamesPtr,
 				},

@@ -5,6 +5,7 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -90,7 +91,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       ing.Kind,
 				Name:       ing.Name,
 				UID:        ing.UID,
@@ -102,6 +103,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	// Checking if we manage the ingress. All false cases without an error are assumed that we don't manage it
 	var isManaged bool
 	if isManaged, err = i.ingressManager.IsManaging(ing); err != nil {
+		logger.Error(err, fmt.Sprintf("failed while checking if ingress was managed with error: %s.", err.Error()))
 		return result, fmt.Errorf("determining if ingress is managed: %w", err)
 	}
 
@@ -109,15 +111,22 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		var upsertSPC bool
 
 		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
-			logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-			i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
-			return result, nil
+			var userErr userError
+			if errors.As(err, &userErr) {
+				logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
+				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+				return result, nil
+			}
+
+			logger.Error(err, fmt.Sprintf("failed to build secret provider class for ingress with error: %s.", err.Error()))
+			return result, err
 		}
 
 		if upsertSPC {
 			logger.Info("reconciling secret provider class for ingress")
 			if err = util.Upsert(ctx, i.client, spc); err != nil {
-				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
+				logger.Error(err, fmt.Sprintf("failed to upsert secret provider class for ingress with error: %s.", err.Error()))
 			}
 			return result, err
 		}

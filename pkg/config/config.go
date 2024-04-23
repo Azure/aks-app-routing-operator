@@ -26,6 +26,7 @@ var Flags = &Config{}
 var dnsZonesString string
 
 func init() {
+	flag.Var(&Flags.DefaultController, "default-controller", "kind of default controller to use. should be one of 'standard', 'public', 'private', or 'off'.")
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
@@ -44,29 +45,6 @@ func init() {
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
-}
-
-type DnsZoneConfig struct {
-	Subscription  string
-	ResourceGroup string
-	ZoneIds       []string
-}
-
-type Config struct {
-	ServiceAccountTokenPath             string
-	MetricsAddr, ProbeAddr              string
-	NS, Registry                        string
-	DisableKeyvault                     bool
-	MSIClientID, TenantID               string
-	Cloud, Location                     string
-	PrivateZoneConfig, PublicZoneConfig DnsZoneConfig
-	ConcurrencyWatchdogThres            float64
-	ConcurrencyWatchdogVotes            int
-	DisableOSM                          bool
-	OperatorDeployment                  string
-	ClusterUid                          string
-	DnsSyncInterval                     time.Duration
-	CrdPath                             string
 }
 
 func (c *Config) Validate() error {
@@ -127,7 +105,6 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
-
 	c.PrivateZoneConfig = DnsZoneConfig{}
 	c.PublicZoneConfig = DnsZoneConfig{}
 
@@ -151,7 +128,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
-			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+
+			if c.PrivateZoneConfig.ZoneIds == nil {
+				c.PrivateZoneConfig.ZoneIds = map[string]struct{}{}
+			}
+			c.PrivateZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		case PublicZoneType:
 			// it's a public zone
 			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PublicZoneConfig.ResourceGroup); err != nil {
@@ -160,7 +141,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
-			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
+
+			if c.PublicZoneConfig.ZoneIds == nil {
+				c.PublicZoneConfig.ZoneIds = map[string]struct{}{}
+			}
+			c.PublicZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		default:
 			return fmt.Errorf("while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
@@ -170,7 +155,7 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 }
 
 func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
-	if subscription != "" && parsedZone.SubscriptionID != subscription {
+	if subscription != "" && !strings.EqualFold(parsedZone.SubscriptionID, subscription) {
 		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}
 

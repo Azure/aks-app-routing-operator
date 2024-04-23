@@ -25,3 +25,6 @@ echo "deploying to ${CLUSTER_NAME} in resource group ${CLUSTER_RESOURCE_GROUP}"
 cd devenv/state/kustomize/operator-deployment
 
 APPLY_RESULT=$(run_invoke $CLUSTER_NAME $CLUSTER_RESOURCE_GROUP "kubectl apply -k ." ".")
+
+echo "To connect to the cluster run"
+echo "az aks get-credentials --resource-group $CLUSTER_RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing"

@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"math/rand"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -37,15 +38,13 @@ func UseServerSideApply() {
 	patchType = client.Apply
 }
 
-func Int32Ptr(i int32) *int32      { return &i }
-func Int64Ptr(i int64) *int64      { return &i }
-func BoolPtr(b bool) *bool         { return &b }
-func StringPtr(str string) *string { return &str }
-func ToPtr[T any](t T) *T          { return &t }
+func Int32Ptr(i int32) *int32 { return &i }
+func Int64Ptr(i int64) *int64 { return &i }
+func ToPtr[T any](t T) *T     { return &t }
 
 func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
 	for _, cur := range owners {
-		if cur.Kind == kind {
+		if strings.EqualFold(cur.Kind, kind) {
 			return cur.Name
 		}
 	}
@@ -53,9 +52,10 @@ func FindOwnerKind(owners []metav1.OwnerReference, kind string) string {
 }
 
 func Jitter(base time.Duration, ratio float64) time.Duration {
-	if ratio >= 1 || ratio == 0 {
+	if ratio >= 1 || ratio <= 0 {
 		return base
 	}
+
 	jitter := (rand.Float64() * float64(base) * ratio) - (float64(base) * (ratio / 2))
 	return base + time.Duration(jitter)
 }
@@ -68,4 +68,24 @@ func MergeMaps[M ~map[K]V, K comparable, V any](src ...M) M {
 		}
 	}
 	return merged
+}
+
+// Keys returns the keys in a map
+func Keys[K comparable, v any](m map[K]v) []K {
+	keys := make([]K, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+
+	return keys
+}
+
+// ReverseMap creates a map with the values in the map pointing to the keys, effectively reversing it
+func ReverseMap[K comparable, V comparable](m map[K]V) map[V]K {
+	new := make(map[V]K)
+	for key, val := range m {
+		new[val] = key
+	}
+
+	return new
 }

@@ -59,8 +59,10 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
-		if val := resp.Header.Get("OriginalForwardedFor"); val != os.Getenv("POD_IP") {
-			log.Printf("server replied with unexpected X-Forwarded-For header: %s", val)
+
+		expectedIp := os.Getenv("POD_IP")
+		if val := resp.Header.Get("OriginalForwardedFor"); val != expectedIp {
+			log.Printf("server replied with unexpected X-Forwarded-For header: %s, expected %s", val, expectedIp)
 			w.WriteHeader(500)
 			return
 		}

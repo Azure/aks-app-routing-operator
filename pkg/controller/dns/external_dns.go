@@ -97,7 +97,7 @@ func publicConfig(conf *config.Config) *manifests.ExternalDnsConfig {
 		Subscription:       conf.PublicZoneConfig.Subscription,
 		ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
 		Provider:           manifests.PublicProvider,
-		DnsZoneResourceIDs: conf.PublicZoneConfig.ZoneIds,
+		DnsZoneResourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
 	}
 }
 
@@ -107,7 +107,7 @@ func privateConfig(conf *config.Config) *manifests.ExternalDnsConfig {
 		Subscription:       conf.PrivateZoneConfig.Subscription,
 		ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
 		Provider:           manifests.PrivateProvider,
-		DnsZoneResourceIDs: conf.PrivateZoneConfig.ZoneIds,
+		DnsZoneResourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
 	}
 }
 
