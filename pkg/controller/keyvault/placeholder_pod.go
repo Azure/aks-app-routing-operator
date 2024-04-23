@@ -6,6 +6,9 @@ package keyvault
 import (
 	"context"
 	"fmt"
+	"path"
+	"strconv"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,11 +18,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -99,7 +100,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       spc.Kind,
 				Name:       spc.Name,
 				UID:        spc.UID,
@@ -112,19 +113,17 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (p *PlaceholderPodController) placeholderPodCleanCheck(obj client.Object) (bool, error) {
-	switch obj.GetObjectKind().GroupVersionKind().Kind {
-	case "NginxIngressController":
-		nic, _ := obj.(*v1alpha1.NginxIngressController)
-		if nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
+	switch t := obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
 			return true, nil
 		}
-	case "Ingress":
-		ing, _ := obj.(*netv1.Ingress)
-		managed, err := p.ingressManager.IsManaging(ing)
+	case *netv1.Ingress:
+		managed, err := p.ingressManager.IsManaging(t)
 		if err != nil {
 			return false, fmt.Errorf("determining if ingress is managed: %w", err)
 		}
-		if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
+		if t.Name == "" || t.Spec.IngressClassName == nil || !managed {
 			return true, nil
 		}
 	}
@@ -144,18 +143,18 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	case util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController") != "":
 		obj = &v1alpha1.NginxIngressController{}
 		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"))
-		break
+		logger.Info(fmt.Sprint("getting owner NginxIngressController"))
 	case util.FindOwnerKind(spc.OwnerReferences, "Ingress") != "":
 		obj = &netv1.Ingress{}
 		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
 		obj.SetNamespace(req.Namespace)
-		break
+		logger.Info(fmt.Sprint("getting owner Ingress"))
 	default:
-		return result, fmt.Errorf("failed to reconcile object deployment: object type not nginxIngressController or ingress")
+		logger.Info("owner type not found")
+		return result, nil
 	}
 
 	if obj.GetName() != "" {
-		logger.Info(fmt.Sprintf("getting owner %s", obj.GetObjectKind().GroupVersionKind().Kind))
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
@@ -222,10 +221,10 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 	}
 
 	var ingAnnotation string
-	switch obj.GetObjectKind().GroupVersionKind().Kind {
-	case "NginxIngressController":
+	switch obj.(type) {
+	case *v1alpha1.NginxIngressController:
 		ingAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
-	case "Ingress":
+	case *netv1.Ingress:
 		ingAnnotation = "kubernetes.azure.com/ingress-owner"
 	default:
 		return fmt.Errorf("failed to build deployment: object type not ingress or nginxingresscontroller")
@@ -246,10 +245,10 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.6-hotfix.20220114"),
+					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.9-hotfix-20230808"),
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -261,13 +260,27 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 							corev1.ResourceMemory: resource.MustParse("24Mi"),
 						},
 					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 				}},
 				Volumes: []corev1.Volume{{
 					Name: "secrets",
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},

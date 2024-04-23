@@ -2,10 +2,12 @@ package nginxingress
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -29,12 +31,24 @@ const (
 	retryInterval     = time.Second
 )
 
-func NewDefaultReconciler(mgr ctrl.Manager) error {
+const internalLbAnnotation = "service.beta.kubernetes.io/azure-load-balancer-internal"
+
+func NewDefaultReconciler(mgr ctrl.Manager, conf *config.Config) error {
+	if conf == nil {
+		return errors.New("nil config")
+	}
+
+	if conf.DefaultController == config.Off {
+		return nil
+	}
+
 	name := controllername.New("default", "nginx", "ingress", "controller", "reconciler")
+	metrics.InitControllerMetrics(name)
 	if err := mgr.Add(&defaultNicReconciler{
 		name:   name,
 		lgr:    name.AddToLogger(mgr.GetLogger()),
 		client: mgr.GetClient(),
+		conf:   *conf,
 	}); err != nil {
 		return fmt.Errorf("adding default nginx ingress controller: %w", err)
 	}
@@ -46,6 +60,7 @@ type defaultNicReconciler struct {
 	name   controllername.ControllerNamer
 	client client.Client
 	lgr    logr.Logger
+	conf   config.Config
 }
 
 func (d *defaultNicReconciler) Start(ctx context.Context) error {
@@ -78,6 +93,17 @@ func (d *defaultNicReconciler) tick(ctx context.Context) (err error) {
 	}()
 
 	nic := GetDefaultNginxIngressController()
+	switch d.conf.DefaultController {
+	case config.Public:
+		nic.Spec.LoadBalancerAnnotations = map[string]string{
+			internalLbAnnotation: "false",
+		}
+	case config.Private:
+		nic.Spec.LoadBalancerAnnotations = map[string]string{
+			internalLbAnnotation: "true",
+		}
+	}
+
 	d.lgr.Info("upserting default nginx ingress controller")
 	if err := util.Upsert(ctx, d.client, &nic); err != nil {
 		d.lgr.Error(err, "upserting default nginx ingress controller")

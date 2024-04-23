@@ -87,15 +87,13 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		return nil
 	})
 
+	kvDone := make(chan struct{})
 	resEg.Go(func() error {
+		defer close(kvDone)
+
 		ret.KeyVault, err = clients.NewAkv(ctx, tenantId, subscriptionId, i.ResourceGroup, "keyvault"+i.Suffix, i.Location)
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating key vault: %w", err))
-		}
-
-		ret.Cert, err = ret.KeyVault.CreateCertificate(ctx, "cert"+i.Suffix, []string{"" + i.Suffix})
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating certificate: %w", err))
 		}
 
 		return nil
@@ -108,11 +106,22 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		// that will change the loop variable capture to be the standard way loops work.
 		func(idx int) {
 			resEg.Go(func() error {
-				zone, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("zone-%d-%s", idx, i.Suffix))
+				z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("Zone-%d-%s", idx, i.Suffix))
 				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating zone: %w", err))
+					return logger.Error(lgr, fmt.Errorf("creating Zone: %w", err))
 				}
-				ret.Zones = append(ret.Zones, zone)
+
+				<-kvDone
+
+				cert, err := ret.KeyVault.CreateCertificate(ctx, fmt.Sprintf("Zone-%d", idx), z.GetName(), []string{z.GetName()})
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating certificate: %w", err))
+				}
+
+				ret.Zones = append(ret.Zones, WithCert[Zone]{
+					Zone: z,
+					Cert: cert,
+				})
 				return nil
 			})
 		}(idx)
@@ -120,11 +129,22 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	for idx := 0; idx < lenPrivateZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
-				privateZone, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-zone-%d-%s", idx, i.Suffix))
+				pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-Zone-%d-%s", idx, i.Suffix))
 				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating private zone: %w", err))
+					return logger.Error(lgr, fmt.Errorf("creating private Zone: %w", err))
 				}
-				ret.PrivateZones = append(ret.PrivateZones, privateZone)
+
+				<-kvDone
+
+				cert, err := ret.KeyVault.CreateCertificate(ctx, fmt.Sprintf("privatezone-%d", idx), pz.GetName(), []string{pz.GetName()})
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating certificate: %w", err))
+				}
+
+				ret.PrivateZones = append(ret.PrivateZones, WithCert[PrivateZone]{
+					Zone: pz,
+					Cert: cert,
+				})
 				return nil
 			})
 		}(idx)
@@ -138,9 +158,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	var permEg errgroup.Group
 
 	for _, pz := range ret.PrivateZones {
-		func(pz privateZone) {
+		func(pz WithCert[PrivateZone]) {
 			permEg.Go(func() error {
-				dns, err := pz.GetDnsZone(ctx)
+				dns, err := pz.Zone.GetDnsZone(ctx)
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
@@ -155,7 +175,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting vnet id: %w", err))
 				}
-				if err := pz.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", pz.GetName(), i.Suffix), vnet); err != nil {
+				if err := pz.Zone.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", pz.Zone.GetName(), i.Suffix), vnet); err != nil {
 					return logger.Error(lgr, fmt.Errorf("linking vnet: %w", err))
 				}
 
@@ -165,9 +185,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	}
 
 	for _, z := range ret.Zones {
-		func(z zone) {
+		func(z WithCert[Zone]) {
 			permEg.Go(func() error {
-				dns, err := z.GetDnsZone(ctx)
+				dns, err := z.Zone.GetDnsZone(ctx)
 				if err != nil {
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}

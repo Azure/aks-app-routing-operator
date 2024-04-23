@@ -97,7 +97,7 @@ scrape_configs:
   - source_labels: [__meta_kubernetes_service_name]
     regex: %s
     action: drop
-`, managedResourceNs, name)
+`, ManagedResourceNs, name)
 
 	server := []client.Object{
 		&corev1.ConfigMap{

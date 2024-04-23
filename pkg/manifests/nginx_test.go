@@ -22,6 +22,9 @@ var (
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
 		},
+		MinReplicas:                    2,
+		MaxReplicas:                    100,
+		TargetCPUUtilizationPercentage: 80,
 	}
 	controllerTestCases = []struct {
 		Name      string
@@ -102,9 +105,12 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass: "test-controller-class",
-				ResourceName:    "nginx",
-				IcName:          "nginx-private",
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
 			},
 		},
 		{
@@ -124,10 +130,13 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass:       "test-controller-class",
-				ResourceName:          "nginx",
-				IcName:                "nginx-private",
-				DefaultSSLCertificate: "fakenamespace/fakename",
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				DefaultSSLCertificate:          "fakenamespace/fakename",
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
 			},
 		},
 		{
@@ -147,11 +156,41 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass:       "test-controller-class",
-				ResourceName:          "nginx",
-				IcName:                "nginx-private",
-				DefaultSSLCertificate: "fakenamespace/fakename",
-				ForceSSLRedirect:      true,
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				DefaultSSLCertificate:          "fakenamespace/fakename",
+				ForceSSLRedirect:               true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
+			Name: "internal-with-default-backend-service",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				DefaultBackendService:          "fakenamespace/fakename",
+				ForceSSLRedirect:               true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
 			},
 		},
 		{
@@ -171,11 +210,146 @@ var (
 				},
 			},
 			IngConfig: &NginxIngressConfig{
-				ControllerClass:  "test-controller-class",
-				ResourceName:     "nginx",
-				IcName:           "nginx-private",
-				CustomHTTPErrors: "404,503",
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				CustomHTTPErrors:               "404,503",
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
 			},
+		},
+		{
+			Name: "internal-with-custom-http-errors-cert-and-service",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				CustomHTTPErrors:               "404,503",
+				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
+				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
+				ForceSSLRedirect:               true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
+			Name: "internal-with-default-backend-service-and-ssl-cert",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
+				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
+				ForceSSLRedirect:               true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
+			Name: "internal-with-nil-ssl-cert-and-force-ssl",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				DefaultSSLCertificate:          "",
+				ForceSSLRedirect:               true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
+			Name: "full-with-replicas",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.MinReplicas = 15
+				copy.MaxReplicas = 30
+				copy.TargetCPUUtilizationPercentage = 80
+				return &copy
+			}(),
+		},
+		{
+			Name: "full-with-target-cpu",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.MinReplicas = 15
+				copy.MaxReplicas = 30
+				copy.TargetCPUUtilizationPercentage = 63
+				return &copy
+			}(),
 		},
 	}
 	classTestCases = []struct {
@@ -213,7 +387,7 @@ func TestIngressControllerResources(t *testing.T) {
 
 func TestMapAdditions(t *testing.T) {
 	testMap := map[string]string{"testkey1": "testval1"}
-	withAdditions := addComponentLabel(testMap, "ingress-controller")
+	withAdditions := AddComponentLabel(testMap, "ingress-controller")
 
 	if withAdditions["testkey1"] != "testval1" {
 		t.Errorf("new map doesn't include original values")

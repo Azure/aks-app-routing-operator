@@ -5,9 +5,10 @@ package service
 
 import (
 	"context"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/go-logr/logr"
@@ -86,7 +87,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			ResourceVersion: "1",
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: "v1",
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       "Service",
 				Name:       svc.Name,
 				UID:        svc.UID,
@@ -101,7 +102,7 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(icName),
+			IngressClassName: util.ToPtr(icName),
 			Rules: []netv1.IngressRule{{
 				Host: "test-host",
 				IngressRuleValue: netv1.IngressRuleValue{
@@ -189,7 +190,7 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 			ResourceVersion: "1",
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: "v1",
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       "Service",
 				Name:       svc.Name,
 				UID:        svc.UID,
@@ -199,7 +200,7 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: util.StringPtr(icName),
+			IngressClassName: util.ToPtr(icName),
 			Rules: []netv1.IngressRule{{
 				Host: "test-host",
 				IngressRuleValue: netv1.IngressRuleValue{

@@ -470,7 +470,8 @@
                 "--enable-annotation-validation=true",
                 "--http-port=8080",
                 "--https-port=8443",
-                "--default-ssl-certificate=fakenamespace/fakename"
+                "--default-ssl-certificate=fakesslnamespace/fakesslname",
+                "--default-backend-service=fakebackendnamespace/fakebackendname"
               ],
               "ports": [
                 {
@@ -641,7 +642,8 @@
     "data": {
       "allow-snippet-annotations": "true",
       "annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
-      "force-ssl-redirect": "true"
+      "force-ssl-redirect": "true",
+      "custom-http-errors": "404,503"
     }
   },
   {

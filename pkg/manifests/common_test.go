@@ -61,6 +61,98 @@ func TestHasTopLevelLabels(t *testing.T) {
 	}
 }
 
+func TestWithLivenessProbeMatchingReadinessNewFailureThresh(t *testing.T) {
+	cases := []struct {
+		name           string
+		inputContainer *corev1.Container
+		failureThresh  int32
+		expected       corev1.Container
+	}{
+		{
+			name: "empty readiness",
+			inputContainer: &corev1.Container{
+				Name: "name",
+			},
+			failureThresh: 2,
+			expected: corev1.Container{
+				Name: "name",
+			},
+		},
+		{
+			name: "new failure thresh",
+			inputContainer: &corev1.Container{
+				Name: "name",
+				ReadinessProbe: &corev1.Probe{
+					FailureThreshold: 2,
+				},
+			},
+			failureThresh: 10,
+			expected: corev1.Container{
+				Name: "name",
+				ReadinessProbe: &corev1.Probe{
+					FailureThreshold: 2,
+				},
+				LivenessProbe: &corev1.Probe{
+					FailureThreshold: 10,
+				},
+			},
+		},
+		{
+			name: "new failure thresh with other fields",
+			inputContainer: &corev1.Container{
+				Name: "name",
+				ReadinessProbe: &corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						HTTPGet: &corev1.HTTPGetAction{
+							Path: "/healthz",
+						},
+					},
+					FailureThreshold:    2,
+					SuccessThreshold:    1,
+					TimeoutSeconds:      2,
+					PeriodSeconds:       12,
+					InitialDelaySeconds: 3,
+				},
+			},
+			failureThresh: 200,
+			expected: corev1.Container{
+				Name: "name",
+				ReadinessProbe: &corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						HTTPGet: &corev1.HTTPGetAction{
+							Path: "/healthz",
+						},
+					},
+					FailureThreshold:    2,
+					SuccessThreshold:    1,
+					TimeoutSeconds:      2,
+					PeriodSeconds:       12,
+					InitialDelaySeconds: 3,
+				},
+				LivenessProbe: &corev1.Probe{
+					ProbeHandler: corev1.ProbeHandler{
+						HTTPGet: &corev1.HTTPGetAction{
+							Path: "/healthz",
+						},
+					},
+					FailureThreshold:    200,
+					SuccessThreshold:    1,
+					TimeoutSeconds:      2,
+					PeriodSeconds:       12,
+					InitialDelaySeconds: 3,
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := withLivenessProbeMatchingReadinessNewFailureThresh(c.inputContainer, c.failureThresh)
+			require.Equal(t, c.expected, *got)
+		})
+	}
+}
+
 func TestGetOwnerRefs(t *testing.T) {
 	cases := []struct {
 		Name       string

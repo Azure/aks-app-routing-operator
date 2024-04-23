@@ -66,6 +66,10 @@ func Namespace(conf *config.Config) *corev1.Namespace {
 		},
 	}
 
+	if !conf.DisableOSM {
+		ns.ObjectMeta.Labels["openservicemesh.io/monitored-by"] = "osm"
+	}
+
 	return ns
 }
 
@@ -105,6 +109,16 @@ func withTypicalReadinessProbe(port int, contain *corev1.Container) *corev1.Cont
 				Scheme: corev1.URISchemeHTTP,
 			},
 		},
+	}
+
+	return copy
+}
+
+func withLivenessProbeMatchingReadinessNewFailureThresh(contain *corev1.Container, failureThresh int32) *corev1.Container {
+	copy := withLivenessProbeMatchingReadiness(contain)
+
+	if copy != nil && copy.LivenessProbe != nil {
+		copy.LivenessProbe.FailureThreshold = failureThresh
 	}
 
 	return copy
@@ -167,7 +181,7 @@ func WithPreferSystemNodes(spec *corev1.PodSpec) *corev1.PodSpec {
 	return copy
 }
 
-func addComponentLabel(originalLabels map[string]string, componentName string) map[string]string {
+func AddComponentLabel(originalLabels map[string]string, componentName string) map[string]string {
 	tr := make(map[string]string)
 	for k, v := range originalLabels {
 		tr[k] = v

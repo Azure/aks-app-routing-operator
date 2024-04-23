@@ -26,7 +26,6 @@ const (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // NginxIngressControllerSpec defines the desired state of NginxIngressController
-// +kubebuilder:validation:XValidation:rule="(has(self.forceSSLRedirect) && has(self.defaultSSLCertificate)) || !has(self.forceSSLRedirect)"
 type NginxIngressControllerSpec struct {
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
@@ -57,30 +56,42 @@ type NginxIngressControllerSpec struct {
 	// +optional
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 
-	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
+	// DefaultBackendService defines the service that the NginxIngressController should default to when given HTTP traffic with not matching known server names.
+	// The controller directs traffic to the first port of the service. Service should expose /health and / endpoints
 	// +optional
-	ForceSSLRedirect *bool `json:"forceSSLRedirect,omitempty"`
+	DefaultBackendService *NICNamespacedName `json:"defaultBackendService,omitempty"`
 
 	// CustomHTTPErrors
 	// +optional
 	CustomHTTPErrors []int `json:"customHTTPErrors,omitempty"`
+
+	// Scaling defines configuration options for how the Ingress Controller scales
+	// +optional
+	Scaling *Scaling `json:"scaling,omitempty"`
 }
 
-// DefaultSSLCertificate holds a secret in the form of a secret struct ith name and namespace properties or a key vault uri
-// +kubebuilder:validation:MaxProperties=1
+// DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
+// +kubebuilder:validation:MaxProperties=2
 // +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
+// +kubebuilder:validation:XValidation:rule="((self.forceSSLRedirect == true) && (has(self.secret) || has(self.keyVaultURI)) || (self.forceSSLRedirect == false))"
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
-	Secret *Secret `json:"secret,omitempty"`
+	Secret *NICNamespacedName `json:"secret,omitempty"`
 
 	// Secret in the form of a Key Vault URI
 	// +optional
 	KeyVaultURI *string `json:"keyVaultURI"`
+
+	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
+	// +kubebuilder:default:=false
+	// forceSSLRedirect is set to false by default and will add the "forceSSLRedirect: false" property even if the user doesn't specify it.
+	// If a user adds both a keyvault uri and secret the property count will be 3 since forceSSLRedirect still automatically gets added thus failing the check.
+	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
 }
 
-// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
-type Secret struct {
+// NICNamespacedName is a struct that holds a name and namespace with length checking on the crd
+type NICNamespacedName struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
@@ -91,6 +102,36 @@ type Secret struct {
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	Namespace string `json:"namespace"`
 }
+
+// Scaling holds specification for how the Ingress Controller scales
+// +kubebuilder:validation:XValidation:rule="(!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas <= self.maxReplicas)"
+type Scaling struct {
+	// MinReplicas is the lower limit for the number of Ingress Controller replicas. It defaults to 2 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
+	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. Rapid means the Ingress Controller
+	// will scale quickly and aggressively, which is the best choice for handling sudden and significant traffic spikes. Steady
+	// is the opposite, prioritizing cost-effectiveness. Steady is the best choice when fewer replicas handling more work is desired or when
+	// traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. If unspecified, this field
+	// defaults to balanced.
+	// +kubebuilder:validation:Enum=rapid;balanced;steady;
+	// +optional
+	Threshold *Threshold `json:"threshold,omitempty"`
+}
+
+type Threshold string
+
+const (
+	RapidThreshold    Threshold = "rapid"
+	BalancedThreshold Threshold = "balanced"
+	SteadyThreshold   Threshold = "steady"
+)
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
 type NginxIngressControllerStatus struct {

@@ -24,6 +24,7 @@ type FakeManager struct {
 	Client     client.Client
 	HttpClient *http.Client
 	Scheme     *runtime.Scheme
+	AddFn      func(runnable manager.Runnable) error
 }
 
 func (f *FakeManager) GetHTTPClient() *http.Client {
@@ -31,8 +32,12 @@ func (f *FakeManager) GetHTTPClient() *http.Client {
 }
 
 // Add implements manager.Manager.
-func (f *FakeManager) Add(manager.Runnable) error {
-	return nil
+func (f *FakeManager) Add(runnable manager.Runnable) error {
+	if f.AddFn == nil {
+		return nil
+	}
+
+	return f.AddFn(runnable)
 }
 
 // AddHealthzCheck implements manager.Manager.

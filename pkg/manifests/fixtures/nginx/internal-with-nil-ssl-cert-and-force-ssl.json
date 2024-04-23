@@ -469,8 +469,7 @@
                 "--configmap=$(POD_NAMESPACE)/nginx",
                 "--enable-annotation-validation=true",
                 "--http-port=8080",
-                "--https-port=8443",
-                "--default-ssl-certificate=fakenamespace/fakename"
+                "--https-port=8443"
               ],
               "ports": [
                 {
@@ -640,8 +639,7 @@
     },
     "data": {
       "allow-snippet-annotations": "true",
-      "annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
-      "force-ssl-redirect": "true"
+      "annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'"
     }
   },
   {

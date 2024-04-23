@@ -36,7 +36,7 @@ var (
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
-			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com"},
+			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com": {}},
 		},
 	}
 	onlyPrivZones = config.Config{
@@ -45,7 +45,7 @@ var (
 		PrivateZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
-			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com"},
+			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com": {}},
 		},
 	}
 	allZones = config.Config{
@@ -53,12 +53,12 @@ var (
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
-			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com"},
+			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com": {}},
 		},
 		PrivateZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
-			ZoneIds:       []string{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com"},
+			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/privatednszones/test.com": {}},
 		},
 	}
 	gvr1 = schema.GroupVersionResource{
@@ -98,7 +98,7 @@ func TestPublicConfig(t *testing.T) {
 				Subscription:       allZones.PublicZoneConfig.Subscription,
 				ResourceGroup:      allZones.PublicZoneConfig.ResourceGroup,
 				Provider:           manifests.PublicProvider,
-				DnsZoneResourceIDs: allZones.PublicZoneConfig.ZoneIds,
+				DnsZoneResourceIDs: util.Keys(allZones.PublicZoneConfig.ZoneIds),
 			},
 		},
 		{
@@ -109,7 +109,7 @@ func TestPublicConfig(t *testing.T) {
 				Subscription:       onlyPrivZones.PublicZoneConfig.Subscription,
 				ResourceGroup:      onlyPrivZones.PublicZoneConfig.ResourceGroup,
 				Provider:           manifests.PublicProvider,
-				DnsZoneResourceIDs: onlyPrivZones.PublicZoneConfig.ZoneIds,
+				DnsZoneResourceIDs: util.Keys(onlyPrivZones.PublicZoneConfig.ZoneIds),
 			},
 		},
 	}
@@ -140,7 +140,7 @@ func TestPrivateConfig(t *testing.T) {
 				Subscription:       allZones.PrivateZoneConfig.Subscription,
 				ResourceGroup:      allZones.PrivateZoneConfig.ResourceGroup,
 				Provider:           manifests.PrivateProvider,
-				DnsZoneResourceIDs: allZones.PrivateZoneConfig.ZoneIds,
+				DnsZoneResourceIDs: util.Keys(allZones.PrivateZoneConfig.ZoneIds),
 			},
 		},
 		{
@@ -151,7 +151,7 @@ func TestPrivateConfig(t *testing.T) {
 				Subscription:       onlyPrivZones.PrivateZoneConfig.Subscription,
 				ResourceGroup:      onlyPrivZones.PrivateZoneConfig.ResourceGroup,
 				Provider:           manifests.PrivateProvider,
-				DnsZoneResourceIDs: onlyPrivZones.PrivateZoneConfig.ZoneIds,
+				DnsZoneResourceIDs: util.Keys(onlyPrivZones.PrivateZoneConfig.ZoneIds),
 			},
 		},
 	}

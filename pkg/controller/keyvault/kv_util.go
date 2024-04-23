@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"reflect"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -33,9 +32,9 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		}
 
 		certURI = t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-		specSecretName = fmt.Sprintf("keyvault-%s", t.Name)
+		specSecretName = certSecretName(t.Name)
 	default:
-		return false, fmt.Errorf("incorrect object type: %s", reflect.TypeOf(obj).String())
+		return false, fmt.Errorf("incorrect object type: %s", t)
 	}
 
 	if certURI == "" {
@@ -44,12 +43,13 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return false, err
+		return false, newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
+
 	if len(chunks) < 3 {
-		return false, fmt.Errorf("invalid secret uri: %s", certURI)
+		return false, newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -113,4 +113,27 @@ func DefaultNginxCertName(nic *v1alpha1.NginxIngressController) string {
 	}
 
 	return certName
+}
+
+func certSecretName(ingressName string) string {
+	return fmt.Sprintf("keyvault-%s", ingressName)
+}
+
+type userError struct {
+	err         error
+	userMessage string
+}
+
+// for internal use
+func (b userError) Error() string {
+	return b.err.Error()
+}
+
+// for user facing messages
+func (b userError) UserError() string {
+	return b.userMessage
+}
+
+func newUserError(err error, msg string) userError {
+	return userError{err, msg}
 }

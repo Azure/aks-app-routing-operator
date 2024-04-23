@@ -438,7 +438,7 @@
               "app.kubernetes.io/managed-by": "aks-app-routing-operator"
             },
             "annotations": {
-              "openservicemesh.io/sidecar-injection": "enabled",
+              "openservicemesh.io/sidecar-injection": "disabled",
               "prometheus.io/port": "10254",
               "prometheus.io/scrape": "true"
             }
@@ -447,7 +447,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.9.4",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.10.0",
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=webapprouting.kubernetes.azure.com",
@@ -497,6 +497,18 @@
                     "memory": "127Mi"
                   }
                 },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": 10254,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "timeoutSeconds": 1,
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "failureThreshold": 6
+                },
                 "readinessProbe": {
                   "httpGet": {
                     "path": "/healthz",
@@ -510,7 +522,20 @@
                   "failureThreshold": 3
                 },
                 "securityContext": {
-                  "runAsUser": 101
+                  "capabilities": {
+                    "add": [
+                      "NET_BIND_SERVICE"
+                    ],
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "runAsUser": 101,
+                  "runAsNonRoot": true,
+                  "allowPrivilegeEscalation": false,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
                 }
               }
             ],
