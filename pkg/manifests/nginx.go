@@ -445,10 +445,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--https-port=8443",
 	}
 
-	switch {
-	case ingressConfig.DefaultSSLCertificate != "":
+	if ingressConfig.DefaultSSLCertificate != "" {
 		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+ingressConfig.DefaultSSLCertificate)
-	case ingressConfig.DefaultBackendService != "":
+	}
+
+	if ingressConfig.DefaultBackendService != "" {
 		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
 	}
 
