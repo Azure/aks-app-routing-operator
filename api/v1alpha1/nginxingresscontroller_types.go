@@ -77,7 +77,7 @@ type NginxIngressControllerSpec struct {
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
-	Secret *NICNamespacedName `json:"secret,omitempty"`
+	Secret *Secret `json:"secret,omitempty"`
 
 	// Secret in the form of a Key Vault URI
 	// +optional
@@ -90,7 +90,20 @@ type DefaultSSLCertificate struct {
 	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
 }
 
-// NICNamespacedName is a struct that holds a name and namespace with length checking on the crd
+// Secret is a struct that holds a name and namespace with length checking on the crd
+type Secret struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Name string `json:"name"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Namespace string `json:"namespace"`
+}
+
+// NICNamespacedName is a struct that holds a name and namespace with length checking on the crd for fields other than DefaultSSLCertificate in the spec
 type NICNamespacedName struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253

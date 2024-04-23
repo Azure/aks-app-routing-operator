@@ -91,7 +91,7 @@ func TestReconcileResources(t *testing.T) {
 			Spec: approutingv1alpha1.NginxIngressControllerSpec{
 				IngressClassName:      "ingressClassName",
 				ControllerNamePrefix:  "prefix",
-				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.NICNamespacedName{Name: "test-name", Namespace: "test-namespace"}},
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.Secret{Name: "test-name", Namespace: "test-namespace"}},
 			},
 		}
 		res := n.ManagedResources(nic)
@@ -1416,7 +1416,7 @@ func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
 
 func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
 	fakecert := &approutingv1alpha1.DefaultSSLCertificate{
-		Secret: &approutingv1alpha1.NICNamespacedName{
+		Secret: &approutingv1alpha1.Secret{
 			Name:      name,
 			Namespace: namespace,
 		},
