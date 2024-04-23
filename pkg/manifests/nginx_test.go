@@ -186,7 +186,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				DefaultSSLCertificate:          "fakenamespace/fakename",
+				DefaultBackendService:          "fakenamespace/fakename",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
