@@ -65,8 +65,13 @@ spec:
                 description: DefaultSSLCertificate defines whether the NginxIngressController
                   should use a certain SSL certificate by default. If this field is
                   omitted, no default certificate will be used.
-                maxProperties: 1
+                maxProperties: 2
                 properties:
+                  forceSSLRedirect:
+                    default: false
+                    description: ForceSSLRedirect is a flag that sets the global value
+                      of redirects to HTTPS if there is a defined DefaultSSLCertificate
+                    type: boolean
                   keyVaultURI:
                     description: Secret in the form of a Key Vault URI
                     type: string
@@ -91,6 +96,8 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - rule: (isURL(self.keyVaultURI) || !has(self.keyVaultURI))
+                - rule: ((self.forceSSLRedirect == true) && (has(self.secret) || has(self.keyVaultURI))
+                    || (self.forceSSLRedirect == false))
               ingressClassName:
                 default: nginx.approuting.kubernetes.azure.com
                 description: IngressClassName is the name of the IngressClass that

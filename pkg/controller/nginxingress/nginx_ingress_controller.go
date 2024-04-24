@@ -567,8 +567,13 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		if cert.Secret != nil && cert.Secret.Name != "" && cert.Secret.Namespace != "" {
 			nginxIng.DefaultSSLCertificate = cert.Secret.Namespace + "/" + cert.Secret.Name
 		}
-		if cert != nil && cert.KeyVaultURI != nil {
+
+		if cert.Secret == nil && cert.KeyVaultURI != nil {
 			nginxIng.DefaultSSLCertificate = config.DefaultNs + "/" + keyvault.DefaultNginxCertName(nic)
+		}
+
+		if cert.ForceSSLRedirect {
+			nginxIng.ForceSSLRedirect = true
 		}
 	}
 

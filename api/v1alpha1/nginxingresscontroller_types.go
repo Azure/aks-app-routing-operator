@@ -62,8 +62,9 @@ type NginxIngressControllerSpec struct {
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
-// +kubebuilder:validation:MaxProperties=1
+// +kubebuilder:validation:MaxProperties=2
 // +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
+// +kubebuilder:validation:XValidation:rule="((self.forceSSLRedirect == true) && (has(self.secret) || has(self.keyVaultURI)) || (self.forceSSLRedirect == false))"
 type DefaultSSLCertificate struct {
 	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
 	// +optional
@@ -72,6 +73,12 @@ type DefaultSSLCertificate struct {
 	// Secret in the form of a Key Vault URI
 	// +optional
 	KeyVaultURI *string `json:"keyVaultURI"`
+
+	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
+	// +kubebuilder:default:=false
+	// forceSSLRedirect is set to false by default and will add the "forceSSLRedirect: false" property even if the user doesn't specify it.
+	// If a user adds both a keyvault uri and secret the property count will be 3 since forceSSLRedirect still automatically gets added thus failing the check.
+	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
 }
 
 // Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
