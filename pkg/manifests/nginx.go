@@ -440,8 +440,6 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--enable-annotation-validation=true",
-		"--http-port=8080",
-		"--https-port=8443",
 	}
 
 	if ingressConfig.DefaultSSLCertificate != "" {
@@ -495,11 +493,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						Ports: []corev1.ContainerPort{
 							{
 								Name:          "http",
-								ContainerPort: 8080,
+								ContainerPort: 80,
 							},
 							{
 								Name:          "https",
-								ContainerPort: 8443,
+								ContainerPort: 443,
 							},
 							promPodPort,
 						},
