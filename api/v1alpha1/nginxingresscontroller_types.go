@@ -57,7 +57,7 @@ type NginxIngressControllerSpec struct {
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 
 	// DefaultBackendService defines the service that the NginxIngressController should default to when given HTTP traffic with not matching known server names.
-	// The controller directs traffic to the first port of the service. Service should expose /healthz and / endpoints
+	// The controller directs traffic to the first port of the service.
 	// +optional
 	DefaultBackendService *NICNamespacedName `json:"defaultBackendService,omitempty"`
 
