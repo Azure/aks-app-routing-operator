@@ -468,19 +468,17 @@
                   "--publish-service=$(POD_NAMESPACE)/nginx",
                   "--configmap=$(POD_NAMESPACE)/nginx",
                   "--enable-annotation-validation=true",
-                  "--http-port=8080",
-                  "--https-port=8443",
                   "--default-ssl-certificate=fakesslnamespace/fakesslname",
                   "--default-backend-service=fakebackendnamespace/fakebackendname"
                 ],
                 "ports": [
                   {
                     "name": "http",
-                    "containerPort": 8080
+                    "containerPort": 80
                   },
                   {
                     "name": "https",
-                    "containerPort": 8443
+                    "containerPort": 443
                   },
                   {
                     "name": "prometheus",

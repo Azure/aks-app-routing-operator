@@ -57,7 +57,7 @@ type NginxIngressControllerSpec struct {
 	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
 
 	// DefaultBackendService defines the service that the NginxIngressController should default to when given HTTP traffic with not matching known server names.
-	// The controller directs traffic to the first port of the service. Service should expose /health and / endpoints
+	// The controller directs traffic to the first port of the service.
 	// +optional
 	DefaultBackendService *NICNamespacedName `json:"defaultBackendService,omitempty"`
 
@@ -85,12 +85,12 @@ type DefaultSSLCertificate struct {
 
 	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
 	// +kubebuilder:default:=false
+	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
 	// forceSSLRedirect is set to false by default and will add the "forceSSLRedirect: false" property even if the user doesn't specify it.
 	// If a user adds both a keyvault uri and secret the property count will be 3 since forceSSLRedirect still automatically gets added thus failing the check.
-	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
 }
 
-// Secret is a struct that holds a name and namespace with length checking on the crd
+// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
 type Secret struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253

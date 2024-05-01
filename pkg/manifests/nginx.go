@@ -116,10 +116,10 @@ type NginxIngressConfig struct {
 	ResourceName          string         // name given to all resources
 	IcName                string         // IngressClass name
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
-	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
 	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
+	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	DefaultBackendService string         // namespace/name used to determine default backend service for / and /healthz endpoints
 	CustomHTTPErrors      string
-	DefaultBackendService string
 	MinReplicas           int32
 	MaxReplicas           int32
 	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
@@ -442,8 +442,6 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--enable-annotation-validation=true",
-		"--http-port=8080",
-		"--https-port=8443",
 	}
 
 	if ingressConfig.DefaultSSLCertificate != "" {
@@ -501,11 +499,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						Ports: []corev1.ContainerPort{
 							{
 								Name:          "http",
-								ContainerPort: 8080,
+								ContainerPort: 80,
 							},
 							{
 								Name:          "https",
-								ContainerPort: 8443,
+								ContainerPort: 443,
 							},
 							promPodPort,
 						},

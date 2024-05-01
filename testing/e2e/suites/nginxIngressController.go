@@ -84,7 +84,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.NICNamespacedName{
+					Secret: &v1alpha1.Secret{
 						Name:      "Invalid+@Name",
 						Namespace: "validnamespace",
 					},
@@ -96,7 +96,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.NICNamespacedName{
+					Secret: &v1alpha1.Secret{
 						Name:      "validname",
 						Namespace: "Invalid+@Namespace",
 					},
@@ -108,7 +108,7 @@ func nicTests(in infra.Provisioned) []test {
 
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
-					Secret: &v1alpha1.NICNamespacedName{
+					Secret: &v1alpha1.Secret{
 						Name:      "validname",
 						Namespace: "",
 					},
@@ -133,7 +133,7 @@ func nicTests(in infra.Provisioned) []test {
 				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
 					KeyVaultURI: &validUri,
-					Secret: &v1alpha1.NICNamespacedName{
+					Secret: &v1alpha1.Secret{
 						Name:      "validname",
 						Namespace: "validnamespace",
 					},
