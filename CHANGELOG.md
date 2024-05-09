@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2024-05-09
+
+### Added
+
+- force ssl redirect configuration - [#173](https://github.com/Azure/aks-app-routing-operator/pull/173)
+
+### Changed
+
+- swap default http/s ports [#202](https://github.com/Azure/aks-app-routing-operator/pull/202)
+
 ## [0.2.3] - 2024-04-22
 
 ### Added
