@@ -22,4 +22,4 @@ In the unlikely event that a hotfix is needed, you can create a hotfix release t
 We might need to patch an older version. In this case, we will need to perform the following steps.
 
 - `git fetch --tags upstream` to pull tags locally
-- `git checkout -b v<version>-patch-1 tags/<version>` 
+- `git checkout -b v<version>-patch-1 tags/<version>` for example  `git checkout -b v0.2.1-patch-1 tags/v0.2.1` for the first patch of version `0.2.1`.
