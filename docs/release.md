@@ -16,3 +16,14 @@ After releasing, we need to update our E2E tests to validate upgrade scenarios f
 ## Hotfix
 
 In the unlikely event that a hotfix is needed, you can create a hotfix release through the same steps detailed above. The semantic version should be bumped at the minor version level for the hotfix. For example, a hotfix for `1.0.0` would be released as `1.0.1`. You can note that this is a hotfix in the `CHANGELOG.md`.
+
+## Patching Older Versions
+
+We might need to patch an older version. In this case, we will need to perform the following steps.
+
+- `git fetch --tags upstream` to pull tags locally
+- `git checkout -b v<version>-patch-1 tags/<version>` for example  `git checkout -b v0.2.1-patch-1 tags/v0.2.1` for the first patch of version `0.2.1`. This checks out the tag sha into a new branch.
+- `git push upstream` to create the branch upstream
+- make required changes and create a PR against the upstream branch
+- add a new entry to the changelog using the original semantic version with a suffix of `-patch-1`
+- run the release workflow with the full semantic version with the suffix and a sha of the latest commit on the upstream branch
