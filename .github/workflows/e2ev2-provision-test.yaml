@@ -28,25 +28,6 @@ jobs:
           go-version: '~1.20.3'
           cache-dependency-path: "**/*.sum"
 
-      - name: install azure-cli 2.58.0 # needed due to az cli regression https://github.com/Azure/login/issues/372. We need to remove this when az cli 2.60 is released and baked into runner image
-        # install steps from https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt
-        run: |
-          sudo apt-get update
-          sudo apt-get install apt-transport-https ca-certificates curl gnupg lsb-release
-          sudo mkdir -p /etc/apt/keyrings
-          curl -sLS https://packages.microsoft.com/keys/microsoft.asc |
-              sudo gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg
-          sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
-          AZ_DIST=$(lsb_release -cs)
-          echo "Types: deb
-          URIs: https://packages.microsoft.com/repos/azure-cli/
-          Suites: ${AZ_DIST}
-          Components: main
-          Architectures: $(dpkg --print-architecture)
-          Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
-          AZ_VER=2.58.0
-          sudo apt-get update && sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST} --allow-downgrades
-
       - name: Azure login
         uses: azure/login@v1
         with:
