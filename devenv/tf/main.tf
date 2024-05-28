@@ -4,6 +4,11 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "= 3.43.0"
     }
+
+    random = {
+      source = "hashicorp/random"
+      version = "3.6.2"
+    }
   }
 }
 
@@ -15,10 +20,20 @@ provider "azurerm" {
   }
 }
 
+// randomly choose location to be less to resource limits on our subscription (they are at the location level)
+resource "random_shuffle" "locations" {
+  input = ["North Central US", "South Central US", "East US", "East US 2", "West US", "West US 2", "West US 3"]
+  result_count = 1
+}
+
 variable "location" {
   type = string
   description = "The Azure Region in which resources will be created"
-  default = "South Central US"
+  default = ""
+}
+
+locals {
+  location = var.location == "" ? random_shuffle.locations.result[0] : var.location
 }
 
 resource "random_string" "random" {
