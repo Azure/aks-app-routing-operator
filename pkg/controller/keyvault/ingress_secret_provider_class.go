@@ -5,11 +5,14 @@ package keyvault
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/url"
-	"strings"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,13 +20,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 var (
@@ -95,7 +91,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       ing.Kind,
 				Name:       ing.Name,
 				UID:        ing.UID,
@@ -103,19 +99,37 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		},
 	}
 	logger = logger.WithValues("spc", spc.Name)
-	ok, err := i.buildSPC(ing, spc)
-	if err != nil {
-		logger.Info("failed to build secret provider class for ingress, user input invalid. sending warning event")
-		i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", err)
-		return result, nil
+
+	// Checking if we manage the ingress. All false cases without an error are assumed that we don't manage it
+	var isManaged bool
+	if isManaged, err = i.ingressManager.IsManaging(ing); err != nil {
+		logger.Error(err, fmt.Sprintf("failed while checking if ingress was managed with error: %s.", err.Error()))
+		return result, fmt.Errorf("determining if ingress is managed: %w", err)
 	}
-	if ok {
-		logger.Info("reconciling secret provider class for ingress")
-		err = util.Upsert(ctx, i.client, spc)
-		if err != nil {
-			i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err)
+
+	if isManaged {
+		var upsertSPC bool
+
+		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
+			var userErr userError
+			if errors.As(err, &userErr) {
+				logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
+				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+				return result, nil
+			}
+
+			logger.Error(err, fmt.Sprintf("failed to build secret provider class for ingress with error: %s.", err.Error()))
+			return result, err
 		}
-		return result, err
+
+		if upsertSPC {
+			logger.Info("reconciling secret provider class for ingress")
+			if err = util.Upsert(ctx, i.client, spc); err != nil {
+				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
+				logger.Error(err, fmt.Sprintf("failed to upsert secret provider class for ingress with error: %s.", err.Error()))
+			}
+			return result, err
+		}
 	}
 
 	logger.Info("cleaning unused managed spc for ingress")
@@ -123,8 +137,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 	toCleanSPC := &secv1.SecretProviderClass{}
 
-	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC)
-	if err != nil {
+	if err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC); err != nil {
 		return result, client.IgnoreNotFound(err)
 	}
 
@@ -135,82 +148,4 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	return result, nil
-}
-
-func (i *IngressSecretProviderClassReconciler) buildSPC(ing *netv1.Ingress, spc *secv1.SecretProviderClass) (bool, error) {
-	if ing.Spec.IngressClassName == nil || ing.Annotations == nil {
-		return false, nil
-	}
-
-	managed, err := i.ingressManager.IsManaging(ing)
-	if err != nil {
-		return false, fmt.Errorf("determining if ingress is managed: %w", err)
-	}
-	if !managed {
-		return false, nil
-	}
-
-	certURI := ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-	if certURI == "" {
-		return false, nil
-	}
-
-	uri, err := url.Parse(certURI)
-	if err != nil {
-		return false, err
-	}
-	vaultName := strings.Split(uri.Host, ".")[0]
-	chunks := strings.Split(uri.Path, "/")
-	if len(chunks) < 3 {
-		return false, fmt.Errorf("invalid secret uri: %s", certURI)
-	}
-	secretName := chunks[2]
-	p := map[string]interface{}{
-		"objectName": secretName,
-		"objectType": "secret",
-	}
-	if len(chunks) > 3 {
-		p["objectVersion"] = chunks[3]
-	}
-
-	params, err := json.Marshal(p)
-	if err != nil {
-		return false, err
-	}
-	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(params)}})
-	if err != nil {
-		return false, err
-	}
-
-	spc.Spec = secv1.SecretProviderClassSpec{
-		Provider: secv1.Provider("azure"),
-		SecretObjects: []*secv1.SecretObject{{
-			SecretName: fmt.Sprintf("keyvault-%s", ing.Name),
-			Type:       "kubernetes.io/tls",
-			Data: []*secv1.SecretObjectData{
-				{
-					ObjectName: secretName,
-					Key:        "tls.key",
-				},
-				{
-					ObjectName: secretName,
-					Key:        "tls.crt",
-				},
-			},
-		}},
-		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-		Parameters: map[string]string{
-			"keyvaultName":           vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": i.config.MSIClientID,
-			"tenantId":               i.config.TenantID,
-			"objects":                string(objects),
-		},
-	}
-
-	if i.config.Cloud != "" {
-		spc.Spec.Parameters[kvcsi.CloudNameParameter] = i.config.Cloud
-	}
-
-	return true, nil
 }

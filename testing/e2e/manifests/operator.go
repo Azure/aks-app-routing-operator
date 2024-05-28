@@ -17,7 +17,7 @@ import (
 
 const (
 	operatorNs        = "kube-system"
-	managedResourceNs = "app-routing-system"
+	ManagedResourceNs = "app-routing-system"
 )
 
 var (
@@ -25,8 +25,8 @@ var (
 		"app": "app-routing-operator",
 	}
 
-	// AllOperatorVersions is a list of all the operator versions
-	AllOperatorVersions = []OperatorVersion{OperatorVersion0_0_3, OperatorVersionLatest}
+	// AllUsedOperatorVersions is a list of all the operator versions used today
+	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_0, OperatorVersionLatest}
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
 	AllDnsZoneCounts     = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
@@ -40,6 +40,7 @@ type OperatorVersion uint
 
 const (
 	OperatorVersion0_0_3 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
+	OperatorVersion0_2_0
 
 	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
@@ -49,6 +50,8 @@ func (o OperatorVersion) String() string {
 	switch o {
 	case OperatorVersion0_0_3:
 		return "0.0.3"
+	case OperatorVersion0_2_0:
+		return "0.2.0"
 	case OperatorVersionLatest:
 		return "latest"
 	default:
@@ -99,6 +102,8 @@ func (o *OperatorConfig) image(latestImage string) string {
 	switch o.Version {
 	case OperatorVersion0_0_3:
 		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.0.3"
+	case OperatorVersion0_2_0:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.0"
 	case OperatorVersionLatest:
 		return latestImage
 	default:
@@ -116,15 +121,12 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
 		"--location", o.Location,
-		"--namespace", managedResourceNs,
+		"--namespace", ManagedResourceNs,
 		"--cluster-uid", "test-cluster-uid",
 	}
 
 	if o.Version == OperatorVersionLatest {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
-		ret = append(ret, "--operator-namespace", operatorNs)
-		ret = append(ret, "--operator-webhook-service", "app-routing-operator-webhook")
-		ret = append(ret, "--enable-webhook")
 	}
 
 	var zones []string
@@ -155,12 +157,20 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	var ret []client.Object
 
 	namespace := &corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: managedResourceNs,
+			Name: ManagedResourceNs,
 		},
 	}
 
 	serviceAccount := &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ServiceAccount",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -168,6 +178,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRoleBinding",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -187,6 +201,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	baseDeployment := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: operatorNs,
@@ -244,6 +262,10 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}
 
 	podDisrutptionBudget := &policyv1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy/v1",
+			Kind:       "PodDisruptionBudget",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "app-routing-operator",
 			Namespace: "app-routing-system",
@@ -253,35 +275,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 			Selector: &metav1.LabelSelector{
 				MatchLabels: operatorDeploymentLabels,
 			},
-		},
-	}
-
-	webhookService := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "app-routing-operator-webhook",
-			Namespace: operatorNs,
-		},
-		Spec: corev1.ServiceSpec{
-			IPFamilies: []corev1.IPFamily{
-				"IPv4",
-			},
-			IPFamilyPolicy: &SingleStackIPFamilyPolicy,
-			Ports: []corev1.ServicePort{
-				{
-					Name:     "client",
-					Port:     9443,
-					Protocol: corev1.ProtocolTCP,
-					TargetPort: intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: 9443,
-					},
-				},
-			},
-			Selector: map[string]string{
-				"app": "app-routing-operator",
-			},
-			SessionAffinity: corev1.ServiceAffinityNone,
-			Type:            corev1.ServiceTypeClusterIP,
 		},
 	}
 
@@ -300,10 +293,9 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
 		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
 		baseDeployment.Spec.Template.Spec.Volumes = nil
-
 		ret = append(ret, baseDeployment)
-	case OperatorVersionLatest:
-		ret = append(ret, webhookService, baseDeployment)
+	default:
+		ret = append(ret, baseDeployment)
 
 		if cleanDeploy {
 			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))

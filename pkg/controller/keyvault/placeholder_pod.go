@@ -9,12 +9,14 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,7 +100,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			Labels:    spc.Labels,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: spc.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       spc.Kind,
 				Name:       spc.Name,
 				UID:        spc.UID,
@@ -107,27 +109,65 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("deployment", dep.Name)
 
-	ing := &netv1.Ingress{}
-	ing.Name = util.FindOwnerKind(spc.OwnerReferences, "Ingress")
-	ing.Namespace = req.Namespace
-	logger = logger.WithValues("ingress", ing.Name)
-	if ing.Name != "" {
-		logger.Info("getting owner ingress")
-		if err = p.client.Get(ctx, client.ObjectKeyFromObject(ing), ing); err != nil {
+	return p.reconcileObjectDeployment(dep, spc, req, ctx, logger)
+}
+
+func (p *PlaceholderPodController) placeholderPodCleanCheck(obj client.Object) (bool, error) {
+	switch t := obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
+			return true, nil
+		}
+	case *netv1.Ingress:
+		managed, err := p.ingressManager.IsManaging(t)
+		if err != nil {
+			return false, fmt.Errorf("determining if ingress is managed: %w", err)
+		}
+		if t.Name == "" || t.Spec.IngressClassName == nil || !managed {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
+	var (
+		err error
+		obj client.Object
+	)
+
+	result := ctrl.Result{}
+
+	switch {
+	case util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController") != "":
+		obj = &v1alpha1.NginxIngressController{}
+		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"))
+		logger.Info(fmt.Sprint("getting owner NginxIngressController"))
+	case util.FindOwnerKind(spc.OwnerReferences, "Ingress") != "":
+		obj = &netv1.Ingress{}
+		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
+		obj.SetNamespace(req.Namespace)
+		logger.Info(fmt.Sprint("getting owner Ingress"))
+	default:
+		logger.Info("owner type not found")
+		return result, nil
+	}
+
+	if obj.GetName() != "" {
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 			return result, client.IgnoreNotFound(err)
 		}
 	}
 
-	managed, err := p.ingressManager.IsManaging(ing)
+	cleanPod, err := p.placeholderPodCleanCheck(obj)
 	if err != nil {
-		return result, fmt.Errorf("determining if ingress is managed: %w", err)
+		return result, err
 	}
 
-	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
+	if cleanPod {
 		logger.Info("cleaning unused placeholder pod deployment")
-
 		logger.Info("getting placeholder deployment")
-
 		toCleanDeployment := &appsv1.Deployment{}
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
 			return result, client.IgnoreNotFound(err)
@@ -138,19 +178,58 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			return result, client.IgnoreNotFound(err)
 		}
 	}
+
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
-	p.buildDeployment(dep, spc, ing)
+	if err = p.buildDeployment(ctx, dep, spc, obj); err != nil {
+		err = fmt.Errorf("building deployment: %w", err)
+		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		logger.Error(err, "failed to build placeholder deployment")
+		return result, err
+	}
+
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
-		p.events.Eventf(ing, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %v", err)
+		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		logger.Error(err, "failed to upsert placeholder deployment")
 		return result, err
 	}
 
 	return result, nil
 }
 
-func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, ing *netv1.Ingress) {
+// getCurrentDeployment returns the current deployment for the given name or nil if it does not exist. nil, nil is returned if the deployment is not found
+func (p *PlaceholderPodController) getCurrentDeployment(ctx context.Context, name types.NamespacedName) (*appsv1.Deployment, error) {
+	dep := &appsv1.Deployment{}
+	err := p.client.Get(ctx, name, dep)
+	if err != nil {
+		return nil, client.IgnoreNotFound(err)
+	}
+
+	return dep, nil
+}
+
+func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object) error {
+	old, err := p.getCurrentDeployment(ctx, client.ObjectKeyFromObject(dep))
+	if err != nil {
+		return fmt.Errorf("getting current deployment: %w", err)
+	}
+
 	labels := map[string]string{"app": spc.Name}
+
+	if old != nil { // we need to ensure that immutable fields are not changed
+		labels = old.Spec.Selector.MatchLabels
+	}
+
+	var ingAnnotation string
+	switch obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		ingAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
+	case *netv1.Ingress:
+		ingAnnotation = "kubernetes.azure.com/ingress-owner"
+	default:
+		return fmt.Errorf("failed to build deployment: object type not ingress or nginxingresscontroller")
+	}
+
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
@@ -161,15 +240,15 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"kubernetes.azure.com/ingress-owner":       ing.Name,
+					ingAnnotation:                              obj.GetName(),
 					"openservicemesh.io/sidecar-injection":     "disabled",
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.BoolPtr(false),
+				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.6-hotfix.20220114"),
+					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.9-hotfix-20230808"),
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -181,13 +260,27 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 							corev1.ResourceMemory: resource.MustParse("24Mi"),
 						},
 					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 				}},
 				Volumes: []corev1.Volume{{
 					Name: "secrets",
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.BoolPtr(true),
+							ReadOnly:         util.ToPtr(true),
 							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
 						},
 					},
@@ -195,4 +288,5 @@ func (p *PlaceholderPodController) buildDeployment(dep *appsv1.Deployment, spc *
 			}),
 		},
 	}
+	return nil
 }

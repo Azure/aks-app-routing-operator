@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"unicode"
 
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
@@ -19,14 +18,8 @@ func init() {
 }
 
 const (
-	maxNameLength = 100
 	// MaxCollisions is the maximum number of collisions allowed when generating a name for a managed resource. This corresponds to the status.CollisionCount
-	MaxCollisions           = 5
-	maxControllerNamePrefix = 253 - 10 // 253 is the max length of resource names - 10 to account for the length of the suffix https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
-)
-
-const (
-	defaultControllerNamePrefix = "nginx"
+	MaxCollisions = 5
 )
 
 // Important: Run "make crd" to regenerate code after modifying this file
@@ -36,21 +29,100 @@ const (
 type NginxIngressControllerSpec struct {
 	// IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
 	// not specified.
-	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:default:=nginx.approuting.kubernetes.azure.com
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	IngressClassName string `json:"ingressClassName,omitempty"`
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	// +kubebuilder:validation:Required
+	IngressClassName string `json:"ingressClassName"`
 
 	// ControllerNamePrefix is the name to use for the managed NGINX Ingress Controller resources.
-	// +optional
-	// +kubebuilder:default=nginx
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=60
+	// +kubebuilder:default:=nginx
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	ControllerNamePrefix string `json:"controllerNamePrefix,omitempty"`
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9]*[a-z0-9]$`
+	// +kubebuilder:validation:Required
+	ControllerNamePrefix string `json:"controllerNamePrefix"`
 
 	// LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations
 	// will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+
+	// DefaultSSLCertificate defines whether the NginxIngressController should use a certain SSL certificate by default.
+	// If this field is omitted, no default certificate will be used.
+	// +optional
+	DefaultSSLCertificate *DefaultSSLCertificate `json:"defaultSSLCertificate,omitempty"`
+
+	// Scaling defines configuration options for how the Ingress Controller scales
+	// +optional
+	Scaling *Scaling `json:"scaling,omitempty"`
 }
+
+// DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
+// +kubebuilder:validation:MaxProperties=2
+// +kubebuilder:validation:XValidation:rule="(isURL(self.keyVaultURI) || !has(self.keyVaultURI))"
+// +kubebuilder:validation:XValidation:rule="((self.forceSSLRedirect == true) && (has(self.secret) || has(self.keyVaultURI)) || (self.forceSSLRedirect == false))"
+type DefaultSSLCertificate struct {
+	// Secret is a struct that holds the name and namespace fields used for the default ssl secret
+	// +optional
+	Secret *Secret `json:"secret,omitempty"`
+
+	// Secret in the form of a Key Vault URI
+	// +optional
+	KeyVaultURI *string `json:"keyVaultURI"`
+
+	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
+	// +kubebuilder:default:=false
+	// forceSSLRedirect is set to false by default and will add the "forceSSLRedirect: false" property even if the user doesn't specify it.
+	// If a user adds both a keyvault uri and secret the property count will be 3 since forceSSLRedirect still automatically gets added thus failing the check.
+	ForceSSLRedirect bool `json:"forceSSLRedirect,omitempty"`
+}
+
+// Secret is a struct that holds a name and namespace to be used in DefaultSSLCertificate
+type Secret struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Name string `json:"name"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	Namespace string `json:"namespace"`
+}
+
+// Scaling holds specification for how the Ingress Controller scales
+// +kubebuilder:validation:XValidation:rule="(!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas <= self.maxReplicas)"
+type Scaling struct {
+	// MinReplicas is the lower limit for the number of Ingress Controller replicas. It defaults to 2 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	// MaxReplicas is the upper limit for the number of Ingress Controller replicas. It defaults to 100 pods.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
+	// Threshold defines how quickly the Ingress Controller pods should scale based on workload. Rapid means the Ingress Controller
+	// will scale quickly and aggressively, which is the best choice for handling sudden and significant traffic spikes. Steady
+	// is the opposite, prioritizing cost-effectiveness. Steady is the best choice when fewer replicas handling more work is desired or when
+	// traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. If unspecified, this field
+	// defaults to balanced.
+	// +kubebuilder:validation:Enum=rapid;balanced;steady;
+	// +optional
+	Threshold *Threshold `json:"threshold,omitempty"`
+}
+
+type Threshold string
+
+const (
+	RapidThreshold    Threshold = "rapid"
+	BalancedThreshold Threshold = "balanced"
+	SteadyThreshold   Threshold = "steady"
+)
 
 // NginxIngressControllerStatus defines the observed state of NginxIngressController
 type NginxIngressControllerStatus struct {
@@ -146,7 +218,8 @@ type NginxIngressController struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +required
-	Spec NginxIngressControllerSpec `json:"spec,omitempty"`
+	// +kubebuilder:default:={"ingressClassName":"nginx.approuting.kubernetes.azure.com","controllerNamePrefix":"nginx"}
+	Spec NginxIngressControllerSpec `json:"spec"` // ^ for the above thing https://github.com/kubernetes-sigs/controller-tools/issues/622 defaulting doesn't cascade, so we have to define it all. Comment on this line so it's not in crd spec.
 
 	// +optional
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
@@ -167,49 +240,6 @@ func (n *NginxIngressController) SetCondition(c metav1.Condition) {
 	c.ObservedGeneration = n.Generation
 	c.LastTransitionTime = metav1.Now()
 	meta.SetStatusCondition(&n.Status.Conditions, c)
-}
-
-// Valid checks this NginxIngressController to see if it's valid. Returns a string describing the validation error, if any, or empty string if there is no error.
-func (n *NginxIngressController) Valid() string {
-	// controller name prefix must follow https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
-	// we don't check for ending because this is a prefix
-	if n.Spec.ControllerNamePrefix == "" {
-		return "spec.controllerNamePrefix must be specified"
-	}
-
-	if !isLowercaseRfc1123Subdomain(n.Spec.ControllerNamePrefix) {
-		return "spec.controllerNamePrefix " + lowercaseRfc1123SubdomainValidationFailReason
-	}
-
-	if len(n.Spec.ControllerNamePrefix) > maxControllerNamePrefix {
-		return fmt.Sprintf("spec.controllerNamePrefix length must be less than or equal to %d characters", maxControllerNamePrefix)
-
-	}
-
-	if n.Spec.IngressClassName == "" {
-		return "spec.ingressClassName must be specified"
-	}
-
-	if !isLowercaseRfc1123Subdomain(n.Spec.IngressClassName) {
-		return "spec.ingressClassName " + lowercaseRfc1123SubdomainValidationFailReason
-	}
-
-	if len(n.Name) > maxNameLength {
-		return fmt.Sprintf("Name length must be less than or equal to %d characters", maxNameLength)
-	}
-
-	return ""
-}
-
-// Default sets default spec values for this NginxIngressController
-func (n *NginxIngressController) Default() {
-	if n.Spec.IngressClassName == "" {
-		n.Spec.IngressClassName = n.Name
-	}
-
-	if n.Spec.ControllerNamePrefix == "" {
-		n.Spec.ControllerNamePrefix = defaultControllerNamePrefix
-	}
 }
 
 // Collides returns whether the fields in this NginxIngressController would collide with an existing resources making it
@@ -266,62 +296,4 @@ type NginxIngressControllerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NginxIngressController `json:"items"`
-}
-
-var lowercaseRfc1123SubdomainValidationFailReason = "must be a lowercase RFC 1123 subdomain consisting of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
-
-func isLowercaseRfc1123Subdomain(s string) bool {
-	if !startsWithAlphaNum(s) {
-		return false
-	}
-
-	if !endsWithAlphaNum(s) {
-		return false
-	}
-
-	if !onlyAlphaNumDashPeriod(s) {
-		return false
-	}
-
-	if !isLower(s) {
-		return false
-	}
-
-	return true
-}
-
-func startsWithAlphaNum(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
-
-	return unicode.IsLetter(rune(s[0])) || unicode.IsDigit(rune(s[0]))
-}
-
-func endsWithAlphaNum(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
-
-	return unicode.IsLetter(rune(s[len(s)-1])) || unicode.IsDigit(rune(s[len(s)-1]))
-}
-
-func onlyAlphaNumDashPeriod(s string) bool {
-	for _, c := range s {
-		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '-' && c != '.' {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isLower(s string) bool {
-	for _, c := range s {
-		if unicode.IsUpper(c) && unicode.IsLetter(c) {
-			return false
-		}
-	}
-
-	return true
 }

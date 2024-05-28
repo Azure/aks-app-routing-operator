@@ -12,8 +12,6 @@ patches:
             "--location", $RG_LOCATION,
             "--dns-zone-ids", "$DNS_ZONE_IDS",
             "--cluster-uid", "$CLUSTER_UID",
-            "--operator-webhook-service", "app-routing-operator-webhook",
-            "--enable-webhook",
           ]
     target:
       kind: Deployment

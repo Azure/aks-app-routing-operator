@@ -26,6 +26,7 @@ var Flags = &Config{}
 var dnsZonesString string
 
 func init() {
+	flag.Var(&Flags.DefaultController, "default-controller", "kind of default controller to use. should be one of 'standard', 'public', 'private', or 'off'.")
 	flag.StringVar(&Flags.NS, "namespace", DefaultNs, "namespace for managed resources")
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
@@ -41,75 +42,12 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
-	flag.StringVar(&Flags.OperatorNs, "operator-namespace", "kube-system", "namespace of the operator's k8s deployment")
-	flag.StringVar(&Flags.OperatorWebhookService, "operator-webhook-service", "", "name of the operator's webhook service")
-	flag.StringVar(&Flags.OperatorWebhookServiceUrl, "operator-webhook-service-url", "", "url of the operator's webhook service")
-	flag.IntVar(&Flags.WebhookPort, "webhook-port", 9443, "port to serve the webhook on")
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
-	flag.StringVar(&Flags.CertDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "location of the certificates")
-	flag.StringVar(&Flags.CertName, "cert-name", "tls.crt", "name of the certificate file in the cert-dir")
-	flag.StringVar(&Flags.KeyName, "key-name", "tls.key", "name of the key file in the cert-dir")
-	flag.StringVar(&Flags.CaName, "ca-name", "ca.crt", "name of the CA file in the cert-dir")
-	flag.BoolVar(&Flags.EnableWebhook, "enable-webhook", false, "enable the webhook server")
-}
-
-type DnsZoneConfig struct {
-	Subscription  string
-	ResourceGroup string
-	ZoneIds       []string
-}
-
-type Config struct {
-	ServiceAccountTokenPath             string
-	MetricsAddr, ProbeAddr              string
-	NS, Registry                        string
-	DisableKeyvault                     bool
-	MSIClientID, TenantID               string
-	Cloud, Location                     string
-	PrivateZoneConfig, PublicZoneConfig DnsZoneConfig
-	ConcurrencyWatchdogThres            float64
-	ConcurrencyWatchdogVotes            int
-	DisableOSM                          bool
-	OperatorNs                          string
-	OperatorDeployment                  string
-	OperatorWebhookService              string
-	OperatorWebhookServiceUrl           string
-	WebhookPort                         int
-	ClusterUid                          string
-	DnsSyncInterval                     time.Duration
-	CrdPath                             string
-	CertDir                             string
-	CertName, KeyName, CaName           string
-	EnableWebhook                       bool
 }
 
 func (c *Config) Validate() error {
-	if c.EnableWebhook {
-		if c.OperatorNs == "" {
-			return errors.New("--operator-namespace is required")
-		}
-		if c.OperatorWebhookService == "" && c.OperatorWebhookServiceUrl == "" {
-			return errors.New("--operator-webhook-service or operator-webhook-service-url is required")
-		}
-		if c.OperatorWebhookService != "" && c.OperatorWebhookServiceUrl != "" {
-			return errors.New("only one of --operator-webhook-service or --operator-webhook-service-url should be specified")
-		}
-		if c.CertDir == "" {
-			return errors.New("--cert-dir is required")
-		}
-		if c.CertName == "" {
-			return errors.New("--cert-name is required")
-		}
-		if c.KeyName == "" {
-			return errors.New("--key-name is required")
-		}
-		if c.CaName == "" {
-			return errors.New("--ca-name is required")
-		}
-	}
-
 	if c.NS == "" {
 		return errors.New("--namespace is required")
 	}
@@ -133,9 +71,6 @@ func (c *Config) Validate() error {
 	}
 	if c.ConcurrencyWatchdogVotes < 1 {
 		return errors.New("--concurrency-watchdog-votes must be a positive number")
-	}
-	if c.WebhookPort == 0 {
-		return errors.New("--webhook-port is required")
 	}
 	if c.OperatorDeployment == "" {
 		return errors.New("--operator-deployment is required")
@@ -170,7 +105,6 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
-
 	c.PrivateZoneConfig = DnsZoneConfig{}
 	c.PublicZoneConfig = DnsZoneConfig{}
 
@@ -194,7 +128,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 			c.PrivateZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PrivateZoneConfig.ResourceGroup = parsedZone.ResourceGroup
-			c.PrivateZoneConfig.ZoneIds = append(c.PrivateZoneConfig.ZoneIds, zoneId)
+
+			if c.PrivateZoneConfig.ZoneIds == nil {
+				c.PrivateZoneConfig.ZoneIds = map[string]struct{}{}
+			}
+			c.PrivateZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		case PublicZoneType:
 			// it's a public zone
 			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PublicZoneConfig.ResourceGroup); err != nil {
@@ -203,7 +141,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 
 			c.PublicZoneConfig.Subscription = parsedZone.SubscriptionID
 			c.PublicZoneConfig.ResourceGroup = parsedZone.ResourceGroup
-			c.PublicZoneConfig.ZoneIds = append(c.PublicZoneConfig.ZoneIds, zoneId)
+
+			if c.PublicZoneConfig.ZoneIds == nil {
+				c.PublicZoneConfig.ZoneIds = map[string]struct{}{}
+			}
+			c.PublicZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		default:
 			return fmt.Errorf("while parsing dns zone resource ID %s: detected invalid resource type %s", zoneId, parsedZone.ResourceType)
 		}
@@ -213,7 +155,7 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 }
 
 func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
-	if subscription != "" && parsedZone.SubscriptionID != subscription {
+	if subscription != "" && !strings.EqualFold(parsedZone.SubscriptionID, subscription) {
 		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}
 

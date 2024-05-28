@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"net/url"
 	"time"
 
@@ -28,6 +29,19 @@ import (
 
 const (
 	controllerClassMaxLen = 250
+)
+
+const (
+	defaultMinReplicas = 2
+	defaultMaxReplicas = 100
+)
+
+const (
+	rapidTargetCPUUtilization    = 55
+	balancedTargetCPUUtilization = 70
+	steadyTargetCPUUtilization   = 80
+
+	defaultTargetCPUUtilization = balancedTargetCPUUtilization
 )
 
 var (
@@ -154,6 +168,9 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	if err != nil {
 		lgr.Error(err, "unable to reconcile resource")
 		return ctrl.Result{}, fmt.Errorf("reconciling resource: %w", err)
+	}
+	if replicas := resources.Deployment.Spec.Replicas; replicas != nil {
+		lgr.Info(fmt.Sprintf("nginx deployment targets %d replicas", *replicas), "replicas", *replicas)
 	}
 
 	return ctrl.Result{}, nil
@@ -504,8 +521,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		return nil
 	}
 
-	cc := "webapprouting.kubernetes.azure.com/nginx/" + url.PathEscape(nic.Name)
-	// it's impossible for this to happen because we enforce nic.Name to be less than 101 characters in validating webhooks
+	cc := "approuting.kubernetes.azure.com/" + url.PathEscape(nic.Name)
 	if len(cc) > controllerClassMaxLen {
 		cc = cc[:controllerClassMaxLen]
 	}
@@ -517,12 +533,78 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		resourceName = DefaultNicResourceName
 	}
 
-	return &manifests.NginxIngressConfig{
+	scaling := nic.Spec.Scaling
+	var minReplicas int32 = defaultMinReplicas
+	if scaling != nil && scaling.MinReplicas != nil {
+		minReplicas = *scaling.MinReplicas
+	}
+	var maxReplicas int32 = defaultMaxReplicas
+	if scaling != nil && scaling.MaxReplicas != nil {
+		maxReplicas = *scaling.MaxReplicas
+	}
+
+	// we use CEL validation on crd to enforce min <= max if it's defined. There's an edge case where they define max to 1 but don't define min which defaults to 2. The opposite is true too
+	if minReplicas > maxReplicas {
+		if scaling == nil || scaling.MinReplicas == nil {
+			minReplicas = maxReplicas
+		} else {
+			maxReplicas = minReplicas
+		}
+	}
+
+	nginxIng := &manifests.NginxIngressConfig{
 		ControllerClass: cc,
 		ResourceName:    resourceName,
 		IcName:          nic.Spec.IngressClassName,
 		ServiceConfig: &manifests.ServiceConfig{
 			Annotations: nic.Spec.LoadBalancerAnnotations,
 		},
+		MinReplicas:                    minReplicas,
+		MaxReplicas:                    maxReplicas,
+		TargetCPUUtilizationPercentage: getTargetCPUUtilizationPercentage(nic),
+	}
+
+	if cert := nic.Spec.DefaultSSLCertificate; cert != nil {
+		if cert.Secret != nil && cert.Secret.Name != "" && cert.Secret.Namespace != "" {
+			nginxIng.DefaultSSLCertificate = cert.Secret.Namespace + "/" + cert.Secret.Name
+		}
+
+		if cert.Secret == nil && cert.KeyVaultURI != nil {
+			nginxIng.DefaultSSLCertificate = config.DefaultNs + "/" + keyvault.DefaultNginxCertName(nic)
+		}
+
+		if cert.ForceSSLRedirect {
+			nginxIng.ForceSSLRedirect = true
+		}
+	}
+
+	return nginxIng
+}
+
+func getTargetCPUUtilizationPercentage(nic *approutingv1alpha1.NginxIngressController) int32 {
+	if nic == nil {
+		return defaultTargetCPUUtilization
+	}
+
+	scaling := nic.Spec.Scaling
+	if scaling == nil {
+		return defaultTargetCPUUtilization
+	}
+
+	thresh := scaling.Threshold
+	if thresh == nil {
+		return defaultTargetCPUUtilization
+	}
+
+	switch *thresh {
+	case approutingv1alpha1.RapidThreshold:
+		return rapidTargetCPUUtilization
+	case approutingv1alpha1.BalancedThreshold:
+		return balancedTargetCPUUtilization
+	case approutingv1alpha1.SteadyThreshold:
+		return steadyTargetCPUUtilization
+
+	default:
+		return defaultTargetCPUUtilization
 	}
 }

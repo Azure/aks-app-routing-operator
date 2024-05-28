@@ -69,11 +69,11 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 
 	publicZones := make([]string, len(infra.Zones))
 	for i, zone := range infra.Zones {
-		publicZones[i] = zone.GetId()
+		publicZones[i] = zone.Zone.GetId()
 	}
 	privateZones := make([]string, len(infra.PrivateZones))
 	for i, zone := range infra.PrivateZones {
-		privateZones[i] = zone.GetId()
+		privateZones[i] = zone.Zone.GetId()
 	}
 
 	for i, runStrategy := range ordered {

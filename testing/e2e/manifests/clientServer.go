@@ -2,7 +2,7 @@ package manifests
 
 import (
 	_ "embed"
-	"strings"
+	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,6 +18,8 @@ var clientContents string
 
 //go:embed embedded/server.go
 var serverContents string
+
+var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
 type testingResources struct {
 	Client  *appsv1.Deployment
@@ -41,14 +43,8 @@ func (t testingResources) Objects() []client.Object {
 	return ret
 }
 
-func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, isClusterScoped bool) testingResources {
-	var host string
-	if isClusterScoped {
-		host = "nginx.app-routing-system.svc.cluster.local"
-	} else {
-		host = strings.ToLower(namespace) + "." + strings.TrimRight(zoneName, ".")
-	}
-
+func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) testingResources {
+	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 	clientDeployment := newGoDeployment(clientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
@@ -87,6 +83,10 @@ func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, 
 
 	service :=
 		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      serviceName,
 				Namespace: namespace,
@@ -106,6 +106,10 @@ func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, 
 			},
 		}
 	ingress := &netv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressName,
 			Namespace: namespace,
@@ -136,13 +140,13 @@ func ClientAndServer(namespace, name, zoneName, nameserver, keyvaultURI string, 
 				},
 			}},
 			TLS: []netv1.IngressTLS{{
-				Hosts:      []string{host},
+				Hosts:      []string{tlsHost},
 				SecretName: "keyvault-" + ingressName,
 			}},
 		},
 	}
 
-	if isClusterScoped {
+	if tlsHost == "" {
 		ingress.Spec.Rules[0].Host = ""
 		ingress.Spec.TLS = nil
 		delete(ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")

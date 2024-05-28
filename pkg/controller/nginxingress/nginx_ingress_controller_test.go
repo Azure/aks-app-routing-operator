@@ -73,6 +73,86 @@ func TestReconcileResources(t *testing.T) {
 		}
 	})
 
+	t.Run("valid resources with defaultSSLCertificate Secret", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:      "ingressClassName",
+				ControllerNamePrefix:  "prefix",
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{Secret: &approutingv1alpha1.Secret{Name: "test-name", Namespace: "test-namespace"}},
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
+	t.Run("valid resources with defaultSSLCertificate key vault URI", func(t *testing.T) {
+		cl := fake.NewFakeClient()
+		events := record.NewFakeRecorder(10)
+		n := &nginxIngressControllerReconciler{
+			conf: &config.Config{
+				NS: "default",
+			},
+			client: cl,
+			events: events,
+		}
+		kvUri := "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34"
+		nic := &approutingv1alpha1.NginxIngressController{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nic",
+			},
+			Spec: approutingv1alpha1.NginxIngressControllerSpec{
+				IngressClassName:      "ingressClassName",
+				ControllerNamePrefix:  "prefix",
+				DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{KeyVaultURI: &kvUri},
+			},
+		}
+		res := n.ManagedResources(nic)
+
+		managed, err := n.ReconcileResource(context.Background(), nic, res)
+		require.NoError(t, err)
+		require.True(t, len(managed) == len(res.Objects())-1, "expected all resources to be returned as managed except the namespace")
+
+		// prove objects were created
+		for _, obj := range res.Objects() {
+			require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(obj), obj))
+		}
+
+		// no events
+		select {
+		case <-events.Events:
+			require.Fail(t, "expected no events")
+		default:
+		}
+	})
+
 	t.Run("invalid resources", func(t *testing.T) {
 		cl := fake.NewFakeClient()
 		events := record.NewFakeRecorder(10)
@@ -807,6 +887,13 @@ func TestIsUnreconcilableError(t *testing.T) {
 
 func TestToNginxIngressConfig(t *testing.T) {
 	defaultCc := "defaultControllerClass"
+	FakeDefaultSSLCert := getFakeDefaultSSLCert("fake", "fakenamespace")
+	FakeDefaultSSLCertNoName := getFakeDefaultSSLCert("", "fakenamespace")
+	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
+
+	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
+	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
+
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -816,10 +903,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 			name: "default controller class",
 			nic:  util.ToPtr(GetDefaultNginxIngressController()),
 			want: manifests.NginxIngressConfig{
-				ControllerClass: defaultCc,
-				ResourceName:    DefaultNicResourceName,
-				IcName:          DefaultIcName,
-				ServiceConfig:   &manifests.ServiceConfig{},
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -834,10 +924,13 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -855,14 +948,17 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: "webapprouting.kubernetes.azure.com/nginx/nicName",
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig: &manifests.ServiceConfig{
 					map[string]string{
 						"foo": "bar",
 					},
 				},
-				IcName: "ingressClassName",
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
 		{
@@ -877,10 +973,335 @@ func TestToNginxIngressConfig(t *testing.T) {
 				},
 			},
 			want: manifests.NginxIngressConfig{
-				ControllerClass: ("webapprouting.kubernetes.azure.com/nginx/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
-				ResourceName:    "controllerNamePrefix-0",
-				ServiceConfig:   &manifests.ServiceConfig{},
-				IcName:          "ingressClassName",
+				ControllerClass:                ("approuting.kubernetes.azure.com/" + strings.Repeat("a", 1000))[:controllerClassMaxLen],
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCert,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate with no name",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCertNoName,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate with no namespace",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeDefaultSSLCertNoNamespace,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultSSLCertificate and true ForceSSLRedirect",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultSSLCertificate: FakeCertWithForceSSLRedirectTrue,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultSSLCertificate:          FakeDefaultSSLCert.Secret.Namespace + "/" + FakeDefaultSSLCert.Secret.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+				ForceSSLRedirect:               true,
+			},
+		},
+		{
+			name: "custom fields with non nil scaling",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling:              &approutingv1alpha1.Scaling{},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with min replica",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						MinReplicas: util.Int32Ptr(12),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    12,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with min replica higher than max",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						MinReplicas: util.Int32Ptr(102),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    102,
+				MinReplicas:                    102,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with max replica",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						MaxReplicas: util.Int32Ptr(47),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    47,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with max replica lower than min",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						MaxReplicas: util.Int32Ptr(1),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    1,
+				MinReplicas:                    1,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with min and max replica",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						MinReplicas: util.Int32Ptr(5),
+						MaxReplicas: util.Int32Ptr(20),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    20,
+				MinReplicas:                    5,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with rapid threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.RapidThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: rapidTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with balanced threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.BalancedThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with steady threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.SteadyThreshold),
+					},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                "approuting.kubernetes.azure.com/nicName",
+				ResourceName:                   "controllerNamePrefix-0",
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: steadyTargetCPUUtilization,
 			},
 		},
 	}
@@ -891,4 +1312,86 @@ func TestToNginxIngressConfig(t *testing.T) {
 			require.Equal(t, c.want, *got)
 		})
 	}
+}
+
+func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
+	cases := []struct {
+		name string
+		nic  *approutingv1alpha1.NginxIngressController
+		want int32
+	}{
+		{
+			name: "nil NginxIngressController",
+			nic:  nil,
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "nil NginxIngressController scaling",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{},
+			},
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "nil NginxIngressController threshold",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{},
+				},
+			},
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "rapid",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.RapidThreshold),
+					},
+				},
+			},
+			want: rapidTargetCPUUtilization,
+		},
+		{
+			name: "balanced",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.BalancedThreshold),
+					},
+				},
+			},
+			want: defaultTargetCPUUtilization,
+		},
+		{
+			name: "steady",
+			nic: &approutingv1alpha1.NginxIngressController{
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					Scaling: &approutingv1alpha1.Scaling{
+						Threshold: util.ToPtr(approutingv1alpha1.SteadyThreshold),
+					},
+				},
+			},
+			want: steadyTargetCPUUtilization,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := getTargetCPUUtilizationPercentage(c.nic)
+			require.Equal(t, c.want, got)
+		})
+	}
+
+}
+
+func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
+	fakecert := &approutingv1alpha1.DefaultSSLCertificate{
+		Secret: &approutingv1alpha1.Secret{
+			Name:      name,
+			Namespace: namespace,
+		},
+		ForceSSLRedirect: false,
+	}
+	return fakecert
 }

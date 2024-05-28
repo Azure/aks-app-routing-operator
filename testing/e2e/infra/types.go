@@ -57,14 +57,14 @@ type containerRegistry interface {
 	Identifier
 }
 
-type zone interface {
+type Zone interface {
 	GetDnsZone(ctx context.Context) (*armdns.Zone, error)
 	GetName() string
 	GetNameservers() []string
 	Identifier
 }
 
-type privateZone interface {
+type PrivateZone interface {
 	GetDnsZone(ctx context.Context) (*armprivatedns.PrivateZone, error)
 	LinkVnet(ctx context.Context, linkName, vnetId string) error
 	GetName() string
@@ -78,7 +78,7 @@ type resourceGroup interface {
 
 type keyVault interface {
 	GetId() string
-	CreateCertificate(ctx context.Context, name string, dnsnames []string, certOpts ...clients.CertOpt) (*clients.Cert, error)
+	CreateCertificate(ctx context.Context, name string, cnName string, dnsnames []string, certOpts ...clients.CertOpt) (*clients.Cert, error)
 	AddAccessPolicy(ctx context.Context, objectId string, permissions armkeyvault.Permissions) error
 	Identifier
 }
@@ -88,14 +88,19 @@ type cert interface {
 	GetId() string
 }
 
+// WithCert is a resource with a tls certificate valid for that resource. This is used to bundle DNS Zones
+type WithCert[T any] struct {
+	Zone T
+	Cert cert
+}
+
 type Provisioned struct {
 	Name              string
 	Cluster           cluster
 	ContainerRegistry containerRegistry
-	Zones             []zone
-	PrivateZones      []privateZone
+	Zones             []WithCert[Zone]
+	PrivateZones      []WithCert[PrivateZone]
 	KeyVault          keyVault
-	Cert              cert
 	ResourceGroup     resourceGroup
 	SubscriptionId    string
 	TenantId          string
@@ -108,6 +113,12 @@ type LoadableZone struct {
 	Nameservers []string
 }
 
+type withLoadableCert[T any] struct {
+	Zone     T
+	CertName string
+	CertId   string
+}
+
 // LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.
 // Ensure that all fields are exported so that they can properly be serialized/deserialized.
 type LoadableProvisioned struct {
@@ -116,11 +127,9 @@ type LoadableProvisioned struct {
 	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId string
 	ClusterOptions                                                            map[string]struct{}
 	ContainerRegistry                                                         azure.Resource
-	Zones                                                                     []LoadableZone
-	PrivateZones                                                              []azure.Resource
+	Zones                                                                     []withLoadableCert[LoadableZone]
+	PrivateZones                                                              []withLoadableCert[azure.Resource]
 	KeyVault                                                                  azure.Resource
-	CertName                                                                  string
-	CertId                                                                    string
 	ResourceGroup                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
 	SubscriptionId                                                            string
 	TenantId                                                                  string

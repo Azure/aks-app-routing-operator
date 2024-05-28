@@ -74,7 +74,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: actions/download-artifact@master
+      - uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
           name: infra
           path: testing/e2e/
@@ -91,7 +91,7 @@ jobs:
 
       - name: Print test logs
         shell: bash
-        run: cat testing/e2e/job-app-routing-operator-e2e.log
+        run: echo "printing first 100 lines and last 200 lines of e2e logs..." && head -n 100 testing/e2e/job-app-routing-operator-e2e.log && tail -n 200 testing/e2e/job-app-routing-operator-e2e.log
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'success')
 
       - name: Ensure ref

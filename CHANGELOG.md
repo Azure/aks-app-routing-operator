@@ -5,7 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - 2023-12-11
+## [0.2.1-patch-1] - 2024-05-16
+
+### Changed
+
+- bumped Nginx version to 1.10 - [link](https://github.com/Azure/aks-app-routing-operator/commit/57a721bf4ef41e821a317a3ad0fc201da9c15827)
+
+## [0.2.4] - 2024-05-09
+
+### Added
+
+- force ssl redirect configuration - [#173](https://github.com/Azure/aks-app-routing-operator/pull/173)
+
+### Changed
+
+- swap default http/s ports [#202](https://github.com/Azure/aks-app-routing-operator/pull/202)
+
+## [0.2.3] - 2024-04-22
+
+### Added
+
+- add security context to placeholder pod - [#195](https://github.com/Azure/aks-app-routing-operator/pull/195)
+- add security context to external dns - [#194](https://github.com/Azure/aks-app-routing-operator/pull/194)
+
+### Changed
+
+- bumped external dns to 0.13.5 - [#196](https://github.com/Azure/aks-app-routing-operator/pull/196)
+- harden nginx security context - [#192](https://github.com/Azure/aks-app-routing-operator/pull/192)
+
+
+## [0.2.2] - 2024-04-03
+
+### Added
+
+- default SSL certificate secret configuration through CRD - [#160](https://github.com/Azure/aks-app-routing-operator/pull/160)
+- min and max replica configuration through CRD - [#178](https://github.com/Azure/aks-app-routing-operator/pull/178)
+- scaling threshold configuration through CRD - [#180](https://github.com/Azure/aks-app-routing-operator/pull/180)
+- tls reconciler that allows us to manage Ingress TLS fields - [#155](https://github.com/Azure/aks-app-routing-operator/pull/155)
+- bumped to Nginx 1.10.0 - [#184](https://github.com/Azure/aks-app-routing-operator/pull/184)
+- default SSL certificate keyvault uri configuration through CRD - [#166](https://github.com/Azure/aks-app-routing-operator/pull/166)
+- liveness probe to Nginx - [#188](https://github.com/Azure/aks-app-routing-operator/pull/188)
+- default NginxIngressController configuration through CLI args - [#189](https://github.com/Azure/aks-app-routing-operator/pull/189)
+
+### Changes
+
+- switched to distroless base image - [#164](https://github.com/Azure/aks-app-routing-operator/pull/164)
+- changed OSM integration to disable sidecar injection on Nginx deployment - [#170](https://github.com/Azure/aks-app-routing-operator/pull/170)
+
+## [0.2.1] - 2024-01-23
+
+### Fixed
+
+- Respect immutable fields in Placeholder Pod reconciler - [#153](https://github.com/Azure/aks-app-routing-operator/pull/153)
+
+## [0.2.0] - 2024-01-11
+
+### Changes
+
+- Slightly lowered priority class to system cluster critical - [#148](https://github.com/Azure/aks-app-routing-operator/pull/148)
+
+### Added
+
+- Log for number of target Nginx replicas - [#144](https://github.com/Azure/aks-app-routing-operator/pull/144)
+- CRD YAML definition-based validation and defaults - [#150](https://github.com/Azure/aks-app-routing-operator/pull/150)
+
+### Removed
+
+- Webhooks and webhook logic - [#151](https://github.com/Azure/aks-app-routing-operator/pull/151)
+
+## [0.1.2] - 2023-11-28
+
+### Changes
+
+- Make DNS Zone resource group check case insensitive - [#137](https://github.com/Azure/aks-app-routing-operator/pull/137)
+- Make Default NginxIngressController always reconcile - [#138](https://github.com/Azure/aks-app-routing-operator/pull/138)
+- Expose useful function for interacting with NginxIngressController publicly - [#140](https://github.com/Azure/aks-app-routing-operator/pull/140), [#141](https://github.com/Azure/aks-app-routing-operator/pull/141), [#142](https://github.com/Azure/aks-app-routing-operator/pull/142)
+
+## [0.1.1] - 2023-11-12
 
 ### Added
 

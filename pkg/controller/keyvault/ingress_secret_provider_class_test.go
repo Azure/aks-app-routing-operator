@@ -6,7 +6,6 @@ package keyvault
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -27,7 +26,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 )
 
 var (
@@ -44,6 +42,7 @@ var (
 			IngressClassName: &spcTestIngressClassName,
 		},
 	}
+	spcTestDefaultConf = buildTestSpcConfig("test-msi", "test-tenant", "test-cloud")
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -62,7 +61,9 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			if *ing.Spec.IngressClassName == spcTestIngressClassName {
 				return true, nil
 			}
-
+			if *ing.Spec.IngressClassName == "error" {
+				return false, fmt.Errorf("ingressClassNameError")
+			}
 			return false, nil
 		}),
 	}
@@ -110,6 +111,28 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 	assert.Equal(t, expected.Spec, spc.Spec)
 
 	// Check for idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	// Error check for isManaged function
+	ingClassName := ing.Spec.IngressClassName
+	errorName := "error"
+	ing.Spec.IngressClassName = &errorName
+
+	require.NoError(t, i.client.Update(ctx, ing))
+	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
+	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
+	_, err = i.Reconcile(ctx, req)
+	require.Errorf(t, err, fmt.Sprintf("determining if ingress is managed: %s", "ingressClassNameError"))
+	require.Greater(t, testutils.GetErrMetricCount(t, ingressSecretProviderControllerName), beforeErrCount)
+	require.Equal(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+
+	ing.Spec.IngressClassName = ingClassName
+	require.NoError(t, i.client.Update(ctx, ing))
 	beforeErrCount = testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	beforeRequestCount = testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess)
 	_, err = i.Reconcile(ctx, req)
@@ -201,7 +224,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion: ing.APIVersion,
-				Controller: util.BoolPtr(true),
+				Controller: util.ToPtr(true),
 				Kind:       ing.Kind,
 				Name:       ing.Name,
 				UID:        ing.UID,
@@ -315,158 +338,12 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	assert.Greater(t, afterRequestCount, beforeRequestCount)
 }
 
-func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			if *ing.Spec.IngressClassName == spcTestIngressClassName {
-				return true, nil
-			}
-
-			return false, nil
-		}),
+func buildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
+	spcTestConf := config.Config{
+		MSIClientID: msiClient,
+		TenantID:    tenantID,
+		Cloud:       cloud,
 	}
 
-	invalidURLIng := &netv1.Ingress{
-		Spec: netv1.IngressSpec{
-			IngressClassName: &spcTestIngressClassName,
-		},
-	}
-
-	t.Run("missing ingress class", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		ing.Spec.IngressClassName = nil
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
-
-	t.Run("incorrect ingress class", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		incorrect := "some-other-ingress-class"
-		ing.Spec.IngressClassName = &incorrect
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "inv@lid URL"}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
-
-	t.Run("nil annotations", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
-
-	t.Run("empty url", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": ""}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.NoError(t, err)
-	})
-
-	t.Run("url with control character", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		cc := string([]byte{0x7f})
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": cc}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
-		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
-	})
-
-	t.Run("url with one path segment", func(t *testing.T) {
-		ing := invalidURLIng.DeepCopy()
-		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "http://test.com/foo"}
-
-		ok, err := i.buildSPC(ing, &secv1.SecretProviderClass{})
-		assert.False(t, ok)
-		require.EqualError(t, err, "invalid secret uri: http://test.com/foo")
-	})
-}
-
-func TestIngressSecretProviderClassReconcilerBuildSPCCloud(t *testing.T) {
-	cases := []struct {
-		name, configCloud, spcCloud string
-		expected                    bool
-	}{
-		{
-			name:        "empty config cloud",
-			configCloud: "",
-			expected:    false,
-		},
-		{
-			name:        "public cloud",
-			configCloud: "AzurePublicCloud",
-			spcCloud:    "AzurePublicCloud",
-			expected:    true,
-		},
-		{
-			name:        "sov cloud",
-			configCloud: "AzureUSGovernmentCloud",
-			spcCloud:    "AzureUSGovernmentCloud",
-			expected:    true,
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			i := &IngressSecretProviderClassReconciler{
-				config: &config.Config{
-					Cloud: c.configCloud,
-				},
-				ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-					if *ing.Spec.IngressClassName == spcTestIngressClassName {
-						return true, nil
-					}
-
-					return false, nil
-				}),
-			}
-
-			ing := spcTestIngress.DeepCopy()
-			ing.Annotations = map[string]string{
-				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
-			}
-
-			spc := &secv1.SecretProviderClass{}
-			ok, err := i.buildSPC(ing, spc)
-			require.NoError(t, err, "building SPC should not error")
-			require.True(t, ok, "SPC should be built")
-
-			spcCloud, ok := spc.Spec.Parameters[kvcsi.CloudNameParameter]
-			require.Equal(t, c.expected, ok, "SPC cloud annotation unexpected")
-			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
-		})
-	}
-}
-
-func TestIngressSecretProviderClassReconcilerBuildSPCFailedIsManaging(t *testing.T) {
-	i := &IngressSecretProviderClassReconciler{
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-			return false, fmt.Errorf("failed to get ingress")
-		}),
-	}
-
-	ing := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ingress",
-			Annotations: map[string]string{},
-		},
-		Spec: netv1.IngressSpec{
-			IngressClassName: &spcTestIngressClassName,
-		},
-	}
-	spc := &secv1.SecretProviderClass{}
-
-	ok, err := i.buildSPC(ing, spc)
-	require.False(t, ok)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "determining if ingress is managed")
+	return &spcTestConf
 }

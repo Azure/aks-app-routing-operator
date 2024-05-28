@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	controllerImageTag = "v1.9.4"
-	prom               = "prometheus"
+	controllerImageTag             = "v1.10.0"
+	prom                           = "prometheus"
+	IngressControllerComponentName = "ingress-controller"
 )
 
 var (
@@ -111,10 +112,16 @@ var (
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	ControllerClass string         // controller class which is equivalent to controller field of IngressClass
-	ResourceName    string         // name given to all resources
-	IcName          string         // IngressClass name
-	ServiceConfig   *ServiceConfig // service config that specifies details about the LB, defaults if nil
+	ControllerClass       string         // controller class which is equivalent to controller field of IngressClass
+	ResourceName          string         // name given to all resources
+	IcName                string         // IngressClass name
+	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
+	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
+	MinReplicas           int32
+	MaxReplicas           int32
+	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
+	TargetCPUUtilizationPercentage int32
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
@@ -177,7 +184,7 @@ func newNginxIngressControllerServiceAccount(conf *config.Config, ingressConfig 
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:    AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 	}
 }
@@ -190,7 +197,7 @@ func newNginxIngressControllerClusterRole(conf *config.Config, ingressConfig *Ng
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   ingressConfig.ResourceName,
-			Labels: addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels: AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -250,7 +257,7 @@ func newNginxIngressControllerRole(conf *config.Config, ingressConfig *NginxIngr
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
-			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:    AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 			Namespace: conf.NS,
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -323,7 +330,7 @@ func newNginxIngressControllerClusterRoleBinding(conf *config.Config, ingressCon
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   ingressConfig.ResourceName,
-			Labels: addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels: AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -347,7 +354,7 @@ func newNginxIngressControllerRoleBinding(conf *config.Config, ingressConfig *Ng
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:    AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -382,7 +389,7 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        ingressConfig.ResourceName,
 			Namespace:   conf.NS,
-			Labels:      addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:      AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 			Annotations: annotations,
 		},
 		Spec: corev1.ServiceSpec{
@@ -407,17 +414,16 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 }
 
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
-	ingressControllerComponentName := "ingress-controller"
-	ingressControllerDeploymentLabels := addComponentLabel(GetTopLevelLabels(), ingressControllerComponentName)
+	ingressControllerDeploymentLabels := AddComponentLabel(GetTopLevelLabels(), IngressControllerComponentName)
 
-	ingressControllerPodLabels := addComponentLabel(GetTopLevelLabels(), ingressControllerComponentName)
+	ingressControllerPodLabels := AddComponentLabel(GetTopLevelLabels(), IngressControllerComponentName)
 	for k, v := range ingressConfig.PodLabels() {
 		ingressControllerPodLabels[k] = v
 	}
 
 	podAnnotations := map[string]string{}
 	if !conf.DisableOSM {
-		podAnnotations["openservicemesh.io/sidecar-injection"] = "enabled"
+		podAnnotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	}
 
 	for k, v := range promAnnotations {
@@ -425,6 +431,20 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 	}
 
 	selector := &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()}
+
+	deploymentArgs := []string{
+		"/nginx-ingress-controller",
+		"--ingress-class=" + ingressConfig.IcName,
+		"--controller-class=" + ingressConfig.ControllerClass,
+		"--election-id=" + ingressConfig.ResourceName,
+		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
+		"--enable-annotation-validation=true",
+	}
+
+	if ingressConfig.DefaultSSLCertificate != "" {
+		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+ingressConfig.DefaultSSLCertificate)
+	}
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -454,31 +474,30 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						},
 					},
 					ServiceAccountName: ingressConfig.ResourceName,
-					Containers: []corev1.Container{*withPodRefEnvVars(withTypicalReadinessProbe(10254, &corev1.Container{
+					Containers: []corev1.Container{*withPodRefEnvVars(withLivenessProbeMatchingReadinessNewFailureThresh(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
-						Args: []string{
-							"/nginx-ingress-controller",
-							"--ingress-class=" + ingressConfig.IcName,
-							"--controller-class=" + ingressConfig.ControllerClass,
-							"--election-id=" + ingressConfig.ResourceName,
-							"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
-							"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
-							"--enable-annotation-validation=true",
-							"--http-port=8080",
-							"--https-port=8443",
-						},
+						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
-							RunAsUser: util.Int64Ptr(101),
+							AllowPrivilegeEscalation: util.ToPtr(false),
+							Capabilities: &corev1.Capabilities{
+								Add:  []corev1.Capability{"NET_BIND_SERVICE"}, // needed to bind to 80/443 ports https://github.com/kubernetes/ingress-nginx/blob/ca6d3622e5c2819a29f4a407ed272f42d10a91a9/docs/troubleshooting.md?plain=1#L369
+								Drop: []corev1.Capability{"ALL"},
+							},
+							RunAsNonRoot: util.ToPtr(true),
+							RunAsUser:    util.Int64Ptr(101),
+							SeccompProfile: &corev1.SeccompProfile{
+								Type: corev1.SeccompProfileTypeRuntimeDefault,
+							},
 						},
 						Ports: []corev1.ContainerPort{
 							{
 								Name:          "http",
-								ContainerPort: 8080,
+								ContainerPort: 80,
 							},
 							{
 								Name:          "https",
-								ContainerPort: 8443,
+								ContainerPort: 443,
 							},
 							promPodPort,
 						},
@@ -488,7 +507,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 								corev1.ResourceMemory: resource.MustParse("127Mi"),
 							},
 						},
-					}))},
+					}), 6))},
 				}),
 			},
 		},
@@ -496,7 +515,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 }
 
 func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
+	confMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
 			APIVersion: "v1",
@@ -504,7 +523,7 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:    AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		Data: map[string]string{
 			// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
@@ -514,6 +533,12 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
 		},
 	}
+
+	if ingressConfig.DefaultSSLCertificate != "" && ingressConfig.ForceSSLRedirect {
+		confMap.Data["force-ssl-redirect"] = "true"
+	}
+
+	return confMap
 }
 
 func newNginxIngressControllerPDB(conf *config.Config, ingressConfig *NginxIngressConfig) *policyv1.PodDisruptionBudget {
@@ -526,7 +551,7 @@ func newNginxIngressControllerPDB(conf *config.Config, ingressConfig *NginxIngre
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:    AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
 			Selector:       &metav1.LabelSelector{MatchLabels: ingressConfig.PodLabels()},
@@ -544,7 +569,7 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ingressConfig.ResourceName,
 			Namespace: conf.NS,
-			Labels:    addComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Labels:    AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
 		},
 		Spec: autov1.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: autov1.CrossVersionObjectReference{
@@ -552,9 +577,9 @@ func newNginxIngressControllerHPA(conf *config.Config, ingressConfig *NginxIngre
 				Kind:       "Deployment",
 				Name:       ingressConfig.ResourceName,
 			},
-			MinReplicas:                    util.Int32Ptr(2),
-			MaxReplicas:                    100,
-			TargetCPUUtilizationPercentage: util.Int32Ptr(80),
+			MinReplicas:                    util.Int32Ptr(ingressConfig.MinReplicas),
+			MaxReplicas:                    ingressConfig.MaxReplicas,
+			TargetCPUUtilizationPercentage: &ingressConfig.TargetCPUUtilizationPercentage,
 		},
 	}
 }

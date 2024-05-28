@@ -40,6 +40,8 @@ jobs:
             });
             return result;
   e2eV2:
+    permissions:
+      id-token: write
     if:
       github.event_name == 'repository_dispatch' &&
       github.event.client_payload.slash_command.args.named.sha != '' &&
