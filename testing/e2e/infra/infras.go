@@ -5,8 +5,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var location = "North Central US"
-
 // Infras is a list of infrastructure configurations the e2e tests will run against
 var Infras = infras{
 	{
