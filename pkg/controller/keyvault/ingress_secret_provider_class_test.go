@@ -330,7 +330,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "Warning InvalidInput error while processing Keyvault reference: invalid secret uri: inv@lid URL", <-recorder.Events)
-	//even though no error was returned, we should expect the error count to be incremented
+	// even though no error was returned, we should expect the error count to be incremented
 	afterErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	afterRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
 
@@ -346,4 +346,50 @@ func buildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
 	}
 
 	return &spcTestConf
+}
+
+func TestIsNginxAnnotation(t *testing.T) {
+	cases := []struct {
+		name     string
+		key      string
+		expected bool
+	}{
+		{
+			name:     "basic nginx annotation",
+			key:      "nginx.ingress.kubernetes.io/backend-protocol",
+			expected: true,
+		},
+		{
+			name:     "another basic nginx annotation",
+			key:      "nginx.ingress.kubernetes.io/enable-cors",
+			expected: true,
+		},
+		{
+			name:     "basic nginx annotation with space",
+			key:      "   nginx.ingress.kubernetes.io/backend-protocol",
+			expected: true,
+		},
+		{
+			name:     "another basic nginx annotation with space",
+			key:      "nginx.ingress.kubernetes.io/enable-cors",
+			expected: true,
+		},
+		{
+			name:     "non nginx annotation",
+			key:      "notnginx.com/test",
+			expected: false,
+		},
+		{
+			name:     "another not nginx annotation",
+			key:      "istio.ingress.kubernetes.io/enable-cors",
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := isNginxAnnotation(c.key, "")
+			assert.Equal(t, c.expected, got)
+		})
+	}
 }
