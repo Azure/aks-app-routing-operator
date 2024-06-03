@@ -68,7 +68,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@d43c1f16c00cfd3978dde6c07f4bbcf9eb6993ca # v0.16.1
         with:
-          image-ref: '${{ vars.PUBLIC_REGISTRY }}/public/aks/aks-app-routing-operator:${{ inputs.version }}'
+          image-ref: '${{ vars.PUBLIC_REGISTRY }}/aks/aks-app-routing-operator:${{ inputs.version }}'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
