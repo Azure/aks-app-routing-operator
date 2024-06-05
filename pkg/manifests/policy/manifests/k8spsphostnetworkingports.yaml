@@ -1,13 +1,11 @@
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: K8sPSPCapabilities
+kind: K8sPSPHostNetworkingPorts
 metadata:
-  name: capabilities
+  name: psp-host-network-ports
 spec:
   match:
     kinds:
       - apiGroups: [""]
         kinds: ["Pod"]
   parameters:
-    allowedCapabilities: ["NET_BIND_SERVICE"]
-    requiredDropCapabilities: ["ALL"]
-
+    hostNetwork: false
