@@ -1,0 +1,25 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  annotations:
+    description: |-
+      Disallows all Services with type NodePort.
+      https://kubernetes.io/docs/concepts/services-networking/service/#nodeport
+    metadata.gatekeeper.sh/title: Block NodePort
+    metadata.gatekeeper.sh/version: 1.0.0
+  name: k8sblocknodeport
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sBlockNodePort
+  targets:
+    - rego: |
+        package k8sblocknodeport
+
+        violation[{"msg": msg}] {
+          input.review.kind.kind == "Service"
+          input.review.object.spec.type == "NodePort"
+          msg := "User is not allowed to create service of type NodePort"
+        }
+      target: admission.k8s.gatekeeper.sh

@@ -1,0 +1,54 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  annotations:
+    description: Disallow the following scenarios when deploying `HorizontalPodAutoscalers` 1. Deployment of HorizontalPodAutoscalers with `.spec.minReplicas` or `.spec.maxReplicas` outside the ranges defined in the constraint 2. Deployment of HorizontalPodAutoscalers where the difference between `.spec.minReplicas` and `.spec.maxReplicas` is less than the configured `minimumReplicaSpread` 3. Deployment of HorizontalPodAutoscalers that do not reference a valid `scaleTargetRef` (e.g. Deployment, ReplicationController, ReplicaSet, StatefulSet).
+    metadata.gatekeeper.sh/requires-sync-data: |
+      "[
+        [
+          {
+            "groups":["apps"],
+            "versions": ["v1"],
+            "kinds": ["Deployment"]
+          },
+          {
+            "groups":["apps"],
+            "versions": ["v1"],
+            "kinds": ["StatefulSet"]
+          }
+        ]
+      ]"
+    metadata.gatekeeper.sh/title: Horizontal Pod Autoscaler
+    metadata.gatekeeper.sh/version: 1.0.1
+  name: k8shorizontalpodautoscaler
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sHorizontalPodAutoscaler
+      validation:
+        openAPIV3Schema:
+          properties:
+            enforceScaleTargetRef:
+              description: If set to true it validates the HPA scaleTargetRef exists
+              type: boolean
+            minimumReplicaSpread:
+              description: If configured it enforces the minReplicas and maxReplicas in an HPA must have a spread of at least this many replicas
+              type: integer
+            ranges:
+              description: Allowed ranges for numbers of replicas.  Values are inclusive.
+              items:
+                description: A range of allowed replicas.  Values are inclusive.
+                properties:
+                  max_replicas:
+                    description: The maximum number of replicas allowed, inclusive.
+                    type: integer
+                  min_replicas:
+                    description: The minimum number of replicas allowed, inclusive.
+                    type: integer
+                type: object
+              type: array
+          type: object
+  targets:
+    - rego: "package k8shorizontalpodautoscaler\n\nviolation[{\"msg\": msg}] {\n  input.review.kind.kind == \"HorizontalPodAutoscaler\"\n  hpa := input.review.object\n\n  not input_replica_limit(hpa)\n  msg := sprintf(\"The %v <%v> minReplicas %v or maxReplicas %v is not allowed: %v. Allowed ranges: %v\", [hpa.kind, hpa.metadata.name, hpa.spec.minReplicas, hpa.spec.maxReplicas, input.parameters.ranges])\n}\n\nviolation[{\"msg\": msg}] {\n  input.review.kind.kind == \"HorizontalPodAutoscaler\"\n  hpa := input.review.object\n\n  not input_replica_spread(hpa)\n  \n  msg := sprintf(\"The %v <%v> is configured with minReplicas %v and maxReplicas %v which is a spread of %v replica(s). The spread must be at least %v replica(s)\", [hpa.kind, hpa.metadata.name, hpa.spec.minReplicas, hpa.spec.maxReplicas, hpa.spec.maxReplicas - hpa.spec.minReplicas, input.parameters.minimumReplicaSpread])\n}\n\nviolation[{\"msg\": msg}] {\n  input.review.kind.kind == \"HorizontalPodAutoscaler\"\n  hpa := input.review.object\n  input.parameters.enforceScaleTargetRef\n  \n  not data.inventory.namespace[hpa.metadata.namespace][hpa.spec.scaleTargetRef.apiVersion][hpa.spec.scaleTargetRef.kind][hpa.spec.scaleTargetRef.name]\n  msg := sprintf(\"The HorizontalPodAutoscaler <%v> has a scaleTargetRef of <%v/%v> but it does not exist. The scaleTargetRef for the HorizontalPodAutoscaler must exist\", [hpa.metadata.name, hpa.spec.scaleTargetRef.kind, hpa.spec.scaleTargetRef.name])\n}\n\ninput_replica_limit(hpa) {\n    count(input.parameters.ranges) > 0\n    range := input.parameters.ranges[_]\n    value_within_range(range, hpa.spec.minReplicas, hpa.spec.maxReplicas)\n}\n\nvalue_within_range(range, min_provided, max_provided) {\n    range.min_replicas <= min_provided\n    range.max_replicas >= max_provided\n}\n\ninput_replica_spread(hpa) {\n    input.parameters.minimumReplicaSpread\n    (hpa.spec.maxReplicas - hpa.spec.minReplicas) >= input.parameters.minimumReplicaSpread\n}\n"
+      target: admission.k8s.gatekeeper.sh

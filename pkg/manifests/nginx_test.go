@@ -270,8 +270,9 @@ var (
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range controllerTestCases {
 		objs := GetNginxResources(tc.Conf, tc.IngConfig)
-		fixture := path.Join("fixtures", "nginx", tc.Name) + ".json"
+		fixture := path.Join("fixtures", "nginx", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, objs.Objects())
+		GatorTest(t, fixture)
 	}
 }
 

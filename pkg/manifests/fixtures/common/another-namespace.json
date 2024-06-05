@@ -1,15 +1,10 @@
-[
-    {
-      "kind": "Namespace",
-      "apiVersion": "v1",
-      "metadata": {
-        "name": "another-test-namespace",
-        "creationTimestamp": null,
-        "labels": {
-          "openservicemesh.io/monitored-by": "osm"
-        }
-      },
-      "spec": {},
-      "status": {}
-    }
-  ]
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: null
+  labels:
+    openservicemesh.io/monitored-by: osm
+  name: another-test-namespace
+spec: {}
+status: {}
+---

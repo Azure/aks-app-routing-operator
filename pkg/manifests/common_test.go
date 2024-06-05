@@ -1,39 +1,41 @@
 package manifests
 
 import (
-	"encoding/json"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/open-policy-agent/gatekeeper/v3/pkg/gator/reader"
+	"github.com/open-policy-agent/gatekeeper/v3/pkg/gator/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 const genFixturesEnv = "GENERATE_FIXTURES"
 
-var (
-	namespaceTestCases = []struct {
-		Name   string
-		Config *config.Config
-	}{
-		{Name: "namespace", Config: &config.Config{
-			NS: "test-namespace",
-		}},
-		{
-			Name: "another-namespace",
-			Config: &config.Config{
-				NS: "another-test-namespace",
-			},
+const constraintsPath = "./policy/manifests"
+
+var namespaceTestCases = []struct {
+	Name   string
+	Config *config.Config
+}{
+	{Name: "namespace", Config: &config.Config{
+		NS: "test-namespace",
+	}},
+	{
+		Name: "another-namespace",
+		Config: &config.Config{
+			NS: "another-test-namespace",
 		},
-	}
-)
+	},
+}
 
 func TestNamespaceResources(t *testing.T) {
 	for _, tc := range namespaceTestCases {
@@ -227,15 +229,36 @@ func TestGetOwnerRefs(t *testing.T) {
 // AssertFixture checks the fixture path and compares it to the provided objects, failing if they are not equal
 func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
 	t.Logf("Testing fixture %s", fixturePath)
-	actual, err := json.MarshalIndent(&objs, "  ", "  ")
-	require.NoError(t, err)
+	actual := []byte{}
+	for _, obj := range objs {
+		marshalled, err := yaml.Marshal(obj)
+		require.NoError(t, err)
+		actual = append(actual, marshalled...)
+		actual = append(actual, []byte("---\n")...)
+	}
 
 	if os.Getenv(genFixturesEnv) != "" {
-		err = os.WriteFile(fixturePath, actual, 0644)
+		err := os.WriteFile(fixturePath, actual, 0o644)
 		require.NoError(t, err)
 	}
 
 	expected, err := os.ReadFile(fixturePath)
 	require.NoError(t, err)
-	assert.JSONEq(t, string(expected), string(actual))
+	assert.YAMLEq(t, string(expected), string(actual))
+}
+
+func GatorTest(t *testing.T, manifestPath string) {
+	// similar to https://github.com/open-policy-agent/gatekeeper/blob/master/cmd/gator/test/test.go
+	unstructs, err := reader.ReadSources([]string{constraintsPath, manifestPath}, []string{}, "")
+	require.NoError(t, err, "reading manifest", "path", manifestPath)
+	require.True(t, len(unstructs) > 0, "no manifests found", "path", manifestPath)
+
+	responses, err := test.Test(unstructs, test.Opts{})
+	require.NoError(t, err, "auditing objects")
+
+	for _, res := range responses.Results() {
+		if res.EnforcementAction == "deny" {
+			require.Fail(t, res.Msg)
+		}
+	}
 }
