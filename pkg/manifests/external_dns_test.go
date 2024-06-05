@@ -92,6 +92,6 @@ func TestExternalDnsResources(t *testing.T) {
 
 		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, objs)
-		GatorTest(t, fixture)
+		GatekeeperTest(t, fixture)
 	}
 }

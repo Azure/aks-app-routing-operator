@@ -29,18 +29,14 @@ const (
 	txtWildcardReplacement  = "approutingwildcard"
 )
 
-var (
-	// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
-	// If the manifests used by app routing's external dns removes a GroupKind be sure to add
-	// it here to clean it up
-	OldExternalDnsGks []schema.GroupKind
-)
+// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
+// If the manifests used by app routing's external dns removes a GroupKind be sure to add
+// it here to clean it up
+var OldExternalDnsGks []schema.GroupKind
 
 type Provider int
 
-var (
-	Providers = []Provider{PublicProvider, PrivateProvider}
-)
+var Providers = []Provider{PublicProvider, PrivateProvider}
 
 const (
 	PublicProvider Provider = iota

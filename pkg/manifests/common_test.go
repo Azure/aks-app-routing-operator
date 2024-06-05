@@ -3,6 +3,7 @@ package manifests
 import (
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -247,7 +248,24 @@ func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
 	assert.YAMLEq(t, string(expected), string(actual))
 }
 
-func GatorTest(t *testing.T, manifestPath string) {
+type GatekeeperException struct {
+	MessageSuffix string // use the suffix because expansion templates modify the prefix
+	Constraint    string
+}
+
+func (g GatekeeperException) Ignores(r *test.GatorResult) bool {
+	if !strings.HasSuffix(r.Msg, g.MessageSuffix) {
+		return false
+	}
+
+	if r.Constraint == nil || r.Constraint.GetName() != g.Constraint {
+		return false
+	}
+
+	return true
+}
+
+func GatekeeperTest(t *testing.T, manifestPath string, exceptions ...GatekeeperException) {
 	// similar to https://github.com/open-policy-agent/gatekeeper/blob/master/cmd/gator/test/test.go
 	unstructs, err := reader.ReadSources([]string{constraintsPath, manifestPath}, []string{}, "")
 	require.NoError(t, err, "reading manifest", "path", manifestPath)
@@ -258,7 +276,19 @@ func GatorTest(t *testing.T, manifestPath string) {
 
 	for _, res := range responses.Results() {
 		if res.EnforcementAction == "deny" {
-			require.Fail(t, res.Msg)
+			ignore := false
+			for _, exception := range exceptions {
+				if exception.Ignores(res) {
+					ignore = true
+					break
+				}
+			}
+
+			if ignore {
+				continue
+			}
+
+			require.Fail(t, res.Msg, "constraint", res.Constraint.GetName())
 		}
 	}
 }

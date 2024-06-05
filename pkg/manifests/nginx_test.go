@@ -12,6 +12,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var nginxExceptions = []GatekeeperException{
+	{
+		// we can't set limits on nginx pods because nginx chooses workers based on Node specs. No "right size fits all".
+		// this is also the official recommendation of ingress-nginx.
+		MessageSuffix: "container <controller> has no resource limits",
+		Constraint:    "container-must-have-limits",
+	},
+}
+
 var (
 	ingConfig = &NginxIngressConfig{
 		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
@@ -272,7 +281,7 @@ func TestIngressControllerResources(t *testing.T) {
 		objs := GetNginxResources(tc.Conf, tc.IngConfig)
 		fixture := path.Join("fixtures", "nginx", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, objs.Objects())
-		GatorTest(t, fixture)
+		GatekeeperTest(t, fixture, nginxExceptions...)
 	}
 }
 
