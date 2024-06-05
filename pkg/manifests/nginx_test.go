@@ -19,6 +19,14 @@ var nginxExceptions = []GatekeeperException{
 		MessageSuffix: "container <controller> has no resource limits",
 		Constraint:    "container-must-have-limits",
 	},
+	{
+		MessageSuffix: "container <controller> has no resource limits",
+		Constraint:    "container-must-meet-memory-and-cpu-ratio",
+	},
+	{
+		MessageSuffix: "only read-only root filesystem container is allowed: controller",
+		Constraint:    "psp-readonlyrootfilesystem",
+	},
 }
 
 var (
