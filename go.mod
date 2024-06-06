@@ -11,11 +11,11 @@ require (
 	github.com/go-logr/logr v1.4.1
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/open-policy-agent/gatekeeper/v3 v3.16.3
+	github.com/open-policy-agent/gatekeeper/v3 v3.16.3 // waiting for gatekeeper to update to k8s packages 1.30+
 	github.com/openservicemesh/osm v1.2.4
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.48.0
+	github.com/prometheus/common v0.51.0
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 	k8s.io/api v0.29.5
