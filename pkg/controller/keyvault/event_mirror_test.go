@@ -6,8 +6,9 @@ package keyvault
 import (
 	"context"
 	"os"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"testing"
+
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -49,7 +50,7 @@ func TestMain(m *testing.M) {
 
 func TestEventMirrorHappyPath(t *testing.T) {
 	owner1 := &netv1.Ingress{}
-	owner1.APIVersion = "networking.k8s.io"
+	owner1.APIVersion = "networking.k8s.io/v1"
 	owner1.Kind = "Ingress"
 	owner1.Name = "owner1"
 	owner1.Namespace = "testns"
@@ -97,11 +98,12 @@ func TestEventMirrorHappyPath(t *testing.T) {
 func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 	owner0 := &corev1.Service{}
 	owner0.Kind = "Service"
+	owner0.APIVersion = "v1"
 	owner0.Name = "owner0"
 	owner0.Namespace = "testns"
 
 	owner1 := &netv1.Ingress{}
-	owner1.APIVersion = "networking.k8s.io"
+	owner1.APIVersion = "networking.k8s.io/v1"
 	owner1.Kind = "Ingress"
 	owner1.Name = "owner1"
 	owner1.Namespace = owner0.Namespace
@@ -150,6 +152,7 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Service,apiVersion=v1}", <-recorder.Events)
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Ingress,apiVersion=networking.k8s.io/v1}", <-recorder.Events)
 }
+
 func TestIgnoreNotFound(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects().Build()
 	ctx := context.Background()
@@ -159,7 +162,6 @@ func TestIgnoreNotFound(t *testing.T) {
 	}
 	_, err := e.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "nonexist", Name: "nonexist"}})
 	require.NoError(t, err, "Expected ignored not found error")
-
 }
 
 func TestNoLoggerFoundInContext(t *testing.T) {
