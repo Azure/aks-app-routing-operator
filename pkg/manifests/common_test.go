@@ -27,9 +27,11 @@ var namespaceTestCases = []struct {
 	Name   string
 	Config *config.Config
 }{
-	{Name: "namespace", Config: &config.Config{
-		NS: "test-namespace",
-	}},
+	{
+		Name: "namespace", Config: &config.Config{
+			NS: "test-namespace",
+		},
+	},
 	{
 		Name: "another-namespace",
 		Config: &config.Config{
