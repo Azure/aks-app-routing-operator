@@ -20,10 +20,12 @@ var nginxExceptions = []GatekeeperException{
 		Constraint:    "container-must-have-limits",
 	},
 	{
+		// same reason as above
 		MessageSuffix: "container <controller> has no resource limits",
 		Constraint:    "container-must-meet-memory-and-cpu-ratio",
 	},
 	{
+		// nginx needs to use the filesystem. it writes its config there
 		MessageSuffix: "only read-only root filesystem container is allowed: controller",
 		Constraint:    "psp-readonlyrootfilesystem",
 	},
