@@ -30,9 +30,9 @@ const (
 )
 
 var (
-// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
-// If the manifests used by app routing's external dns removes a GroupKind be sure to add
-// it here to clean it up
+	// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
+	// If the manifests used by app routing's external dns removes a GroupKind be sure to add
+	// it here to clean it up
 	OldExternalDnsGks []schema.GroupKind
 )
 
