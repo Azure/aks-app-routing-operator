@@ -44,7 +44,7 @@ jobs:
           az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
 
       - name: Create or update release
-        uses: ncipollo/release-action@a2e71bdd4e7dab70ca26a852f29600c98b33153e # v1.12.0
+        uses: ncipollo/release-action@2c591bcc8ecdcd2db72b97d6147f871fcd833ba5 # v1.14.0
         with:
           name: ${{ steps.changelog.outputs.version }}
           tag: v${{ steps.changelog.outputs.version }}
