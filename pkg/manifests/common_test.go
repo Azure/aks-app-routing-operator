@@ -43,7 +43,7 @@ var namespaceTestCases = []struct {
 func TestNamespaceResources(t *testing.T) {
 	for _, tc := range namespaceTestCases {
 		objs := Namespace(tc.Config)
-		fixture := path.Join("fixtures", "common", tc.Name) + ".json"
+		fixture := path.Join("fixtures", "common", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, []client.Object{objs})
 	}
 }
