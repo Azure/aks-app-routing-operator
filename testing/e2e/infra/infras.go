@@ -5,30 +5,25 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	rg       = "app-routing-e2e" + uuid.New().String()
-	location = "North Central US"
-)
-
 // Infras is a list of infrastructure configurations the e2e tests will run against
 var Infras = infras{
 	{
 		Name:          "basic cluster",
-		ResourceGroup: rg,
-		Location:      location,
+		ResourceGroup: uniqueResourceGroup(),
+		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
 	},
 	{
 		Name:          "private cluster",
-		ResourceGroup: rg,
-		Location:      location,
+		ResourceGroup: uniqueResourceGroup(),
+		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
 		McOpts:        []clients.McOpt{clients.PrivateClusterOpt},
 	},
 	{
 		Name:          "osm cluster",
-		ResourceGroup: rg,
-		Location:      location,
+		ResourceGroup: uniqueResourceGroup(),
+		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
 		McOpts:        []clients.McOpt{clients.OsmClusterOpt},
 	},
@@ -55,4 +50,8 @@ func (i infras) FilterNames(names []string) infras {
 	}
 
 	return ret
+}
+
+func uniqueResourceGroup() string {
+	return "app-routing-e2e" + uuid.New().String()
 }

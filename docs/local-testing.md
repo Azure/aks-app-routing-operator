@@ -13,6 +13,8 @@ You can easily provision a development environment to test your changes on.
 
 By default, the `make dev` command will create an environment with a public cluster using a public DNS Zone. However, two arguments can be specified to change the type of the cluster and/or the zone: `CLUSTER_TYPE` and `DNS_ZONE_TYPE`. For instance, to run a suite with a private cluster and a public zone, a user can run `	make dev CLUSTER_TYPE=private DNS_ZONE_TYPE=public`.
 
+Occasionally, the Cluster create might fail due to `AllocationFailed` when too many resources are used in a region. In this case, just repeat the steps required to make the dev environment since a location is chosen at random in each run.
+
 Region can be specified by exporting an env variable before running the `make dev` command. `export TF_VAR_location="East US"` sets the location to East US.
 
 This development environment is useful for manually interacting with App Routing during development.

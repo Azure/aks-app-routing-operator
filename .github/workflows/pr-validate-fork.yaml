@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: set-check-run-in-progress
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: set-check-run-in-progress
         env:
           number: ${{ github.event.client_payload.pull_request.number }}
@@ -60,7 +60,7 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Update status
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: update-check-run
         if: ${{ always() }}
         env:

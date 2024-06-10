@@ -89,3 +89,15 @@ func ReverseMap[K comparable, V comparable](m map[K]V) map[V]K {
 
 	return new
 }
+
+// FilterMap filters a map, only keeping the key-value pairs that pass the keep function
+func FilterMap[K comparable, V comparable](m map[K]V, keep func(K, V) bool) map[K]V {
+	new := make(map[K]V)
+	for key, val := range m {
+		if keep(key, val) {
+			new[key] = val
+		}
+	}
+
+	return new
+}
