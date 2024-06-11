@@ -45,7 +45,7 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 
 		log.Info("unmarshalling crd file")
 		crd := &apiextensionsv1.CustomResourceDefinition{}
-		if err := yaml.Unmarshal(content, crd); err != nil {
+		if err := yaml.UnmarshalStrict(content, crd); err != nil {
 			return fmt.Errorf("unmarshalling crd file %s: %w", path, err)
 		}
 

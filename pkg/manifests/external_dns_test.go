@@ -90,7 +90,8 @@ func TestExternalDnsResources(t *testing.T) {
 
 		objs := ExternalDnsResources(tc.Conf, tc.DnsConfigs)
 
-		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".json"
+		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, objs)
+		GatekeeperTest(t, fixture)
 	}
 }
