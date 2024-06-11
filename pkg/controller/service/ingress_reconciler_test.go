@@ -35,6 +35,8 @@ func TestIngressReconcilerIntegration(t *testing.T) {
 	svc := &corev1.Service{}
 	svc.UID = "test-svc-uid"
 	svc.Name = "test-service"
+	svc.APIVersion = "v1"
+	svc.Kind = "Service"
 	svc.Namespace = "test-ns"
 	svc.Spec.Ports = []corev1.ServicePort{{
 		Port:       123,
@@ -150,6 +152,8 @@ func TestIngressReconcilerIntegrationNoOSM(t *testing.T) {
 	svc := &corev1.Service{}
 	svc.UID = "test-svc-uid"
 	svc.Name = "test-service"
+	svc.APIVersion = "v1"
+	svc.Kind = "Service"
 	svc.Namespace = "test-ns"
 	svc.Annotations = map[string]string{
 		"kubernetes.azure.com/ingress-host":          "test-host",

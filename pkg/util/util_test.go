@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -280,5 +281,34 @@ func TestReverseMap(t *testing.T) {
 			got := ReverseMap(c.input)
 			require.Equal(t, c.expected, got)
 		})
+	}
+}
+
+func TestFilterMap(t *testing.T) {
+	keyStartsWithAFn := func(k, _ string) bool {
+		return strings.HasPrefix(k, "A")
+	}
+
+	cases := []struct {
+		m        map[string]string
+		expected map[string]string
+	}{
+		{
+			m:        map[string]string{"Apple": "one", "Pear": "two", "Apricot": "three"},
+			expected: map[string]string{"Apple": "one", "Apricot": "three"},
+		},
+		{
+			m:        map[string]string{"Apple": "three", "Apricot": "four", "Avocado": "five"},
+			expected: map[string]string{"Apple": "three", "Apricot": "four", "Avocado": "five"},
+		},
+		{
+			m:        map[string]string{"Orange": "six", "Strawberry": "seven"},
+			expected: make(map[string]string),
+		},
+	}
+
+	for _, c := range cases {
+		got := FilterMap(c.m, keyStartsWithAFn)
+		require.Equal(t, c.expected, got)
 	}
 }
