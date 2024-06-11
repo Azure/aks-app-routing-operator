@@ -121,7 +121,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName:      "webapprouting.kubernetes.azure.com",
-			ControllerNamePrefix:  "",
+			ControllerNamePrefix:  "nginx",
 			DefaultSSLCertificate: defaultSSLCert,
 			DefaultBackendService: defaultBackendService,
 		},
