@@ -49,7 +49,7 @@ func main() {
 			return
 		}
 		log.Printf("received response %s from url %s", string(body), os.Getenv("URL"))
-		if string(body) != "hello world" {
+		if string(body) != "healthz endpoint hit" {
 			log.Printf("unexpected response body: %s", body)
 			w.WriteHeader(500)
 			return
