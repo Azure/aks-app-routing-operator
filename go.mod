@@ -7,17 +7,17 @@ toolchain go1.22.3
 require (
 	github.com/Azure/go-autorest/autorest v0.11.29
 	github.com/Azure/go-autorest/autorest/to v0.4.0
-	github.com/Azure/secrets-store-csi-driver-provider-azure v1.4.1
-	github.com/go-logr/logr v1.4.1
+	github.com/Azure/secrets-store-csi-driver-provider-azure v1.5.2
+	github.com/go-logr/logr v1.4.2
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/open-policy-agent/gatekeeper/v3 v3.16.3 // waiting for gatekeeper to update to k8s packages 1.30+
 	github.com/openservicemesh/osm v1.2.4
-	github.com/prometheus/client_golang v1.19.0
+	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.51.0
-	github.com/stretchr/testify v1.8.4
-	go.uber.org/zap v1.26.0
+	github.com/prometheus/common v0.54.0
+	github.com/stretchr/testify v1.9.0
+	go.uber.org/zap v1.27.0
 	k8s.io/api v0.29.5
 	k8s.io/apiextensions-apiserver v0.29.5
 	k8s.io/apimachinery v0.29.5
@@ -127,7 +127,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311132316-a219d84964c2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240311132316-a219d84964c2 // indirect
 	google.golang.org/grpc v1.63.2 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

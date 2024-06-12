@@ -51,10 +51,10 @@ jobs:
           script: core.setFailed('Ref is not latest')
 
       - name: Upload infra file
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: infra
-          path: testing/e2e/infra.json
+          path: testing/e2e/${{ inputs.name }}/infra.json
   test:
     needs: provision
     runs-on: ubuntu-latest
@@ -75,10 +75,10 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
+      - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: infra
-          path: testing/e2e/
+          path: testing/e2e/${{ inputs.name }}/
 
       - name: Test
         shell: bash
