@@ -3,14 +3,34 @@ name: Unit Tests
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  repository_dispatch:
+    types: [ok-to-test-command]
+
+env:
+  status-name: unit-tests
+  ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
 
 jobs:
   unit-test:
     runs-on: ubuntu-latest
     steps:
+    - uses: ./.github/actions/start-status
+      with:
+        name: ${{ process.env.status-name }}
+        git_ref: ${{ process.env.ref }}
+
     - uses: actions/checkout@v3
+      with:
+        ref: ${{ process.env.ref }}
+      
+      // stops us from running anything unintended
+    - name: ensure latest ref
+      uses: actions/github-script@v7
+      if:           
+        ! (github.event.client_payload.slash_command.args.named.sha != '' &&
+        contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha))
+      with:
+        script: core.setFailed('Ref is not latest')
 
     - uses: actions/setup-go@v5
       with:
@@ -44,3 +64,9 @@ jobs:
       with:
         flag-name: unit-test
         path-to-lcov: coverage.lcov
+
+    - if: always()
+      uses: ./.github/actions/end-status
+      with:
+        name: ${{ process.env.status-name }}
+        git_ref: ${{ process.env.ref }}
