@@ -15,6 +15,7 @@ permissions:
 
 jobs: 
   release:
+    environment: prod
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
     steps:
       # always read the changelog in main
