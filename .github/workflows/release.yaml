@@ -44,7 +44,7 @@ jobs:
           az acr login -n ${{ secrets.AZURE_REGISTRY_SERVER }}
 
       - name: Create or update release
-        uses: ncipollo/release-action@a2e71bdd4e7dab70ca26a852f29600c98b33153e # v1.12.0
+        uses: ncipollo/release-action@2c591bcc8ecdcd2db72b97d6147f871fcd833ba5 # v1.14.0
         with:
           name: ${{ steps.changelog.outputs.version }}
           tag: v${{ steps.changelog.outputs.version }}
@@ -66,7 +66,7 @@ jobs:
           docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@d43c1f16c00cfd3978dde6c07f4bbcf9eb6993ca # v0.16.1
+        uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
         with:
           image-ref: '${{ vars.PUBLIC_REGISTRY }}/aks/aks-app-routing-operator:${{ inputs.version }}'
           format: 'table'
