@@ -124,3 +124,7 @@ func (f *FakeManager) SetFields(interface{}) error {
 func (f *FakeManager) Start(ctx context.Context) error {
 	return nil
 }
+
+func (f *FakeManager) AddMetricsServerExtraHandler(path string, handler http.Handler) error {
+	return nil
+}

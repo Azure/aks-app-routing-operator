@@ -23,9 +23,9 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '~1.20.3'
+          go-version: '~1.22'
           cache-dependency-path: "**/*.sum"
 
       - name: Azure login
@@ -45,16 +45,16 @@ jobs:
           inputs.skipRefCheck
 
       - name: Ensure ref
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
         with:
           script: core.setFailed('Ref is not latest')
 
       - name: Upload infra file
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: infra
-          path: testing/e2e/infra.json
+          path: testing/e2e/${{ inputs.name }}/infra.json
   test:
     needs: provision
     runs-on: ubuntu-latest
@@ -63,9 +63,10 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '~1.20.3'
+          go-version: '~1.22'
+          cache-dependency-path: "**/*.sum"
 
       - name: Azure login
         uses: azure/login@v1
@@ -74,10 +75,10 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
+      - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: infra
-          path: testing/e2e/
+          path: testing/e2e/${{ inputs.name }}/
 
       - name: Test
         shell: bash
@@ -95,7 +96,7 @@ jobs:
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'success')
 
       - name: Ensure ref
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         if: ${{ !((github.event_name == 'repository_dispatch' && github.event.client_payload.slash_command.args.named.sha != '' && contains(github.event.client_payload.pull_request.head.sha, github.event.client_payload.slash_command.args.named.sha)) || inputs.skipRefCheck) }}
         with:
           script: core.setFailed('Ref is not latest')

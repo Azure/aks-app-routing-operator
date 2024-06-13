@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -22,9 +23,9 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-var (
-	ingressSecretProviderControllerName = controllername.New("keyvault", "ingress", "secret", "provider")
-)
+const nginxAnnotationPrefix = "nginx.ingress.kubernetes.io/"
+
+var ingressSecretProviderControllerName = controllername.New("keyvault", "ingress", "secret", "provider")
 
 // IngressSecretProviderClassReconciler manages a SecretProviderClass for each ingress resource that
 // references a Keyvault certificate. The SPC is used to mirror the Keyvault values into a k8s secret
@@ -59,10 +60,10 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 	// do metrics
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(ingressSecretProviderControllerName, result, err)
 	}()
 
@@ -108,8 +109,9 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	if isManaged {
-		var upsertSPC bool
+		logManagedIngress(logger, ing)
 
+		var upsertSPC bool
 		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
 			var userErr userError
 			if errors.As(err, &userErr) {
@@ -148,4 +150,21 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	return result, nil
+}
+
+func logManagedIngress(l logr.Logger, ing *netv1.Ingress) {
+	if ing == nil {
+		return
+	}
+
+	l = l.WithValues("name", ing.Name, "namespace", ing.Namespace, "generation", ing.Generation, "uid", ing.UID)
+
+	nginxAnnotations := util.FilterMap(ing.Annotations, isNginxAnnotation)
+	l.Info("Ingress using managed Ingress Controller", "nginxAnnotations", nginxAnnotations)
+}
+
+func isNginxAnnotation(key, _ string) bool {
+	cleaned := strings.TrimSpace(key)
+
+	return strings.HasPrefix(cleaned, nginxAnnotationPrefix)
 }

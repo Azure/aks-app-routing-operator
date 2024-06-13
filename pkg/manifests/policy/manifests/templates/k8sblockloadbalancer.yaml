@@ -1,0 +1,25 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  annotations:
+    description: |-
+      Disallows all Services with type LoadBalancer.
+      https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer
+    metadata.gatekeeper.sh/title: Block Services with type LoadBalancer
+    metadata.gatekeeper.sh/version: 1.0.0
+  name: k8sblockloadbalancer
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sBlockLoadBalancer
+  targets:
+    - rego: |
+        package k8sblockloadbalancer
+
+        violation[{"msg": msg}] {
+          input.review.kind.kind == "Service"
+          input.review.object.spec.type == "LoadBalancer"
+          msg := "User is not allowed to create service of type LoadBalancer"
+        }
+      target: admission.k8s.gatekeeper.sh
