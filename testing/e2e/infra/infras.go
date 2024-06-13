@@ -8,20 +8,20 @@ import (
 // Infras is a list of infrastructure configurations the e2e tests will run against
 var Infras = infras{
 	{
-		Name:          "basic cluster",
+		Name:          "basic-cluster",
 		ResourceGroup: uniqueResourceGroup(),
 		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
 	},
 	{
-		Name:          "private cluster",
+		Name:          "private-cluster",
 		ResourceGroup: uniqueResourceGroup(),
 		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
 		McOpts:        []clients.McOpt{clients.PrivateClusterOpt},
 	},
 	{
-		Name:          "osm cluster",
+		Name:          "osm-cluster",
 		ResourceGroup: uniqueResourceGroup(),
 		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
