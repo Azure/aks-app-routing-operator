@@ -37,7 +37,7 @@ jobs:
 
       - name: Provision Infrastructure
         shell: bash
-        run: (cd testing/e2e && go run ./main.go infra --subscription="${{ secrets.AZURE_SUBSCRIPTION_ID }}" --tenant="${{ secrets.AZURE_TENANT_ID }}" --names="${{ inputs.name }}" --infra-file="./infra.json")
+        run: (cd testing/e2e && go run ./main.go infra --subscription="${{ secrets.AZURE_SUBSCRIPTION_ID }}" --tenant="${{ secrets.AZURE_TENANT_ID }}" --names="${{ inputs.name }}" --infra-file="./infra-${{ inputs.name }}.json")
         if: # avoids race condition security vulnerability by ensuring we are only running changes that were /ok-to-test'd
           (github.event_name == 'repository_dispatch' &&
           github.event.client_payload.slash_command.args.named.sha != '' &&
@@ -54,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: infra
-          path: testing/e2e/${{ inputs.name }}/infra.json
+          path: testing/e2e/infra-${{ inputs.name }}.json
   test:
     needs: provision
     runs-on: ubuntu-latest
@@ -78,12 +78,12 @@ jobs:
       - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: infra
-          path: testing/e2e/${{ inputs.name }}/
+          path: testing/e2e/
 
       - name: Test
         shell: bash
         id: test
-        run: (cd testing/e2e && go run ./main.go deploy --infra-file="./infra.json")
+        run: (cd testing/e2e && go run ./main.go deploy --infra-file="./infra-${{ inputs.name }}.json")
         if:
           (github.event_name == 'repository_dispatch' &&
           github.event.client_payload.slash_command.args.named.sha != '' &&
