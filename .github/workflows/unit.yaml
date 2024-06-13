@@ -16,12 +16,12 @@ jobs:
     steps:
     - uses: ./.github/actions/start-status
       with:
-        name: ${{ process.env.status-name }}
-        git_ref: ${{ process.env.ref }}
+        name: ${{ env.status-name }}
+        git_ref: ${{ env.ref }}
 
     - uses: actions/checkout@v3
       with:
-        ref: ${{ process.env.ref }}
+        ref: ${{ env.ref }}
       
       # stops us from running anything unintended
     - name: ensure latest ref
@@ -68,5 +68,5 @@ jobs:
     - if: always()
       uses: ./.github/actions/end-status
       with:
-        name: ${{ process.env.status-name }}
-        git_ref: ${{ process.env.ref }}
+        name: ${{ env.status-name }}
+        git_ref: ${{ env.ref }}

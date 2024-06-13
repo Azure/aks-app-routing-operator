@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: ./.github/actions/start-status
         with:
-          name: ${{ process.env.status-name }}
+          name: ${{ env.status-name }}
           git_ref: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
   e2eV2:
     permissions:
