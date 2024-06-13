@@ -23,7 +23,7 @@ jobs:
       with:
         ref: ${{ process.env.ref }}
       
-      // stops us from running anything unintended
+      # stops us from running anything unintended
     - name: ensure latest ref
       uses: actions/github-script@v7
       if:           
