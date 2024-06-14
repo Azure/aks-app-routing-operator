@@ -33,7 +33,7 @@ func main() {
 		DialContext:     dialer.DialContext,
 	}}
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := client.Get(os.Getenv("URL"))
 		if err != nil {
 			log.Printf("error sending request: %s", err)
@@ -49,7 +49,7 @@ func main() {
 			return
 		}
 		log.Printf("received response %s from url %s", string(body), os.Getenv("URL"))
-		if string(body) != "healthz endpoint hit" {
+		if string(body) != "hello world" {
 			log.Printf("unexpected response body: %s", body)
 			w.WriteHeader(500)
 			return
@@ -62,6 +62,40 @@ func main() {
 
 		expectedIp := os.Getenv("POD_IP")
 		if val := resp.Header.Get("OriginalForwardedFor"); val != expectedIp {
+			log.Printf("server replied with unexpected X-Forwarded-For header: %s, expected %s", val, expectedIp)
+			w.WriteHeader(500)
+			return
+		}
+
+		//default backend service tests
+		defaultResp, err := client.Get(os.Getenv("TEST_URL"))
+		if err != nil {
+			log.Printf("error sending request: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		defer defaultResp.Body.Close()
+
+		defaultBody, err := ioutil.ReadAll(defaultResp.Body)
+		if err != nil {
+			log.Printf("error reading response body: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		log.Printf("received response %s from url %s", string(defaultBody), os.Getenv("TEST_URL"))
+		if string(defaultBody) != "404 - default backend service hit" {
+			log.Printf("unexpected response body: %s", defaultBody)
+			w.WriteHeader(500)
+			return
+		}
+		if val := defaultResp.Header.Get("TestHeader"); val != "test-header-value" {
+			log.Printf("unexpected test header: %s", val)
+			w.WriteHeader(500)
+			return
+		}
+
+		expectedIp = os.Getenv("POD_IP")
+		if val := defaultResp.Header.Get("OriginalForwardedFor"); val != expectedIp {
 			log.Printf("server replied with unexpected X-Forwarded-For header: %s, expected %s", val, expectedIp)
 			w.WriteHeader(500)
 			return

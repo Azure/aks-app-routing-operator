@@ -19,6 +19,7 @@ var dbeServerContents string
 type defaultBackendResources struct {
 	Client                 *appsv1.Deployment
 	Server                 *appsv1.Deployment
+	DefaultBackendServer   *appsv1.Deployment
 	Service                *corev1.Service
 	DefaultBackendService  *corev1.Service
 	NginxIngressController *v1alpha1.NginxIngressController
@@ -29,6 +30,7 @@ func (t defaultBackendResources) Objects() []client.Object {
 		t.Client,
 		t.Server,
 		t.Service,
+		t.DefaultBackendServer,
 		t.DefaultBackendService,
 		t.NginxIngressController,
 	}
@@ -42,12 +44,18 @@ func (t defaultBackendResources) Objects() []client.Object {
 
 func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) defaultBackendResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+
+	// Client deployment
 	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
 			Name:  "URL",
 			Value: "https://" + host,
+		},
+		{
+			Name:  "TEST_URL",
+			Value: "https://" + host + "/fakehost",
 		},
 		{
 			Name:  "NAMESERVER",
@@ -73,8 +81,9 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		},
 	}
 
+	// Main server deployment
 	serverName := name + "-server"
-	serverDeployment := newGoDeployment(dbeServerContents, namespace, serverName)
+	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	serviceName := name + "service"
 	nicName := name + "-nginxingress"
 
@@ -103,8 +112,38 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 			},
 		}
 
+	// Default server deployment
+	defaultServerName := "default-" + name + "-server"
+	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
+	defaultServiceName := "default-" + serviceName
+
+	dbeService :=
+		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      defaultServiceName,
+				Namespace: namespace,
+				Annotations: map[string]string{
+					ManagedByKey: ManagedByVal,
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:       "http",
+					Port:       8080,
+					TargetPort: intstr.FromInt(8080),
+				}},
+				Selector: map[string]string{
+					"app": defaultServerName,
+				},
+			},
+		}
+
 	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &keyvaultURI}
-	defaultBackendService := &v1alpha1.NICNamespacedName{namespace, serviceName}
+	defaultBackendService := &v1alpha1.NICNamespacedName{namespace, defaultServiceName}
 
 	nic := &v1alpha1.NginxIngressController{
 		TypeMeta: metav1.TypeMeta{
@@ -134,7 +173,9 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	return defaultBackendResources{
 		Client:                 clientDeployment,
 		Server:                 serverDeployment,
+		DefaultBackendServer:   defaultServerDeployment,
 		Service:                service,
+		DefaultBackendService:  dbeService,
 		NginxIngressController: nic,
 	}
 }
