@@ -42,7 +42,7 @@ func (t defaultBackendResources) Objects() []client.Object {
 	return ret
 }
 
-func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) defaultBackendResources {
+func DefaultBackendClientAndServer(namespace, name, nameserver, host, tlsHost string) defaultBackendResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
 	// Client deployment
@@ -142,7 +142,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 			},
 		}
 
-	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &keyvaultURI}
+	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{Secret: &v1alpha1.Secret{"testname", namespace}}
 	defaultBackendService := &v1alpha1.NICNamespacedName{namespace, defaultServiceName}
 
 	nic := &v1alpha1.NginxIngressController{
@@ -155,7 +155,6 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 			Namespace: namespace,
 			Annotations: map[string]string{
 				ManagedByKey: ManagedByVal,
-				"kubernetes.azure.com/tls-cert-keyvault-uri": keyvaultURI,
 			},
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{

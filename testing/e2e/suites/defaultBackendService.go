@@ -21,7 +21,10 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-var dbeScheme = runtime.NewScheme()
+var (
+	dbeScheme  = runtime.NewScheme()
+	dbeBasicNS = make(map[string]*corev1.Namespace)
+)
 
 func init() {
 	v1alpha1.AddToScheme(dbeScheme)
@@ -46,7 +49,9 @@ func defaultBackendTests(in infra.Provisioned) []test {
 			lgr := logger.FromContext(ctx)
 			lgr.Info("starting test")
 
-			if err := defaultBackendClientServerTest(ctx, config, operator, nil, in, nil, nil); err != nil {
+			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, func(ingress *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error {
+				return nil
+			}, nil); err != nil {
 				return err
 			}
 
@@ -71,7 +76,9 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 		serviceName = to.Ptr("nginx")
 	}
 
-	c, err := client.New(config, client.Options{})
+	c, err := client.New(config, client.Options{
+		Scheme: dbeScheme,
+	})
 	if err != nil {
 		return fmt.Errorf("creating client: %w", err)
 	}
@@ -119,7 +126,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			host:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local", *serviceName),
 		})
 	}
-	
+
 	var eg errgroup.Group
 	for _, zone := range zoners {
 		zone := zone
@@ -135,7 +142,8 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.DefaultBackendClientAndServer(ns.Name, zone.GetName()[:40], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
+			lgr.Info(fmt.Sprintf("Keyvault URI Value for defaultBackendService: %s\n", zone.GetCertId()))
+			testingResources := manifests.DefaultBackendClientAndServer(ns.Name, zone.GetName()[:40], zone.GetNameserver(), zone.GetHost(), zone.GetTlsHost())
 			if mod != nil {
 				if err := mod(testingResources.NginxIngressController, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
