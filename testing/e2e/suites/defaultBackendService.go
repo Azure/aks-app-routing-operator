@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -120,8 +119,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			host:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local", *serviceName),
 		})
 	}
-
-	var spcs []*secv1.SecretProviderClass
+	
 	var eg errgroup.Group
 	for _, zone := range zoners {
 		zone := zone
@@ -153,13 +151,6 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			if err := waitForAvailable(ctx, c, *testingResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment to be available: %w", err)
 			}
-
-			spcs = append(spcs, &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      keyvault.DefaultNginxCertName(testingResources.NginxIngressController),
-					Namespace: "app-routing-system",
-				},
-			})
 
 			lgr.Info("finished testing zone")
 			return nil
