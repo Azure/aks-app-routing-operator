@@ -6,7 +6,7 @@ inputs:
   name:
     description: "Name of the check"
     required: true
-  git_ref:
+  ref:
     description: "The git commit, tag, or branch to check out"
     required: true
 runs:
@@ -20,7 +20,7 @@ runs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             context: "${{ inputs.name }}",
-            sha: "${{ inputs.git_ref }}",
+            sha: "${{ inputs.ref }}",
             state: "success",
             target_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
           });
@@ -32,7 +32,7 @@ runs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             context: "${{ inputs.name }}",
-            sha: "${{ inputs.git_ref }}",
+            sha: "${{ inputs.ref }}",
             state: "failure",
             target_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
           });
