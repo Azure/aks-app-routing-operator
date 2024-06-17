@@ -9,11 +9,12 @@ env:
 jobs:
   # ensure ref ensures the ref being used matches the ok'd sha
   ensure_ref:
+    runs-on: ubuntu-latest
     steps:
-    - env:
-        HEAD_SHA: ${{ github.event.client_payload.pull_request.head.sha }}
-      run:
-        echo $HEAD_SHA
+      - env:
+          HEAD_SHA: ${{ github.event.client_payload.pull_request.head.sha }}
+        run:
+          echo $HEAD_SHA
 
   unit:
     needs: [ensure_ref]
