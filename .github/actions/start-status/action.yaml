@@ -1,4 +1,4 @@
-// adapted from https://github.com/Azure/karpenter-provider-azure/blob/main/.github/actions/commit-status/start/action.yaml
+# adapted from https://github.com/Azure/karpenter-provider-azure/blob/main/.github/actions/commit-status/start/action.yaml
 
 name: Start Status
 description: 'Adds a commit status at the start of the test run to set the status to pending'
