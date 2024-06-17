@@ -23,4 +23,4 @@ jobs:
     secrets: inherit
     if: github.event.client_payload.slash_command.args.named.sha != '' 
     with:
-      ref: ${{ env.ref }}
+      ref: ${{ vars.ref }}
