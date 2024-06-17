@@ -14,8 +14,19 @@ jobs:
       - name: print ref
         env:
           HEAD_SHA: ${{ github.event.client_payload.pull_request.head.sha }}
+          HEAD_SHA2: ${{ github.event.pull_request.head.sha }}
         run:
           echo $HEAD_SHA
+          echo $HEAD_SHA2
+          sleep 4m
+      - name: print ref2
+        env:
+          HEAD_SHA: ${{ github.event.client_payload.pull_request.head.sha }}
+          HEAD_SHA2: ${{ github.event.pull_request.head.sha }}
+        run:
+          echo $HEAD_SHA
+          echo $HEAD_SHA2
+
 
   unit:
     needs: [ensure_ref]
