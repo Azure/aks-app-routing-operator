@@ -18,7 +18,9 @@ jobs:
         run:
           echo $HEAD_SHA
           echo $HEAD_SHA2
-          sleep 4m
+      - uses: GuillaumeFalourd/wait-sleep-action@v1
+        with:
+          time: '5m' 
       - name: print ref2
         env:
           HEAD_SHA: ${{ github.event.client_payload.pull_request.head.sha }}
