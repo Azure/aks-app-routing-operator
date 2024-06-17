@@ -17,8 +17,8 @@ jobs:
     - uses: actions/checkout@v3
       with:
         ref: ${{ inputs.ref }}
-    - uses: ./.github/actions/start-status
 
+    - uses: ./.github/actions/start-status
       with:
         name: ${{ env.status-name }}
         ref: ${{ inputs.ref }}
