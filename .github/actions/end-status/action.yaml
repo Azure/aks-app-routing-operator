@@ -1,4 +1,4 @@
-// adapted from https://github.com/Azure/karpenter-provider-azure/blob/main/.github/actions/commit-status/end/action.yaml
+# adapted from https://github.com/Azure/karpenter-provider-azure/blob/main/.github/actions/commit-status/end/action.yaml
 
 name: End Status
 description: 'Adds a commit status at the end of the test run based on success, failure, or cancelled'

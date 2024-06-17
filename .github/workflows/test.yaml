@@ -4,7 +4,7 @@ on:
     types: [ok-to-test-command]
 
 env:
-  ref: ${{ github.event.client_payload.pull_request.head.sha }}
+  ref: ${{ github.event.client_payload.pull_request.head.sha }} # todo: guarantee this is equal to the sha or use the short sha
 
 jobs:
   unit:
