@@ -1,0 +1,12 @@
+name: Test
+on:
+  repository_dispatch:
+    types: [ok-to-test-command]
+
+jobs:
+  unit:
+    uses: ./.github/workflows/unit.yaml
+    secrets: inherit
+    if: github.event.client_payload.slash_command.args.named.sha != '' 
+    with:
+      ref: ${{ github.event.client_payload.slash_command.args.named.sha }}
