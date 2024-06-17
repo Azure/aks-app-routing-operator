@@ -1,7 +1,0 @@
-
-name: Ensure Ref
-description: 'Ensures that the status being reported is the same as what was originally "ok-to-testd"'
-inputs:
-  expected:
-    description: "Expected ref"
-    required: true
