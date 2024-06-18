@@ -56,6 +56,3 @@ jobs:
     with:
       checkout_ref: ${{ needs.get_ref.outputs.checkout_ref }}
       status_ref: ${{ needs.get_ref.outputs.status_ref }}
-
-
-    
