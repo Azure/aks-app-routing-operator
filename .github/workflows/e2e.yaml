@@ -48,7 +48,7 @@ jobs:
     needs: [plan_infra]
     strategy:
       fail-fast: false # this is false because we usually want to retry at individual infra level if there is a failure and it helps to see if only one infra is failing
-      matrix: ${{fromJson(needs.plan-infra.outputs.matrix)}}
+      matrix: ${{ fromJson(needs.plan_infra.outputs.matrix) }}
     uses: ./.github/workflows/provision-test.yaml
     with:
       name: ${{ matrix.name }}
@@ -69,7 +69,8 @@ jobs:
     - if: ${{ !(needs.test.status == 'success')}}
       run: exit 1 # will make status show as failure
 
-    - uses: ./.github/actions/end-status
+    - if: always()
+      uses: ./.github/actions/end-status
       with:
         name: ${{ env.status-name }}
         ref: ${{ inputs.status_ref }}
