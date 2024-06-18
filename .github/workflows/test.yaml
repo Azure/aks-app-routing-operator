@@ -4,8 +4,8 @@ on:
     types: [ok-to-test-command]
 
 jobs:
-  get_ref: 
-    name: "Get fef"
+  ref: 
+    name: "Get ref"
     runs-on: ubuntu-latest
     steps:
       # checkout repo so we can ls-remote. we can use main for this
@@ -15,7 +15,7 @@ jobs:
       - run: |
           REF=$(git ls-remote -q | grep $MERGE_REF | awk '{print $1}')
           echo "Ref is $REF"
-          echo "ref=$REF" >> $GITHUB_OUTPUT
+          echo "REF=$REF" >> $GITHUB_OUTPUT
         env:
           MERGE_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
       # guarantee the ref is what we want to use by ensuring the ok-to-test'd sha matches
@@ -30,11 +30,11 @@ jobs:
           HEAD_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/head'
           OK_REF_PREFIX:  ${{ github.event.client_payload.slash_command.args.named.sha }}
   unit:
-    needs: [get_ref]
+    needs: [ref]
     uses: ./.github/workflows/unit.yaml
     secrets: inherit
     permissions: 
       contents: read
       statuses: write 
     with:
-      ref: ${{ needs.get_ref.outputs.ref }}
+      ref: ${{ needs.ref.outputs.REF }}
