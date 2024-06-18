@@ -49,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false # this is false because we usually want to retry at individual infra level if there is a failure and it helps to see if only one infra is failing
       matrix: ${{fromJson(needs.plan-infra.outputs.matrix)}}
-    uses: ./.github/workflows/e2e/provision-test.yaml
+    uses: ./.github/workflows/provision-test.yaml
     with:
       name: ${{ matrix.name }}
       ref: ${{ inputs.checkout_ref }}

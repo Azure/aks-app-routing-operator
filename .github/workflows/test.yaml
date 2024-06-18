@@ -47,7 +47,7 @@ jobs:
       status_ref: ${{ needs.get_ref.outputs.status_ref }}
   e2e:
     needs: [get_ref]
-    uses: ./.github/workflows/e2e/e2e.yaml
+    uses: ./.github/workflows/e2e.yaml
     permissions:
       id-token: write
       contents: read
