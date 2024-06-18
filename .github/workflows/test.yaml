@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # checkout repo so we can ls-remote. we can use main for this
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       # get the ref of the merge commit. we want to get the full sha instead of the tag so we can guarantee
       # it won't change by a user pushing a new change
       - run: echo "REF=$(git ls-remote -q | grep $MERGE_REF | awk '{print $1}')" >> $GITHUB_OUTPUT
@@ -28,5 +28,8 @@ jobs:
     needs: [get_ref]
     uses: ./.github/workflows/unit.yaml
     secrets: inherit
+    permissions: 
+      contents: read
+      statuses: write 
     with:
       ref: ${{ needs.get_ref.outputs.REF }}
