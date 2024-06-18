@@ -3,12 +3,30 @@ on:
   repository_dispatch:
     types: [ok-to-test-command]
 
-env:
-  ref: ${{ github.event.client_payload.pull_request.head.sha }} # todo: guarantee this is equal to the sha or use the short sha
-
 jobs:
+  get_ref: 
+    runs-on: ubuntu-latest
+    steps:
+      # checkout repo so we can ls-remote. we can use main for this
+      - uses: actions/checkout@v3
+      # get the ref of the merge commit. we want to get the full sha instead of the tag so we can guarantee
+      # it won't change by a user pushing a new change
+      - run: echo "REF=$(git ls-remote -q | grep $MERGE_REF | awk '{print $1}')" >> $GITHUB_OUTPUT
+        env:
+          MERGE_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+      # guarantee the REF is what we want to use by ensuring the ok-to-test'd sha matches
+      - run: |
+         LATEST=$(git ls-remote -q | grep $HEAD_REF | awk '{print $1}')
+         if [[ $LATEST != $OK_REF_PREFIX* ]]; then
+          echo "latest ref doesn't match what was ok-to-test'd"
+          exit 1
+         fi
+        env:
+          HEAD_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+          OK_REF_PREFIX:  ${{ github.event.client_payload.slash_command.args.named.sha }}
   unit:
+    needs: [get_ref]
     uses: ./.github/workflows/unit.yaml
     secrets: inherit
     with:
-      ref: ${{ vars.ref }}
+      ref: ${{ needs.get_ref.outputs.REF }}
