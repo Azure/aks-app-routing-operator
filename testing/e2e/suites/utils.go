@@ -3,6 +3,8 @@ package suites
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -38,13 +40,44 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 	}
 }
 
+func waitForNICAvailable(ctx context.Context, c client.Client, nic *v1alpha1.NginxIngressController) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("waiting for NIC to be available")
+
+	testNIC := &v1alpha1.NginxIngressController{}
+
+	if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+		lgr.Info("checking if NIC is available")
+		if err := c.Get(ctx, client.ObjectKeyFromObject(nic), testNIC); err != nil {
+			return false, fmt.Errorf("get nic: %w", err)
+		}
+
+		for _, cond := range nic.Status.Conditions {
+			if cond.Type == v1alpha1.ConditionTypeAvailable {
+				lgr.Info("found nic")
+				if len(nic.Status.ManagedResourceRefs) == 0 {
+					lgr.Info("nic has no ManagedResourceRefs")
+					return false, nil
+				}
+				return true, nil
+			}
+		}
+		lgr.Info("nic not available")
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("waiting for test NIC to be available: %w", err)
+	}
+
+	return nil
+}
+
 func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 	copy := obj.DeepCopyObject().(client.Object)
 	lgr := logger.FromContext(ctx).With("object", copy.GetName(), "namespace", copy.GetNamespace())
-	lgr.Info("upserting object")
+	lgr.Info(fmt.Sprintf("upserting object: %v", obj))
 
 	// create or update the object
-	lgr.Info("attempting to create object")
+	lgr.Info(fmt.Sprintf("attempting to create object: %s"), copy.GetName())
 	err := c.Create(ctx, copy)
 	if err == nil {
 		obj.SetName(copy.GetName()) // supports objects that want to use generate name
