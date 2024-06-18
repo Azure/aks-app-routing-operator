@@ -16,6 +16,7 @@ jobs:
           REF=$(git ls-remote -q | grep $MERGE_REF | awk '{print $1}')
           echo "Ref is $REF"
           echo "REF=$REF" >> $GITHUB_OUTPUT
+          echo $GITHUB_OUTPUT
         env:
           MERGE_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
       # guarantee the ref is what we want to use by ensuring the ok-to-test'd sha matches
