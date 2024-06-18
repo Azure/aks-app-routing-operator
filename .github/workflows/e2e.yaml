@@ -69,7 +69,8 @@ jobs:
     - if: ${{ !(needs.test.status == 'success')}}
       run: exit 1 # will make status show as failure
 
-    - uses: ./.github/actions/end-status
+    - if: always()
+      uses: ./.github/actions/end-status
       with:
         name: ${{ env.status-name }}
         ref: ${{ inputs.status_ref }}
