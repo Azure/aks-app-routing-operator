@@ -89,7 +89,6 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	serviceName := name + "-service"
 	ingressName := name + "-ingress"
-	//nicName := name + "-nginxingress"
 
 	service :=
 		&corev1.Service{
