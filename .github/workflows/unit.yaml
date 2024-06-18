@@ -3,7 +3,10 @@ name: Unit Tests
 on:
   workflow_call:
     inputs:
-      ref:
+      checkout_ref:
+        type: string
+        required: true
+      status_ref:
         type: string
         required: true
 
@@ -16,12 +19,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.checkout_ref }}
 
     - uses: ./.github/actions/start-status
       with:
         name: ${{ env.status-name }}
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.status_ref }}
       
     - uses: actions/setup-go@v5
       with:
@@ -60,4 +63,4 @@ jobs:
       uses: ./.github/actions/end-status
       with:
         name: ${{ env.status-name }}
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.status_ref }}
