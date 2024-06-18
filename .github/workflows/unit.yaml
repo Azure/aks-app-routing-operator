@@ -58,6 +58,7 @@ jobs:
       with:
         flag-name: unit-test
         path-to-lcov: coverage.lcov
+        git-commit: ${{ inputs.status_ref }}
 
     - if: always()
       uses: ./.github/actions/end-status
