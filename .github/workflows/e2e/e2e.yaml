@@ -1,0 +1,75 @@
+name: E2E Test Matrix
+
+on:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        type: string
+        required: true
+      status_ref:
+        type: string
+        required: true
+
+env:
+  status-name: e2e-tests
+
+jobs:
+  start_status:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        ref: ${{ inputs.checkout_ref }}
+
+    - uses: ./.github/actions/start-status
+      with:
+        name: ${{ env.status-name }}
+        ref: ${{ inputs.status_ref }}
+
+  plan_infra:
+    needs: [start_status]
+    runs-on: ubuntu-latest
+    outputs:
+       matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          ref: ${{ inputs.checkout_ref }}
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+        with:
+          go-version: '~1.22'
+          cache-dependency-path: "**/*.sum"
+      - run: |
+          cd testing/e2e
+          go run ./main.go matrix
+        id: matrix
+
+  test:
+    needs: [plan_infra]
+    strategy:
+      fail-fast: false # this is false because we usually want to retry at individual infra level if there is a failure and it helps to see if only one infra is failing
+      matrix: ${{fromJson(needs.plan-infra.outputs.matrix)}}
+    uses: ./.github/workflows/e2e/provision-test.yaml
+    with:
+      name: ${{ matrix.name }}
+      ref: ${{ inputs.checkout_ref }}
+    secrets: inherit
+
+  end_status:
+    if: always()
+    needs: [test]
+    strategy:
+      fail-fast: false # we want to always report the status
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        ref: ${{ inputs.checkout_ref }}
+    
+    - if: ${{ !(needs.test.status == 'success')}}
+      run: exit 1 # will make status show as failure
+
+    - uses: ./.github/actions/end-status
+      with:
+        name: ${{ env.status-name }}
+        ref: ${{ inputs.status_ref }}
