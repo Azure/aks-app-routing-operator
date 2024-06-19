@@ -21,7 +21,7 @@ jobs:
       TAG: aks-app-routing-operator-validate:${{ inputs.version }}
     steps:
       # validate image from sha input
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: ${{ inputs.sha }}
       - name: Set up Docker Buildx
@@ -47,7 +47,7 @@ jobs:
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
     steps:
       # always read the changelog in main
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: 'main'
 
