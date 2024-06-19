@@ -37,7 +37,7 @@ jobs:
       - name: Upload infra file
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
-          name: infra
+          name: infra-${{ inputs.name }}
           path: testing/e2e/infra-${{ inputs.name }}.json
   test:
     needs: provision
@@ -61,7 +61,7 @@ jobs:
 
       - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
-          name: infra
+          name: infra-${{ inputs.name }}
           path: testing/e2e/
 
       - name: Test
