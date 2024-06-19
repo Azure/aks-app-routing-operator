@@ -14,7 +14,35 @@ permissions:
   contents: write
 
 jobs: 
+  # validate ensures best practices are being followed before we release
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      TAG: aks-app-routing-operator-validate:${{ inputs.version }}
+    steps:
+      # validate image from sha input
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@16c0bc4a6e6ada2cfd8afd41d22d95379cf7c32a # v2.8.0
+
+      - name: Build image locally
+        run: docker buildx build --tag "${TAG}" .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+        with:
+          image-ref: ${{ env.TAG }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          # if we need to ignore a vulnerability we can use a .trivyignore and reference it here
+
   release:
+    needs: validate
     environment: prod
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
     steps:
@@ -65,13 +93,3 @@ jobs:
         run: |
           TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:$VERSION"
           docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
-        with:
-          image-ref: '${{ vars.PUBLIC_REGISTRY }}/aks/aks-app-routing-operator:${{ inputs.version }}'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH,MEDIUM'
