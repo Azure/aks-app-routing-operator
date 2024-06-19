@@ -1,0 +1,58 @@
+name: Test
+on:
+  repository_dispatch:
+    types: [ok-to-test-command]
+
+jobs:
+  get_ref: 
+    name: "Get ref"
+    runs-on: ubuntu-latest
+    outputs:
+      checkout_ref: ${{ steps.checkout_ref.outputs.CHECKOUT_REF }}
+      status_ref: ${{ steps.status_ref.outputs.STATUS_REF }}
+    steps:
+      # checkout repo so we can ls-remote. we can use main for this
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      # get the ref of the merge commit. we want to get the full sha instead of the tag so we can guarantee
+      # it won't change by a user pushing a new change
+      - id: checkout_ref 
+        run: |
+          CHECKOUT_REF=$(git ls-remote -q | grep $MERGE_REF | awk '{print $1}')
+          echo "Ref is $CHECKOUT_REF"
+          echo "CHECKOUT_REF=$CHECKOUT_REF" >> $GITHUB_OUTPUT
+        env:
+          MERGE_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/merge'
+      # guarantee the ref is what we want to use by ensuring the ok-to-test'd sha matches
+      - id: status_ref
+        run: |
+         LATEST=$(git ls-remote -q | grep $HEAD_REF | awk '{print $1}')
+         echo "STATUS_REF=$LATEST" >> $GITHUB_OUTPUT
+         echo "Comparing latest $LATEST with prefix $OK_REF_PREFIX"
+         if [[ $LATEST != $OK_REF_PREFIX* ]]; then
+          echo "latest ref doesn't match what was ok-to-test'd"
+          exit 1
+         fi
+        env:
+          HEAD_REF: 'refs/pull/${{ github.event.client_payload.pull_request.number }}/head'
+          OK_REF_PREFIX:  ${{ github.event.client_payload.slash_command.args.named.sha }}
+  unit:
+    needs: [get_ref]
+    uses: ./.github/workflows/unit.yaml
+    secrets: inherit
+    permissions: 
+      contents: read
+      statuses: write 
+    with:
+      checkout_ref: ${{ needs.get_ref.outputs.checkout_ref }}
+      status_ref: ${{ needs.get_ref.outputs.status_ref }}
+  e2e:
+    needs: [get_ref]
+    uses: ./.github/workflows/e2e.yaml
+    permissions:
+      id-token: write
+      contents: read
+      statuses: write
+    secrets: inherit
+    with:
+      checkout_ref: ${{ needs.get_ref.outputs.checkout_ref }}
+      status_ref: ${{ needs.get_ref.outputs.status_ref }}
