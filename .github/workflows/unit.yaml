@@ -1,18 +1,32 @@
 name: Unit Tests
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_call:
+    inputs:
+      checkout_ref:
+        type: string
+        required: true
+      status_ref:
+        type: string
+        required: true
+
+env:
+  status-name: unit-tests
 
 jobs:
   unit-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        ref: ${{ inputs.checkout_ref }}
 
-    - uses: actions/setup-go@v5
+    - uses: ./.github/actions/start-status
+      with:
+        name: ${{ env.status-name }}
+        ref: ${{ inputs.status_ref }}
+      
+    - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
       with:
         go-version: '~1.22'
         cache-dependency-path: "**/*.sum"
@@ -44,3 +58,10 @@ jobs:
       with:
         flag-name: unit-test
         path-to-lcov: coverage.lcov
+        git-commit: ${{ inputs.status_ref }}
+
+    - if: always()
+      uses: ./.github/actions/end-status
+      with:
+        name: ${{ env.status-name }}
+        ref: ${{ inputs.status_ref }}

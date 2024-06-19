@@ -1,0 +1,26 @@
+# adapted from https://github.com/Azure/karpenter-provider-azure/blob/main/.github/actions/commit-status/start/action.yaml
+
+name: Start Status
+description: 'Adds a commit status at the start of the test run to set the status to pending'
+inputs:
+  name:
+    description: "Name of the check"
+    required: true
+  ref:
+    description: "The git commit, tag, or branch to check out"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      if: always()
+      with:
+        script: |
+          github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            context: "${{ inputs.name }}",
+            sha: "${{ inputs.ref }}",
+            state: "pending",
+            target_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+          });
