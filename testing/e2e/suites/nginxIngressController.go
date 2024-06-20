@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
@@ -352,22 +351,41 @@ func nicTests(in infra.Provisioned) []test {
 				// get keyvault uri
 				kvuri := in.Zones[0].Cert.GetId()
 
-				var service *v1alpha1.ManagedObjectReference
-
 				// create defaultSSLCert
 				defaultSSLCert := v1alpha1.DefaultSSLCertificate{
 					KeyVaultURI: &kvuri,
 				}
 
-				// create testNIC and upsert
+				// create nic and upsert
 				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &defaultSSLCert
 				if err := upsert(ctx, c, testNIC); err != nil {
 					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
-				if err := waitForNICAvailable(ctx, c, testNIC); err != nil {
-					return err
+				var service *v1alpha1.ManagedObjectReference
+				var nic v1alpha1.NginxIngressController
+				lgr.Info("waiting for NIC to be available")
+				if err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if NIC is available")
+					if err := c.Get(ctx, client.ObjectKeyFromObject(testNIC), &nic); err != nil {
+						return false, fmt.Errorf("get nic: %w", err)
+					}
+
+					for _, cond := range nic.Status.Conditions {
+						if cond.Type == v1alpha1.ConditionTypeAvailable {
+							lgr.Info("found nic")
+							if len(nic.Status.ManagedResourceRefs) == 0 {
+								lgr.Info("nic has no ManagedResourceRefs")
+								return false, nil
+							}
+							return true, nil
+						}
+					}
+					lgr.Info("nic not available")
+					return false, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for test NIC to be available: %w", err)
 				}
 
 				lgr.Info("checking if associated SPC is created")
@@ -386,7 +404,7 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("found spc")
 
 				lgr.Info("checking for service in managed resource refs")
-				for _, ref := range testNIC.Status.ManagedResourceRefs {
+				for _, ref := range nic.Status.ManagedResourceRefs {
 					if ref.Kind == "Service" {
 						lgr.Info("found service")
 						service = &ref
@@ -409,97 +427,4 @@ func nicTests(in infra.Provisioned) []test {
 			},
 		},
 	}
-}
-
-func toNICZoners(ctx context.Context, cl client.Client, nic *v1alpha1.NginxIngressController, namespaces map[string]*corev1.Namespace, z infra.WithCert[infra.Zone]) ([]zoner, error) {
-	name := z.Zone.GetName()
-	nameserver := z.Zone.GetNameservers()[0]
-	certName := z.Cert.GetName()
-	certId := z.Cert.GetId()
-
-	ns, err := getNamespace(ctx, cl, namespaces, name)
-	if err != nil {
-		return nil, fmt.Errorf("getting namespaces: %w", err)
-	}
-
-	hostName := ""
-
-	if nic.Status.ManagedResourceRefs == nil {
-		hostName = ns.Name
-	}
-
-	for _, ref := range nic.Status.ManagedResourceRefs {
-		if ref.Kind == "Service" {
-			hostName = ref.Name
-		}
-	}
-
-	if hostName == "" {
-		hostName = ns.Name
-	}
-
-	return []zoner{
-		zone{
-			name:       name,
-			nameserver: nameserver,
-			certName:   certName,
-			certId:     certId,
-			host:       strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-			tlsHost:    strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-		},
-		zone{
-			name:       "wildcard" + name,
-			nameserver: nameserver,
-			certName:   certName,
-			certId:     certId,
-			host:       "wildcard." + strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-			tlsHost:    "*." + strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-		},
-	}, nil
-}
-
-func toNICPrivateZoners(ctx context.Context, cl client.Client, nic *v1alpha1.NginxIngressController, namespaces map[string]*corev1.Namespace, z infra.WithCert[infra.PrivateZone], nameserver string) ([]zoner, error) {
-	name := z.Zone.GetName()
-	certName := z.Cert.GetName()
-	certId := z.Cert.GetId()
-
-	ns, err := getNamespace(ctx, cl, namespaces, name)
-	if err != nil {
-		return nil, fmt.Errorf("getting namespaces: %w", err)
-	}
-
-	hostName := ""
-
-	if nic.Status.ManagedResourceRefs == nil {
-		hostName = ns.Name
-	}
-
-	for _, ref := range nic.Status.ManagedResourceRefs {
-		if ref.Kind == "Service" {
-			hostName = ref.Name
-		}
-	}
-
-	if hostName == "" {
-		hostName = ns.Name
-	}
-
-	return []zoner{
-		zone{
-			name:       name,
-			nameserver: nameserver,
-			certName:   certName,
-			certId:     certId,
-			host:       strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-			tlsHost:    strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-		},
-		zone{
-			name:       "wildcard" + name,
-			nameserver: nameserver,
-			certName:   certName,
-			certId:     certId,
-			host:       "wildcard." + strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-			tlsHost:    "*." + strings.ToLower(hostName) + "." + strings.TrimRight(name, "."),
-		},
-	}, nil
 }

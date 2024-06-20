@@ -2,6 +2,7 @@ package manifests
 
 import (
 	_ "embed"
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,13 +19,13 @@ var dbeClientContents string
 var dbeServerContents string
 
 type DefaultBackendResources struct {
-	Client                *appsv1.Deployment
-	Server                *appsv1.Deployment
-	Ingress               *netv1.Ingress
-	DefaultBackendServer  *appsv1.Deployment
-	Service               *corev1.Service
-	DefaultBackendService *corev1.Service
-	//NginxIngressController *v1alpha1.NginxIngressController
+	Client                 *appsv1.Deployment
+	Server                 *appsv1.Deployment
+	Ingress                *netv1.Ingress
+	DefaultBackendServer   *appsv1.Deployment
+	Service                *corev1.Service
+	DefaultBackendService  *corev1.Service
+	NginxIngressController *v1alpha1.NginxIngressController
 }
 
 func (t DefaultBackendResources) Objects() []client.Object {
@@ -35,7 +36,7 @@ func (t DefaultBackendResources) Objects() []client.Object {
 		t.Ingress,
 		t.DefaultBackendServer,
 		t.DefaultBackendService,
-		//t.NginxIngressController,
+		t.NginxIngressController,
 	}
 
 	for _, obj := range ret {
@@ -54,7 +55,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
 			Name:  "URL",
-			Value: "https://" + host,
+			Value: "https://" + host + "/test",
 		},
 		{
 			Name:  "TEST_URL",
@@ -85,9 +86,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	}
 
 	// Main server deployment
-	serverName := name + "-server"
-	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
-	serviceName := name + "-service"
+
+	serverDeployment := newGoDeployment(serverContents, namespace, name)
 	ingressName := name + "-ingress"
 
 	service :=
@@ -97,7 +97,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      serviceName,
+				Name:      name,
 				Namespace: namespace,
 				Annotations: map[string]string{
 					ManagedByKey: ManagedByVal,
@@ -110,7 +110,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 					TargetPort: intstr.FromInt(8080),
 				}},
 				Selector: map[string]string{
-					"app": serverName,
+					"app": name,
 				},
 			},
 		}
@@ -118,8 +118,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	// Default server deployment
 	defaultServerName := "default-" + name + "-server"
 	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
-	defaultServiceName := "default-" + serviceName
-
+	defaultServiceName := "default-" + name
+	ingressClassName := name + ".backend.ingressclass"
 	dbeService :=
 		&corev1.Service{
 			TypeMeta: metav1.TypeMeta{
@@ -159,17 +159,17 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 			},
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: to.Ptr("default.backend.ingressclass"),
+			IngressClassName: to.Ptr(ingressClassName),
 			Rules: []netv1.IngressRule{{
 				Host: host,
 				IngressRuleValue: netv1.IngressRuleValue{
 					HTTP: &netv1.HTTPIngressRuleValue{
 						Paths: []netv1.HTTPIngressPath{{
-							Path:     "/",
+							Path:     "/test",
 							PathType: to.Ptr(netv1.PathTypePrefix),
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
-									Name: serviceName,
+									Name: name,
 									Port: netv1.ServiceBackendPort{
 										Number: 8080,
 									},
@@ -192,13 +192,38 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		delete(ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
+	nicName := name + "-nginxingress"
+
+	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &keyvaultURI}
+	defaultBackendService := &v1alpha1.NICNamespacedName{defaultServiceName, namespace}
+
+	nic := &v1alpha1.NginxIngressController{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "NginxIngressController",
+			APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nicName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
+			},
+		},
+		Spec: v1alpha1.NginxIngressControllerSpec{
+			IngressClassName:      ingressClassName,
+			ControllerNamePrefix:  "nginx",
+			DefaultSSLCertificate: defaultSSLCert,
+			DefaultBackendService: defaultBackendService,
+		},
+	}
+
 	return DefaultBackendResources{
-		Client:                clientDeployment,
-		Server:                serverDeployment,
-		Ingress:               ingress,
-		DefaultBackendServer:  defaultServerDeployment,
-		Service:               service,
-		DefaultBackendService: dbeService,
-		//NginxIngressController: nic,
+		Client:                 clientDeployment,
+		Server:                 serverDeployment,
+		Ingress:                ingress,
+		DefaultBackendServer:   defaultServerDeployment,
+		Service:                service,
+		DefaultBackendService:  dbeService,
+		NginxIngressController: nic,
 	}
 }

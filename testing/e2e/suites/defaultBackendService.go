@@ -46,7 +46,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 		cfgs: builderFromInfra(in).
 			withOsm(in, false, true).
 			withVersions(manifests.OperatorVersionLatest).
-			withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+			withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 			build(),
 		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 			lgr := logger.FromContext(ctx)
@@ -84,59 +84,23 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	kvuri := infra.Zones[0].Cert.GetId()
 	ns, err := getNamespace(ctx, c, namespaces, infra.Zones[0].Zone.GetName())
 	if err := upsert(ctx, c, ns); err != nil {
 		return fmt.Errorf("initial ns upsert: %w", err)
-	}
-
-	namespace := ns.Name
-	nicName := infra.Zones[0].Zone.GetName()[:26] + "-nginxingress"
-
-	defaultServiceName := "default-" + *serviceName
-	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &kvuri}
-	defaultBackendService := &v1alpha1.NICNamespacedName{defaultServiceName, namespace}
-
-	nic := &v1alpha1.NginxIngressController{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "NginxIngressController",
-			APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nicName,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				manifests.ManagedByKey: manifests.ManagedByVal,
-			},
-		},
-		Spec: v1alpha1.NginxIngressControllerSpec{
-			IngressClassName:      "default.backend.ingressclass",
-			ControllerNamePrefix:  "nginx",
-			DefaultSSLCertificate: defaultSSLCert,
-			DefaultBackendService: defaultBackendService,
-		},
-	}
-
-	if err := upsert(ctx, c, nic); err != nil {
-		return fmt.Errorf("upserting nic: %w", err)
-	}
-
-	if err := waitForNICAvailable(ctx, c, nic); err != nil {
-		return fmt.Errorf("waiting for client deployment to be available: %w", err)
 	}
 
 	var zoners []zoner
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zoners, err := toNICZoners(ctx, c, nic, namespaces, infra.Zones[0])
+		zoners, err := toZoners(ctx, c, namespaces, infra.Zones[0])
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zoners...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zs, err := toNICZoners(ctx, c, nic, namespaces, z)
+			zs, err := toZoners(ctx, c, namespaces, z)
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -146,14 +110,14 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zoners, err := toNICPrivateZoners(ctx, c, nic, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zoners, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zoners...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zs, err := toNICPrivateZoners(ctx, c, nic, namespaces, z, infra.Cluster.GetDnsServiceIp())
+			zs, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -184,10 +148,9 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			lgr.Info(fmt.Sprintf("Zone (Full): %s\n Name: %s\n Namespace: %s\n KvURI: %s\n", zone.GetName(), zone.GetName()[:26], ns, zone.GetCertId()))
 			testingResources := manifests.DefaultBackendClientAndServer(ns.Name, zone.GetName()[:26], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
 			if mod != nil {
-				if err := mod(nic, testingResources.Service, zone); err != nil {
+				if err := mod(testingResources.NginxIngressController, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
 				}
 			}
