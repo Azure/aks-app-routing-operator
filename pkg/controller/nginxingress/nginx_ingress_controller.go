@@ -81,7 +81,8 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager, defaultIngressClassCon
 	if err := nginxIngressControllerReconcilerName.AddToController(
 		ctrl.NewControllerManagedBy(mgr).
 			For(&approutingv1alpha1.NginxIngressController{}).
-			Owns(&appsv1.Deployment{}),
+			Owns(&appsv1.Deployment{}). // used to update our status
+			Owns(&corev1.ConfigMap{}),  // we don't use this to update any statuses but we do want to immediatley overwrite any user changes. it's not supported for users to edit the configmap
 		mgr.GetLogger(),
 	).Complete(reconciler); err != nil {
 		return err
