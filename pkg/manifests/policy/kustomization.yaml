@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- github.com/open-policy-agent/gatekeeper-library/library
+# You can optionally install a subset by specifying a subfolder, or specify a commit SHA
+# - github.com/open-policy-agent/gatekeeper-library/library/pod-security-policy?ref=0c82f402fb3594097a90d15215ae223267f5b955

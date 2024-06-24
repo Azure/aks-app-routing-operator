@@ -1,0 +1,38 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  annotations:
+    description: |-
+      Restricts Service externalIPs to an allowed list of IP addresses.
+      https://kubernetes.io/docs/concepts/services-networking/service/#external-ips
+    metadata.gatekeeper.sh/title: External IPs
+    metadata.gatekeeper.sh/version: 1.0.0
+  name: k8sexternalips
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sExternalIPs
+      validation:
+        openAPIV3Schema:
+          properties:
+            allowedIPs:
+              description: An allow-list of external IP addresses.
+              items:
+                type: string
+              type: array
+          type: object
+  targets:
+    - rego: |
+        package k8sexternalips
+
+        violation[{"msg": msg}] {
+          input.review.kind.kind == "Service"
+          input.review.kind.group == ""
+          allowedIPs := {ip | ip := input.parameters.allowedIPs[_]}
+          externalIPs := {ip | ip := input.review.object.spec.externalIPs[_]}
+          forbiddenIPs := externalIPs - allowedIPs
+          count(forbiddenIPs) > 0
+          msg := sprintf("service has forbidden external IPs: %v", [forbiddenIPs])
+        }
+      target: admission.k8s.gatekeeper.sh

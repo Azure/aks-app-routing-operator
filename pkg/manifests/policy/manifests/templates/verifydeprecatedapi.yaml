@@ -1,0 +1,66 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  annotations:
+    description: Verifies deprecated Kubernetes APIs to ensure all the API versions are up to date. This template does not apply to audit as audit looks at the resources which are already present in the cluster with non-deprecated API versions.
+    metadata.gatekeeper.sh/title: Verify deprecated APIs
+    metadata.gatekeeper.sh/version: 1.0.0
+  name: verifydeprecatedapi
+spec:
+  crd:
+    spec:
+      names:
+        kind: VerifyDeprecatedAPI
+      validation:
+        openAPIV3Schema:
+          properties:
+            k8sVersion:
+              description: kubernetes version
+              type: number
+            kvs:
+              description: Deprecated api versions and corresponding kinds
+              items:
+                properties:
+                  deprecatedAPI:
+                    description: deprecated api
+                    example: flowcontrol.apiserver.k8s.io/v1beta2
+                    type: string
+                  kinds:
+                    description: impacted list of kinds
+                    example: '["FlowSchema", "PriorityLevelConfiguration"]'
+                    items:
+                      type: string
+                    type: array
+                  targetAPI:
+                    description: target api
+                    example: flowcontrol.apiserver.k8s.io/v1beta3
+                    type: string
+                type: object
+              type: array
+          type: object
+  targets:
+    - rego: |
+        package verifydeprecatedapi
+
+        violation[{"msg": msg}] {
+          kvs := input.parameters.kvs[_]
+          kvs.deprecatedAPI == input.review.object.apiVersion
+          k := kvs.kinds[_]
+          k == input.review.object.kind
+          msg := get_message(input.review.object.kind, input.review.object.apiVersion, input.parameters.k8sVersion, kvs.targetAPI)
+        }
+
+        get_message(kind, apiVersion, k8sVersion, targetAPI) = msg {
+          not match(targetAPI)
+          msg := sprintf("API %v for %v is deprecated in Kubernetes version %v, please use %v instead", [kind, apiVersion, k8sVersion, targetAPI])
+        }
+
+        get_message(kind, apiVersion, k8sVersion, targetAPI) = msg {
+          match(targetAPI)
+          msg := sprintf("API %v for %v is deprecated in Kubernetes version %v, please see Kubernetes API deprecation guide", [kind, apiVersion, k8sVersion])
+        }
+
+        match(api) {
+          api == "None"
+        }
+      target: admission.k8s.gatekeeper.sh
