@@ -1,0 +1,52 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  annotations:
+    description: Requires resources to contain specified annotations, with values matching provided regular expressions.
+    metadata.gatekeeper.sh/title: Required Annotations
+    metadata.gatekeeper.sh/version: 1.0.1
+  name: k8srequiredannotations
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredAnnotations
+      validation:
+        openAPIV3Schema:
+          properties:
+            annotations:
+              description: A list of annotations and values the object must specify.
+              items:
+                properties:
+                  allowedRegex:
+                    description: If specified, a regular expression the annotation's value must match. The value must contain at least one match for the regular expression.
+                    type: string
+                  key:
+                    description: The required annotation.
+                    type: string
+                type: object
+              type: array
+            message:
+              type: string
+          type: object
+  targets:
+    - rego: |
+        package k8srequiredannotations
+
+        violation[{"msg": msg, "details": {"missing_annotations": missing}}] {
+            provided := {annotation | input.review.object.metadata.annotations[annotation]}
+            required := {annotation | annotation := input.parameters.annotations[_].key}
+            missing := required - provided
+            count(missing) > 0
+            msg := sprintf("you must provide annotation(s): %v", [missing])
+        }
+
+        violation[{"msg": msg}] {
+          value := input.review.object.metadata.annotations[key]
+          expected := input.parameters.annotations[_]
+          expected.key == key
+          expected.allowedRegex != ""
+          not regex.match(expected.allowedRegex, value)
+          msg := sprintf("Annotation <%v: %v> does not satisfy allowed regex: %v", [key, value, expected.allowedRegex])
+        }
+      target: admission.k8s.gatekeeper.sh

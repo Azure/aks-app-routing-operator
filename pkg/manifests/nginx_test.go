@@ -12,6 +12,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var nginxExceptions = []GatekeeperException{
+	{
+		// we can't set limits on nginx pods because nginx chooses workers based on Node specs. No "right size fits all".
+		// this is also the official recommendation of ingress-nginx.
+		MessageSuffix: "container <controller> has no resource limits",
+		Constraint:    "container-must-have-limits",
+	},
+	{
+		// same reason as above
+		MessageSuffix: "container <controller> has no resource limits",
+		Constraint:    "container-must-meet-memory-and-cpu-ratio",
+	},
+	{
+		// nginx needs to use the filesystem. it writes its config there
+		MessageSuffix: "only read-only root filesystem container is allowed: controller",
+		Constraint:    "psp-readonlyrootfilesystem",
+	},
+}
+
 var (
 	ingConfig = &NginxIngressConfig{
 		ControllerClass: "webapprouting.kubernetes.azure.com/nginx",
@@ -380,8 +399,9 @@ var (
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range controllerTestCases {
 		objs := GetNginxResources(tc.Conf, tc.IngConfig)
-		fixture := path.Join("fixtures", "nginx", tc.Name) + ".json"
+		fixture := path.Join("fixtures", "nginx", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, objs.Objects())
+		GatekeeperTest(t, fixture, nginxExceptions...)
 	}
 }
 

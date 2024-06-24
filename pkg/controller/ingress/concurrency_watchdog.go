@@ -32,9 +32,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-var (
-	concurrencyWatchdogControllerName = controllername.New("concurrency", "watchdog")
-)
+var concurrencyWatchdogControllerName = controllername.New("concurrency", "watchdog")
 
 // ScrapeFn returns the connection count for the given pod
 type ScrapeFn func(ctx context.Context, client rest.Interface, pod *corev1.Pod) (float64, error)
@@ -54,7 +52,12 @@ func NginxScrapeFn(ctx context.Context, client rest.Interface, pod *corev1.Pod) 
 	}
 
 	family := &prommodel.MetricFamily{}
-	dec := expfmt.NewDecoder(bytes.NewReader(resp), expfmt.FmtOpenMetrics_0_0_1)
+	format, err := expfmt.NewOpenMetricsFormat(expfmt.OpenMetricsVersion_0_0_1)
+	if err != nil {
+		return 0, fmt.Errorf("creating open metrics format: %w", err)
+	}
+
+	dec := expfmt.NewDecoder(bytes.NewReader(resp), format)
 	for {
 		err = dec.Decode(family)
 		if errors.Is(err, io.EOF) {
@@ -174,10 +177,10 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 	defer func() {
 		lgr.Info("finished checking on ingress controller pods", "latencySec", time.Since(start).Seconds())
 
-		//placing this call inside a closure allows for result and err to be bound after tick executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after tick executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(concurrencyWatchdogControllerName, ctrl.Result{}, retErr.ErrorOrNil())
 	}()
 
