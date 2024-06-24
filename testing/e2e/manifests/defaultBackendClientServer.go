@@ -86,7 +86,6 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	}
 
 	// Main server deployment
-
 	serverDeployment := newGoDeployment(serverContents, namespace, name)
 	ingressName := name + "-ingress"
 
@@ -192,7 +191,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		delete(ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
-	nicName := name + "-nginxingress"
+	nicName := name + "-dbe-nginxingress"
 
 	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &keyvaultURI}
 	defaultBackendService := &v1alpha1.NICNamespacedName{defaultServiceName, namespace}
@@ -211,7 +210,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName:      ingressClassName,
-			ControllerNamePrefix:  "nginx",
+			ControllerNamePrefix:  "nginx-" + name[len(name)-7:],
 			DefaultSSLCertificate: defaultSSLCert,
 			DefaultBackendService: defaultBackendService,
 		},
