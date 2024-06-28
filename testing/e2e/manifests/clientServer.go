@@ -78,7 +78,7 @@ func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost str
 
 	serverName := name + "-server"
 	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
-	serviceName := name + "service"
+	serviceName := name + "-service"
 	ingressName := name + "-ingress"
 
 	service :=

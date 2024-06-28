@@ -41,10 +41,10 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 	copy := obj.DeepCopyObject().(client.Object)
 	lgr := logger.FromContext(ctx).With("object", copy.GetName(), "namespace", copy.GetNamespace())
-	lgr.Info(fmt.Sprintf("upserting object: %v", obj))
+	lgr.Info("upserting object")
 
 	// create or update the object
-	lgr.Info(fmt.Sprintf("attempting to create object: %s"), copy.GetName())
+	lgr.Info("attempting to create object")
 	err := c.Create(ctx, copy)
 	if err == nil {
 		obj.SetName(copy.GetName()) // supports objects that want to use generate name

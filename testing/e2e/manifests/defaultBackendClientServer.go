@@ -117,7 +117,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	// Default server deployment
 	defaultServerName := "default-" + name + "-server"
 	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
-	defaultServiceName := "default-" + name
+	defaultServiceName := "default-" + name + "-service"
 	ingressClassName := name + ".backend.ingressclass"
 	dbeService :=
 		&corev1.Service{
