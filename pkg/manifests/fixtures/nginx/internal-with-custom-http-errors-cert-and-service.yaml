@@ -334,6 +334,8 @@ spec:
         - --publish-service=$(POD_NAMESPACE)/nginx
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
+        - --default-ssl-certificate=fakesslnamespace/fakesslname
+        - --default-backend-service=fakebackendnamespace/fakebackendname
         env:
         - name: POD_NAME
           valueFrom:
