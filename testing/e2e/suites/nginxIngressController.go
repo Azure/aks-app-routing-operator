@@ -143,6 +143,39 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite having both keyvaulturi and secret fields'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
+				// resetting DefaultSSLCertificate for testNIC
+				testNIC.Spec.DefaultSSLCertificate = nil
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{
+					Name:      "Invalid+@Name",
+					Namespace: "validnamespace",
+				}
+				lgr.Info("creating NginxIngressController with invalid Name field in DefaultBackendService")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite invalid Name field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{
+					Name:      "validname",
+					Namespace: "Invalid+@Namespace",
+				}
+				lgr.Info("creating NginxIngressController with invalid Namespace field in DefaultBackendService")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite invalid Namespace field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{
+					Name:      "validname",
+					Namespace: "",
+				}
+				lgr.Info("creating NginxIngressController with missing Namespace field in DefaultBackendService")
+				if err := c.Create(ctx, testNIC); err == nil {
+					return fmt.Errorf("able to create NginxIngressController despite missing Namespace field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
 				// scaling profile
 				rejectTests := []struct {
 					name string

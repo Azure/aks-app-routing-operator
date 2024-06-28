@@ -117,6 +117,7 @@ type NginxIngressConfig struct {
 	IcName                string         // IngressClass name
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	DefaultBackendService string         // namespace/name used to determine default backend service for / and /healthz endpoints
 	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
 	MinReplicas           int32
 	MaxReplicas           int32
@@ -444,6 +445,10 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 
 	if ingressConfig.DefaultSSLCertificate != "" {
 		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+ingressConfig.DefaultSSLCertificate)
+	}
+
+	if ingressConfig.DefaultBackendService != "" {
+		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
 	}
 
 	return &appsv1.Deployment{
