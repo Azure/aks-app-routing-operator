@@ -892,6 +892,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
 
 	FakeDefaultBackend := approutingv1alpha1.NICNamespacedName{"fakename", "fakenamespace"}
+	FakeCustomErrors := []int{404, 503}
 
 	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
@@ -1328,6 +1329,35 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:                         DefaultIcName,
 				ServiceConfig:                  &manifests.ServiceConfig{},
 				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultBackendService and CustomHTTPErrors",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultBackendService: &FakeDefaultBackend,
+					CustomHTTPErrors:      FakeCustomErrors,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				CustomHTTPErrors:               "404,503",
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
 				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
