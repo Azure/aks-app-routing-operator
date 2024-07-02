@@ -59,12 +59,34 @@ func defaultBackendTests(in infra.Provisioned) []test {
 			lgr.Info("finished testing")
 			return nil
 		},
+	}, {
+		name: "testing custom http error validity",
+		cfgs: builderFromInfra(in).
+			withOsm(in, false, true).
+			withVersions(manifests.OperatorVersionLatest).
+			withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+			build(),
+		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+			lgr := logger.FromContext(ctx)
+			lgr.Info("starting test")
+
+			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, func(nic *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error {
+				CustomErrors := []int{404, 503}
+				nic.Spec.CustomHTTPErrors = CustomErrors
+				return nil
+			}, &dbeServiceName); err != nil {
+				return err
+			}
+
+			lgr.Info("finished testing")
+			return nil
+		},
 	},
 	}
 }
 
 // modifier is a function that can be used to modify the ingress and service
-type nicModifier func(ingress *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error
+type nicModifier func(nic *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error
 
 var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod nicModifier, serviceName *string) error {
 	lgr := logger.FromContext(ctx)
@@ -151,7 +173,11 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			testingResources := manifests.DefaultBackendClientAndServer(ns.Name, zone.GetName()[:26], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
 			if mod != nil {
 				if err := mod(testingResources.NginxIngressController, testingResources.Service, zone); err != nil {
-					return fmt.Errorf("modifying ingress and service: %w", err)
+					return fmt.Errorf("modifying nginx ingress controller and service: %w", err)
+				}
+
+				if testingResources.NginxIngressController.Spec.CustomHTTPErrors != nil ||
+					len(testingResources.NginxIngressController.Spec.CustomHTTPErrors) != 0 {
 				}
 			}
 			for _, object := range testingResources.Objects() {

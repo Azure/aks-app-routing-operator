@@ -18,6 +18,12 @@ var dbeClientContents string
 //go:embed embedded/defaultBackendServer.go
 var dbeServerContents string
 
+//go:embed embedded/404.html
+var NotFoundContents string
+
+//go:embed embedded/404.html
+var UnavailableContents string
+
 type DefaultBackendResources struct {
 	Client                 *appsv1.Deployment
 	Server                 *appsv1.Deployment
