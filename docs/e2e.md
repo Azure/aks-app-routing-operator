@@ -85,7 +85,7 @@ Run e2e with the following steps:
 1. Ensure you've copied the .env.example file to .env and filled in the values
 2. run `make e2e`
 
-You can replace the `INFRA_NAMES` value in the .env file with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go) to test different scenarios. `"basic cluster"` is the default one and is fine for locally running e2e tests for most scenarios.
+You can replace the `INFRA_NAMES` value in the .env file with the name of any infrastructure defined in [/testing/e2e/infra/infras.go](../testing/e2e/infra/infras.go) to test different scenarios. `"basic-cluster"` is the default one and is fine for locally running e2e tests for most scenarios.
 
 If a step fails you have a few options for debugging.
 
