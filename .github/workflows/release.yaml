@@ -22,7 +22,15 @@ permissions:
   id-token: write
   contents: write
 
-jobs: 
+jobs:
+  # print inputs so reviewers can easily validate
+  print:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate list using Markdown
+        run: |
+          echo "## Inputs" >> $GITHUB_STEP_SUMMARY
+          echo "${{ toJSON(github.event.inputs) }}" >> $GITHUB_STEP_SUMMARY
   # validate ensures best practices are being followed before we release
   validate:
     if: ${{ inputs.validate }}
@@ -52,7 +60,7 @@ jobs:
           # if we need to ignore a vulnerability we can use a .trivyignore and reference it here
 
   release:
-    needs: validate
+    needs: [validate, print]
     if: ${{ always() && (contains(needs.validate.result, 'success') || contains(needs.validate.result, 'skipped')) }}
     environment: prod
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
