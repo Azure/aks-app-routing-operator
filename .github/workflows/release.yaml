@@ -53,7 +53,7 @@ jobs:
 
   release:
     needs: validate
-    if: ${{ always() && (contains(needs.validate.conclusion, 'success') || contains(needs.validate.conclusion, 'skipped')
+    if: ${{ always() && (contains(needs.validate.conclusion, 'success') || contains(needs.validate.conclusion, 'skipped')) }}
     environment: prod
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
     steps:
