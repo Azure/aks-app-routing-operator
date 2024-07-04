@@ -12,6 +12,11 @@ on:
         description: 'Overwrite the image in the container registry and the GitHub release'
         required: true
         type: boolean
+      validate:
+        description: 'Validate the image follows best practices'
+        type: boolean
+        default: true
+        required: true
 
 permissions:
   id-token: write
@@ -20,6 +25,7 @@ permissions:
 jobs: 
   # validate ensures best practices are being followed before we release
   validate:
+    if: ${{ inputs.validate }}
     runs-on: ubuntu-latest
     env:
       TAG: aks-app-routing-operator-validate:${{ inputs.version }}
@@ -47,6 +53,7 @@ jobs:
 
   release:
     needs: validate
+    if: ${{ always() && (contains(needs.validate.conclusion, 'success') || contains(needs.validate.conclusion, 'skipped')
     environment: prod
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
     steps:
