@@ -232,3 +232,273 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		NginxIngressController: nic,
 	}
 }
+
+func AddCustomErrorsDeployments(namespace, name, host, tlsHost, ingressClassName string, nic *v1alpha1.NginxIngressController) []client.Object {
+	errorsServerDeployment :=
+		&appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nginx-errors",
+				Namespace: namespace,
+				Labels: map[string]string{
+					ManagedByKey:                ManagedByVal,
+					"app.kubernetes.io/name":    "nginx-errors",
+					"app.kubernetes.io/part-of": "ingress-nginx",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: to.Ptr(int32(1)),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app":                       "nginx-errors",
+						"app.kubernetes.io/name":    "nginx-errors",
+						"app.kubernetes.io/part-of": "ingress-nginx",
+					},
+				},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"app":                       "nginx-errors",
+							"app.kubernetes.io/name":    "nginx-errors",
+							"app.kubernetes.io/part-of": "ingress-nginx",
+						},
+						Annotations: map[string]string{},
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:  "nginx-error-server",
+							Image: "registry.k8s.io/ingress-nginx/nginx-errors:v20230505@sha256:3600dcd1bbd0d05959bb01af4b272714e94d22d24a64e91838e7183c80e53f7f",
+							Ports: []corev1.ContainerPort{
+								{
+									Name:          "http",
+									ContainerPort: 8080,
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "custom-error-pages",
+									MountPath: "/www",
+								},
+							},
+						}},
+						Volumes: []corev1.Volume{
+							{
+								Name: "custom-error-pages",
+								VolumeSource: corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: "custom-error-pages",
+										},
+										Items: []corev1.KeyToPath{
+											{Key: "404", Path: "404.html"},
+											{Key: "503", Path: "503.html"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+	errorsService :=
+		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nginx-errors",
+				Namespace: namespace,
+				Annotations: map[string]string{
+					ManagedByKey: ManagedByVal,
+				},
+				Labels: map[string]string{
+					"app.kubernetes.io/name":    "nginx-errors",
+					"app.kubernetes.io/part-of": "ingress-nginx",
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:       "http",
+					Port:       80,
+					TargetPort: intstr.FromInt(8080),
+				}},
+				Selector: map[string]string{
+					"app": name,
+				},
+			},
+		}
+
+	liveService :=
+		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "live-service",
+				Namespace: namespace,
+				Annotations: map[string]string{
+					ManagedByKey: ManagedByVal,
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:       "http",
+					Port:       5678,
+					TargetPort: intstr.FromInt(5678),
+				}},
+				Selector: map[string]string{
+					"app": "live",
+				},
+			},
+		}
+
+	deadService :=
+		&corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "dead-service",
+				Namespace: namespace,
+				Annotations: map[string]string{
+					ManagedByKey: ManagedByVal,
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:       "http",
+					Port:       8080,
+					TargetPort: intstr.FromInt(8080),
+				}},
+				Selector: map[string]string{
+					"app": "dead",
+				},
+			},
+		}
+
+	customErrorPagesConfigMap :=
+		&corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "custom-error-pages",
+				Namespace: namespace,
+			},
+			Data: map[string]string{
+				"404": NotFoundContents,
+				"503": UnavailableContents,
+			},
+		}
+
+	customErrorsDefaultBackendService := &v1alpha1.NICNamespacedName{"nginx-errors", namespace}
+	nic.Spec.DefaultBackendService = customErrorsDefaultBackendService
+
+	customErrorNIC :=
+		&v1alpha1.NginxIngressController{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "NginxIngressController",
+				APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "custom-errors-nic",
+				Namespace: namespace,
+				Annotations: map[string]string{
+					ManagedByKey: ManagedByVal,
+				},
+			},
+			Spec: v1alpha1.NginxIngressControllerSpec{
+				IngressClassName:     ingressClassName,
+				ControllerNamePrefix: "nginx-" + name[len(name)-7:],
+				//DefaultSSLCertificate: customErrorsDefaultSSLCert,
+				DefaultBackendService: customErrorsDefaultBackendService,
+				CustomHTTPErrors:      []int{404, 503},
+			},
+		}
+
+	liveServicePod :=
+		&corev1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "live-app",
+				Labels: map[string]string{
+					"app": "live",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{Name: "live-app",
+						Image: "hashicorp/http-echo",
+						Args:  []string{"-text=live service"},
+					},
+				},
+			},
+		}
+
+	liveIngress := &netv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "live-ingress",
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
+			},
+		},
+		Spec: netv1.IngressSpec{
+			IngressClassName: to.Ptr(ingressClassName),
+			Rules: []netv1.IngressRule{{
+				Host: host,
+				IngressRuleValue: netv1.IngressRuleValue{
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path:     "/live",
+								PathType: to.Ptr(netv1.PathTypePrefix),
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "live-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 5678,
+										},
+									},
+								},
+							},
+							{
+								Path:     "/dead",
+								PathType: to.Ptr(netv1.PathTypePrefix),
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "dead-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 8080,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+			TLS: []netv1.IngressTLS{{
+				Hosts:      []string{tlsHost},
+				SecretName: "keyvault-" + name + "-ingress",
+			}},
+		},
+	}
+	return []client.Object{errorsServerDeployment, errorsService, liveService, liveServicePod, liveIngress, deadService, customErrorPagesConfigMap, customErrorNIC}
+}

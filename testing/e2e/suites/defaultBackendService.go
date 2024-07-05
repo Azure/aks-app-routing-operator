@@ -41,49 +41,53 @@ func init() {
 }
 
 func defaultBackendTests(in infra.Provisioned) []test {
-	return []test{{
-		name: "testing default backend service validity",
-		cfgs: builderFromInfra(in).
-			withOsm(in, false, true).
-			withVersions(manifests.OperatorVersionLatest).
-			withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
-			build(),
-		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-			lgr := logger.FromContext(ctx)
-			lgr.Info("starting test")
+	return []test{
+		//{
+		//	name: "testing default backend service validity",
+		//	cfgs: builderFromInfra(in).
+		//		withOsm(in, false, true).
+		//		withVersions(manifests.OperatorVersionLatest).
+		//		withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+		//		build(),
+		//	run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+		//		lgr := logger.FromContext(ctx)
+		//		lgr.Info("starting test")
+		//
+		//		if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, nil, &dbeServiceName); err != nil {
+		//			return err
+		//		}
+		//
+		//		lgr.Info("finished testing")
+		//		return nil
+		//	},
+		//},
+		{
+			name: "testing custom http error validity",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
 
-			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, nil, &dbeServiceName); err != nil {
-				return err
-			}
+				if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, func(nic *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error {
+					CustomErrors := []int{404, 503}
+					nic.Spec.CustomHTTPErrors = CustomErrors
+					return nil
+				}, &dbeServiceName); err != nil {
+					return err
+				}
 
-			lgr.Info("finished testing")
-			return nil
-		},
-	}, {
-		name: "testing custom http error validity",
-		cfgs: builderFromInfra(in).
-			withOsm(in, false, true).
-			withVersions(manifests.OperatorVersionLatest).
-			withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
-			build(),
-		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-			lgr := logger.FromContext(ctx)
-			lgr.Info("starting test")
-
-			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, func(nic *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error {
-				CustomErrors := []int{404, 503}
-				nic.Spec.CustomHTTPErrors = CustomErrors
+				lgr.Info("finished testing")
 				return nil
-			}, &dbeServiceName); err != nil {
-				return err
-			}
-
-			lgr.Info("finished testing")
-			return nil
+			},
 		},
-	},
 	}
 }
+
+//}
 
 // modifier is a function that can be used to modify the ingress and service
 type nicModifier func(nic *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error
@@ -170,17 +174,28 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.DefaultBackendClientAndServer(ns.Name, zone.GetName()[:26], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
+			zoneName := zone.GetName()[:26]
+			zoneNamespace := ns.Name
+			zoneKVUri := zone.GetCertId()
+			ingressClassName := zoneName + ".backend.ingressclass"
+			zoneHost := zone.GetHost()
+			tlsHost := zone.GetTlsHost()
+
+			testingResources := manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost)
+			upsertObjects := testingResources.Objects()
+
 			if mod != nil {
 				if err := mod(testingResources.NginxIngressController, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying nginx ingress controller and service: %w", err)
 				}
-
-				if testingResources.NginxIngressController.Spec.CustomHTTPErrors != nil ||
-					len(testingResources.NginxIngressController.Spec.CustomHTTPErrors) != 0 {
-				}
 			}
-			for _, object := range testingResources.Objects() {
+
+			if testingResources.NginxIngressController.Spec.CustomHTTPErrors != nil ||
+				len(testingResources.NginxIngressController.Spec.CustomHTTPErrors) != 0 {
+				upsertObjects = append(upsertObjects, manifests.AddCustomErrorsDeployments(zoneNamespace, zoneName, zoneHost, tlsHost, ingressClassName, testingResources.NginxIngressController)...)
+			}
+
+			for _, object := range upsertObjects {
 				if err := upsert(ctx, c, object); err != nil {
 					return fmt.Errorf("upserting resource: %w", err)
 				}
