@@ -8,14 +8,32 @@ on:
       sha:
         description: 'Commit SHA to release. Example: 7dec363daaca95c59f68607ac1f29a12bc0b195b'
         required: true
+      overwrite:
+        description: 'Overwrite the image in the container registry and the GitHub release'
+        required: true
+        type: boolean
+      validate:
+        description: 'Validate the image follows best practices'
+        type: boolean
+        default: true
+        required: true
 
 permissions:
   id-token: write
   contents: write
 
-jobs: 
+jobs:
+  # print inputs so reviewers can easily validate
+  print:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate list using Markdown
+        run: |
+          echo "## Inputs" >> $GITHUB_STEP_SUMMARY
+          echo "${{ toJSON(github.event.inputs) }}" >> $GITHUB_STEP_SUMMARY
   # validate ensures best practices are being followed before we release
   validate:
+    if: ${{ inputs.validate }}
     runs-on: ubuntu-latest
     env:
       TAG: aks-app-routing-operator-validate:${{ inputs.version }}
@@ -42,7 +60,8 @@ jobs:
           # if we need to ignore a vulnerability we can use a .trivyignore and reference it here
 
   release:
-    needs: validate
+    needs: [validate, print]
+    if: ${{ always() && (contains(needs.validate.result, 'success') || contains(needs.validate.result, 'skipped')) }}
     environment: prod
     runs-on: ["self-hosted", "1ES.Pool=${{ vars.RUNNER_BASE_NAME }}-ubuntu"]
     steps:
@@ -82,7 +101,7 @@ jobs:
           prerelease: false
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: false
+          allowUpdates: ${{ inputs.overwrite }}
 
         # Push happens after creating GitHub release so we don't overwrite an image.
         # Create release step doesn't allow for tag updates so we will never push
