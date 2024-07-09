@@ -41,7 +41,7 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 	copy := obj.DeepCopyObject().(client.Object)
 	lgr := logger.FromContext(ctx).With("object", copy.GetName(), "namespace", copy.GetNamespace())
-	lgr.Info("upserting object")
+	lgr.Info(fmt.Sprintf("upserting object: %s %v", obj.GetName(), obj))
 
 	// create or update the object
 	lgr.Info("attempting to create object")
