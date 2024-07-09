@@ -20,71 +20,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const (
-	controllerImageTag             = "v1.10.0"
-	prom                           = "prometheus"
-	IngressControllerComponentName = "ingress-controller"
+var (
+	Nginx1_10_0 = NginxIngressVersion{
+		name:         "nginx-ingress v1.10.0",
+		tag:          "v1.10.0",
+		requirements: nil,
+	}
+	nginxVersionsAscending = []NginxIngressVersion{Nginx1_10_0}
+	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
 )
 
-var (
-	// NginxResourceTypes is a list of resource types used to deploy the Nginx Ingress Controller
-	NginxResourceTypes = []resourceType{
-		{
-			Group:   netv1.GroupName,
-			Version: netv1.SchemeGroupVersion.Version,
-			Name:    "IngressClass",
-		},
-		{
-			Group:   corev1.GroupName,
-			Version: corev1.SchemeGroupVersion.Version,
-			Name:    "ServiceAccount",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "ClusterRole",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "Role",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "ClusterRoleBinding",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "RoleBinding",
-		},
-		{
-			Group:   corev1.GroupName,
-			Version: corev1.SchemeGroupVersion.Version,
-			Name:    "Service",
-		},
-		{
-			Group:   appsv1.GroupName,
-			Version: appsv1.SchemeGroupVersion.Version,
-			Name:    "Deployment",
-		},
-		{
-			Group:   corev1.GroupName,
-			Version: corev1.SchemeGroupVersion.Version,
-			Name:    "ConfigMap",
-		},
-		{
-			Group:   policyv1.GroupName,
-			Version: policyv1.SchemeGroupVersion.Version,
-			Name:    "PodDisruptionBudget",
-		},
-		{
-			Group:   autov1.GroupName,
-			Version: autov1.SchemeGroupVersion.Version,
-			Name:    "HorizontalPodAutoscaler",
-		},
-	}
+const (
+	prom                           = "prometheus"
+	IngressControllerComponentName = "ingress-controller"
 )
 
 var nginxLabels = util.MergeMaps(
@@ -109,29 +57,6 @@ var (
 		"prometheus.io/port":   strconv.Itoa(int(promServicePort.Port)),
 	}
 )
-
-// NginxIngressConfig defines configuration options for required resources for an Ingress
-type NginxIngressConfig struct {
-	ControllerClass       string         // controller class which is equivalent to controller field of IngressClass
-	ResourceName          string         // name given to all resources
-	IcName                string         // IngressClass name
-	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
-	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
-	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
-	MinReplicas           int32
-	MaxReplicas           int32
-	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
-	TargetCPUUtilizationPercentage int32
-}
-
-func (n *NginxIngressConfig) PodLabels() map[string]string {
-	return map[string]string{"app": n.ResourceName}
-}
-
-// ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
-type ServiceConfig struct {
-	Annotations map[string]string
-}
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
 	res := &NginxResources{
@@ -476,7 +401,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withLivenessProbeMatchingReadinessNewFailureThresh(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+controllerImageTag),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+ingressConfig.Version.tag),
 						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: util.ToPtr(false),

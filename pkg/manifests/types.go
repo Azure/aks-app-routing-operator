@@ -56,3 +56,34 @@ func (n *NginxResources) Objects() []client.Object {
 
 	return objs
 }
+
+// NginxIngressConfig defines configuration options for required resources for an Ingress
+type NginxIngressConfig struct {
+	Version               NginxIngressVersion
+	ControllerClass       string         // controller class which is equivalent to controller field of IngressClass
+	ResourceName          string         // name given to all resources
+	IcName                string         // IngressClass name
+	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
+	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
+	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
+	MinReplicas           int32
+	MaxReplicas           int32
+	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
+	TargetCPUUtilizationPercentage int32
+}
+
+func (n *NginxIngressConfig) PodLabels() map[string]string {
+	return map[string]string{"app": n.ResourceName}
+}
+
+type NginxIngressVersion struct {
+	name, tag    string
+	requirements []requirement
+}
+
+type requirement func() error
+
+// ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
+type ServiceConfig struct {
+	Annotations map[string]string
+}
