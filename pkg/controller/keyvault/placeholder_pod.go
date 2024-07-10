@@ -29,9 +29,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-var (
-	placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
-)
+var placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
 // Keyvault secrets referenced by each secret provider class managed by IngressSecretProviderClassReconciler.
@@ -68,10 +66,10 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// do metrics
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(placeholderPodControllerName, result, err)
 	}()
 
@@ -166,7 +164,7 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	}
 
 	if cleanPod {
-		logger.Info("cleaning unused placeholder pod deployment")
+		logger.Info("attempting to clean unused placeholder pod deployment")
 		logger.Info("getting placeholder deployment")
 		toCleanDeployment := &appsv1.Deployment{}
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
@@ -177,6 +175,9 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 			err = p.client.Delete(ctx, toCleanDeployment)
 			return result, client.IgnoreNotFound(err)
 		}
+
+		logger.Info("deployment found but it's not managed by us, skipping cleaning")
+		return result, nil
 	}
 
 	// Manage a deployment resource
