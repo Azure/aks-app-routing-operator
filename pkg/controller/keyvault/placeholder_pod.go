@@ -28,9 +28,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-var (
-	placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
-)
+var placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
 
 // PlaceholderPodController manages a single-replica deployment of no-op pods that mount the
 // Keyvault secrets referenced by each secret provider class managed by IngressSecretProviderClassReconciler.
@@ -67,10 +65,10 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// do metrics
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(placeholderPodControllerName, result, err)
 	}()
 
@@ -125,7 +123,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	if ing.Name == "" || ing.Spec.IngressClassName == nil || !managed {
-		logger.Info("cleaning unused placeholder pod deployment")
+		logger.Info("attempting to clean unused placeholder pod deployment")
 
 		logger.Info("getting placeholder deployment")
 
@@ -138,6 +136,9 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 			err = p.client.Delete(ctx, toCleanDeployment)
 			return result, client.IgnoreNotFound(err)
 		}
+
+		logger.Info("deployment found but it's not managed by us, skipping cleaning")
+		return result, nil
 	}
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
