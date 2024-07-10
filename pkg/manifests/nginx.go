@@ -25,66 +25,64 @@ const (
 	prom               = "prometheus"
 )
 
-var (
-	// NginxResourceTypes is a list of resource types used to deploy the Nginx Ingress Controller
-	NginxResourceTypes = []resourceType{
-		{
-			Group:   netv1.GroupName,
-			Version: netv1.SchemeGroupVersion.Version,
-			Name:    "IngressClass",
-		},
-		{
-			Group:   corev1.GroupName,
-			Version: corev1.SchemeGroupVersion.Version,
-			Name:    "ServiceAccount",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "ClusterRole",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "Role",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "ClusterRoleBinding",
-		},
-		{
-			Group:   rbacv1.GroupName,
-			Version: rbacv1.SchemeGroupVersion.Version,
-			Name:    "RoleBinding",
-		},
-		{
-			Group:   corev1.GroupName,
-			Version: corev1.SchemeGroupVersion.Version,
-			Name:    "Service",
-		},
-		{
-			Group:   appsv1.GroupName,
-			Version: appsv1.SchemeGroupVersion.Version,
-			Name:    "Deployment",
-		},
-		{
-			Group:   corev1.GroupName,
-			Version: corev1.SchemeGroupVersion.Version,
-			Name:    "ConfigMap",
-		},
-		{
-			Group:   policyv1.GroupName,
-			Version: policyv1.SchemeGroupVersion.Version,
-			Name:    "PodDisruptionBudget",
-		},
-		{
-			Group:   autov1.GroupName,
-			Version: autov1.SchemeGroupVersion.Version,
-			Name:    "HorizontalPodAutoscaler",
-		},
-	}
-)
+// NginxResourceTypes is a list of resource types used to deploy the Nginx Ingress Controller
+var NginxResourceTypes = []resourceType{
+	{
+		Group:   netv1.GroupName,
+		Version: netv1.SchemeGroupVersion.Version,
+		Name:    "IngressClass",
+	},
+	{
+		Group:   corev1.GroupName,
+		Version: corev1.SchemeGroupVersion.Version,
+		Name:    "ServiceAccount",
+	},
+	{
+		Group:   rbacv1.GroupName,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Name:    "ClusterRole",
+	},
+	{
+		Group:   rbacv1.GroupName,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Name:    "Role",
+	},
+	{
+		Group:   rbacv1.GroupName,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Name:    "ClusterRoleBinding",
+	},
+	{
+		Group:   rbacv1.GroupName,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Name:    "RoleBinding",
+	},
+	{
+		Group:   corev1.GroupName,
+		Version: corev1.SchemeGroupVersion.Version,
+		Name:    "Service",
+	},
+	{
+		Group:   appsv1.GroupName,
+		Version: appsv1.SchemeGroupVersion.Version,
+		Name:    "Deployment",
+	},
+	{
+		Group:   corev1.GroupName,
+		Version: corev1.SchemeGroupVersion.Version,
+		Name:    "ConfigMap",
+	},
+	{
+		Group:   policyv1.GroupName,
+		Version: policyv1.SchemeGroupVersion.Version,
+		Name:    "PodDisruptionBudget",
+	},
+	{
+		Group:   autov1.GroupName,
+		Version: autov1.SchemeGroupVersion.Version,
+		Name:    "HorizontalPodAutoscaler",
+	},
+}
 
 var nginxLabels = util.MergeMaps(
 	map[string]string{
@@ -469,7 +467,8 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							"--https-port=8443",
 						},
 						SecurityContext: &corev1.SecurityContext{
-							RunAsUser: util.Int64Ptr(101),
+							RunAsUser:    util.Int64Ptr(101),
+							RunAsNonRoot: util.BoolPtr(true),
 						},
 						Ports: []corev1.ContainerPort{
 							{

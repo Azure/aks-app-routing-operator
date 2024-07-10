@@ -520,7 +520,8 @@
                   "failureThreshold": 3
                 },
                 "securityContext": {
-                  "runAsUser": 101
+                  "runAsUser": 101,
+                  "runAsNonRoot": true
                 }
               }
             ],
