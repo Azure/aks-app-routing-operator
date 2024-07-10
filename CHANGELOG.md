@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-patch-1] - 2024-07-10
+
+### Fixed 
+
+- PlaceholderPod cleanup doesn't exit - [link](https://github.com/Azure/aks-app-routing-operator/commit/7375a2536f7fa9e88091640a1fc9d77827db800c)
+
 ## [0.2.4-patch-1] - 2024-07-10
 
 ### Fixed 
