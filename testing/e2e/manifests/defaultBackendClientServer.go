@@ -23,7 +23,7 @@ var ceClientContents string
 //go:embed embedded/404.html
 var NotFoundContents string
 
-//go:embed embedded/404.html
+//go:embed embedded/503.html
 var UnavailableContents string
 
 type ClientServerResources struct {
@@ -208,7 +208,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	}
 }
 
-func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ingressClassName string) ClientServerResources {
+func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, ingressClassName string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
 	// Client deployment
@@ -222,14 +222,6 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 		{
 			Name:  "DEAD",
 			Value: "https://" + host + "/dead",
-		},
-		{
-			Name:  "NOT_FOUND",
-			Value: "https://" + host + "/notfound",
-		},
-		{
-			Name:  "NOT_FOUND",
-			Value: "https://" + host + "/notfound",
 		},
 		{
 			Name:  "NOT_FOUND",
@@ -259,7 +251,7 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 		},
 	}
 
-	errorsServerName := name + "-nginx-errors"
+	errorsServerName := name + "-nginx-errors-server"
 	errorsServerDeployment :=
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
@@ -270,28 +262,19 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 				Name:      errorsServerName,
 				Namespace: namespace,
 				Labels: map[string]string{
-					ManagedByKey:                ManagedByVal,
-					"app.kubernetes.io/name":    errorsServerName,
-					"app.kubernetes.io/part-of": "ingress-nginx",
+					ManagedByKey: ManagedByVal,
 				},
 			},
 			Spec: appsv1.DeploymentSpec{
 				Replicas: to.Ptr(int32(1)),
 				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app":                       errorsServerName,
-						"app.kubernetes.io/name":    errorsServerName,
-						"app.kubernetes.io/part-of": "ingress-nginx",
-					},
+					MatchLabels: map[string]string{"app": errorsServerName},
 				},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
-							"app":                       errorsServerName,
-							"app.kubernetes.io/name":    errorsServerName,
-							"app.kubernetes.io/part-of": "ingress-nginx",
+							"app": errorsServerName,
 						},
-						Annotations: map[string]string{},
 					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{{
@@ -344,10 +327,6 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 				Annotations: map[string]string{
 					ManagedByKey: ManagedByVal,
 				},
-				Labels: map[string]string{
-					"app.kubernetes.io/name":    errorsServiceName,
-					"app.kubernetes.io/part-of": "ingress-nginx",
-				},
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{{
@@ -356,7 +335,7 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 					TargetPort: intstr.FromInt(8080),
 				}},
 				Selector: map[string]string{
-					"app": name,
+					"app": errorsServerName,
 				},
 			},
 		}
@@ -461,6 +440,7 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 			Namespace: namespace,
 			Annotations: map[string]string{
 				ManagedByKey: ManagedByVal,
+				"kubernetes.azure.com/tls-cert-keyvault-uri": keyvaultURI,
 			},
 		},
 		Spec: netv1.IngressSpec{
@@ -505,7 +485,6 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, host, tlsHost, ing
 		},
 	}
 
-	//return []client.Object{errorsServerDeployment, errorsService, liveService, liveServicePod, liveIngress, deadService, customErrorPagesConfigMap}
 	return ClientServerResources{
 		Client:  errorsClientDeployment,
 		Server:  errorsServerDeployment,

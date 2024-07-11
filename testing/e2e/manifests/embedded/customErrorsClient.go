@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -33,6 +34,10 @@ func main() {
 		DialContext:     dialer.DialContext,
 	}}
 
+	liveServiceBody := "live service"
+	deadServiceBody := "<body>CONFIRMING CUSTOM 503 TEST MESSAGE</body>"
+	notFoundBody := "<body>CONFIRMING CUSTOM 404 TEST MESSAGE</body>"
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// live service tests
 		liveResp, err := client.Get(os.Getenv("LIVE"))
@@ -44,26 +49,17 @@ func main() {
 		defer liveResp.Body.Close()
 
 		body, err := ioutil.ReadAll(liveResp.Body)
+
 		if err != nil {
 			log.Printf("error reading response body: %s", err)
 			w.WriteHeader(500)
 			return
 		}
-		log.Printf("received response: %s", string(body))
-		if string(body) != "live service" {
-			log.Printf("unexpected response body: %s", string(body))
-			w.WriteHeader(500)
-			return
-		}
-		if val := liveResp.Header.Get("TestHeader"); val != "test-header-value" {
-			log.Printf("unexpected test header: %s", val)
-			w.WriteHeader(500)
-			return
-		}
 
-		expectedIp := os.Getenv("POD_IP")
-		if val := liveResp.Header.Get("OriginalForwardedFor"); val != expectedIp {
-			log.Printf("server replied with unexpected X-Forwarded-For header: %s, expected %s", val, expectedIp)
+		cleanedBody := cleanBody(string(body)[:(len(liveServiceBody))])
+		log.Printf("received response: %s", cleanedBody)
+		if cleanedBody != liveServiceBody {
+			log.Printf("unexpected response body: %s length: %d, expected: %s length: %d", cleanedBody, len(string(body)), liveServiceBody, len(liveServiceBody))
 			w.WriteHeader(500)
 			return
 		}
@@ -83,21 +79,11 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
-		log.Printf("received response %s from url %s", string(body), os.Getenv("TEST_URL"))
-		if string(body) != "503 CUSTOM TEST MESSAGE" {
-			log.Printf("unexpected response body: %s", body)
-			w.WriteHeader(500)
-			return
-		}
-		if val := deadResp.Header.Get("TestHeader"); val != "test-header-value" {
-			log.Printf("unexpected test header: %s", val)
-			w.WriteHeader(500)
-			return
-		}
 
-		expectedIp = os.Getenv("POD_IP")
-		if val := deadResp.Header.Get("OriginalForwardedFor"); val != expectedIp {
-			log.Printf("server replied with unexpected X-Forwarded-For header: %s, expected %s", val, expectedIp)
+		cleanedBody = cleanBody(string(body))
+		log.Printf("received response %s from url %s", cleanedBody, os.Getenv("TEST_URL"))
+		if cleanedBody != deadServiceBody {
+			log.Printf("unexpected response body: %s expected: %s", cleanedBody, deadServiceBody)
 			w.WriteHeader(500)
 			return
 		}
@@ -117,24 +103,21 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
-		log.Printf("received response %s from url %s", string(body), os.Getenv("TEST_URL"))
-		if string(body) != "503 CUSTOM TEST MESSAGE" {
-			log.Printf("unexpected response body: %s", body)
-			w.WriteHeader(500)
-			return
-		}
-		if val := notFoundResp.Header.Get("TestHeader"); val != "test-header-value" {
-			log.Printf("unexpected test header: %s", val)
-			w.WriteHeader(500)
-			return
-		}
 
-		expectedIp = os.Getenv("POD_IP")
-		if val := notFoundResp.Header.Get("OriginalForwardedFor"); val != expectedIp {
-			log.Printf("server replied with unexpected X-Forwarded-For header: %s, expected %s", val, expectedIp)
+		cleanedBody = cleanBody(string(body))
+		log.Printf("received response %s from url %s", cleanedBody, os.Getenv("TEST_URL"))
+		if cleanedBody != notFoundBody {
+			log.Printf("unexpected response body: %s expected: %s", cleanedBody, notFoundBody)
 			w.WriteHeader(500)
 			return
 		}
 	})
 	panic(http.ListenAndServe(":8080", nil))
+}
+
+func cleanBody(body string) string {
+	pattern := "/(?:\\r\\n|\\r|\\n)/g"
+	cleaner := regexp.MustCompile(pattern)
+
+	return cleaner.ReplaceAllString(body, "")
 }

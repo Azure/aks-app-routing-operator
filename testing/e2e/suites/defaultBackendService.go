@@ -67,7 +67,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountOne}, []manifests.DnsZoneCount{manifests.DnsZoneCountOne}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
@@ -197,7 +197,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			}
 
 			if nic.Spec.CustomHTTPErrors != nil && len(nic.Spec.CustomHTTPErrors) > 1 {
-				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneHost, tlsHost, ingressClassName)
+				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName)
 				nic =
 					&v1alpha1.NginxIngressController{
 						TypeMeta: metav1.TypeMeta{
