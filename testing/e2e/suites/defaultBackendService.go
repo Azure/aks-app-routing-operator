@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -67,7 +68,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountOne}, []manifests.DnsZoneCount{manifests.DnsZoneCountOne}).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
@@ -94,6 +95,8 @@ func defaultBackendTests(in infra.Provisioned) []test {
 type nicModifier func(nic *v1alpha1.NginxIngressController, z zoner) error
 
 var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod nicModifier, serviceName *string) error {
+	var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
+
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting defaultBackendClientServer test")
 
@@ -178,6 +181,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			ctx = logger.WithContext(ctx, lgr)
 
 			zoneName := zone.GetName()[:26]
+			//zoneName := nonAlphanumericRegex.ReplaceAllString(zone.GetName(), "")[:26]
 			zoneNamespace := ns.Name
 			zoneKVUri := zone.GetCertId()
 			ingressClassName := zoneName + ".backend.ingressclass"
@@ -188,7 +192,20 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			upsertObjects := []client.Object{}
 
 			nic := &v1alpha1.NginxIngressController{}
-			defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &zoneKVUri}
+			var defaultSSLCert = &v1alpha1.DefaultSSLCertificate{}
+
+			if zoneKVUri == "" {
+				defaultSSLCert = &v1alpha1.DefaultSSLCertificate{
+					Secret: &v1alpha1.Secret{
+						Name:      zoneName,
+						Namespace: zoneNamespace,
+					},
+				}
+			} else {
+				defaultSSLCert = &v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &zoneKVUri,
+				}
+			}
 
 			if mod != nil {
 				if err := mod(nic, zone); err != nil {
@@ -214,7 +231,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 							IngressClassName:      ingressClassName,
 							ControllerNamePrefix:  "nginx-ce-" + zoneName[len(zoneName)-7:],
 							DefaultSSLCertificate: defaultSSLCert,
-							DefaultBackendService: &v1alpha1.NICNamespacedName{zoneName + "-nginx-errors-service", zoneNamespace},
+							DefaultBackendService: &v1alpha1.NICNamespacedName{nonAlphanumericRegex.ReplaceAllString(zoneName, "") + "-nginx-errors-service", zoneNamespace},
 							CustomHTTPErrors:      nic.Spec.CustomHTTPErrors,
 						},
 					}
