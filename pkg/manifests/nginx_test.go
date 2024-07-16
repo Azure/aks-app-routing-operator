@@ -44,7 +44,6 @@ var (
 		MinReplicas:                    2,
 		MaxReplicas:                    100,
 		TargetCPUUtilizationPercentage: 80,
-		Version:                        &LatestNginxVersion,
 	}
 	controllerTestCases = []struct {
 		Name      string
@@ -131,7 +130,6 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
-				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -158,7 +156,6 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
-				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -186,7 +183,6 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
-				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -214,7 +210,6 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
-				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -293,10 +288,13 @@ var (
 
 func TestIngressControllerResources(t *testing.T) {
 	for _, tc := range controllerTestCases {
-		objs := GetNginxResources(tc.Conf, tc.IngConfig)
-		fixture := path.Join("fixtures", "nginx", tc.Name) + ".yaml"
-		AssertFixture(t, fixture, objs.Objects())
-		GatekeeperTest(t, fixture, nginxExceptions...)
+		for _, version := range nginxVersionsAscending {
+			tc.IngConfig.Version = &version
+			objs := GetNginxResources(tc.Conf, tc.IngConfig)
+			fixture := path.Join("fixtures", "nginx", version.name, tc.Name) + ".yaml"
+			AssertFixture(t, fixture, objs.Objects())
+			GatekeeperTest(t, fixture, nginxExceptions...)
+		}
 	}
 }
 

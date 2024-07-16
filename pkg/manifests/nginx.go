@@ -22,7 +22,7 @@ import (
 
 var (
 	nginx1_10_0 = NginxIngressVersion{
-		name: "nginx-ingress v1.10.0",
+		name: "v1.10.0",
 		tag:  "v1.10.0",
 	}
 	nginxVersionsAscending = []NginxIngressVersion{nginx1_10_0}
