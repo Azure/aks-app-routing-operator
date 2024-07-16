@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-patch-1] - 2024-07-10
+
+### Fixed 
+
+- PlaceholderPod cleanup doesn't exit - [link](https://github.com/Azure/aks-app-routing-operator/commit/7375a2536f7fa9e88091640a1fc9d77827db800c)
+
+## [0.2.4-patch-1] - 2024-07-10
+
+### Fixed 
+
+- PlaceholderPod cleanup doesn't exit - [link](https://github.com/Azure/aks-app-routing-operator/commit/895cb29936c4427cddcb3c0637b8de381c3a9673)
+
+## [0.2.1-patch-2] - 2024-07-10
+
+### Changed
+
+- Added `non-root: true` to Nginx security context - [link](https://github.com/Azure/aks-app-routing-operator/commit/2d973d5fe4e70b9646cb0e2a358a0e36a6385872)
+
+### Fixed
+
+- PlaceholderPod cleanup doesn't exit - [link](https://github.com/Azure/aks-app-routing-operator/commit/503c2e7b2116beccc0902cc59f64b8c2d3d484fc)
+
 ## [0.2.1-patch-1] - 2024-05-16
 
 ### Changed
