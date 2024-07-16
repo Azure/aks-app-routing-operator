@@ -10,14 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// resourceType is a struct that represents a Kubernetes resource type
-type resourceType struct {
-	Group   string
-	Version string
-	// Name is the name of the resource type
-	Name string
-}
-
 // NginxResources is a struct that represents the Kubernetes resources that are created for the Nginx Ingress Controller. When these resources
 // are acted upon by client-go, the fields here are updated since they are pointers to the actual resources.
 type NginxResources struct {
@@ -59,7 +51,7 @@ func (n *NginxResources) Objects() []client.Object {
 
 // NginxIngressConfig defines configuration options for required resources for an Ingress
 type NginxIngressConfig struct {
-	Version               NginxIngressVersion
+	Version               *NginxIngressVersion
 	ControllerClass       string         // controller class which is equivalent to controller field of IngressClass
 	ResourceName          string         // name given to all resources
 	IcName                string         // IngressClass name
@@ -77,11 +69,8 @@ func (n *NginxIngressConfig) PodLabels() map[string]string {
 }
 
 type NginxIngressVersion struct {
-	name, tag    string
-	requirements []requirement
+	name, tag string
 }
-
-type requirement func() error
 
 // ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
 type ServiceConfig struct {

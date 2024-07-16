@@ -44,6 +44,7 @@ var (
 		MinReplicas:                    2,
 		MaxReplicas:                    100,
 		TargetCPUUtilizationPercentage: 80,
+		Version:                        &LatestNginxVersion,
 	}
 	controllerTestCases = []struct {
 		Name      string
@@ -130,6 +131,7 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
+				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -156,6 +158,7 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
+				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -183,6 +186,7 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
+				Version:                        &LatestNginxVersion,
 			},
 		},
 		{
@@ -210,6 +214,7 @@ var (
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
+				Version:                        &LatestNginxVersion,
 			},
 		},
 		{

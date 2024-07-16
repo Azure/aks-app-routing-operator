@@ -21,18 +21,12 @@ import (
 )
 
 var (
-	Nginx1_10_0 = NginxIngressVersion{
-		name:         "nginx-ingress v1.10.0",
-		tag:          "v1.10.0",
-		requirements: nil,
+	nginx1_10_0 = NginxIngressVersion{
+		name: "nginx-ingress v1.10.0",
+		tag:  "v1.10.0",
 	}
-	nginxVersionsAscending = []NginxIngressVersion{Nginx1_10_0}
+	nginxVersionsAscending = []NginxIngressVersion{nginx1_10_0}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
-)
-
-const (
-	prom                           = "prometheus"
-	IngressControllerComponentName = "ingress-controller"
 )
 
 var nginxLabels = util.MergeMaps(
@@ -40,6 +34,11 @@ var nginxLabels = util.MergeMaps(
 		k8sNameKey: "nginx",
 	},
 	GetTopLevelLabels(),
+)
+
+const (
+	prom                           = "prometheus"
+	IngressControllerComponentName = "ingress-controller"
 )
 
 var (
@@ -71,6 +70,13 @@ func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *
 		ConfigMap:               newNginxIngressControllerConfigmap(conf, ingressConfig),
 		HorizontalPodAutoscaler: newNginxIngressControllerHPA(conf, ingressConfig),
 		PodDisruptionBudget:     newNginxIngressControllerPDB(conf, ingressConfig),
+	}
+
+	if ingressConfig != nil && ingressConfig.Version == nil {
+		ingressConfig.Version = &LatestNginxVersion
+	}
+	switch ingressConfig.Version {
+	// this doesn't do anything yet but when different versions have different resources we should change the resources here
 	}
 
 	for _, obj := range res.Objects() {
