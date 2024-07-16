@@ -2,7 +2,6 @@ package manifests
 
 import (
 	_ "embed"
-	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,26 +17,23 @@ var dbeClientContents string
 //go:embed embedded/defaultBackendServer.go
 var dbeServerContents string
 
-type DefaultBackendResources struct {
-	Client                 *appsv1.Deployment
-	Server                 *appsv1.Deployment
-	Ingress                *netv1.Ingress
-	DefaultBackendServer   *appsv1.Deployment
-	Service                *corev1.Service
-	DefaultBackendService  *corev1.Service
-	NginxIngressController *v1alpha1.NginxIngressController
+type ClientServerResources struct {
+	Client       *appsv1.Deployment
+	Server       *appsv1.Deployment
+	Ingress      *netv1.Ingress
+	Service      *corev1.Service
+	AddedObjects []client.Object
 }
 
-func (t DefaultBackendResources) Objects() []client.Object {
+func (t ClientServerResources) Objects() []client.Object {
 	ret := []client.Object{
 		t.Client,
 		t.Server,
 		t.Service,
 		t.Ingress,
-		t.DefaultBackendServer,
-		t.DefaultBackendService,
-		t.NginxIngressController,
 	}
+
+	ret = append(ret, t.AddedObjects...)
 
 	for _, obj := range ret {
 		setGroupKindVersion(obj)
@@ -46,20 +42,22 @@ func (t DefaultBackendResources) Objects() []client.Object {
 	return ret
 }
 
-func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) DefaultBackendResources {
+func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+	validUrlPath := "/test"
+	invalidUrlPath := "/test/fakehost"
 
 	// Client deployment
-	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-client")
+	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-dbe-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
-			Name:  "URL",
-			Value: "https://" + host + "/test",
+			Name:  "VALID_URL",
+			Value: "https://" + host + validUrlPath,
 		},
 		{
-			Name:  "TEST_URL",
-			Value: "https://" + host + "/fakehost",
+			Name:  "INVALID_URL",
+			Value: "https://" + host + invalidUrlPath,
 		},
 		{
 			Name:  "NAMESERVER",
@@ -164,7 +162,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 				IngressRuleValue: netv1.IngressRuleValue{
 					HTTP: &netv1.HTTPIngressRuleValue{
 						Paths: []netv1.HTTPIngressPath{{
-							Path:     "/test",
+							Path:     validUrlPath,
 							PathType: to.Ptr(netv1.PathTypePrefix),
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
@@ -191,38 +189,14 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		delete(ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
-	nicName := name + "-dbe-nginxingress"
-
-	defaultSSLCert := &v1alpha1.DefaultSSLCertificate{KeyVaultURI: &keyvaultURI}
-	defaultBackendService := &v1alpha1.NICNamespacedName{defaultServiceName, namespace}
-
-	nic := &v1alpha1.NginxIngressController{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "NginxIngressController",
-			APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+	return ClientServerResources{
+		Client:  clientDeployment,
+		Server:  serverDeployment,
+		Ingress: ingress,
+		Service: service,
+		AddedObjects: []client.Object{
+			defaultServerDeployment,
+			dbeService,
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nicName,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				ManagedByKey: ManagedByVal,
-			},
-		},
-		Spec: v1alpha1.NginxIngressControllerSpec{
-			IngressClassName:      ingressClassName,
-			ControllerNamePrefix:  "nginx-" + name[len(name)-7:],
-			DefaultSSLCertificate: defaultSSLCert,
-			DefaultBackendService: defaultBackendService,
-		},
-	}
-
-	return DefaultBackendResources{
-		Client:                 clientDeployment,
-		Server:                 serverDeployment,
-		Ingress:                ingress,
-		DefaultBackendServer:   defaultServerDeployment,
-		Service:                service,
-		DefaultBackendService:  dbeService,
-		NginxIngressController: nic,
 	}
 }

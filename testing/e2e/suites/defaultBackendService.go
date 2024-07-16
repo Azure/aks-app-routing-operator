@@ -46,13 +46,37 @@ func defaultBackendTests(in infra.Provisioned) []test {
 		cfgs: builderFromInfra(in).
 			withOsm(in, false, true).
 			withVersions(manifests.OperatorVersionLatest).
-			withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+			withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 			build(),
 		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 			lgr := logger.FromContext(ctx)
 			lgr.Info("starting test")
 
-			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, nil, &dbeServiceName); err != nil {
+			c, err := client.New(config, client.Options{
+				Scheme: dbeScheme,
+			})
+			if err != nil {
+				return fmt.Errorf("creating client: %w", err)
+			}
+			ingressClassName := "nginxingressclass"
+
+			nic := &v1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "NginxIngressController",
+					APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "dbe-nginxingress",
+					Annotations: map[string]string{
+						manifests.ManagedByKey: manifests.ManagedByVal,
+					},
+				},
+				Spec: v1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     ingressClassName,
+					ControllerNamePrefix: "nginx-default-backend",
+				},
+			}
+			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, &dbeServiceName, c, ingressClassName, nic); err != nil {
 				return err
 			}
 
@@ -63,25 +87,15 @@ func defaultBackendTests(in infra.Provisioned) []test {
 	}
 }
 
-// modifier is a function that can be used to modify the ingress and service
-type nicModifier func(ingress *v1alpha1.NginxIngressController, service *corev1.Service, z zoner) error
-
-var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod nicModifier, serviceName *string) error {
+var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, serviceName *string, c client.Client, ingressClassName string, nic *v1alpha1.NginxIngressController) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting defaultBackendClientServer test")
 
 	if namespaces == nil {
 		namespaces = make(map[string]*corev1.Namespace)
 	}
-	if serviceName == nil {
-		serviceName = to.Ptr("nginx")
-	}
-
-	c, err := client.New(config, client.Options{
-		Scheme: dbeScheme,
-	})
-	if err != nil {
-		return fmt.Errorf("creating client: %w", err)
+	if serviceName == nil || *serviceName == "" {
+		serviceName = to.Ptr(nic.Spec.ControllerNamePrefix)
 	}
 
 	ns, err := getNamespace(ctx, c, namespaces, infra.Zones[0].Zone.GetName())
@@ -93,11 +107,11 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zoners, err := toZoners(ctx, c, namespaces, infra.Zones[0])
+		zs, err := toZoners(ctx, c, namespaces, infra.Zones[0])
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
-		zoners = append(zoners, zoners...)
+		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
 			zs, err := toZoners(ctx, c, namespaces, z)
@@ -110,11 +124,11 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zoners, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zs, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
-		zoners = append(zoners, zoners...)
+		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
 			zs, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
@@ -129,9 +143,11 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 		zoners = append(zoners, zone{
 			name:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local:80", *serviceName),
 			nameserver: infra.Cluster.GetDnsServiceIp(),
-			host:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local", *serviceName),
+			host:       fmt.Sprintf("%s-0.app-routing-system.svc.cluster.local", *serviceName),
 		})
 	}
+
+	lgr.Info(fmt.Sprintf("Zoner array size: %d", len(zoners)))
 
 	var eg errgroup.Group
 	for _, zone := range zoners {
@@ -148,13 +164,36 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.DefaultBackendClientAndServer(ns.Name, zone.GetName()[:26], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
-			if mod != nil {
-				if err := mod(testingResources.NginxIngressController, testingResources.Service, zone); err != nil {
-					return fmt.Errorf("modifying ingress and service: %w", err)
+			zoneName := zone.GetName()[:26]
+			zoneNamespace := ns.Name
+			zoneKVUri := zone.GetCertId()
+			zoneHost := zone.GetHost()
+			tlsHost := zone.GetTlsHost()
+
+			testingResources := manifests.ClientServerResources{}
+			upsertObjects := []client.Object{}
+
+			if (zoneKVUri == "" || zoneKVUri == "null") && nic.Spec.DefaultSSLCertificate == nil {
+				nic.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+					Secret: &v1alpha1.Secret{
+						Name:      zoneName,
+						Namespace: zoneNamespace,
+					},
+				}
+			} else {
+				nic.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+					KeyVaultURI: &zoneKVUri,
 				}
 			}
-			for _, object := range testingResources.Objects() {
+
+			testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost)
+			nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{"default-" + zoneName + "-service", zoneNamespace}
+
+			upsertObjects = append(upsertObjects, testingResources.Objects()...)
+			upsertObjects = append(upsertObjects, nic)
+			lgr.Info(fmt.Sprintf("upsertObjects size: %d", len(upsertObjects)))
+
+			for _, object := range upsertObjects {
 				if err := upsert(ctx, c, object); err != nil {
 					return fmt.Errorf("upserting resource: %w", err)
 				}

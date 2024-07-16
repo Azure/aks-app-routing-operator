@@ -34,7 +34,7 @@ func main() {
 	}}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := client.Get(os.Getenv("URL"))
+		resp, err := client.Get(os.Getenv("VALID_URL"))
 		if err != nil {
 			log.Printf("error sending request: %s", err)
 			w.WriteHeader(500)
@@ -48,7 +48,7 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
-		log.Printf("received response %s from url %s", string(body), os.Getenv("URL"))
+		log.Printf("received response %s from url %s", string(body), os.Getenv("VALID_URL"))
 		if string(body) != "hello world" {
 			log.Printf("unexpected response body: %s", body)
 			w.WriteHeader(500)
@@ -68,7 +68,7 @@ func main() {
 		}
 
 		//default backend service tests
-		defaultResp, err := client.Get(os.Getenv("TEST_URL"))
+		defaultResp, err := client.Get(os.Getenv("INVALID_URL"))
 		if err != nil {
 			log.Printf("error sending request: %s", err)
 			w.WriteHeader(500)
@@ -82,7 +82,7 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
-		log.Printf("received response %s from url %s", string(defaultBody), os.Getenv("TEST_URL"))
+		log.Printf("received response %s from url %s", string(defaultBody), os.Getenv("INVALID_URL"))
 		if string(defaultBody) != "404 - default backend service hit" {
 			log.Printf("unexpected response body: %s", defaultBody)
 			w.WriteHeader(500)
