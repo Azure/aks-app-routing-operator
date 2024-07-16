@@ -44,6 +44,10 @@ var (
 			Name:      "test-ing",
 			Namespace: "default",
 		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "v1",
+		},
 		Spec: netv1.IngressSpec{
 			IngressClassName: &placeholderTestIngClassName,
 		},
@@ -552,6 +556,69 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
 
+func TestPlaceholderPodControllerUnmanagedDeploymentUnmanagedSPC(t *testing.T) {
+	commonName := "name"
+	ing := placeholderTestIng.DeepCopy()
+	spc := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      commonName,
+			Namespace: ing.Namespace,
+		},
+	}
+	spc.SetOwnerReferences(manifests.GetOwnerRefs(ing, true))
+	cl := fake.NewClientBuilder().WithObjects(ing, spc).Build()
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	unmanagedDeployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      commonName,
+			Namespace: spc.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: util.Int32Ptr(3),
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": commonName}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      map[string]string{"label": "label"},
+					Annotations: map[string]string{"annotation": "annotation"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  commonName,
+							Image: "test/image:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, cl.Create(ctx, unmanagedDeployment), "creating unmanaged deployment")
+
+	p := &PlaceholderPodController{
+		client:         cl,
+		config:         &config.Config{Registry: "test-registry"},
+		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) { return false, nil }),
+	}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err := p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	afterDeployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      unmanagedDeployment.Name,
+			Namespace: unmanagedDeployment.Namespace,
+		},
+	}
+	require.NoError(t, cl.Get(ctx, client.ObjectKeyFromObject(afterDeployment), afterDeployment))
+	assert.Equal(t, unmanagedDeployment.Spec, afterDeployment.Spec)
+}
+
 func TestNewPlaceholderPodController(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
@@ -666,7 +733,7 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
-	ing.Spec.IngressClassName = placeholderTestIng.Spec.IngressClassName //returning value to IngressClassName to test individual fields triggering clean
+	ing.Spec.IngressClassName = placeholderTestIng.Spec.IngressClassName // returning value to IngressClassName to test individual fields triggering clean
 
 	// ingress with empty Name field
 	ing.Name = ""

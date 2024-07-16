@@ -1,4 +1,4 @@
-FROM golang:1.22 as builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 as builder
 
 WORKDIR /go/src/github.com/Azure/aks-app-routing-operator
 ADD . .

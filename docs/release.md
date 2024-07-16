@@ -21,7 +21,7 @@ In the unlikely event that a hotfix is needed, you can create a hotfix release t
 
 We might need to patch an older version. In this case, we will need to perform the following steps.
 
-- `git fetch --tags upstream` to pull tags locally
+- `git fetch --tags upstream` to pull tags locally (you might need to `git remote add upstream https://github.com/Azure/aks-app-routing-operator.git`)
 - `git checkout -b v<version>-patch-1 tags/<version>` for example  `git checkout -b v0.2.1-patch-1 tags/v0.2.1` for the first patch of version `0.2.1`. This checks out the tag sha into a new branch.
 - `git push upstream` to create the branch upstream
 - make required changes and create a PR against the upstream branch
