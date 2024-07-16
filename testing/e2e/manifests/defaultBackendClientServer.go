@@ -2,7 +2,6 @@ package manifests
 
 import (
 	_ "embed"
-	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -209,7 +208,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	}
 }
 
-func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, ingressClassName string) ClientServerResources {
+func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, ingressClassName string, serviceName *string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
 	// Client deployment
@@ -316,6 +315,9 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 		}
 
 	errorsServiceName := name + "-nginx-errors-service"
+	if serviceName != nil {
+		errorsServiceName = *serviceName
+	}
 	errorsService :=
 		&corev1.Service{
 			TypeMeta: metav1.TypeMeta{
@@ -492,52 +494,6 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 		delete(liveIngress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
-	var nic = &v1alpha1.NginxIngressController{}
-
-	if {
-		testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName)
-		nic =
-			&v1alpha1.NginxIngressController{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "NginxIngressController",
-					APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: zoneName + "-ce-nginxingress",
-					Annotations: map[string]string{
-						manifests.ManagedByKey: manifests.ManagedByVal,
-					},
-				},
-				Spec: v1alpha1.NginxIngressControllerSpec{
-					IngressClassName:      ingressClassName,
-					ControllerNamePrefix:  "nginx-ce-" + zoneName[len(zoneName)-7:],
-					DefaultSSLCertificate: defaultSSLCert,
-					DefaultBackendService: &v1alpha1.NICNamespacedName{nonAlphanumericRegex.ReplaceAllString(zoneName, "") + "-nginx-errors-service", zoneNamespace},
-					CustomHTTPErrors:      nic.Spec.CustomHTTPErrors,
-				},
-			}
-	} else {
-		testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost)
-		nic = &v1alpha1.NginxIngressController{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "NginxIngressController",
-				APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      zoneName + "-dbe-nginxingress",
-				Namespace: zoneNamespace,
-				Annotations: map[string]string{
-					manifests.ManagedByKey: manifests.ManagedByVal,
-				},
-			},
-			Spec: v1alpha1.NginxIngressControllerSpec{
-				IngressClassName:      ingressClassName,
-				ControllerNamePrefix:  "nginx-" + zoneName[len(zoneName)-7:],
-				DefaultSSLCertificate: defaultSSLCert,
-				DefaultBackendService: &v1alpha1.NICNamespacedName{"default-" + zoneName + "-service", zoneNamespace},
-			},
-		}
-	}
 	return ClientServerResources{
 		Client:  errorsClientDeployment,
 		Server:  errorsServerDeployment,

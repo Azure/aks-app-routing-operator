@@ -81,7 +81,7 @@ type DefaultSSLCertificate struct {
 
 	// Secret in the form of a Key Vault URI
 	// +optional
-	KeyVaultURI *string `json:"keyVaultURI"`
+	KeyVaultURI *string `json:"keyVaultURI,omitempty"`
 
 	// ForceSSLRedirect is a flag that sets the global value of redirects to HTTPS if there is a defined DefaultSSLCertificate
 	// +kubebuilder:default:=false

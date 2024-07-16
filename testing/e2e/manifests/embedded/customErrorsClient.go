@@ -57,9 +57,9 @@ func main() {
 		}
 
 		cleanedBody := cleanBody(string(body)[:(len(liveServiceBody))])
-		log.Printf("received response: %s", cleanedBody)
+		log.Printf("received response: %s from url %s", cleanedBody, os.Getenv("LIVE"))
 		if cleanedBody != liveServiceBody {
-			log.Printf("unexpected response body: %s length: %d, expected: %s length: %d", cleanedBody, len(string(body)), liveServiceBody, len(liveServiceBody))
+			log.Printf("unexpected response body: %s, expected: %s", cleanedBody, liveServiceBody)
 			w.WriteHeader(500)
 			return
 		}
@@ -81,7 +81,7 @@ func main() {
 		}
 
 		cleanedBody = cleanBody(string(body))
-		log.Printf("received response %s from url %s", cleanedBody, os.Getenv("TEST_URL"))
+		log.Printf("received response %s from url %s", cleanedBody, os.Getenv("DEAD"))
 		if cleanedBody != deadServiceBody {
 			log.Printf("unexpected response body: %s expected: %s", cleanedBody, deadServiceBody)
 			w.WriteHeader(500)
