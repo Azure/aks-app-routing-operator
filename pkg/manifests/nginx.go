@@ -58,6 +58,10 @@ var (
 )
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
+	if ingressConfig != nil && ingressConfig.Version == nil {
+		ingressConfig.Version = &LatestNginxVersion
+	}
+
 	res := &NginxResources{
 		IngressClass:            newNginxIngressControllerIngressClass(conf, ingressConfig),
 		ServiceAccount:          newNginxIngressControllerServiceAccount(conf, ingressConfig),
@@ -72,9 +76,6 @@ func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *
 		PodDisruptionBudget:     newNginxIngressControllerPDB(conf, ingressConfig),
 	}
 
-	if ingressConfig != nil && ingressConfig.Version == nil {
-		ingressConfig.Version = &LatestNginxVersion
-	}
 	switch ingressConfig.Version {
 	// this doesn't do anything yet but when different versions have different resources we should change the resources here
 	}
