@@ -342,11 +342,26 @@ var (
 )
 
 func TestIngressControllerResources(t *testing.T) {
+	var unspecifiedNginxVersion *NginxIngressVersion = nil
+	nginxVersions := []*NginxIngressVersion{unspecifiedNginxVersion}
+	for _, version := range nginxVersionsAscending {
+		version := version // loop variable capture
+		nginxVersions = append(nginxVersions, &version)
+	}
+
 	for _, tc := range controllerTestCases {
-		objs := GetNginxResources(tc.Conf, tc.IngConfig)
-		fixture := path.Join("fixtures", "nginx", tc.Name) + ".yaml"
-		AssertFixture(t, fixture, objs.Objects())
-		GatekeeperTest(t, fixture, nginxExceptions...)
+		for _, version := range nginxVersions {
+			tc.IngConfig.Version = version
+			objs := GetNginxResources(tc.Conf, tc.IngConfig)
+
+			versionName := "default_version"
+			if version != nil {
+				versionName = version.name
+			}
+			fixture := path.Join("fixtures", "nginx", versionName, tc.Name) + ".yaml"
+			AssertFixture(t, fixture, objs.Objects())
+			GatekeeperTest(t, fixture, nginxExceptions...)
+		}
 	}
 }
 
