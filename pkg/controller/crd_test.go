@@ -18,7 +18,7 @@ const (
 	validCrdName        = "nginxingresscontrollers.approuting.kubernetes.azure.com"
 	validCrdPathWithDir = "../../config/crd/"
 
-	nonCrdManifestsPath = "../manifests/fixtures/nginx"
+	nonCrdManifestsPath = "../manifests/fixtures/nginx/default_version"
 	nonExistentFilePath = "./this/does/not/exist"
 )
 
@@ -57,5 +57,4 @@ func TestLoadCRDs(t *testing.T) {
 		require.Error(t, err, "expected error loading nil config")
 		require.True(t, strings.Contains(err.Error(), "config cannot be nil"), "expected error to be about nil config")
 	})
-
 }
