@@ -42,10 +42,9 @@ func (t ClientServerResources) Objects() []client.Object {
 	return ret
 }
 
-func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
-	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
 	validUrlPath := "/test"
-	invalidUrlPath := "/test/fakehost"
+	invalidUrlPath := "/fakehost"
 
 	// Client deployment
 	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-dbe-client")
@@ -84,7 +83,10 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	}
 
 	// Main server deployment
-	serverDeployment := newGoDeployment(serverContents, namespace, name)
+	serverName := name + "-server"
+	serviceName := name + "-service"
+
+	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	ingressName := name + "-ingress"
 
 	service :=
@@ -94,7 +96,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
+				Name:      serviceName,
 				Namespace: namespace,
 				Annotations: map[string]string{
 					ManagedByKey: ManagedByVal,
@@ -107,16 +109,16 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 					TargetPort: intstr.FromInt(8080),
 				}},
 				Selector: map[string]string{
-					"app": name,
+					"app": serverName,
 				},
 			},
 		}
 
 	// Default server deployment
 	defaultServerName := "default-" + name + "-server"
-	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
 	defaultServiceName := "default-" + name + "-service"
-	ingressClassName := name + ".backend.ingressclass"
+
+	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
 	dbeService :=
 		&corev1.Service{
 			TypeMeta: metav1.TypeMeta{
@@ -166,7 +168,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 							PathType: to.Ptr(netv1.PathTypePrefix),
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
-									Name: name,
+									Name: serviceName,
 									Port: netv1.ServiceBackendPort{
 										Number: 8080,
 									},
