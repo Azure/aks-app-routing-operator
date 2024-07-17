@@ -13,10 +13,10 @@ import (
 // All returns all test in all suites
 func All(infra infra.Provisioned) tests.Ts {
 	t := []test{}
-	//t = append(t, basicSuite(infra)...)
-	//t = append(t, osmSuite(infra)...)
-	//t = append(t, promSuite(infra)...)
-	//t = append(t, nicTests(infra)...)
+	t = append(t, basicSuite(infra)...)
+	t = append(t, osmSuite(infra)...)
+	t = append(t, promSuite(infra)...)
+	t = append(t, nicTests(infra)...)
 	t = append(t, defaultBackendTests(infra)...)
 	ret := make(tests.Ts, len(t))
 	for i, t := range t {
