@@ -24,11 +24,19 @@ import (
 )
 
 var (
+<<<<<<< HEAD
 	dbeScheme            = runtime.NewScheme()
 	dbeBasicNS           = make(map[string]*corev1.Namespace)
 	dbeServiceName       = "dbeservice"
 	ceServiceName        = "ceservice"
 	nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
+=======
+	dbeScheme              = runtime.NewScheme()
+	dbeBasicNS             = make(map[string]*corev1.Namespace)
+	dbeServiceName         = "dbeservice"
+	nonAlphaNumHyphenRegex = regexp.MustCompile(`[^a-zA-Z0-9- ]+`)
+	trailingHyphenRegex    = regexp.MustCompile(`^-+|-+$`)
+>>>>>>> aamgayle/defaultbackendservice
 )
 
 func init() {
@@ -44,6 +52,7 @@ func init() {
 }
 
 func defaultBackendTests(in infra.Provisioned) []test {
+<<<<<<< HEAD
 	return []test{
 		//{
 		//	name: "testing default backend service validity",
@@ -100,6 +109,64 @@ func defaultBackendTests(in infra.Provisioned) []test {
 				if err != nil {
 					return fmt.Errorf("creating client: %w", err)
 				}
+=======
+	return []test{{
+		name: "testing default backend service validity",
+		cfgs: builderFromInfra(in).
+			withOsm(in, false, true).
+			withVersions(manifests.OperatorVersionLatest).
+			withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+			build(),
+		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+			lgr := logger.FromContext(ctx)
+			lgr.Info("starting test")
+
+			c, err := client.New(config, client.Options{
+				Scheme: dbeScheme,
+			})
+			if err != nil {
+				return fmt.Errorf("creating client: %w", err)
+			}
+
+			ingressClassName := "nginxingressclass"
+			nic := &v1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "NginxIngressController",
+					APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default-nginxingress",
+					Annotations: map[string]string{
+						manifests.ManagedByKey: manifests.ManagedByVal,
+					},
+				},
+				Spec: v1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     ingressClassName,
+					ControllerNamePrefix: "nginx-default-backend",
+				},
+			}
+
+			if err := upsert(ctx, c, nic); err != nil {
+				return fmt.Errorf("upserting nic: %w", err)
+			}
+
+			var service = &v1alpha1.ManagedObjectReference{}
+			lgr.Info("checking for service in managed resource refs")
+			for _, ref := range nic.Status.ManagedResourceRefs {
+				if ref.Kind == "Service" {
+					lgr.Info("found service")
+					service = &ref
+				}
+			}
+
+			if service == nil {
+				return fmt.Errorf("no service available in resource refs")
+			}
+
+			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+				return err
+			}
+>>>>>>> aamgayle/defaultbackendservice
 
 				ingressClassName := "nginxingressclass"
 				nic :=
@@ -148,10 +215,14 @@ func defaultBackendTests(in infra.Provisioned) []test {
 	}
 }
 
+<<<<<<< HEAD
 // modifier is a function that can be used to modify the ingress and service
 type nicModifier func(nic *v1alpha1.NginxIngressController, z zoner) error
 
 var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod nicModifier, serviceName *string, c client.Client, ingressClassName string, nic *v1alpha1.NginxIngressController) error {
+=======
+var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, serviceName *string, c client.Client, ingressClassName string, nic *v1alpha1.NginxIngressController) error {
+>>>>>>> aamgayle/defaultbackendservice
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting defaultBackendClientServer test")
 
@@ -159,6 +230,10 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 		namespaces = make(map[string]*corev1.Namespace)
 	}
 	if serviceName == nil || *serviceName == "" {
+<<<<<<< HEAD
+=======
+		lgr.Info("Using controller name prefix for service name")
+>>>>>>> aamgayle/defaultbackendservice
 		serviceName = to.Ptr(nic.Spec.ControllerNamePrefix)
 	}
 
@@ -228,7 +303,12 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
+<<<<<<< HEAD
 			zoneName := zone.GetName()[:26]
+=======
+			zoneName := nonAlphaNumHyphenRegex.ReplaceAllString(zone.GetName()[:26], "-")
+			zoneName = trailingHyphenRegex.ReplaceAllString(zoneName, "")
+>>>>>>> aamgayle/defaultbackendservice
 			zoneNamespace := ns.Name
 			zoneKVUri := zone.GetCertId()
 			zoneHost := zone.GetHost()
@@ -250,6 +330,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 				}
 			}
 
+<<<<<<< HEAD
 			if mod != nil {
 				if err := mod(nic, zone); err != nil {
 					return fmt.Errorf("modifying nginx ingress controller and service: %w", err)
@@ -266,6 +347,13 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			upsertObjects = append(upsertObjects, testingResources.Objects()...)
 			upsertObjects = append(upsertObjects, nic)
 			lgr.Info(fmt.Sprintf("upsertObjects size: %d", len(upsertObjects)))
+=======
+			testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
+			nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{"default-" + zoneName + "-service", zoneNamespace}
+
+			upsertObjects = append(upsertObjects, testingResources.Objects()...)
+			upsertObjects = append(upsertObjects, nic)
+>>>>>>> aamgayle/defaultbackendservice
 
 			for _, object := range upsertObjects {
 				if err := upsert(ctx, c, object); err != nil {

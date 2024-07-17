@@ -17,6 +17,7 @@ var dbeClientContents string
 //go:embed embedded/defaultBackendServer.go
 var dbeServerContents string
 
+<<<<<<< HEAD
 //go:embed embedded/customErrorsClient.go
 var ceClientContents string
 
@@ -26,6 +27,8 @@ var NotFoundContents string
 //go:embed embedded/503.html
 var UnavailableContents string
 
+=======
+>>>>>>> aamgayle/defaultbackendservice
 type ClientServerResources struct {
 	Client       *appsv1.Deployment
 	Server       *appsv1.Deployment
@@ -51,20 +54,26 @@ func (t ClientServerResources) Objects() []client.Object {
 	return ret
 }
 
+<<<<<<< HEAD
 func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+=======
+func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
+	validUrlPath := "/test"
+	invalidUrlPath := "/fakehost"
+>>>>>>> aamgayle/defaultbackendservice
 
 	// Client deployment
 	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-dbe-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
-			Name:  "URL",
-			Value: "https://" + host + "/test",
+			Name:  "VALID_URL",
+			Value: "https://" + host + validUrlPath,
 		},
 		{
-			Name:  "TEST_URL",
-			Value: "https://" + host + "/fakehost",
+			Name:  "INVALID_URL",
+			Value: "https://" + host + invalidUrlPath,
 		},
 		{
 			Name:  "NAMESERVER",
@@ -91,7 +100,10 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 	}
 
 	// Main server deployment
-	serverDeployment := newGoDeployment(serverContents, namespace, name)
+	serverName := name + "-server"
+	serviceName := name + "-service"
+
+	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	ingressName := name + "-ingress"
 
 	service :=
@@ -101,7 +113,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
+				Name:      serviceName,
 				Namespace: namespace,
 				Annotations: map[string]string{
 					ManagedByKey: ManagedByVal,
@@ -114,16 +126,16 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 					TargetPort: intstr.FromInt(8080),
 				}},
 				Selector: map[string]string{
-					"app": name,
+					"app": serverName,
 				},
 			},
 		}
 
 	// Default server deployment
 	defaultServerName := "default-" + name + "-server"
-	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
 	defaultServiceName := "default-" + name + "-service"
-	ingressClassName := name + ".backend.ingressclass"
+
+	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
 	dbeService :=
 		&corev1.Service{
 			TypeMeta: metav1.TypeMeta{
@@ -169,11 +181,11 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 				IngressRuleValue: netv1.IngressRuleValue{
 					HTTP: &netv1.HTTPIngressRuleValue{
 						Paths: []netv1.HTTPIngressPath{{
-							Path:     "/test",
+							Path:     validUrlPath,
 							PathType: to.Ptr(netv1.PathTypePrefix),
 							Backend: netv1.IngressBackend{
 								Service: &netv1.IngressServiceBackend{
-									Name: name,
+									Name: serviceName,
 									Port: netv1.ServiceBackendPort{
 										Number: 8080,
 									},
@@ -204,6 +216,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, hos
 		AddedObjects: []client.Object{
 			defaultServerDeployment,
 			dbeService,
+<<<<<<< HEAD
 		},
 	}
 }
@@ -505,5 +518,8 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 			liveServicePod,
 			customErrorPagesConfigMap,
 		},
+=======
+		},
+>>>>>>> aamgayle/defaultbackendservice
 	}
 }

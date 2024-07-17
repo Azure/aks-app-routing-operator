@@ -3,6 +3,7 @@ package manifests
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -241,7 +242,9 @@ func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
 	}
 
 	if os.Getenv(genFixturesEnv) != "" {
-		err := os.WriteFile(fixturePath, actual, 0o644)
+		err := os.MkdirAll(filepath.Dir(fixturePath), 0o755)
+		require.NoError(t, err)
+		err = os.WriteFile(fixturePath, actual, 0o644)
 		require.NoError(t, err)
 	}
 
