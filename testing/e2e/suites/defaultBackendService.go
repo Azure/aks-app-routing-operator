@@ -62,7 +62,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 				return fmt.Errorf("creating client: %w", err)
 			}
 
-			ingressClassName := "nginxingressclass"
+			ingressClassName := "dbeingressclass"
 			nic := &v1alpha1.NginxIngressController{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "NginxIngressController",
