@@ -31,6 +31,7 @@ var (
 	invalidUrlPath  = "/fakehost"
 	liveServicePath = "/live"
 	deadServicePath = "/dead"
+	notFoundPath = "/notfound"
 )
 
 type ClientServerResources struct {
@@ -225,15 +226,15 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 	errorsClientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
 			Name:  "LIVE",
-			Value: "https://" + host + "/live",
+			Value: "https://" + host + liveServicePath,
 		},
 		{
 			Name:  "DEAD",
-			Value: "https://" + host + "/dead",
+			Value: "https://" + host + deadServicePath,
 		},
 		{
 			Name:  "NOT_FOUND",
-			Value: "https://" + host + "/notfound",
+			Value: "https://" + host + notFoundPath,
 		},
 		{
 			Name:  "NAMESERVER",
