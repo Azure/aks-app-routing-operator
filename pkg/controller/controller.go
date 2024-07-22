@@ -39,9 +39,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
-var (
-	scheme = runtime.NewScheme()
-)
+var scheme = runtime.NewScheme()
 
 const (
 	nicIngressClassIndex = "spec.ingressClassName"
@@ -99,16 +97,19 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 	setupLog := m.GetLogger().WithName("setup")
 	if err := setupProbes(conf, m, setupLog); err != nil {
+		setupLog.Error(err, "failed to set up probes")
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
 
 	// create non-caching clients, non-caching for use before manager has started
 	cl, err := client.New(rc, client.Options{Scheme: scheme})
 	if err != nil {
+		setupLog.Error(err, "unable to create non-caching client")
 		return nil, fmt.Errorf("creating non-caching client: %w", err)
 	}
 
 	if err := loadCRDs(cl, conf, setupLog); err != nil {
+		setupLog.Error(err, "failed to load CRDs")
 		return nil, fmt.Errorf("loading CRDs: %w", err)
 	}
 
