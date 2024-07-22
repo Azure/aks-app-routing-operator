@@ -17,7 +17,6 @@ var dbeClientContents string
 //go:embed embedded/defaultBackendServer.go
 var dbeServerContents string
 
-<<<<<<< HEAD
 //go:embed embedded/customErrorsClient.go
 var ceClientContents string
 
@@ -27,8 +26,13 @@ var NotFoundContents string
 //go:embed embedded/503.html
 var UnavailableContents string
 
-=======
->>>>>>> aamgayle/defaultbackendservice
+var (
+	validUrlPath    = "/test"
+	invalidUrlPath  = "/fakehost"
+	liveServicePath = "/live"
+	deadServicePath = "/dead"
+)
+
 type ClientServerResources struct {
 	Client       *appsv1.Deployment
 	Server       *appsv1.Deployment
@@ -54,15 +58,7 @@ func (t ClientServerResources) Objects() []client.Object {
 	return ret
 }
 
-<<<<<<< HEAD
-func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
-	name = nonAlphanumericRegex.ReplaceAllString(name, "")
-=======
 func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
-	validUrlPath := "/test"
-	invalidUrlPath := "/fakehost"
->>>>>>> aamgayle/defaultbackendservice
-
 	// Client deployment
 	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-dbe-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
@@ -216,7 +212,6 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 		AddedObjects: []client.Object{
 			defaultServerDeployment,
 			dbeService,
-<<<<<<< HEAD
 		},
 	}
 }
@@ -467,7 +462,7 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 					HTTP: &netv1.HTTPIngressRuleValue{
 						Paths: []netv1.HTTPIngressPath{
 							{
-								Path:     "/live",
+								Path:     liveServicePath,
 								PathType: to.Ptr(netv1.PathTypePrefix),
 								Backend: netv1.IngressBackend{
 									Service: &netv1.IngressServiceBackend{
@@ -479,11 +474,23 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 								},
 							},
 							{
-								Path:     "/dead",
+								Path:     deadServicePath,
 								PathType: to.Ptr(netv1.PathTypePrefix),
 								Backend: netv1.IngressBackend{
 									Service: &netv1.IngressServiceBackend{
 										Name: "dead-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 8080,
+										},
+									},
+								},
+							},
+							{
+								Path:     validUrlPath,
+								PathType: to.Ptr(netv1.PathTypePrefix),
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: name + "-service",
 										Port: netv1.ServiceBackendPort{
 											Number: 8080,
 										},
@@ -518,8 +525,5 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 			liveServicePod,
 			customErrorPagesConfigMap,
 		},
-=======
-		},
->>>>>>> aamgayle/defaultbackendservice
 	}
 }
