@@ -378,6 +378,10 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		deploymentArgs = append(deploymentArgs, "--default-ssl-certificate="+ingressConfig.DefaultSSLCertificate)
 	}
 
+	if ingressConfig.DefaultBackendService != "" {
+		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
+	}
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
