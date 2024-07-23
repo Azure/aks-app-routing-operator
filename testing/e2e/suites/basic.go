@@ -111,11 +111,11 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zoners, err := toZoners(ctx, c, namespaces, infra.Zones[0])
+		zs, err := toZoners(ctx, c, namespaces, infra.Zones[0])
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
-		zoners = append(zoners, zoners...)
+		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
 			zs, err := toZoners(ctx, c, namespaces, z)
@@ -128,11 +128,11 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zoners, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zs, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
-		zoners = append(zoners, zoners...)
+		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
 			zs, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
