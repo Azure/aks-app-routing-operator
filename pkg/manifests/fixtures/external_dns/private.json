@@ -159,12 +159,13 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "/oss/kubernetes/external-dns:v0.11.0.2",
+                "image": "/oss/kubernetes/external-dns:v0.13.5-5",
                 "args": [
                   "--provider=azure-private-dns",
                   "--source=ingress",
                   "--interval=3m0s",
                   "--txt-owner-id=test-cluster-uid",
+                  "--txt-wildcard-replacement=approutingwildcard",
                   "--domain-filter=test-three.com",
                   "--domain-filter=test-four.com"
                 ],
@@ -208,6 +209,19 @@
                   "periodSeconds": 5,
                   "successThreshold": 1,
                   "failureThreshold": 3
+                },
+                "securityContext": {
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "privileged": false,
+                  "runAsUser": 65532,
+                  "runAsGroup": 65532,
+                  "runAsNonRoot": true,
+                  "readOnlyRootFilesystem": true,
+                  "allowPrivilegeEscalation": false
                 }
               }
             ],
