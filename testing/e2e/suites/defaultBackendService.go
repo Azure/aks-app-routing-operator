@@ -24,22 +24,23 @@ import (
 )
 
 var (
-	dbeScheme              = runtime.NewScheme()
-	dbeBasicNS             = make(map[string]*corev1.Namespace)
+	dbScheme               = runtime.NewScheme()
+	dbBasicNS              = make(map[string]*corev1.Namespace)
+	ceBasicNS              = make(map[string]*corev1.Namespace)
 	nonAlphaNumHyphenRegex = regexp.MustCompile(`[^a-zA-Z0-9- ]+`)
 	trailingHyphenRegex    = regexp.MustCompile(`^-+|-+$`)
 )
 
 func init() {
-	netv1.AddToScheme(dbeScheme)
-	v1alpha1.AddToScheme(dbeScheme)
-	batchv1.AddToScheme(dbeScheme)
-	corev1.AddToScheme(dbeScheme)
-	metav1.AddMetaToScheme(dbeScheme)
-	appsv1.AddToScheme(dbeScheme)
-	policyv1.AddToScheme(dbeScheme)
-	rbacv1.AddToScheme(dbeScheme)
-	secv1.AddToScheme(dbeScheme)
+	netv1.AddToScheme(dbScheme)
+	v1alpha1.AddToScheme(dbScheme)
+	batchv1.AddToScheme(dbScheme)
+	corev1.AddToScheme(dbScheme)
+	metav1.AddMetaToScheme(dbScheme)
+	appsv1.AddToScheme(dbScheme)
+	policyv1.AddToScheme(dbScheme)
+	rbacv1.AddToScheme(dbScheme)
+	secv1.AddToScheme(dbScheme)
 }
 
 func defaultBackendTests(in infra.Provisioned) []test {
@@ -56,20 +57,20 @@ func defaultBackendTests(in infra.Provisioned) []test {
 				lgr.Info("starting test")
 
 				c, err := client.New(config, client.Options{
-					Scheme: dbeScheme,
+					Scheme: dbScheme,
 				})
 				if err != nil {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
-				ingressClassName := "dbeingressclass"
+				ingressClassName := "dbingressclass"
 				nic := &v1alpha1.NginxIngressController{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "NginxIngressController",
 						APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "default-nginxingress",
+						Name: "db-nginxingress",
 						Annotations: map[string]string{
 							manifests.ManagedByKey: manifests.ManagedByVal,
 						},
@@ -97,7 +98,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("no service available in resource refs")
 				}
 
-				if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+				if err := defaultBackendClientServerTest(ctx, config, operator, dbBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
 					return err
 				}
 
@@ -117,7 +118,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 				lgr.Info("starting custom errors test")
 
 				c, err := client.New(config, client.Options{
-					Scheme: dbeScheme,
+					Scheme: dbScheme,
 				})
 				if err != nil {
 					return fmt.Errorf("creating client: %w", err)
@@ -131,7 +132,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 							APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name: "nginxingress",
+							Name: "ce-nginxingress",
 							Annotations: map[string]string{
 								manifests.ManagedByKey: manifests.ManagedByVal,
 							},
@@ -159,7 +160,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("no service available in resource refs")
 				}
 
-				if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+				if err := defaultBackendClientServerTest(ctx, config, operator, ceBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
 					return err
 				}
 

@@ -12,10 +12,10 @@ import (
 )
 
 //go:embed embedded/defaultBackendClient.go
-var dbeClientContents string
+var dbClientContents string
 
 //go:embed embedded/defaultBackendServer.go
-var dbeServerContents string
+var dbServerContents string
 
 //go:embed embedded/customErrorsClient.go
 var ceClientContents string
@@ -31,7 +31,7 @@ var (
 	invalidUrlPath  = "/fakehost"
 	liveServicePath = "/live"
 	deadServicePath = "/dead"
-	notFoundPath = "/notfound"
+	notFoundPath    = "/notfound"
 )
 
 type ClientServerResources struct {
@@ -61,7 +61,7 @@ func (t ClientServerResources) Objects() []client.Object {
 
 func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
 	// Client deployment
-	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-dbe-client")
+	clientDeployment := newGoDeployment(dbClientContents, namespace, name+"-db-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
@@ -97,8 +97,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 	}
 
 	// Main server deployment
-	serverName := name + "-server"
-	serviceName := name + "-service"
+	serverName := name + "dbtest-server"
+	serviceName := name + "dbtest-service"
 
 	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	ingressName := name + "-ingress"
@@ -132,8 +132,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 	defaultServerName := "default-" + name + "-server"
 	defaultServiceName := "default-" + name + "-service"
 
-	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
-	dbeService :=
+	defaultServerDeployment := newGoDeployment(dbServerContents, namespace, defaultServerName)
+	dbService :=
 		&corev1.Service{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Service",
@@ -212,7 +212,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 		Service: service,
 		AddedObjects: []client.Object{
 			defaultServerDeployment,
-			dbeService,
+			dbService,
 		},
 	}
 }
@@ -486,18 +486,18 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 									},
 								},
 							},
-							{
-								Path:     validUrlPath,
-								PathType: to.Ptr(netv1.PathTypePrefix),
-								Backend: netv1.IngressBackend{
-									Service: &netv1.IngressServiceBackend{
-										Name: name + "-service",
-										Port: netv1.ServiceBackendPort{
-											Number: 8080,
-										},
-									},
-								},
-							},
+							//{
+							//	Path:     validUrlPath,
+							//	PathType: to.Ptr(netv1.PathTypePrefix),
+							//	Backend: netv1.IngressBackend{
+							//		Service: &netv1.IngressServiceBackend{
+							//			Name: name + "-service",
+							//			Port: netv1.ServiceBackendPort{
+							//				Number: 8080,
+							//			},
+							//		},
+							//	},
+							//},
 						},
 					},
 				},
