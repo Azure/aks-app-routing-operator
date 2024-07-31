@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1-patch-3] - 2024-07-31
+
+### Changed
+
+- bumped ExternalDNS version to 0.13.5 - [link](https://github.com/Azure/aks-app-routing-operator/commit/739dda16134ca65d44d3d438352e9e9dbab1cc89)
+
 ## [0.2.3-patch-1] - 2024-07-10
 
 ### Fixed 
