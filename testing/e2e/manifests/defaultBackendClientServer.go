@@ -486,18 +486,6 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 									},
 								},
 							},
-							//{
-							//	Path:     validUrlPath,
-							//	PathType: to.Ptr(netv1.PathTypePrefix),
-							//	Backend: netv1.IngressBackend{
-							//		Service: &netv1.IngressServiceBackend{
-							//			Name: name + "-service",
-							//			Port: netv1.ServiceBackendPort{
-							//				Number: 8080,
-							//			},
-							//		},
-							//	},
-							//},
 						},
 					},
 				},
