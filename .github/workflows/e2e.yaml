@@ -68,7 +68,6 @@ jobs:
     
     - if: ${{ !(needs.test.conclusion == 'success')}}
       run: |
-        echo "job status: ${{ needs.test.conclusion }}"
         exit 1 # will make status show as failure
 
     - if: always()
