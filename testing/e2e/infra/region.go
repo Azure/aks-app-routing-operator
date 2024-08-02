@@ -2,7 +2,7 @@ package infra
 
 import "math/rand"
 
-var regions = []string{"North Central US", "South Central US", "East US", "East US 2", "West US", "West US 2", "West US 3"}
+var regions = []string{"North Central US", "South Central US", "East US 2", "West US", "West US 2", "West US 3"}
 
 // getLocation returns a location that should be used for the test infrastructure
 func getLocation() string {
