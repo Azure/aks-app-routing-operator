@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -582,16 +583,12 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		nginxIng.DefaultBackendService = nic.Spec.DefaultBackendService.Namespace + "/" + nic.Spec.DefaultBackendService.Name
 	}
 
-	if nic.Spec.CustomHTTPErrors != nil || len(nic.Spec.CustomHTTPErrors) != 0 {
-		errStr := ""
-		for i, errCode := range nic.Spec.CustomHTTPErrors {
-			errStr += strconv.Itoa(errCode)
-			if i+1 < len(nic.Spec.CustomHTTPErrors) {
-				errStr += ","
-			}
+	if len(nic.Spec.CustomHTTPErrors) > 0 {
+		errAsStr := make([]string, len(nic.Spec.CustomHTTPErrors))
+		for _, errCode := range nic.Spec.CustomHTTPErrors {
+			errAsStr = append(errAsStr, strconv.Itoa(errCode))
 		}
-
-		nginxIng.CustomHTTPErrors = errStr
+		nginxIng.CustomHTTPErrors = strings.Join(errAsStr, ",")
 	}
 
 	return nginxIng

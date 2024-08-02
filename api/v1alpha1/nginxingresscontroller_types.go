@@ -61,7 +61,7 @@ type NginxIngressControllerSpec struct {
 	// +optional
 	DefaultBackendService *NICNamespacedName `json:"defaultBackendService,omitempty"`
 
-	// CustomHTTPErrors
+	// CustomHTTPErrors defines the error codes that the NginxIngressController should send to its default-backend in case of error.
 	// +optional
 	CustomHTTPErrors []int `json:"customHTTPErrors,omitempty"`
 

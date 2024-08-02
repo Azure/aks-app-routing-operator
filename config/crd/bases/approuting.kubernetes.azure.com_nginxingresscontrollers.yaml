@@ -62,7 +62,8 @@ spec:
                 - message: Value is immutable
                   rule: self == oldSelf
               customHTTPErrors:
-                description: CustomHTTPErrors
+                description: CustomHTTPErrors defines the error codes that the NginxIngressController
+                  should send to its default-backend in case of error.
                 items:
                   type: integer
                 type: array
