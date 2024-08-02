@@ -66,7 +66,7 @@ jobs:
       with:
         ref: ${{ inputs.checkout_ref }}
     
-    - if: ${{ !(needs.test.conclusion == 'success')}}
+    - if: ${{ !(needs.test.status == 'success')}}
       run: |
         exit 1 # will make status show as failure
 
