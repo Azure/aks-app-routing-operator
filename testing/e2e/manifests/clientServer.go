@@ -21,20 +21,23 @@ var serverContents string
 
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
-type testingResources struct {
-	Client  *appsv1.Deployment
-	Server  *appsv1.Deployment
-	Service *corev1.Service
-	Ingress *netv1.Ingress
+type ClientServerResources struct {
+	Client       *appsv1.Deployment
+	Server       *appsv1.Deployment
+	Ingress      *netv1.Ingress
+	Service      *corev1.Service
+	AddedObjects []client.Object
 }
 
-func (t testingResources) Objects() []client.Object {
+func (t ClientServerResources) Objects() []client.Object {
 	ret := []client.Object{
 		t.Client,
 		t.Server,
 		t.Service,
 		t.Ingress,
 	}
+
+	ret = append(ret, t.AddedObjects...)
 
 	for _, obj := range ret {
 		setGroupKindVersion(obj)
@@ -43,7 +46,7 @@ func (t testingResources) Objects() []client.Object {
 	return ret
 }
 
-func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) testingResources {
+func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 	clientDeployment := newGoDeployment(clientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
@@ -152,7 +155,7 @@ func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost str
 		delete(ingress.Annotations, "kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
-	return testingResources{
+	return ClientServerResources{
 		Client:  clientDeployment,
 		Server:  serverDeployment,
 		Service: service,

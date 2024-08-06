@@ -65,6 +65,7 @@ spec:
                 description: CustomHTTPErrors defines the error codes that the NginxIngressController
                   should send to its default-backend in case of error.
                 items:
+                  format: int32
                   type: integer
                 type: array
               defaultBackendService:
