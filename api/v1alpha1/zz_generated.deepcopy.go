@@ -143,6 +143,11 @@ func (in *NginxIngressControllerSpec) DeepCopyInto(out *NginxIngressControllerSp
 		*out = new(NICNamespacedName)
 		**out = **in
 	}
+	if in.CustomHTTPErrors != nil {
+		in, out := &in.CustomHTTPErrors, &out.CustomHTTPErrors
+		*out = make([]int32, len(*in))
+		copy(*out, *in)
+	}
 	if in.Scaling != nil {
 		in, out := &in.Scaling, &out.Scaling
 		*out = new(Scaling)
