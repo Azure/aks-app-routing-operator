@@ -29,18 +29,14 @@ const (
 	txtWildcardReplacement  = "approutingwildcard"
 )
 
-var (
-	// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
-	// If the manifests used by app routing's external dns removes a GroupKind be sure to add
-	// it here to clean it up
-	OldExternalDnsGks []schema.GroupKind
-)
+// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
+// If the manifests used by app routing's external dns removes a GroupKind be sure to add
+// it here to clean it up
+var OldExternalDnsGks []schema.GroupKind
 
 type Provider int
 
-var (
-	Providers = []Provider{PublicProvider, PrivateProvider}
-)
+var Providers = []Provider{PublicProvider, PrivateProvider}
 
 const (
 	PublicProvider Provider = iota
@@ -118,6 +114,12 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
+	workloadIdentitityLabels := map[string]string{"azure.workload.identity/use": "false"}
+	workloadIdentityAnnotations := map[string]string{"azure.workload.identity/client-id": ""}
+
+	// TODO: check externaldns version
+	conf.UseWorkloadIdentity
+
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -185,14 +187,18 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
+	useWorkloadIdentity := conf.UseWorkloadIdentity
+	useManagedIdentity := !useWorkloadIdentity
+
 	js, err := json.Marshal(&map[string]interface{}{
-		"tenantId":                    externalDnsConfig.TenantId,
-		"subscriptionId":              externalDnsConfig.Subscription,
-		"resourceGroup":               externalDnsConfig.ResourceGroup,
-		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": true,
-		"cloud":                       conf.Cloud,
-		"location":                    conf.Location,
+		"tenantId":                     externalDnsConfig.TenantId,
+		"subscriptionId":               externalDnsConfig.Subscription,
+		"resourceGroup":                externalDnsConfig.ResourceGroup,
+		"userAssignedIdentityID":       conf.MSIClientID,
+		"useManagedIdentityExtension":  useManagedIdentity,
+		"useWorkloadIdentityExtension": useWorkloadIdentity,
+		"cloud":                        conf.Cloud,
+		"location":                     conf.Location,
 	})
 	if err != nil {
 		panic(err)

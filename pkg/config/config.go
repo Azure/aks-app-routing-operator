@@ -22,8 +22,10 @@ const (
 	defaultDnsSyncInterval = 3 * time.Minute
 )
 
-var Flags = &Config{}
-var dnsZonesString string
+var (
+	Flags          = &Config{}
+	dnsZonesString string
+)
 
 func init() {
 	flag.Var(&Flags.DefaultController, "default-controller", "kind of default controller to use. should be one of 'standard', 'public', 'private', or 'off'.")
@@ -31,6 +33,7 @@ func init() {
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
+	flag.BoolVar(&Flags.UseWorkloadIdentity, "workload-identity", false, "enable workload identity")
 	flag.StringVar(&Flags.Cloud, "cloud", "AzurePublicCloud", "azure cloud name")
 	flag.StringVar(&Flags.Location, "location", "", "azure region name")
 	flag.StringVar(&dnsZonesString, "dns-zone-ids", "", "dns zone resource IDs")

@@ -67,6 +67,7 @@ type Config struct {
 	NS, Registry                        string
 	DisableKeyvault                     bool
 	MSIClientID, TenantID               string
+	UseWorkloadIdentity                 bool
 	Cloud, Location                     string
 	PrivateZoneConfig, PublicZoneConfig DnsZoneConfig
 	ConcurrencyWatchdogThres            float64
