@@ -141,7 +141,7 @@ spec:
         - --txt-wildcard-replacement=approutingwildcard
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
-        image: /oss/kubernetes/external-dns:v0.13.5-5
+        image: /oss/kubernetes/external-dns:v0.14.2
         livenessProbe:
           failureThreshold: 3
           httpGet:
