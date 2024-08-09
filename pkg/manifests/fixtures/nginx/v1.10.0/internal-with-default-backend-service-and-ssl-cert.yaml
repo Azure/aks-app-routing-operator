@@ -407,6 +407,7 @@ apiVersion: v1
 data:
   allow-snippet-annotations: "true"
   annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'
+  force-ssl-redirect: "true"
 kind: ConfigMap
 metadata:
   creationTimestamp: null
