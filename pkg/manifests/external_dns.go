@@ -29,18 +29,14 @@ const (
 	txtWildcardReplacement  = "approutingwildcard"
 )
 
-var (
-	// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
-	// If the manifests used by app routing's external dns removes a GroupKind be sure to add
-	// it here to clean it up
-	OldExternalDnsGks []schema.GroupKind
-)
+// OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
+// If the manifests used by app routing's external dns removes a GroupKind be sure to add
+// it here to clean it up
+var OldExternalDnsGks []schema.GroupKind
 
 type Provider int
 
-var (
-	Providers = []Provider{PublicProvider, PrivateProvider}
-)
+var Providers = []Provider{PublicProvider, PrivateProvider}
 
 const (
 	PublicProvider Provider = iota
@@ -251,7 +247,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: externalDnsConfig.Provider.ResourceName(),
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.13.5-5"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",
