@@ -140,7 +140,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 						Spec: v1alpha1.NginxIngressControllerSpec{
 							IngressClassName:     ingressClassName,
 							ControllerNamePrefix: "nginx-custom-errors",
-							CustomHTTPErrors:     []int{404, 503},
+							CustomHTTPErrors:     []int32{404, 503},
 						},
 					}
 				if err := upsert(ctx, c, nic); err != nil {
