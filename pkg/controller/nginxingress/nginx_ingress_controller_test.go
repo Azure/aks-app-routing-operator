@@ -892,7 +892,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
 
 	FakeDefaultBackend := approutingv1alpha1.NICNamespacedName{"fakename", "fakenamespace"}
-	FakeCustomErrors := []int{404, 503}
+	FakeCustomErrors := []int32{404, 503}
 
 	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
