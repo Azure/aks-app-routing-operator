@@ -69,7 +69,7 @@ jobs:
       # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
       # it would be preferable to check the inverse of the if below by comparing solely to 'success' but there's no way to do that with a wildcard and the current
       # set of GitHub workflow functions
-    - if: ${{ contains(needs.*.conclusion, 'failure') || contains(needs.*.conclusion, 'cancelled') || contains(needs.*.conclusion, 'skipped') }}
+    - if: ${{ contains(needs.test.conclusion, 'failure') || contains(needs.test.conclusion, 'cancelled') || contains(needs.test.conclusion, 'skipped') }}
       run: exit 1 # will make status show as failure
 
     - if: always()
