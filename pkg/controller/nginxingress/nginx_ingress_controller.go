@@ -582,7 +582,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		nginxIng.DefaultBackendService = nic.Spec.DefaultBackendService.Namespace + "/" + nic.Spec.DefaultBackendService.Name
 	}
 
-	if nic.Spec.CustomHTTPErrors != nil || len(nic.Spec.CustomHTTPErrors) != 0 {
+	if len(nic.Spec.CustomHTTPErrors) != 0 {
 		errStr := ""
 		for i, errCode := range nic.Spec.CustomHTTPErrors {
 			errStr += strconv.Itoa(int(errCode))

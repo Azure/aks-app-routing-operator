@@ -15,10 +15,10 @@ import (
 var ceClientContents string
 
 //go:embed embedded/404.html
-var NotFoundContents string
+var notFoundContents string
 
 //go:embed embedded/503.html
-var UnavailableContents string
+var unavailableContents string
 
 func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, ingressClassName string, serviceName *string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
@@ -216,8 +216,8 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 				Namespace: namespace,
 			},
 			Data: map[string]string{
-				"404": NotFoundContents,
-				"503": UnavailableContents,
+				"404": notFoundContents,
+				"503": unavailableContents,
 			},
 		}
 
