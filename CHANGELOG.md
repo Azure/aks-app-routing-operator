@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-patch-2] - 2024-08-17
+
+### Changed
+
+- bumped ingress-nginx version to 1.11.2 - [link](https://github.com/Azure/aks-app-routing-operator/pull/272)
+
+## [0.2.1-patch-4] - 2024-08-17
+
+### Changed
+
+- bumped ingress-nginx version to 1.11.2 - [link](https://github.com/Azure/aks-app-routing-operator/pull/271)
+
 ## [0.2.1-patch-3] - 2024-07-31
 
 ### Changed

@@ -257,7 +257,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: externalDnsConfig.Provider.ResourceName(),
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.13.5-5"),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.Provider.String(),
 							"--source=ingress",

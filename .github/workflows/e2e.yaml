@@ -65,10 +65,17 @@ jobs:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         ref: ${{ inputs.checkout_ref }}
-    
-    - if: ${{ !(needs.test.status == 'success')}}
-      run: |
-        exit 1 # will make status show as failure
+
+      # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
+      # it would be preferable to check the inverse of the if below by comparing solely to 'success' but there's no way to do that with a wildcard and the current
+      # set of GitHub workflow functions
+    - if: >-
+        ${{
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        }}
+      run: exit 1 # will make status show as failure
 
     - if: always()
       uses: ./.github/actions/end-status
