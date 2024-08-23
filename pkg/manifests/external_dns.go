@@ -114,11 +114,16 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
-	workloadIdentitityLabels := map[string]string{"azure.workload.identity/use": "false"}
-	workloadIdentityAnnotations := map[string]string{"azure.workload.identity/client-id": ""}
+	useWorkloadIdentityStr := "false"
+	workloadIdentityClientId := ""
 
-	// TODO: check externaldns version
-	conf.UseWorkloadIdentity
+	if conf.UseWorkloadIdentity {
+		useWorkloadIdentityStr = "true"
+		workloadIdentityClientId = conf.MSIClientID
+	}
+
+	workloadIdentityLabels := map[string]string{"azure.workload.identity/use": useWorkloadIdentityStr}
+	workloadIdentityAnnotations := map[string]string{"azure.workload.identity/client-id": workloadIdentityClientId}
 
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -126,9 +131,10 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDnsConfig.Provider.ResourceName(),
-			Namespace: conf.NS,
-			Labels:    GetTopLevelLabels(),
+			Name:        externalDnsConfig.Provider.ResourceName(),
+			Namespace:   conf.NS,
+			Labels:      util.MergeMaps(GetTopLevelLabels(), workloadIdentityLabels),
+			Annotations: workloadIdentityAnnotations,
 		},
 	}
 }
@@ -231,9 +237,15 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		domainFilters = append(domainFilters, fmt.Sprintf("--domain-filter=%s", parsedZone.ResourceName))
 	}
 
+	useWorkloadIdentityStr := "false"
+	if conf.UseWorkloadIdentity {
+		useWorkloadIdentityStr = "true"
+	}
+
 	podLabels := GetTopLevelLabels()
 	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
+	podLabels["azure.workload.identity/use"] = useWorkloadIdentityStr
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
