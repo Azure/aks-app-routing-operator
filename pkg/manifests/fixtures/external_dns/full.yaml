@@ -11,10 +11,13 @@ status: {}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  annotations:
+    azure.workload.identity/client-id: ""
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns
+    azure.workload.identity/use: "false"
   name: external-dns
   namespace: test-namespace
 ---
@@ -75,7 +78,7 @@ subjects:
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":""}'
+  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"useWorkloadIdentityExtension":false,"userAssignedIdentityID":""}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
@@ -107,7 +110,8 @@ spec:
       labels:
         app: external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: 6fc415798cf89a5f
+        azure.workload.identity/use: "false"
+        checksum/configmap: 40a9e78ca5ce61e7
     spec:
       affinity:
         nodeAffinity:
@@ -198,10 +202,13 @@ status: {}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  annotations:
+    azure.workload.identity/client-id: ""
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns-private
+    azure.workload.identity/use: "false"
   name: external-dns-private
   namespace: test-namespace
 ---
@@ -262,7 +269,7 @@ subjects:
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":""}'
+  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"useWorkloadIdentityExtension":false,"userAssignedIdentityID":""}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
@@ -294,7 +301,8 @@ spec:
       labels:
         app: external-dns-private
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: 620b97bffe28961e
+        azure.workload.identity/use: "false"
+        checksum/configmap: 11a4e61a9163f992
     spec:
       affinity:
         nodeAffinity:
