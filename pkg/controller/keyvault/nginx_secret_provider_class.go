@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,9 +23,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-var (
-	nginxSecretProviderControllerName = controllername.New("keyvault", "nginx", "secret", "provider")
-)
+var nginxSecretProviderControllerName = controllername.New("keyvault", "nginx", "secret", "provider")
 
 // NginxSecretProviderClassReconciler manages a SecretProviderClass for each nginx ingress controller that
 // has a Keyvault URI in its DefaultSSLCertificate field. The SPC is used to mirror the Keyvault values into
@@ -57,10 +56,10 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 
 	// do metrics
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(nginxSecretProviderControllerName, result, err)
 	}()
 
@@ -99,7 +98,6 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	logger = logger.WithValues("spc", spc.Name)
 	logger.Info("building spc and upserting if managed with labels")
 	upsertSPC, err := buildSPC(nic, spc, i.config)
-
 	if err != nil {
 		var userErr userError
 		if errors.As(err, &userErr) {
@@ -113,6 +111,12 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	}
 
 	if upsertSPC {
+		if err = ensureSA(ctx, i.config, i.client, logger); err != nil {
+			err = fmt.Errorf("ensuring service account: %w", err)
+			i.events.Eventf(nic, "Warning", "FailedUpdateOrCreateSA", "error while creating or updating ServiceAccount needed to pull KeyVault reference: %s", err.Error())
+			return result, err
+		}
+
 		logger.Info("reconciling secret provider class for ingress")
 		err = util.Upsert(ctx, i.client, spc)
 		if err != nil {

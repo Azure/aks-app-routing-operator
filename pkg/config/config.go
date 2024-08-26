@@ -33,7 +33,7 @@ func init() {
 	flag.StringVar(&Flags.Registry, "registry", "mcr.microsoft.com", "container image registry to use for managed components")
 	flag.StringVar(&Flags.MSIClientID, "msi", "", "client ID of the MSI to use when accessing Azure resources")
 	flag.StringVar(&Flags.TenantID, "tenant-id", "", "AAD tenant ID to use when accessing Azure resources")
-	flag.BoolVar(&Flags.UseWorkloadIdentity, "workload-identity", false, "enable workload identity")
+	flag.BoolVar(&Flags.UseWorkloadIdentity, "workload-identity", false, "enable workload identity. The msi field will be used as the workload identity clientId. The identity must be federated to service accounts external-dns, external-dns-private, and secret-provider in the app routing namespace.")
 	flag.StringVar(&Flags.Cloud, "cloud", "AzurePublicCloud", "azure cloud name")
 	flag.StringVar(&Flags.Location, "location", "", "azure region name")
 	flag.StringVar(&dnsZonesString, "dns-zone-ids", "", "dns zone resource IDs")
