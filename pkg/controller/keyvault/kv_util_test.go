@@ -1,18 +1,24 @@
 package keyvault
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/url"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-	"testing"
 )
 
 var (
@@ -38,7 +44,8 @@ var (
 			IngressClassName: spcTestNginxIngressClassName,
 			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
 				Secret:      nil,
-				KeyVaultURI: &spcTestKeyVaultURI},
+				KeyVaultURI: &spcTestKeyVaultURI,
+			},
 		},
 	}
 
@@ -47,7 +54,6 @@ var (
 )
 
 func TestDefaultNginxCertName(t *testing.T) {
-
 	testStr := DefaultNginxCertName(&v1alpha1.NginxIngressController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testName,
@@ -215,4 +221,41 @@ func TestUserErrors(t *testing.T) {
 
 	assert.True(t, testError.UserError() == testMsg)
 	assert.True(t, errors.As(testError, &userErr))
+}
+
+func TestEnsureSA(t *testing.T) {
+	ctx := context.Background()
+	cl := fake.NewClientBuilder().Build()
+	logger := logr.Discard()
+	configNs := "app-routing-system"
+	msiClientId := "msiClientId"
+
+	// prove no upserts without workload identity enabled
+	require.NoError(t, ensureSA(ctx, &config.Config{
+		UseWorkloadIdentity: false,
+		NS:                  configNs,
+	}, cl, logger))
+	sas := corev1.ServiceAccountList{}
+	require.NoError(t, cl.List(ctx, &sas, client.InNamespace(configNs)))
+	require.Equal(t, 0, len(sas.Items), "expected no service accounts to be found")
+
+	// prove service account is created if workload identity is enabled
+	testFn := func() {
+		require.NoError(t, ensureSA(ctx, &config.Config{
+			UseWorkloadIdentity: true,
+			NS:                  configNs,
+			MSIClientID:         msiClientId,
+		}, cl, logger))
+		require.NoError(t, cl.List(ctx, &sas, client.InNamespace(configNs)))
+		require.Equal(t, 1, len(sas.Items), "expected one service account to be created")
+		sa := sas.Items[0]
+		require.Equal(t, "secret-provider", sa.GetName())
+		require.Equal(t, map[string]string{
+			"azure.workload.identity/client-id": msiClientId,
+		}, sa.GetAnnotations())
+	}
+	testFn()
+
+	// prove idempotence
+	testFn()
 }

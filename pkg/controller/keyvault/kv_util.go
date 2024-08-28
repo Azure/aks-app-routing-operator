@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	"github.com/go-logr/logr"
-	"github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,6 +75,15 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		return false, err
 	}
 
+	useVMManagedIdentityStr := "true"
+	assignedIdStr := config.MSIClientID
+	clientIdStr := ""
+	if config.UseWorkloadIdentity {
+		useVMManagedIdentityStr = "false"
+		assignedIdStr = ""
+		clientIdStr = config.MSIClientID
+	}
+
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
@@ -95,8 +103,9 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
 		Parameters: map[string]string{
 			"keyvaultName":           vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": config.MSIClientID,
+			"useVMManagedIdentity":   useVMManagedIdentityStr,
+			"userAssignedIdentityID": assignedIdStr,
+			"clientID":               clientIdStr,
 			"tenantId":               config.TenantID,
 			"objects":                string(objects),
 		},
@@ -109,7 +118,7 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 	return true, nil
 }
 
-func ensureSA(ctx context.Context, conf *config.Config, cl client.Client, logger logr.Logger) error {
+func ensureSA(ctx context.Context, conf *config.Config, cl client.Client, log logr.Logger) error {
 	if !conf.UseWorkloadIdentity {
 		log.Info("not using workload identity, service account not needed")
 		return nil
