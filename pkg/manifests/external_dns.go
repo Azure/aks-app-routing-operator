@@ -114,15 +114,27 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 }
 
 func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
+	useWorkloadIdentityStr := "false"
+	workloadIdentityClientId := ""
+
+	if conf.UseWorkloadIdentity {
+		useWorkloadIdentityStr = "true"
+		workloadIdentityClientId = conf.MSIClientID
+	}
+
+	workloadIdentityLabels := map[string]string{"azure.workload.identity/use": useWorkloadIdentityStr}
+	workloadIdentityAnnotations := map[string]string{"azure.workload.identity/client-id": workloadIdentityClientId}
+
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDnsConfig.Provider.ResourceName(),
-			Namespace: conf.NS,
-			Labels:    GetTopLevelLabels(),
+			Name:        externalDnsConfig.Provider.ResourceName(),
+			Namespace:   conf.NS,
+			Labels:      util.MergeMaps(GetTopLevelLabels(), workloadIdentityLabels),
+			Annotations: workloadIdentityAnnotations,
 		},
 	}
 }
@@ -181,14 +193,18 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
+	useWorkloadIdentity := conf.UseWorkloadIdentity
+	useManagedIdentity := !useWorkloadIdentity
+
 	js, err := json.Marshal(&map[string]interface{}{
-		"tenantId":                    externalDnsConfig.TenantId,
-		"subscriptionId":              externalDnsConfig.Subscription,
-		"resourceGroup":               externalDnsConfig.ResourceGroup,
-		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": true,
-		"cloud":                       conf.Cloud,
-		"location":                    conf.Location,
+		"tenantId":                     externalDnsConfig.TenantId,
+		"subscriptionId":               externalDnsConfig.Subscription,
+		"resourceGroup":                externalDnsConfig.ResourceGroup,
+		"userAssignedIdentityID":       conf.MSIClientID,
+		"useManagedIdentityExtension":  useManagedIdentity,
+		"useWorkloadIdentityExtension": useWorkloadIdentity,
+		"cloud":                        conf.Cloud,
+		"location":                     conf.Location,
 	})
 	if err != nil {
 		panic(err)
@@ -221,9 +237,15 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		domainFilters = append(domainFilters, fmt.Sprintf("--domain-filter=%s", parsedZone.ResourceName))
 	}
 
+	useWorkloadIdentityStr := "false"
+	if conf.UseWorkloadIdentity {
+		useWorkloadIdentityStr = "true"
+	}
+
 	podLabels := GetTopLevelLabels()
 	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
+	podLabels["azure.workload.identity/use"] = useWorkloadIdentityStr
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{

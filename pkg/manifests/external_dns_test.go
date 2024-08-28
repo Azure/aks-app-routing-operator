@@ -56,6 +56,17 @@ var (
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
+			Name: "full-workload-identity",
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3, UseWorkloadIdentity: true, MSIClientID: "msi-client-id"},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
+		},
+		{
 			Name:       "no-ownership",
 			Conf:       &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},

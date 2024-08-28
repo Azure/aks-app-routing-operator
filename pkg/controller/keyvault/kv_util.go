@@ -1,6 +1,7 @@
 package keyvault
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -8,8 +9,13 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -69,6 +75,15 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		return false, err
 	}
 
+	useVMManagedIdentityStr := "true"
+	assignedIdStr := config.MSIClientID
+	clientIdStr := ""
+	if config.UseWorkloadIdentity {
+		useVMManagedIdentityStr = "false"
+		assignedIdStr = ""
+		clientIdStr = config.MSIClientID
+	}
+
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
@@ -88,8 +103,9 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
 		Parameters: map[string]string{
 			"keyvaultName":           vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": config.MSIClientID,
+			"useVMManagedIdentity":   useVMManagedIdentityStr,
+			"userAssignedIdentityID": assignedIdStr,
+			"clientID":               clientIdStr,
 			"tenantId":               config.TenantID,
 			"objects":                string(objects),
 		},
@@ -100,6 +116,34 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 	}
 
 	return true, nil
+}
+
+func ensureSA(ctx context.Context, conf *config.Config, cl client.Client, log logr.Logger) error {
+	if !conf.UseWorkloadIdentity {
+		log.Info("not using workload identity, service account not needed")
+		return nil
+	}
+
+	log.Info("upserting service account")
+	sa := &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "secret-provider",
+			Namespace: conf.NS,
+			Annotations: map[string]string{
+				"azure.workload.identity/client-id": conf.MSIClientID,
+			},
+			Labels: manifests.GetTopLevelLabels(),
+		},
+	}
+	if err := util.Upsert(ctx, cl, sa); err != nil {
+		return fmt.Errorf("upserting service account: %w", err)
+	}
+
+	return nil
 }
 
 // DefaultNginxCertName returns a default name for the nginx certificate name using the IngressClassName from the spec.
