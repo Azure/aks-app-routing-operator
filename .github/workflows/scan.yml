@@ -26,6 +26,7 @@ jobs:
       matrix: ${{ fromJSON(needs.gen-matrix.outputs.matrix) }}
       fail-fast: false
     uses: ./.github/workflows/trivy.yaml
+    name: ${{ matrix.name }} scan
     with:
       name: ${{ matrix.name }}
       operator: ${{ matrix.operator }}
