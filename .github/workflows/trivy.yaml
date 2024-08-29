@@ -3,6 +3,8 @@ name: Trivy
 on:
   workflow_call:
     inputs:
+      name:
+        type: string
       operator:
         type: string
         required: true

@@ -27,6 +27,7 @@ jobs:
       fail-fast: false
     uses: ./.github/workflows/trivy.yaml
     with:
+      name: ${{ matrix.name }}
       operator: ${{ matrix.operator }}
       nginx: ${{ matrix.nginx }}
       externaldns: ${{ matrix.externaldns }}

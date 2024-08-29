@@ -1,11 +1,13 @@
 {
   "include": [
     {
+      "name": "0.2.3-patch-2",
       "operator": "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.3-patch-2",
       "externaldns": "mcr.microsoft.com/oss/kubernetes/external-dns:v0.13.5-5",
       "nginx": "mcr.microsoft.com/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.2"
     },
     {
+      "name": "0.2.1-patch-4",
       "operator": "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.1-patch-4",
       "externaldns": "mcr.microsoft.com/oss/kubernetes/external-dns:v0.13.5-5",
       "nginx": "mcr.microsoft.com/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.2"
