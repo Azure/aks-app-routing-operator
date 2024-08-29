@@ -1,0 +1,51 @@
+name: Trivy
+
+on:
+  workflow_call:
+    inputs:
+      operator:
+        type: string
+        required: true
+      nginx:
+        type: string
+        required: true
+      externaldns:
+        type: string
+        required: true
+
+jobs:
+  operator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+        with:
+          image-ref: ${{ inputs.operator }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+  nginx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+        with:
+          image-ref: ${{ inputs.nginx }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          Sseverity: 'CRITICAL,HIGH,MEDIUM'
+  externaldns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+        with:
+          image-ref: ${{ inputs.externaldns }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          Sseverity: 'CRITICAL,HIGH,MEDIUM'
+
+         
