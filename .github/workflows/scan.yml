@@ -18,7 +18,7 @@ jobs:
       - id: set-matrix
         run: |
           matrix=$(cat active_releases.json | tr '\n' ' ')
-          echo "$matrix" >> "$GITHUB_OUTPUT"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   scan:
     needs: gen-matrix
