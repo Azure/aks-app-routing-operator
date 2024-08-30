@@ -1,0 +1,34 @@
+name: Image Vulnerability Scan
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # daily
+
+permissions:
+    contents: read
+
+jobs:
+  gen-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 #v4.1.1
+      - id: set-matrix
+        run: |
+          matrix=$(cat active_releases.json | tr '\n' ' ')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: gen-matrix
+    strategy:
+      matrix: ${{ fromJSON(needs.gen-matrix.outputs.matrix) }}
+      fail-fast: false
+    uses: ./.github/workflows/trivy.yaml
+    name: ${{ matrix.name }} scan
+    with:
+      name: ${{ matrix.name }}
+      operator: ${{ matrix.operator }}
+      nginx: ${{ matrix.nginx }}
+      externaldns: ${{ matrix.externaldns }}
