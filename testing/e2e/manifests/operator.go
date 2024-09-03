@@ -26,7 +26,7 @@ var (
 	}
 
 	// AllUsedOperatorVersions is a list of all the operator versions used today
-	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_1_Patch_4, OperatorVersion0_2_3_Patch_2, OperatorVersionLatest}
+	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_3_Patch_2, OperatorVersionLatest}
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
 	AllDnsZoneCounts     = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
