@@ -100,10 +100,10 @@ type OperatorConfig struct {
 
 func (o *OperatorConfig) image(latestImage string) string {
 	switch o.Version {
-	case OperatorVersion0_0_3:
-		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.0.3"
-	case OperatorVersion0_2_0:
-		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.0"
+	case OperatorVersion0_2_1_Patch_4:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.1-patch-4"
+	case OperatorVersion0_2_3_Patch_2:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.3-patch-2"
 	case OperatorVersionLatest:
 		return latestImage
 	default:
