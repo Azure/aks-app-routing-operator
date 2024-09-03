@@ -287,13 +287,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 
 	// edit and select relevant manifest config by version
 	switch cfg.Version {
-	case OperatorVersion0_0_3:
-		baseDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
-		baseDeployment.Spec.Template.Spec.Containers[0].LivenessProbe = nil
-		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
-		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
-		baseDeployment.Spec.Template.Spec.Volumes = nil
-		ret = append(ret, baseDeployment)
 	default:
 		ret = append(ret, baseDeployment)
 
