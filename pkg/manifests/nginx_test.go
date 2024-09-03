@@ -213,6 +213,61 @@ var (
 			},
 		},
 		{
+			Name: "internal-with-custom-http-errors",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				CustomHTTPErrors:               "404,503",
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
+			Name: "internal-with-custom-http-errors-cert-and-service",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				CustomHTTPErrors:               "404,503",
+				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
+				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
+				ForceSSLRedirect:               true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
 			Name: "internal-with-default-backend-service-and-ssl-cert",
 			Conf: &config.Config{
 				NS:          "test-namespace",

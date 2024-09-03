@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"net/url"
+	"strconv"
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -579,6 +580,17 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 
 	if nic.Spec.DefaultBackendService != nil && nic.Spec.DefaultBackendService.Name != "" && nic.Spec.DefaultBackendService.Namespace != "" {
 		nginxIng.DefaultBackendService = nic.Spec.DefaultBackendService.Namespace + "/" + nic.Spec.DefaultBackendService.Name
+	}
+
+	if len(nic.Spec.CustomHTTPErrors) != 0 {
+		errStr := ""
+		for i, errCode := range nic.Spec.CustomHTTPErrors {
+			errStr += strconv.Itoa(int(errCode))
+			if i+1 < len(nic.Spec.CustomHTTPErrors) {
+				errStr += ","
+			}
+		}
+		nginxIng.CustomHTTPErrors = errStr
 	}
 
 	return nginxIng
