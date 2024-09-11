@@ -303,6 +303,7 @@ func newNginxIngressControllerRoleBinding(conf *config.Config, ingressConfig *Ng
 
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
 	annotations := make(map[string]string)
+	sourceRanges := make([]string, 0)
 	for k, v := range promAnnotations {
 		annotations[k] = v
 	}
@@ -310,6 +311,10 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 	if ingressConfig != nil && ingressConfig.ServiceConfig != nil {
 		for k, v := range ingressConfig.ServiceConfig.Annotations {
 			annotations[k] = v
+		}
+
+		if ingressConfig.ServiceConfig.LoadBalancerSourceRanges != nil {
+			sourceRanges = append(sourceRanges, ingressConfig.ServiceConfig.LoadBalancerSourceRanges...)
 		}
 	}
 
@@ -325,9 +330,10 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			Annotations: annotations,
 		},
 		Spec: corev1.ServiceSpec{
-			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
-			Type:                  corev1.ServiceTypeLoadBalancer,
-			Selector:              ingressConfig.PodLabels(),
+			LoadBalancerSourceRanges: sourceRanges,
+			ExternalTrafficPolicy:    corev1.ServiceExternalTrafficPolicyTypeLocal,
+			Type:                     corev1.ServiceTypeLoadBalancer,
+			Selector:                 ingressConfig.PodLabels(),
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",

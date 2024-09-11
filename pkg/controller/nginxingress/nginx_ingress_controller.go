@@ -557,7 +557,8 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		ResourceName:    resourceName,
 		IcName:          nic.Spec.IngressClassName,
 		ServiceConfig: &manifests.ServiceConfig{
-			Annotations: nic.Spec.LoadBalancerAnnotations,
+			Annotations:              nic.Spec.LoadBalancerAnnotations,
+			LoadBalancerSourceRanges: nic.Spec.LoadBalancerSourceRanges,
 		},
 		MinReplicas:                    minReplicas,
 		MaxReplicas:                    maxReplicas,

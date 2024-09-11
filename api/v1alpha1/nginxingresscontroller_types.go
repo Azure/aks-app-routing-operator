@@ -68,6 +68,10 @@ type NginxIngressControllerSpec struct {
 	// Scaling defines configuration options for how the Ingress Controller scales
 	// +optional
 	Scaling *Scaling `json:"scaling,omitempty"`
+
+	// LoadBalancerSourceRanges is a slice of IP ranges that are allowed to access the NGINX Ingress Controller's Service.
+	// +optional
+	LoadBalancerSourceRanges []string `json:"loadBalancerSourceRanges,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri
