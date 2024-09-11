@@ -959,6 +959,7 @@ func TestToNginxIngressConfig(t *testing.T) {
 					map[string]string{
 						"foo": "bar",
 					},
+					nil,
 				},
 				IcName:                         "ingressClassName",
 				MaxReplicas:                    defaultMaxReplicas,
@@ -1307,6 +1308,38 @@ func TestToNginxIngressConfig(t *testing.T) {
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
 				TargetCPUUtilizationPercentage: steadyTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with load balancer source ranges",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:     DefaultNicResourceName,
+					IngressClassName:         DefaultIcName,
+					DefaultBackendService:    &FakeDefaultBackend,
+					CustomHTTPErrors:         EmptyCustomErrors,
+					LoadBalancerSourceRanges: []string{"10.0.0.0/8"},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: defaultCc,
+				ResourceName:    DefaultNicResourceName,
+				IcName:          DefaultIcName,
+				ServiceConfig: &manifests.ServiceConfig{
+					LoadBalancerSourceRanges: []string{"10.0.0.0/8"},
+				},
+				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				CustomHTTPErrors:               "",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
 			},
 		},
 		{
