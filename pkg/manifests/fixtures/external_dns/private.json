@@ -159,7 +159,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "/oss/kubernetes/external-dns:v0.13.5-5",
+                "image": "/oss/kubernetes/external-dns:v0.13.6",
                 "args": [
                   "--provider=azure-private-dns",
                   "--source=ingress",
