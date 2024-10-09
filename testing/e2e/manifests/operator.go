@@ -26,7 +26,7 @@ var (
 	}
 
 	// AllUsedOperatorVersions is a list of all the operator versions used today
-	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_0, OperatorVersionLatest}
+	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_3_Patch_2, OperatorVersionLatest}
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
 	AllDnsZoneCounts     = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
@@ -39,8 +39,8 @@ var (
 type OperatorVersion uint
 
 const (
-	OperatorVersion0_0_3 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
-	OperatorVersion0_2_0
+	OperatorVersion0_2_1_Patch_4 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
+	OperatorVersion0_2_3_Patch_2
 
 	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
@@ -48,10 +48,10 @@ const (
 
 func (o OperatorVersion) String() string {
 	switch o {
-	case OperatorVersion0_0_3:
-		return "0.0.3"
-	case OperatorVersion0_2_0:
-		return "0.2.0"
+	case OperatorVersion0_2_1_Patch_4:
+		return "0.2.1-patch-4"
+	case OperatorVersion0_2_3_Patch_2:
+		return "0.2.3-patch-2"
 	case OperatorVersionLatest:
 		return "latest"
 	default:
@@ -100,10 +100,10 @@ type OperatorConfig struct {
 
 func (o *OperatorConfig) image(latestImage string) string {
 	switch o.Version {
-	case OperatorVersion0_0_3:
-		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.0.3"
-	case OperatorVersion0_2_0:
-		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.0"
+	case OperatorVersion0_2_1_Patch_4:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.1-patch-4"
+	case OperatorVersion0_2_3_Patch_2:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.3-patch-2"
 	case OperatorVersionLatest:
 		return latestImage
 	default:
@@ -287,13 +287,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 
 	// edit and select relevant manifest config by version
 	switch cfg.Version {
-	case OperatorVersion0_0_3:
-		baseDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
-		baseDeployment.Spec.Template.Spec.Containers[0].LivenessProbe = nil
-		baseDeployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
-		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nil
-		baseDeployment.Spec.Template.Spec.Volumes = nil
-		ret = append(ret, baseDeployment)
 	default:
 		ret = append(ret, baseDeployment)
 

@@ -3,7 +3,6 @@ package manifests
 import (
 	_ "embed"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,42 +11,22 @@ import (
 )
 
 //go:embed embedded/defaultBackendClient.go
-var dbeClientContents string
+var dbClientContents string
 
 //go:embed embedded/defaultBackendServer.go
-var dbeServerContents string
+var dbServerContents string
 
-type ClientServerResources struct {
-	Client       *appsv1.Deployment
-	Server       *appsv1.Deployment
-	Ingress      *netv1.Ingress
-	Service      *corev1.Service
-	AddedObjects []client.Object
-}
-
-func (t ClientServerResources) Objects() []client.Object {
-	ret := []client.Object{
-		t.Client,
-		t.Server,
-		t.Service,
-		t.Ingress,
-	}
-
-	ret = append(ret, t.AddedObjects...)
-
-	for _, obj := range ret {
-		setGroupKindVersion(obj)
-	}
-
-	return ret
-}
+var (
+	validUrlPath    = "/test"
+	invalidUrlPath  = "/fakehost"
+	liveServicePath = "/live"
+	deadServicePath = "/dead"
+	notFoundPath    = "/notfound"
+)
 
 func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
-	validUrlPath := "/test"
-	invalidUrlPath := "/fakehost"
-
 	// Client deployment
-	clientDeployment := newGoDeployment(dbeClientContents, namespace, name+"-dbe-client")
+	clientDeployment := newGoDeployment(dbClientContents, namespace, name+"-db-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
@@ -83,8 +62,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 	}
 
 	// Main server deployment
-	serverName := name + "-server"
-	serviceName := name + "-service"
+	serverName := name + "dbtest-server"
+	serviceName := name + "dbtest-service"
 
 	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	ingressName := name + "-ingress"
@@ -118,8 +97,8 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 	defaultServerName := "default-" + name + "-server"
 	defaultServiceName := "default-" + name + "-service"
 
-	defaultServerDeployment := newGoDeployment(dbeServerContents, namespace, defaultServerName)
-	dbeService :=
+	defaultServerDeployment := newGoDeployment(dbServerContents, namespace, defaultServerName)
+	dbService :=
 		&corev1.Service{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Service",
@@ -198,7 +177,7 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 		Service: service,
 		AddedObjects: []client.Object{
 			defaultServerDeployment,
-			dbeService,
+			dbService,
 		},
 	}
 }

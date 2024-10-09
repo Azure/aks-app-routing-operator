@@ -497,6 +497,10 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 		confMap.Data["force-ssl-redirect"] = "true"
 	}
 
+	if ingressConfig.CustomHTTPErrors != "" {
+		confMap.Data["custom-http-errors"] = ingressConfig.CustomHTTPErrors
+	}
+
 	return confMap
 }
 

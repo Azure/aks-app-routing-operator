@@ -892,6 +892,9 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeDefaultSSLCertNoNamespace := getFakeDefaultSSLCert("fake", "")
 
 	FakeDefaultBackend := approutingv1alpha1.NICNamespacedName{"fakename", "fakenamespace"}
+	FakeCustomErrors := []int32{404, 503}
+	SingleCustomError := []int32{404}
+	EmptyCustomErrors := []int32{}
 
 	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
@@ -1328,6 +1331,93 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:                         DefaultIcName,
 				ServiceConfig:                  &manifests.ServiceConfig{},
 				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultBackendService and CustomHTTPErrors",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultBackendService: &FakeDefaultBackend,
+					CustomHTTPErrors:      FakeCustomErrors,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				CustomHTTPErrors:               "404,503",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultBackendService and a single CustomHTTPError",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultBackendService: &FakeDefaultBackend,
+					CustomHTTPErrors:      SingleCustomError,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				CustomHTTPErrors:               "404",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with DefaultBackendService and empty custom errors",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix:  DefaultNicResourceName,
+					IngressClassName:      DefaultIcName,
+					DefaultBackendService: &FakeDefaultBackend,
+					CustomHTTPErrors:      EmptyCustomErrors,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				DefaultBackendService:          FakeDefaultBackend.Namespace + "/" + FakeDefaultBackend.Name,
+				CustomHTTPErrors:               "",
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
 				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,

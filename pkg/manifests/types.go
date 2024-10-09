@@ -60,7 +60,8 @@ type NginxIngressConfig struct {
 	ServiceConfig         *ServiceConfig // service config that specifies details about the LB, defaults if nil
 	ForceSSLRedirect      bool           // flag to sets all redirects to HTTPS if there is a default TLS certificate (requires DefaultSSLCertificate)
 	DefaultSSLCertificate string         // namespace/name used to create SSL certificate for the default HTTPS server (catch-all)
-	DefaultBackendService string
+	DefaultBackendService string         // namespace/name used to determine default backend service for / and /healthz endpoints
+	CustomHTTPErrors      string         // error codes passed to the configmap to configure nginx to send traffic with the specified headers to its defaultbackend service in case of error
 	MinReplicas           int32
 	MaxReplicas           int32
 	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller

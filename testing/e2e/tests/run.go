@@ -38,8 +38,10 @@ func init() {
 	rbacv1.AddToScheme(scheme)
 }
 
-var operatorGeneration int64
-var scheme = runtime.NewScheme()
+var (
+	operatorGeneration int64
+	scheme             = runtime.NewScheme()
+)
 
 func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	lgr := logger.FromContext(ctx)
@@ -222,7 +224,7 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 
 	if strategy == cleanDeploy {
 		lgr.Info("cleaning old operators")
-		for idx, _ := range toDeploy {
+		for idx := range toDeploy {
 			// delete objects in reverse order to keep service account available on NIC delete
 			res := toDeploy[len(toDeploy)-idx-1]
 			// don't cleanup the namespace, we will reuse it. it's just wasted time
@@ -314,7 +316,7 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 				}
 
 				// let latest image bake to get CRD in place
-				if time.Since(lastDepCheckTime) < time.Second*10 && operatorCfg.Version != manifests.OperatorVersion0_0_3 {
+				if time.Since(lastDepCheckTime) < time.Second*10 {
 					return false, nil
 				}
 
