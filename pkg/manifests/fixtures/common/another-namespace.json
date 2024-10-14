@@ -4,7 +4,10 @@
       "apiVersion": "v1",
       "metadata": {
         "name": "another-test-namespace",
-        "creationTimestamp": null
+        "creationTimestamp": null,
+        "labels": {
+          "openservicemesh.io/monitored-by": "osm"
+        }
       },
       "spec": {},
       "status": {}
