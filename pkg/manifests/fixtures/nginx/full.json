@@ -4,7 +4,10 @@
       "apiVersion": "v1",
       "metadata": {
         "name": "test-namespace",
-        "creationTimestamp": null
+        "creationTimestamp": null,
+        "labels": {
+          "openservicemesh.io/monitored-by": "osm"
+        }
       },
       "spec": {},
       "status": {}
@@ -448,7 +451,7 @@
               "app.kubernetes.io/managed-by": "aks-app-routing-operator"
             },
             "annotations": {
-              "openservicemesh.io/sidecar-injection": "enabled",
+              "openservicemesh.io/sidecar-injection": "disabled",
               "prometheus.io/port": "10254",
               "prometheus.io/scrape": "true"
             }
