@@ -87,7 +87,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				service := &v1alpha1.ManagedObjectReference{}
+				var service *v1alpha1.ManagedObjectReference
 				lgr.Info("checking for service in managed resource refs")
 				for _, ref := range nic.Status.ManagedResourceRefs {
 					// we are looking for the load balancer service, not metrics service
@@ -149,10 +149,11 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				service := &v1alpha1.ManagedObjectReference{}
+				var service *v1alpha1.ManagedObjectReference
 				lgr.Info("checking for service in managed resource refs")
 				for _, ref := range nic.Status.ManagedResourceRefs {
-					if ref.Kind == "Service" {
+					// we are looking for the load balancer service, not metrics service
+					if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
 						lgr.Info("found service")
 						service = &ref
 					}

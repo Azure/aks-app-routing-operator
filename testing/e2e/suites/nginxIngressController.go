@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
@@ -295,7 +296,7 @@ func nicTests(in infra.Provisioned) []test {
 					}
 
 					for _, ref := range nic.Status.ManagedResourceRefs {
-						if ref.Kind == "Service" {
+						if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
 							lgr.Info("found service")
 							service = ref
 							return true, nil
@@ -405,7 +406,8 @@ func nicTests(in infra.Provisioned) []test {
 
 				lgr.Info("checking for service in managed resource refs")
 				for _, ref := range nic.Status.ManagedResourceRefs {
-					if ref.Kind == "Service" {
+					// we are looking for the load balancer service, not metrics service
+					if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
 						lgr.Info("found service")
 						service = &ref
 					}
