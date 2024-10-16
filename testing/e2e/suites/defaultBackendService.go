@@ -24,87 +24,150 @@ import (
 )
 
 var (
-	dbeScheme              = runtime.NewScheme()
-	dbeBasicNS             = make(map[string]*corev1.Namespace)
-	dbeServiceName         = "dbeservice"
+	dbScheme               = runtime.NewScheme()
+	dbBasicNS              = make(map[string]*corev1.Namespace)
+	ceBasicNS              = make(map[string]*corev1.Namespace)
 	nonAlphaNumHyphenRegex = regexp.MustCompile(`[^a-zA-Z0-9- ]+`)
 	trailingHyphenRegex    = regexp.MustCompile(`^-+|-+$`)
 )
 
 func init() {
-	netv1.AddToScheme(dbeScheme)
-	v1alpha1.AddToScheme(dbeScheme)
-	batchv1.AddToScheme(dbeScheme)
-	corev1.AddToScheme(dbeScheme)
-	metav1.AddMetaToScheme(dbeScheme)
-	appsv1.AddToScheme(dbeScheme)
-	policyv1.AddToScheme(dbeScheme)
-	rbacv1.AddToScheme(dbeScheme)
-	secv1.AddToScheme(dbeScheme)
+	netv1.AddToScheme(dbScheme)
+	v1alpha1.AddToScheme(dbScheme)
+	batchv1.AddToScheme(dbScheme)
+	corev1.AddToScheme(dbScheme)
+	metav1.AddMetaToScheme(dbScheme)
+	appsv1.AddToScheme(dbScheme)
+	policyv1.AddToScheme(dbScheme)
+	rbacv1.AddToScheme(dbScheme)
+	secv1.AddToScheme(dbScheme)
 }
 
 func defaultBackendTests(in infra.Provisioned) []test {
-	return []test{{
-		name: "testing default backend service validity",
-		cfgs: builderFromInfra(in).
-			withOsm(in, false, true).
-			withVersions(manifests.OperatorVersionLatest).
-			withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
-			build(),
-		run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-			lgr := logger.FromContext(ctx)
-			lgr.Info("starting test")
+	return []test{
+		{
+			name: "testing default backend service validity",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
 
-			c, err := client.New(config, client.Options{
-				Scheme: dbeScheme,
-			})
-			if err != nil {
-				return fmt.Errorf("creating client: %w", err)
-			}
-
-			ingressClassName := "dbeingressclass"
-			nic := &v1alpha1.NginxIngressController{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "NginxIngressController",
-					APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "default-nginxingress",
-					Annotations: map[string]string{
-						manifests.ManagedByKey: manifests.ManagedByVal,
-					},
-				},
-				Spec: v1alpha1.NginxIngressControllerSpec{
-					IngressClassName:     ingressClassName,
-					ControllerNamePrefix: "nginx-default-backend",
-				},
-			}
-
-			if err := upsert(ctx, c, nic); err != nil {
-				return fmt.Errorf("upserting nic: %w", err)
-			}
-
-			var service = &v1alpha1.ManagedObjectReference{}
-			lgr.Info("checking for service in managed resource refs")
-			for _, ref := range nic.Status.ManagedResourceRefs {
-				if ref.Kind == "Service" {
-					lgr.Info("found service")
-					service = &ref
+				c, err := client.New(config, client.Options{
+					Scheme: dbScheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
 				}
-			}
 
-			if service == nil {
-				return fmt.Errorf("no service available in resource refs")
-			}
+				ingressClassName := "dbingressclass"
+				nic := &v1alpha1.NginxIngressController{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "NginxIngressController",
+						APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "db-nginxingress",
+						Annotations: map[string]string{
+							manifests.ManagedByKey: manifests.ManagedByVal,
+						},
+					},
+					Spec: v1alpha1.NginxIngressControllerSpec{
+						IngressClassName:     ingressClassName,
+						ControllerNamePrefix: "nginx-default-backend",
+					},
+				}
 
-			if err := defaultBackendClientServerTest(ctx, config, operator, dbeBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
-				return err
-			}
+				if err := upsert(ctx, c, nic); err != nil {
+					return fmt.Errorf("upserting nic: %w", err)
+				}
 
-			lgr.Info("finished testing")
-			return nil
+				var service = &v1alpha1.ManagedObjectReference{}
+				lgr.Info("checking for service in managed resource refs")
+				for _, ref := range nic.Status.ManagedResourceRefs {
+					if ref.Kind == "Service" {
+						lgr.Info("found service")
+						service = &ref
+					}
+				}
+
+				if service == nil {
+					return fmt.Errorf("no service available in resource refs")
+				}
+
+				if err := defaultBackendClientServerTest(ctx, config, operator, dbBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
 		},
-	},
+		{
+			name: "testing custom http error validity",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting custom errors test")
+
+				c, err := client.New(config, client.Options{
+					Scheme: dbScheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
+				}
+
+				ingressClassName := "ceingressclass"
+				nic :=
+					&v1alpha1.NginxIngressController{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "NginxIngressController",
+							APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "ce-nginxingress",
+							Annotations: map[string]string{
+								manifests.ManagedByKey: manifests.ManagedByVal,
+							},
+						},
+						Spec: v1alpha1.NginxIngressControllerSpec{
+							IngressClassName:     ingressClassName,
+							ControllerNamePrefix: "nginx-custom-errors",
+							CustomHTTPErrors:     []int32{404, 503},
+						},
+					}
+				if err := upsert(ctx, c, nic); err != nil {
+					return fmt.Errorf("upserting nic: %w", err)
+				}
+
+				var service = &v1alpha1.ManagedObjectReference{}
+				lgr.Info("checking for service in managed resource refs")
+				for _, ref := range nic.Status.ManagedResourceRefs {
+					if ref.Kind == "Service" {
+						lgr.Info("found service")
+						service = &ref
+					}
+				}
+
+				if service == nil {
+					return fmt.Errorf("no service available in resource refs")
+				}
+
+				if err := defaultBackendClientServerTest(ctx, config, operator, ceBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
+		},
 	}
 }
 
@@ -207,8 +270,13 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 				}
 			}
 
-			testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
-			nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{"default-" + zoneName + "-service", zoneNamespace}
+			if nic.Spec.CustomHTTPErrors != nil && len(nic.Spec.CustomHTTPErrors) > 1 {
+				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, serviceName)
+				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{testingResources.Service.Name, testingResources.Service.Namespace}
+			} else {
+				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
+				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{"default-" + zoneName + "-service", zoneNamespace}
+			}
 
 			upsertObjects = append(upsertObjects, testingResources.Objects()...)
 			upsertObjects = append(upsertObjects, nic)
