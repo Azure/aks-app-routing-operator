@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
@@ -87,18 +86,15 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				var service *v1alpha1.ManagedObjectReference
-				lgr.Info("checking for service in managed resource refs")
-				for _, ref := range nic.Status.ManagedResourceRefs {
-					// we are looking for the load balancer service, not metrics service
-					if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
-						lgr.Info("found service")
-						service = &ref
-					}
+				nic, err = waitForNICAvailable(ctx, c, nic)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to be available: %w", err)
 				}
 
-				if service == nil {
-					return fmt.Errorf("no service available in resource refs")
+				lgr.Info("checking for service in managed resource refs")
+				service, err := getNginxLbServiceRef(nic)
+				if err != nil {
+					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
 
 				if err := defaultBackendClientServerTest(ctx, config, operator, dbBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
@@ -149,18 +145,15 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				var service *v1alpha1.ManagedObjectReference
-				lgr.Info("checking for service in managed resource refs")
-				for _, ref := range nic.Status.ManagedResourceRefs {
-					// we are looking for the load balancer service, not metrics service
-					if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
-						lgr.Info("found service")
-						service = &ref
-					}
+				nic, err = waitForNICAvailable(ctx, c, nic)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to be available: %w", err)
 				}
 
-				if service == nil {
-					return fmt.Errorf("no service available in resource refs")
+				lgr.Info("checking for service in managed resource refs")
+				service, err := getNginxLbServiceRef(nic)
+				if err != nil {
+					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
 
 				if err := defaultBackendClientServerTest(ctx, config, operator, ceBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {

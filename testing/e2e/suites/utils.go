@@ -2,12 +2,16 @@ package suites
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -62,4 +66,45 @@ func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 
 	lgr.Info("object updated")
 	return nil
+}
+
+func waitForNICAvailable(ctx context.Context, c client.Client, nic *v1alpha1.NginxIngressController) (*v1alpha1.NginxIngressController, error) {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("waiting for NIC to be available")
+	var new *v1alpha1.NginxIngressController
+
+	if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+		lgr.Info("checking if NIC is available")
+		if err := c.Get(ctx, client.ObjectKeyFromObject(nic), new); err != nil {
+			return false, fmt.Errorf("get nic: %w", err)
+		}
+
+		for _, cond := range nic.Status.Conditions {
+			if cond.Type == v1alpha1.ConditionTypeAvailable {
+				lgr.Info("found nic")
+				if len(nic.Status.ManagedResourceRefs) == 0 {
+					lgr.Info("nic has no ManagedResourceRefs")
+					return false, nil
+				}
+				return true, nil
+			}
+		}
+		lgr.Info("nic not available")
+		return false, nil
+	}); err != nil {
+		return nil, fmt.Errorf("waiting for NIC to be available: %w", err)
+	}
+
+	return new, nil
+}
+
+func getNginxLbServiceRef(nic *v1alpha1.NginxIngressController) (v1alpha1.ManagedObjectReference, error) {
+	for _, ref := range nic.Status.ManagedResourceRefs {
+		// we are looking for the load balancer service, not metrics service
+		if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
+			return ref, nil
+		}
+	}
+
+	return v1alpha1.ManagedObjectReference{}, errors.New("no load balancer service available")
 }

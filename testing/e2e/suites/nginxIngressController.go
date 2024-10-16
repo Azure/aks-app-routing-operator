@@ -364,29 +364,9 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
-				var service *v1alpha1.ManagedObjectReference
-				var nic v1alpha1.NginxIngressController
-				lgr.Info("waiting for NIC to be available")
-				if err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-					lgr.Info("checking if NIC is available")
-					if err := c.Get(ctx, client.ObjectKeyFromObject(testNIC), &nic); err != nil {
-						return false, fmt.Errorf("get nic: %w", err)
-					}
-
-					for _, cond := range nic.Status.Conditions {
-						if cond.Type == v1alpha1.ConditionTypeAvailable {
-							lgr.Info("found nic")
-							if len(nic.Status.ManagedResourceRefs) == 0 {
-								lgr.Info("nic has no ManagedResourceRefs")
-								return false, nil
-							}
-							return true, nil
-						}
-					}
-					lgr.Info("nic not available")
-					return false, nil
-				}); err != nil {
-					return fmt.Errorf("waiting for test NIC to be available: %w", err)
+				nic, err := waitForNICAvailable(ctx, c, testNIC)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to become available: %w", err)
 				}
 
 				lgr.Info("checking if associated SPC is created")
@@ -405,16 +385,9 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("found spc")
 
 				lgr.Info("checking for service in managed resource refs")
-				for _, ref := range nic.Status.ManagedResourceRefs {
-					// we are looking for the load balancer service, not metrics service
-					if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
-						lgr.Info("found service")
-						service = &ref
-					}
-				}
-
-				if service == nil {
-					return fmt.Errorf("no service available in resource refs")
+				service, err := getNginxLbServiceRef(nic)
+				if err != nil {
+					return fmt.Errorf("finding nginx lb service: %w", err)
 				}
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
