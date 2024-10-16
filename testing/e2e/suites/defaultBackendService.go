@@ -3,6 +3,9 @@ package suites
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -18,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -85,10 +87,11 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				var service = &v1alpha1.ManagedObjectReference{}
+				service := &v1alpha1.ManagedObjectReference{}
 				lgr.Info("checking for service in managed resource refs")
 				for _, ref := range nic.Status.ManagedResourceRefs {
-					if ref.Kind == "Service" {
+					// we are looking for the load balancer service, not metrics service
+					if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
 						lgr.Info("found service")
 						service = &ref
 					}
@@ -125,29 +128,28 @@ func defaultBackendTests(in infra.Provisioned) []test {
 				}
 
 				ingressClassName := "ceingressclass"
-				nic :=
-					&v1alpha1.NginxIngressController{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "NginxIngressController",
-							APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+				nic := &v1alpha1.NginxIngressController{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "NginxIngressController",
+						APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "ce-nginxingress",
+						Annotations: map[string]string{
+							manifests.ManagedByKey: manifests.ManagedByVal,
 						},
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "ce-nginxingress",
-							Annotations: map[string]string{
-								manifests.ManagedByKey: manifests.ManagedByVal,
-							},
-						},
-						Spec: v1alpha1.NginxIngressControllerSpec{
-							IngressClassName:     ingressClassName,
-							ControllerNamePrefix: "nginx-custom-errors",
-							CustomHTTPErrors:     []int32{404, 503},
-						},
-					}
+					},
+					Spec: v1alpha1.NginxIngressControllerSpec{
+						IngressClassName:     ingressClassName,
+						ControllerNamePrefix: "nginx-custom-errors",
+						CustomHTTPErrors:     []int32{404, 503},
+					},
+				}
 				if err := upsert(ctx, c, nic); err != nil {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				var service = &v1alpha1.ManagedObjectReference{}
+				service := &v1alpha1.ManagedObjectReference{}
 				lgr.Info("checking for service in managed resource refs")
 				for _, ref := range nic.Status.ManagedResourceRefs {
 					if ref.Kind == "Service" {
