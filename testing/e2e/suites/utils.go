@@ -69,11 +69,11 @@ func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 }
 
 func waitForNICAvailable(ctx context.Context, c client.Client, nic *v1alpha1.NginxIngressController) (*v1alpha1.NginxIngressController, error) {
-	lgr := logger.FromContext(ctx)
+	lgr := logger.FromContext(ctx).With("nic", nic.Name)
 	lgr.Info("waiting for NIC to be available")
 	var new v1alpha1.NginxIngressController
 
-	if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+	if err := wait.PollImmediate(1*time.Second, 3*time.Minute, func() (bool, error) {
 		lgr.Info("checking if NIC is available")
 		if err := c.Get(ctx, client.ObjectKeyFromObject(nic), &new); err != nil {
 			return false, fmt.Errorf("get nic: %w", err)
