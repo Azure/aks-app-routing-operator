@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -98,21 +99,29 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	}
 	logger = logger.WithValues("spc", spc.Name)
 	logger.Info("building spc and upserting if managed with labels")
-	upsertSPC, err := buildSPC(nic, spc, i.config)
 
-	if err != nil {
-		var userErr userError
-		if errors.As(err, &userErr) {
-			logger.Info(fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s. sending warning event", userErr.Error()))
-			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
-			return result, nil
+	if shouldDeploySpc(nic) {
+		spcConf := SPCConfig{
+			ClientId:        i.config.MSIClientID,
+			TenantId:        i.config.TenantID,
+			KeyvaultCertUri: *nic.Spec.DefaultSSLCertificate.KeyVaultURI,
+			Name:            DefaultNginxCertName(nic),
+			Cloud:           i.config.Cloud,
+		}
+		err := buildSPC(spc, spcConf)
+
+		if err != nil {
+			var userErr userError
+			if errors.As(err, &userErr) {
+				logger.Info(fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s. sending warning event", userErr.Error()))
+				i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+				return result, nil
+			}
+
+			logger.Error(err, fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s.", err.Error()))
+			return result, err
 		}
 
-		logger.Error(err, fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s.", err.Error()))
-		return result, err
-	}
-
-	if upsertSPC {
 		logger.Info("reconciling secret provider class for ingress")
 		err = util.Upsert(ctx, i.client, spc)
 		if err != nil {

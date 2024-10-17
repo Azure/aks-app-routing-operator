@@ -66,7 +66,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 		require.Nil(t, got.Spec.TLS, "we shouldn't have changed an unmanaged ingress")
 
 		unmanagedIngress.Annotations = map[string]string{
-			tlsCertKvUriAnnotation:   "https://mykv.vault.azure.net/secrets/mycert",
+			tlsCertKvUriOption:       "https://mykv.vault.azure.net/secrets/mycert",
 			tlsCertManagedAnnotation: "true",
 		}
 		require.NoError(t, c.Update(ctx, unmanagedIngress), "there should be no error updating an unmanaged ingress")
@@ -110,7 +110,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 		require.Nil(t, got.Spec.TLS, "we shouldn't have changed a managed ingress with no annotation")
 
 		managedIngressNoAnnotation.Annotations = map[string]string{
-			tlsCertKvUriAnnotation: "https://mykv.vault.azure.net/secrets/mycert",
+			tlsCertKvUriOption: "https://mykv.vault.azure.net/secrets/mycert",
 		}
 		require.NoError(t, c.Update(ctx, managedIngressNoAnnotation), "there should be no error updating a managed ingress")
 		beforeErrCount = testutils.GetErrMetricCount(t, ingressTlsControllerName)
@@ -166,7 +166,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "managed-defined-tls",
 				Annotations: map[string]string{
-					tlsCertKvUriAnnotation:   "https://mykv.vault.azure.net/secrets/mycert",
+					tlsCertKvUriOption:       "https://mykv.vault.azure.net/secrets/mycert",
 					tlsCertManagedAnnotation: "true",
 				},
 			},
@@ -210,7 +210,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "managed-single-host",
 				Annotations: map[string]string{
-					tlsCertKvUriAnnotation:   "https://mykv.vault.azure.net/secrets/mycert",
+					tlsCertKvUriOption:       "https://mykv.vault.azure.net/secrets/mycert",
 					tlsCertManagedAnnotation: "true",
 				},
 			},
@@ -246,7 +246,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "managed-multiple-hosts",
 				Annotations: map[string]string{
-					tlsCertKvUriAnnotation:   "https://mykv.vault.azure.net/secrets/mycert",
+					tlsCertKvUriOption:       "https://mykv.vault.azure.net/secrets/mycert",
 					tlsCertManagedAnnotation: "true",
 				},
 			},
@@ -291,7 +291,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "managed-some-hosts",
 				Annotations: map[string]string{
-					tlsCertKvUriAnnotation:   "https://mykv.vault.azure.net/secrets/mycert",
+					tlsCertKvUriOption:       "https://mykv.vault.azure.net/secrets/mycert",
 					tlsCertManagedAnnotation: "true",
 				},
 			},

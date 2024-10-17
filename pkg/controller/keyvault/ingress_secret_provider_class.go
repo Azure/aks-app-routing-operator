@@ -111,20 +111,26 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	if isManaged {
 		logManagedIngress(logger, ing)
 
-		var upsertSPC bool
-		if upsertSPC, err = buildSPC(ing, spc, i.config); err != nil {
-			var userErr userError
-			if errors.As(err, &userErr) {
-				logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
-				i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
-				return result, nil
+		if shouldDeploySpc(ing) {
+			spcConf := SPCConfig{
+				ClientId:        i.config.MSIClientID,
+				TenantId:        i.config.TenantID,
+				KeyvaultCertUri: ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"],
+				Name:            certSecretName(ing.Name),
+				Cloud:           i.config.Cloud,
+			}
+			if err := buildSPC(spc, spcConf); err != nil {
+				var userErr userError
+				if errors.As(err, &userErr) {
+					logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
+					i.events.Eventf(ing, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+					return result, nil
+				}
+
+				logger.Error(err, fmt.Sprintf("failed to build secret provider class for ingress with error: %s.", err.Error()))
+				return result, err
 			}
 
-			logger.Error(err, fmt.Sprintf("failed to build secret provider class for ingress with error: %s.", err.Error()))
-			return result, err
-		}
-
-		if upsertSPC {
 			logger.Info("reconciling secret provider class for ingress")
 			if err = util.Upsert(ctx, i.client, spc); err != nil {
 				i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())

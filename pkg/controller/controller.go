@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -69,6 +70,7 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
 	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(gatewayv1.Install(s))
 }
 
 func NewRestConfig(conf *config.Config) *rest.Config {
@@ -208,6 +210,13 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	lgr.Info("setting up ingress backend reconciler")
 	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressSourceSpecer); err != nil {
 		return fmt.Errorf("setting up ingress backend reconciler: %w", err)
+	}
+
+	if conf.EnableGateway {
+		lgr.Info("setting up gateway reconcilers")
+		if err := keyvault.NewGatewaySecretClassProviderReconciler(mgr, conf); err != nil {
+			return fmt.Errorf("setting up Gateway SPC reconciler: %s", err)
+		}
 	}
 
 	lgr.Info("finished setting up controllers")

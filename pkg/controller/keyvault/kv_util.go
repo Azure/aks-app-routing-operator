@@ -2,54 +2,81 @@ package keyvault
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	v1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
 var nginxNamePrefix = "keyvault-nginx-"
 
-func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.Config) (bool, error) {
-	var certURI, specSecretName string
+type EventType int
 
+const (
+	Normal EventType = iota
+	Warning
+)
+
+func (et EventType) String() string {
+	switch et {
+	case Warning:
+		return "Warning"
+	default:
+		return "Normal"
+	}
+}
+
+const (
+	certUriTLSOption        = "kubernetes.azure.com/tls-cert-keyvault-uri"
+	clientIdTLSOption       = "kubernetes.azure.com/tls-cert-client-id"
+	serviceAccountTLSOption = "kubernetes.azure.com/tls-cert-service-account"
+)
+
+type SPCConfig struct {
+	ClientId        string
+	TenantId        string
+	KeyvaultCertUri string
+	Name            string
+	Cloud           string
+}
+
+func shouldDeploySpc(obj client.Object) bool {
 	switch t := obj.(type) {
 	case *v1alpha1.NginxIngressController:
-		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
-			return false, nil
+		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil || *t.Spec.DefaultSSLCertificate.KeyVaultURI == "" {
+			return false
 		}
-		certURI = *t.Spec.DefaultSSLCertificate.KeyVaultURI
-		specSecretName = DefaultNginxCertName(t)
+		return true
+
 	case *v1.Ingress:
-		if t.Annotations == nil {
-			return false, nil
+		if t.Annotations == nil || t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"] == "" {
+			return false
 		}
-
-		certURI = t.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]
-		specSecretName = certSecretName(t.Name)
+		return true
 	default:
-		return false, fmt.Errorf("incorrect object type: %s", t)
+		return false
 	}
+}
 
-	if certURI == "" {
-		return false, nil
-	}
+func buildSPC(spc *secv1.SecretProviderClass, spcConfig SPCConfig) error {
+	certUri := spcConfig.KeyvaultCertUri
 
-	uri, err := url.Parse(certURI)
+	uri, err := url.Parse(certUri)
 	if err != nil {
-		return false, newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
+		return newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certUri))
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 
 	if len(chunks) < 3 {
-		return false, newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
+		return newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certUri))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -62,17 +89,17 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 
 	params, err := json.Marshal(p)
 	if err != nil {
-		return false, err
+		return err
 	}
 	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(params)}})
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	spc.Spec = secv1.SecretProviderClassSpec{
 		Provider: secv1.Provider("azure"),
 		SecretObjects: []*secv1.SecretObject{{
-			SecretName: specSecretName,
+			SecretName: spcConfig.Name,
 			Type:       "kubernetes.io/tls",
 			Data: []*secv1.SecretObjectData{
 				{
@@ -89,17 +116,17 @@ func buildSPC(obj client.Object, spc *secv1.SecretProviderClass, config *config.
 		Parameters: map[string]string{
 			"keyvaultName":           vaultName,
 			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": config.MSIClientID,
-			"tenantId":               config.TenantID,
+			"userAssignedIdentityID": spcConfig.ClientId,
+			"tenantId":               spcConfig.TenantId,
 			"objects":                string(objects),
 		},
 	}
 
-	if config.Cloud != "" {
-		spc.Spec.Parameters[kvcsi.CloudNameParameter] = config.Cloud
+	if spcConfig.Cloud != "" {
+		spc.Spec.Parameters[kvcsi.CloudNameParameter] = spcConfig.Cloud
 	}
 
-	return true, nil
+	return nil
 }
 
 // DefaultNginxCertName returns a default name for the nginx certificate name using the IngressClassName from the spec.
@@ -136,4 +163,29 @@ func (b userError) UserError() string {
 
 func newUserError(err error, msg string) userError {
 	return userError{err, msg}
+}
+
+func xor(fc, sc bool) bool {
+	return (fc && !sc) || (!fc && sc)
+}
+
+func validateTLSOptions(options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (bool, error) {
+	certUri := options[tlsCertKvUriOption]
+	saName := options[serviceAccountTLSOption]
+	clientId := options[clientIdTLSOption]
+
+	if certUri == "" && clientId == "" && saName == "" {
+		return false, nil
+	}
+	if certUri != "" && (saName == "" && clientId == "") {
+		return false, errors.New("detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided")
+	}
+	if certUri == "" && (saName != "" || clientId != "") {
+		return false, errors.New("detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
+	}
+	if saName != "" && clientId != "" {
+		return false, errors.New("both ServiceAccountName and ClientId have been specified, please specify one or the other")
+	}
+
+	return true, nil
 }
