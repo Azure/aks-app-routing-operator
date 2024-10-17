@@ -86,13 +86,13 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				nic, err = waitForNICAvailable(ctx, c, nic)
+				statusNIC, err := waitForNICAvailable(ctx, c, nic)
 				if err != nil {
 					return fmt.Errorf("waiting for NIC to be available: %w", err)
 				}
 
 				lgr.Info("checking for service in managed resource refs")
-				service, err := getNginxLbServiceRef(nic)
+				service, err := getNginxLbServiceRef(statusNIC)
 				if err != nil {
 					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
@@ -145,13 +145,13 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				nic, err = waitForNICAvailable(ctx, c, nic)
+				statusNic, err := waitForNICAvailable(ctx, c, nic)
 				if err != nil {
 					return fmt.Errorf("waiting for NIC to be available: %w", err)
 				}
 
 				lgr.Info("checking for service in managed resource refs")
-				service, err := getNginxLbServiceRef(nic)
+				service, err := getNginxLbServiceRef(statusNic)
 				if err != nil {
 					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
