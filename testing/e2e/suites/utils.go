@@ -71,18 +71,18 @@ func upsert(ctx context.Context, c client.Client, obj client.Object) error {
 func waitForNICAvailable(ctx context.Context, c client.Client, nic *v1alpha1.NginxIngressController) (*v1alpha1.NginxIngressController, error) {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("waiting for NIC to be available")
-	var new *v1alpha1.NginxIngressController
+	var new v1alpha1.NginxIngressController
 
 	if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
 		lgr.Info("checking if NIC is available")
-		if err := c.Get(ctx, client.ObjectKeyFromObject(nic), new); err != nil {
+		if err := c.Get(ctx, client.ObjectKeyFromObject(nic), &new); err != nil {
 			return false, fmt.Errorf("get nic: %w", err)
 		}
 
-		for _, cond := range nic.Status.Conditions {
+		for _, cond := range new.Status.Conditions {
 			if cond.Type == v1alpha1.ConditionTypeAvailable {
 				lgr.Info("found nic")
-				if len(nic.Status.ManagedResourceRefs) == 0 {
+				if len(new.Status.ManagedResourceRefs) == 0 {
 					lgr.Info("nic has no ManagedResourceRefs")
 					return false, nil
 				}
@@ -95,7 +95,7 @@ func waitForNICAvailable(ctx context.Context, c client.Client, nic *v1alpha1.Ngi
 		return nil, fmt.Errorf("waiting for NIC to be available: %w", err)
 	}
 
-	return new, nil
+	return &new, nil
 }
 
 func getNginxLbServiceRef(nic *v1alpha1.NginxIngressController) (v1alpha1.ManagedObjectReference, error) {
