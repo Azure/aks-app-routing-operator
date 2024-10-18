@@ -79,9 +79,9 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	if _, ok := ing.Annotations[tlsCertKvUriOption]; !ok {
+	if _, ok := ing.Annotations[tlsCertKvUriAnnotation]; !ok {
 		logger.Info("ingress does not have keyvault annotation")
-		i.events.Eventf(ing, "Warning", "KeyvaultUriAnnotationMissing", "Ingress has %[1]s annotation but is missing %[2]s annotation. %[2]s annotation is needed to manage Ingress TLS.", tlsCertManagedAnnotation, tlsCertKvUriOption)
+		i.events.Eventf(ing, "Warning", "KeyvaultUriAnnotationMissing", "Ingress has %[1]s annotation but is missing %[2]s annotation. %[2]s annotation is needed to manage Ingress TLS.", tlsCertManagedAnnotation, tlsCertKvUriAnnotation)
 		return ctrl.Result{}, nil
 	}
 

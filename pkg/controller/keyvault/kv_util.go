@@ -2,7 +2,6 @@ package keyvault
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -32,12 +31,6 @@ func (et EventType) String() string {
 		return "Normal"
 	}
 }
-
-const (
-	certUriTLSOption        = "kubernetes.azure.com/tls-cert-keyvault-uri"
-	clientIdTLSOption       = "kubernetes.azure.com/tls-cert-client-id"
-	serviceAccountTLSOption = "kubernetes.azure.com/tls-cert-service-account"
-)
 
 type SPCConfig struct {
 	ClientId        string
@@ -169,23 +162,20 @@ func xor(fc, sc bool) bool {
 	return (fc && !sc) || (!fc && sc)
 }
 
-func validateTLSOptions(options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (bool, error) {
-	certUri := options[tlsCertKvUriOption]
+func validateTLSOptions(options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
+	certUri := options[certUriTLSOption]
 	saName := options[serviceAccountTLSOption]
 	clientId := options[clientIdTLSOption]
 
-	if certUri == "" && clientId == "" && saName == "" {
-		return false, nil
-	}
 	if certUri != "" && (saName == "" && clientId == "") {
-		return false, errors.New("detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided")
+		return newUserError(nil, "detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided")
 	}
 	if certUri == "" && (saName != "" || clientId != "") {
-		return false, errors.New("detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
+		return newUserError(nil, "detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
 	}
 	if saName != "" && clientId != "" {
-		return false, errors.New("both ServiceAccountName and ClientId have been specified, please specify one or the other")
+		return newUserError(nil, "both ServiceAccountName and ClientId have been specified, please specify one or the other")
 	}
 
-	return true, nil
+	return nil
 }

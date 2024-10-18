@@ -2,6 +2,7 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -10,7 +11,9 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,17 +81,6 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	// check its TLS options - needs to have both
 	// cert uri and either serviceaccount name or clientid --> if one without the other, propagate a warning event
 	for _, listener := range gwObj.Spec.Listeners {
-		isActive, userErr := validateTLSOptions(listener.TLS.Options)
-		if userErr != nil {
-			// write event to Gateway resource for this listener
-			g.events.Eventf(gwObj, Warning.String(), "InvalidConfig", "invalid configuration for Gateway resource detected: %s", userErr)
-			continue
-		} else if !isActive {
-			continue
-		}
-		// otherwise it's active + valid - build SPC
-		certUri := listener.TLS.Options[tlsCertKvUriOption]
-
 		spc := &secv1.SecretProviderClass{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "secrets-store.csi.x-k8s.io/v1",
@@ -108,8 +100,69 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			},
 		}
 		logger = logger.WithValues("spc", spc.Name)
-		logger.Info("building spc for Gateway resource and upserting if managed with labels")
-		upsertSPC, err := buildSPC(gwObj, spc, g.config, clientId)
+
+		if shouldDeploySpcForListener(listener) {
+			// VALIDATE SHOULD PARSE SERVICEACCOUNT AND RETURN ERROR IF FAILURE HAPPENS ACCORDINGLY
+			clientId, err := validateTLSOptions(listener.TLS.Options)
+			if err != nil {
+				var userErr userError
+				if errors.As(err, &userErr) {
+					logger.Info(fmt.Sprintf("failed to create SecretProviderClass for listener %s due to user error %s, sending warning event", listener.Name, userErr.userMessage))
+					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid configuration for Gateway resource detected: %s", userErr)
+					return ctrl.Result{}, nil
+				}
+				logger.Error(err, fmt.Sprintf("failed to validate listener %s: %s", listener.Name, err))
+				return ctrl.Result{}, err
+			}
+
+			// otherwise it's active + valid - build SPC
+			certUri := string(listener.TLS.Options[certUriTLSOption])
+
+			// THIS SHOULD ALL MOVE TO VALIDATION
+			switch listener.TLS.Options[clientIdTLSOption] {
+			case "":
+				saName := string(listener.TLS.Options[serviceAccountTLSOption])
+				// pull service account
+				var wiSa *corev1.ServiceAccount
+				err = g.client.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: saName}, wiSa)
+				if err != nil {
+					errString := fmt.Sprintf("failed to fetch serviceAccount %s: %s", wiSa, err)
+					logger.Info(errString)
+					g.events.Event(gwObj, Warning.String(), "InvalidInput", errString)
+					return ctrl.Result{}, client.IgnoreNotFound(err)
+				}
+
+				if wiSa.Annotations == nil || wiSa.Annotations[wiSaClientIdAnnotation] == "" {
+					errString := fmt.Sprintf("workload identity MSI client ID must be specified for serviceAccount %s using annotation %s", saName, wiSaClientIdAnnotation)
+					logger.Info(fmt.Sprintf("user failed to specify workload Identity MSI client ID for service account %s", saName))
+					g.events.Event(gwObj, Warning.String(), "InvalidInput", errString)
+					return ctrl.Result{}, nil
+				}
+				clientId = wiSa.Annotations[wiSaClientIdAnnotation]
+
+			default:
+				clientId = string(listener.TLS.Options[clientIdTLSOption])
+			}
+
+			logger.Info(fmt.Sprintf("building spc for Gateway resource with clientId %s and upserting ", clientId))
+			spcConf := SPCConfig{
+				ClientId:        clientId,
+				TenantId:        g.config.TenantID,
+				KeyvaultCertUri: certUri,
+				Name:            GenerateGatewayCertName(gwObj.Name),
+			}
+			err = buildSPC(spc, spcConf)
+			if err != nil {
+				var userErr userError
+				if errors.As(err, userErr) {
+					// record event and propagate, then fail
+				}
+
+			}
+
+		}
+
+		// figure out if we need to clean up
 
 	}
 
@@ -126,4 +179,8 @@ func GenerateGatewayCertName(gatewayName string) string {
 	}
 
 	return template
+}
+
+func shouldDeploySpcForListener(listener gatewayv1.Listener) bool {
+	return listener.TLS != nil && listener.TLS.Options != nil && listener.TLS.Options[tlsCertKvUriAnnotation] != ""
 }
