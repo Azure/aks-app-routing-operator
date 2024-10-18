@@ -224,7 +224,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 		zoners = append(zoners, zone{
 			name:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local:80", *serviceName),
 			nameserver: infra.Cluster.GetDnsServiceIp(),
-			host:       fmt.Sprintf("%s-0.app-routing-system.svc.cluster.local", *serviceName),
+			host:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local", *serviceName),
 		})
 	}
 
