@@ -39,10 +39,11 @@ type GatewaySecretProviderClassReconciler struct {
 }
 
 func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.Config) error {
-	metrics.InitControllerMetrics(gatewaySecretProviderControllerName)
 	if conf.DisableKeyvault {
 		return nil
 	}
+	metrics.InitControllerMetrics(gatewaySecretProviderControllerName)
+
 	return gatewaySecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
