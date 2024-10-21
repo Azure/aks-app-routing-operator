@@ -9,4 +9,6 @@ const (
 	serviceAccountTLSOption = "kubernetes.azure.com/tls-cert-service-account"
 
 	wiSaClientIdAnnotation = "azure.workload.identity/client-id"
+
+	appRoutingSaName = "azure-app-routing-kv"
 )
