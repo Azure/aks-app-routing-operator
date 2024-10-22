@@ -3,6 +3,8 @@ package suites
 import (
 	"context"
 	"fmt"
+	"regexp"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -18,7 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -85,17 +86,15 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				var service = &v1alpha1.ManagedObjectReference{}
-				lgr.Info("checking for service in managed resource refs")
-				for _, ref := range nic.Status.ManagedResourceRefs {
-					if ref.Kind == "Service" {
-						lgr.Info("found service")
-						service = &ref
-					}
+				statusNIC, err := waitForNICAvailable(ctx, c, nic)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to be available: %w", err)
 				}
 
-				if service == nil {
-					return fmt.Errorf("no service available in resource refs")
+				lgr.Info("checking for service in managed resource refs")
+				service, err := getNginxLbServiceRef(statusNIC)
+				if err != nil {
+					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
 
 				if err := defaultBackendClientServerTest(ctx, config, operator, dbBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
@@ -125,39 +124,36 @@ func defaultBackendTests(in infra.Provisioned) []test {
 				}
 
 				ingressClassName := "ceingressclass"
-				nic :=
-					&v1alpha1.NginxIngressController{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "NginxIngressController",
-							APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+				nic := &v1alpha1.NginxIngressController{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "NginxIngressController",
+						APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "ce-nginxingress",
+						Annotations: map[string]string{
+							manifests.ManagedByKey: manifests.ManagedByVal,
 						},
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "ce-nginxingress",
-							Annotations: map[string]string{
-								manifests.ManagedByKey: manifests.ManagedByVal,
-							},
-						},
-						Spec: v1alpha1.NginxIngressControllerSpec{
-							IngressClassName:     ingressClassName,
-							ControllerNamePrefix: "nginx-custom-errors",
-							CustomHTTPErrors:     []int32{404, 503},
-						},
-					}
+					},
+					Spec: v1alpha1.NginxIngressControllerSpec{
+						IngressClassName:     ingressClassName,
+						ControllerNamePrefix: "nginx-custom-errors",
+						CustomHTTPErrors:     []int32{404, 503},
+					},
+				}
 				if err := upsert(ctx, c, nic); err != nil {
 					return fmt.Errorf("upserting nic: %w", err)
 				}
 
-				var service = &v1alpha1.ManagedObjectReference{}
-				lgr.Info("checking for service in managed resource refs")
-				for _, ref := range nic.Status.ManagedResourceRefs {
-					if ref.Kind == "Service" {
-						lgr.Info("found service")
-						service = &ref
-					}
+				statusNic, err := waitForNICAvailable(ctx, c, nic)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to be available: %w", err)
 				}
 
-				if service == nil {
-					return fmt.Errorf("no service available in resource refs")
+				lgr.Info("checking for service in managed resource refs")
+				service, err := getNginxLbServiceRef(statusNic)
+				if err != nil {
+					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
 
 				if err := defaultBackendClientServerTest(ctx, config, operator, ceBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
@@ -228,7 +224,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 		zoners = append(zoners, zone{
 			name:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local:80", *serviceName),
 			nameserver: infra.Cluster.GetDnsServiceIp(),
-			host:       fmt.Sprintf("%s-0.app-routing-system.svc.cluster.local", *serviceName),
+			host:       fmt.Sprintf("%s.app-routing-system.svc.cluster.local", *serviceName),
 		})
 	}
 

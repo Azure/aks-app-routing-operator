@@ -70,6 +70,7 @@ func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *
 		ClusterRoleBinding:      newNginxIngressControllerClusterRoleBinding(conf, ingressConfig),
 		RoleBinding:             newNginxIngressControllerRoleBinding(conf, ingressConfig),
 		Service:                 newNginxIngressControllerService(conf, ingressConfig),
+		PromService:             newNginxIngressControllerPromService(conf, ingressConfig),
 		Deployment:              newNginxIngressControllerDeployment(conf, ingressConfig),
 		ConfigMap:               newNginxIngressControllerConfigmap(conf, ingressConfig),
 		HorizontalPodAutoscaler: newNginxIngressControllerHPA(conf, ingressConfig),
@@ -304,10 +305,7 @@ func newNginxIngressControllerRoleBinding(conf *config.Config, ingressConfig *Ng
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
 	annotations := make(map[string]string)
 	sourceRanges := make([]string, 0)
-	for k, v := range promAnnotations {
-		annotations[k] = v
-	}
-
+	
 	if ingressConfig != nil && ingressConfig.ServiceConfig != nil {
 		for k, v := range ingressConfig.ServiceConfig.Annotations {
 			annotations[k] = v
@@ -345,6 +343,32 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 					Port:       443,
 					TargetPort: intstr.FromString("https"),
 				},
+			},
+		},
+	}
+}
+
+func newNginxIngressControllerPromService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
+	annotations := make(map[string]string)
+	for k, v := range promAnnotations {
+		annotations[k] = v
+	}
+
+	return &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        ingressConfig.ResourceName + "-metrics",
+			Namespace:   conf.NS,
+			Labels:      AddComponentLabel(GetTopLevelLabels(), "ingress-controller"),
+			Annotations: annotations,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeClusterIP,
+			Selector: ingressConfig.PodLabels(),
+			Ports: []corev1.ServicePort{
 				promServicePort,
 			},
 		},
