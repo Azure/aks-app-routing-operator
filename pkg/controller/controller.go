@@ -219,7 +219,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		}
 
 		// this will eventually be used by WI for ingress too - maybe move it out?
-		if err := keyvault.NewKvServiceAccountReconciler(mgr, conf); err != nil {
+		if err := keyvault.NewKvServiceAccountReconciler(mgr); err != nil {
 			return fmt.Errorf("setting up Keyvault TLS default ServiceAccount reconciler: %s", err)
 		}
 	}

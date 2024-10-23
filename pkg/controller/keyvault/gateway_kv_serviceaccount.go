@@ -2,10 +2,12 @@ package keyvault
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
-	cfg "github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,10 +26,9 @@ var kvSaControllerName = controllername.New("gateway", "keyvault", "serviceaccou
 type KvServiceAccountReconciler struct {
 	client client.Client
 	events record.EventRecorder
-	config cfg.Config
 }
 
-func NewKvServiceAccountReconciler(mgr ctrl.Manager, config cfg.Config) error {
+func NewKvServiceAccountReconciler(mgr ctrl.Manager) error {
 	metrics.InitControllerMetrics(kvSaControllerName)
 
 	return kvSaControllerName.AddToController(ctrl.NewControllerManagedBy(mgr).
@@ -35,7 +36,6 @@ func NewKvServiceAccountReconciler(mgr ctrl.Manager, config cfg.Config) error {
 		Complete(&KvServiceAccountReconciler{
 			client: mgr.GetClient(),
 			events: mgr.GetEventRecorderFor("app-routing-operator"),
-			config: config,
 		})
 
 }
@@ -59,6 +59,22 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return res, client.IgnoreNotFound(err)
 	}
 
+	clientId, err := extractClientId(gwObj)
+	if clientId == "" {
+		return res, err
+	}
+
+	if err != nil {
+		var userErr userError
+		if errors.As(err, &userErr) {
+			logger.Info("user error while extracting clientId from Gateway: %s", userErr.userMessage)
+			k.events.Event(gwObj, Warning.String(), "InvalidInput", userErr.userMessage)
+			return res, nil
+		}
+		logger.Error(err, "failed to extract clientId from Gateway object")
+		return res, err
+	}
+
 	toCreate := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -78,9 +94,41 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		logger.Error(err, "failed to fetch existing app routing serviceaccount")
 		return res, err
 	}
-	if err != nil {
-		// it was found -- we need to grab existing MSI if there is one
+
+	if existing != nil && existing.Annotations != nil && existing.Annotations[wiSaClientIdAnnotation] != "" {
+		existingClientId := existing.Annotations[wiSaClientIdAnnotation]
+		if existingClientId != clientId {
+			errText := fmt.Sprintf("gateway specifies clientId %s but azure-app-routing-kv ServiceAccount already uses clientId %s", clientId, existingClientId)
+			logger.Info(errText)
+			k.events.Event(gwObj, Warning.String(), "InvalidInput", errText)
+			return res, err
+		}
 	}
 
+	toCreate.Annotations[wiSaClientIdAnnotation] = clientId
+
+	err = util.Upsert(ctx, k.client, toCreate)
+
 	return res, err
+}
+
+func extractClientId(gwObj *gatewayv1.Gateway) (string, error) {
+	var ret string
+
+	if gwObj.Spec.Listeners == nil || len(gwObj.Spec.Listeners) == 0 {
+		return "", nil
+	}
+	for _, listener := range gwObj.Spec.Listeners {
+		if listener.TLS == nil || listener.TLS.Options == nil {
+			continue
+		}
+		if listener.TLS.Options[clientIdTLSOption] != "" {
+			if ret != "" && string(listener.TLS.Options[clientIdTLSOption]) != ret {
+				return "", newUserError(nil, "multiple unique clientIds specified. Please select one clientId to associate with the azure-app-routing-kv ServiceAccount")
+			}
+			ret = string(listener.TLS.Options[clientIdTLSOption])
+		}
+	}
+
+	return ret, nil
 }

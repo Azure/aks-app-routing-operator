@@ -161,10 +161,6 @@ func newUserError(err error, msg string) userError {
 	return userError{err, msg}
 }
 
-func xor(fc, sc bool) bool {
-	return (fc && !sc) || (!fc && sc)
-}
-
 func retrieveClientId(ctx context.Context, k8sclient client.Client, namespace string, options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
 	certUri := string(options[certUriTLSOption])
 	saName := string(options[serviceAccountTLSOption])

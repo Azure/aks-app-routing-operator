@@ -5,9 +5,11 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -142,8 +144,9 @@ func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretPro
 
 func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
 	var (
-		err error
-		obj client.Object
+		err            error
+		obj            client.Object
+		serviceAccount string
 	)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -199,9 +202,24 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 		return result, nil
 	}
 
+	// Verify ServiceAccount exists (if Gateway)
+	serviceAccount, err = p.verifyServiceAccount(ctx, spc, obj, logger)
+	var userErr userError
+	if errors.As(err, &userErr) {
+		logger.Info("failed to verify if service account exists: %s", userErr.err)
+		p.events.Eventf(obj, Warning.String(), "InvalidInput", userErr.userMessage)
+		return result, nil
+	}
+	var requeueErr util.RequeueError
+	if errors.As(err, &requeueErr) {
+		logger.Error(requeueErr.OriginalError(), "could not find app routing service account when user listener contained clientId, re-queuing operation")
+		result.RequeueAfter = requeueErr.RequeueAfter()
+		return result, nil
+	}
+
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
-	if err = p.buildDeployment(ctx, dep, spc, obj, logger); err != nil {
+	if err = p.buildDeployment(ctx, dep, spc, obj, logger, serviceAccount); err != nil {
 		err = fmt.Errorf("building deployment: %w", err)
 		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to build placeholder deployment")
@@ -228,7 +246,7 @@ func (p *PlaceholderPodController) getCurrentDeployment(ctx context.Context, nam
 	return dep, nil
 }
 
-func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object, logger logr.Logger) error {
+func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object, logger logr.Logger, serviceAccount string) error {
 	old, err := p.getCurrentDeployment(ctx, client.ObjectKeyFromObject(dep))
 	if err != nil {
 		return fmt.Errorf("getting current deployment: %w", err)
@@ -241,28 +259,13 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 	}
 
 	var ownerAnnotation string
-	var serviceAccount string
-	switch t := obj.(type) {
+	switch obj.(type) {
 	case *v1alpha1.NginxIngressController:
 		ownerAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
 	case *netv1.Ingress:
 		ownerAnnotation = "kubernetes.azure.com/ingress-owner"
 	case *gatewayv1.Gateway:
 		ownerAnnotation = "kubernetes.azure.com/gateway-owner"
-		for _, listener := range t.Spec.Listeners {
-			if spc.Name != GenerateGwListenerCertName(t.Name, listener.Name) {
-				continue
-			}
-			if listener.TLS != nil && listener.TLS.Options != nil {
-				serviceAccount = string(listener.TLS.Options[serviceAccountTLSOption])
-				if serviceAccount == "" {
-					serviceAccount = appRoutingSaName
-				}
-			}
-		}
-		err := fmt.Errorf("could not find gateway listener for spc %s", spc.Name)
-		logger.Error(err, "failed to create placeholder pod for spc, could not find listener referencing it, and resultantly no ServiceAccount to deploy it under")
-		return err
 	default:
 		return fmt.Errorf("failed to build deployment: object type not ingress, nginxingresscontroller, or gateway")
 	}
@@ -329,7 +332,55 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 	if serviceAccount != "" {
 		dep.Spec.Template.Spec.AutomountServiceAccountToken = to.Ptr(true)
 		dep.Spec.Template.Spec.ServiceAccountName = serviceAccount
-
 	}
 	return nil
+}
+
+// verifyServiceAccount ensures that the ServiceAccount used to create the placeholder pod exists since there is a race condition between
+// the placeholder pod reconciler and the ServiceAccount reconciler, whereby both are dependent on the creation of Gateway resources, but there is no guarantee
+// that the ServiceAccount reconciler completes before the SPC reconciler and the placeholder pod reconciler. As a result, if the ServiceAccount reconciler
+// has not finished creating the azure-app-routing-kv ServiceAccount, the operation should be re-queued.
+// This also ensures that the user has created the ServiceAccount referenced within their own annotations before we attempt (and potentially fail) to create
+// the placeholder pod.
+func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc *secv1.SecretProviderClass, obj client.Object, logger logr.Logger) (string, error) {
+	var serviceAccount string
+
+	switch t := obj.(type) {
+	case *gatewayv1.Gateway:
+		logger.Info("verifying service account referenced by listener exists")
+		for _, listener := range t.Spec.Listeners {
+			if spc.Name != GenerateGwListenerCertName(t.Name, listener.Name) {
+				continue
+			}
+			if listener.TLS != nil && listener.TLS.Options != nil {
+				serviceAccount = string(listener.TLS.Options[serviceAccountTLSOption])
+				if serviceAccount == "" {
+					serviceAccount = appRoutingSaName
+				}
+			}
+		}
+		if serviceAccount == "" {
+			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
+			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain TLS options", spc.Name))
+		}
+
+		if serviceAccount != appRoutingSaName {
+			// TODO: VERIFY IT EXISTS TOO
+
+			return serviceAccount, nil
+		}
+
+		// ensure approuting serviceaccount exists, otherwise we need to requeue the operation
+		saObj := &corev1.ServiceAccount{}
+		err := p.client.Get(ctx, types.NamespacedName{Name: serviceAccount, Namespace: spc.Namespace}, saObj)
+
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return "", util.NewRequeueError(err, 30*time.Second)
+			}
+			return "", err
+		}
+	}
+
+	return "", nil
 }
