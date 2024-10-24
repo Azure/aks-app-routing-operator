@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - patch sec vulns and backport osm changes - [link](https://github.com/Azure/aks-app-routing-operator/pull/284)
+- split out prom service - [link](https://github.com/Azure/aks-app-routing-operator/commit/b9a6cb0122d3af608a217accb4de4c5023e5809d)
 
 ## [0.2.3-patch-2] - 2024-08-17
 
