@@ -14,6 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,7 +90,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      GenerateGwListenerCertName(gwObj.Name, listener.Name),
-				Namespace: g.config.NS,
+				Namespace: req.Namespace,
 				Labels:    manifests.GetTopLevelLabels(),
 				OwnerReferences: []metav1.OwnerReference{{
 					APIVersion: gwObj.APIVersion,
@@ -102,8 +103,8 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		}
 		logger = logger.WithValues("spc", spc.Name)
 
-		if shouldDeploySpcForListener(listener) {
-			clientId, err := retrieveClientId(ctx, g.client, req.Namespace, listener.TLS.Options)
+		if listenerIsKvEnabled(listener) {
+			clientId, err := retrieveClientIdFromListener(ctx, g.client, req.Namespace, listener.TLS.Options)
 			if err != nil {
 				var userErr userError
 				if errors.As(err, &userErr) {
@@ -192,6 +193,54 @@ func GenerateGwListenerCertName(gw string, listener gatewayv1.SectionName) strin
 	return template
 }
 
-func shouldDeploySpcForListener(listener gatewayv1.Listener) bool {
+func listenerIsKvEnabled(listener gatewayv1.Listener) bool {
 	return listener.TLS != nil && listener.TLS.Options != nil && listener.TLS.Options[tlsCertKvUriAnnotation] != ""
+}
+
+func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, namespace string, options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
+	certUri := string(options[certUriTLSOption])
+	saName := string(options[serviceAccountTLSOption])
+	inputClientId := string(options[clientIdTLSOption])
+
+	// validate user input
+	if certUri != "" && (saName == "" && inputClientId == "") {
+		return "", newUserError(errors.New("user specified cert URI but no serviceaccount or clientid in a listener"), "detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided")
+	}
+	if certUri == "" && (saName != "" || inputClientId != "") {
+		return "", newUserError(errors.New("user specified clientId or SA but no cert URI in a listener"), "detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
+	}
+	if saName != "" && inputClientId != "" {
+		return "", newUserError(errors.New("user specified both serviceaccount and a clientId in the same listener"), "both ServiceAccountName and ClientId have been specified, please specify one or the other")
+	}
+
+	// this should never happen since we check for this prior to this function call but just to be safe
+	if certUri == "" && saName == "" && inputClientId == "" {
+		return "", newUserError(errors.New("none of the required TLS options were specified"), "none of cert URI, clientId, or service account were specified")
+	}
+
+	var ret string
+	var err error
+	switch inputClientId {
+	case "":
+		// pull service account
+		var wiSa *corev1.ServiceAccount
+		err = k8sclient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: saName}, wiSa)
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return "", newUserError(fmt.Errorf("user-specified serviceAccount %s does not exist", saName), fmt.Sprintf("serviceAccount %s does not exist", saName))
+			}
+			return "", fmt.Errorf("fetching serviceAccount %s: %s", saName, err)
+		}
+
+		if wiSa.Annotations == nil || wiSa.Annotations[wiSaClientIdAnnotation] == "" {
+			errString := fmt.Sprintf("workload identity MSI client ID must be specified for serviceAccount %s with annotation %s", saName, wiSaClientIdAnnotation)
+			return "", newUserError(errors.New("user-specified service account doesn't contain annotation with clientId"), errString)
+		}
+		ret = wiSa.Annotations[wiSaClientIdAnnotation]
+
+	default:
+		ret = inputClientId
+	}
+
+	return ret, nil
 }

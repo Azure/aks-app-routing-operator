@@ -1,7 +1,6 @@
 package keyvault
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -9,11 +8,8 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -159,47 +155,4 @@ func (b userError) UserError() string {
 
 func newUserError(err error, msg string) userError {
 	return userError{err, msg}
-}
-
-func retrieveClientId(ctx context.Context, k8sclient client.Client, namespace string, options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
-	certUri := string(options[certUriTLSOption])
-	saName := string(options[serviceAccountTLSOption])
-	inputClientId := string(options[clientIdTLSOption])
-
-	// validate user input
-	if certUri != "" && (saName == "" && inputClientId == "") {
-		return "", newUserError(nil, "detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided")
-	}
-	if certUri == "" && (saName != "" || inputClientId != "") {
-		return "", newUserError(nil, "detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
-	}
-	if saName != "" && inputClientId != "" {
-		return "", newUserError(nil, "both ServiceAccountName and ClientId have been specified, please specify one or the other")
-	}
-
-	var ret string
-	var err error
-	switch inputClientId {
-	case "":
-		// pull service account
-		var wiSa *corev1.ServiceAccount
-		err = k8sclient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: saName}, wiSa)
-		if err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				return "", newUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
-			}
-			return "", fmt.Errorf("fetching serviceAccount %s: %s", saName, err)
-		}
-
-		if wiSa.Annotations == nil || wiSa.Annotations[wiSaClientIdAnnotation] == "" {
-			errString := fmt.Sprintf("workload identity MSI client ID must be specified for serviceAccount %s using annotation %s", saName, wiSaClientIdAnnotation)
-			return "", newUserError(nil, errString)
-		}
-		ret = wiSa.Annotations[wiSaClientIdAnnotation]
-
-	default:
-		ret = inputClientId
-	}
-
-	return ret, nil
 }

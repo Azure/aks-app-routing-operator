@@ -133,7 +133,7 @@ func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretPro
 			if spc.Name != GenerateGwListenerCertName(t.Name, listener.Name) {
 				continue
 			}
-			return !shouldDeploySpcForListener(listener), nil
+			return !listenerIsKvEnabled(listener), nil
 		}
 		// couldn't find the listener the pod belongs to so return true
 		return true, nil
@@ -204,26 +204,35 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 
 	// Verify ServiceAccount exists (if Gateway)
 	serviceAccount, err = p.verifyServiceAccount(ctx, spc, obj, logger)
-	var userErr userError
-	if errors.As(err, &userErr) {
-		logger.Info("failed to verify if service account exists: %s", userErr.err)
-		p.events.Eventf(obj, Warning.String(), "InvalidInput", userErr.userMessage)
-		return result, nil
-	}
-	var requeueErr util.RequeueError
-	if errors.As(err, &requeueErr) {
-		logger.Error(requeueErr.OriginalError(), "could not find app routing service account when user listener contained clientId, re-queuing operation")
-		result.RequeueAfter = requeueErr.RequeueAfter()
-		return result, nil
+	if err != nil {
+		var userErr userError
+		if errors.As(err, &userErr) {
+			logger.Info("user error while verifying if service account exists: %s", userErr.err)
+			p.events.Eventf(obj, Warning.String(), "InvalidInput", userErr.userMessage)
+			return result, nil
+		}
+		var requeueErr util.RequeueError
+		if errors.As(err, &requeueErr) {
+			result.RequeueAfter = requeueErr.RequeueAfter()
+			return result, nil
+		}
+
+		logger.Error(err, "verifying ServiceAccount for placeholder pod")
+		return result, fmt.Errorf("verifying service account for placeholder pod: %s", err.Error())
 	}
 
 	// Manage a deployment resource
 	logger.Info("reconciling placeholder deployment for secret provider class")
-	if err = p.buildDeployment(ctx, dep, spc, obj, logger, serviceAccount); err != nil {
+	if err = p.buildDeployment(ctx, dep, spc, obj); err != nil {
 		err = fmt.Errorf("building deployment: %w", err)
 		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to build placeholder deployment")
 		return result, err
+	}
+
+	if serviceAccount != "" {
+		dep.Spec.Template.Spec.AutomountServiceAccountToken = to.Ptr(true)
+		dep.Spec.Template.Spec.ServiceAccountName = serviceAccount
 	}
 
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
@@ -246,7 +255,7 @@ func (p *PlaceholderPodController) getCurrentDeployment(ctx context.Context, nam
 	return dep, nil
 }
 
-func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object, logger logr.Logger, serviceAccount string) error {
+func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object) error {
 	old, err := p.getCurrentDeployment(ctx, client.ObjectKeyFromObject(dep))
 	if err != nil {
 		return fmt.Errorf("getting current deployment: %w", err)
@@ -328,11 +337,6 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 			}),
 		},
 	}
-
-	if serviceAccount != "" {
-		dep.Spec.Template.Spec.AutomountServiceAccountToken = to.Ptr(true)
-		dep.Spec.Template.Spec.ServiceAccountName = serviceAccount
-	}
 	return nil
 }
 
@@ -364,21 +368,21 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain TLS options", spc.Name))
 		}
 
-		if serviceAccount != appRoutingSaName {
-			// TODO: VERIFY IT EXISTS TOO
-
-			return serviceAccount, nil
-		}
-
-		// ensure approuting serviceaccount exists, otherwise we need to requeue the operation
+		// ensure referenced serviceaccount exists
 		saObj := &corev1.ServiceAccount{}
 		err := p.client.Get(ctx, types.NamespacedName{Name: serviceAccount, Namespace: spc.Namespace}, saObj)
 
-		if err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				return "", util.NewRequeueError(err, 30*time.Second)
-			}
+		if client.IgnoreNotFound(err) != nil {
 			return "", err
+		}
+
+		// SA wasn't found, return appropriate error
+		if err != nil {
+			if serviceAccount != appRoutingSaName {
+				return "", newUserError(err, fmt.Sprintf("serviceAccount %s was specified in Gateway but does not exist", serviceAccount))
+			}
+			logger.Error(err, "could not find app routing service account when user listener contained clientId, re-queuing operation")
+			return "", util.NewRequeueError(err, 30*time.Second)
 		}
 	}
 

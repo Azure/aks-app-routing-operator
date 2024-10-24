@@ -50,7 +50,7 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return ctrl.Result{}, err
+		return res, err
 	}
 	logger = kvSaControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
@@ -59,7 +59,7 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return res, client.IgnoreNotFound(err)
 	}
 
-	clientId, err := extractClientId(gwObj)
+	clientId, err := extractClientIdForManagedSa(gwObj)
 	if clientId == "" {
 		return res, err
 	}
@@ -112,7 +112,7 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return res, err
 }
 
-func extractClientId(gwObj *gatewayv1.Gateway) (string, error) {
+func extractClientIdForManagedSa(gwObj *gatewayv1.Gateway) (string, error) {
 	var ret string
 
 	if gwObj.Spec.Listeners == nil || len(gwObj.Spec.Listeners) == 0 {
@@ -124,7 +124,7 @@ func extractClientId(gwObj *gatewayv1.Gateway) (string, error) {
 		}
 		if listener.TLS.Options[clientIdTLSOption] != "" {
 			if ret != "" && string(listener.TLS.Options[clientIdTLSOption]) != ret {
-				return "", newUserError(nil, "multiple unique clientIds specified. Please select one clientId to associate with the azure-app-routing-kv ServiceAccount")
+				return "", newUserError(fmt.Errorf("user specified multiple clientIds in one gateway resource"), "multiple unique clientIds specified. Please select one clientId to associate with the azure-app-routing-kv ServiceAccount")
 			}
 			ret = string(listener.TLS.Options[clientIdTLSOption])
 		}
