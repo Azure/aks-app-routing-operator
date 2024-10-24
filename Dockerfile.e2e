@@ -1,11 +1,11 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20 as builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 as builder
 
 WORKDIR /go/src/e2e
 ADD . .
 WORKDIR ./testing/e2e
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -a -ldflags '-extldflags "-static"' -o e2e
 
-FROM scratch
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /go/src/e2e/testing/e2e .
 ENTRYPOINT ["/e2e"]
