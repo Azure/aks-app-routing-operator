@@ -29,6 +29,7 @@ type NginxResources struct {
 	ClusterRoleBinding      *rbacv1.ClusterRoleBinding
 	RoleBinding             *rbacv1.RoleBinding
 	Service                 *corev1.Service
+	PromService             *corev1.Service
 	Deployment              *appsv1.Deployment
 	ConfigMap               *corev1.ConfigMap
 	HorizontalPodAutoscaler *autov1.HorizontalPodAutoscaler
@@ -44,6 +45,7 @@ func (n *NginxResources) Objects() []client.Object {
 		n.ClusterRoleBinding,
 		n.RoleBinding,
 		n.Service,
+		n.PromService,
 		n.Deployment,
 		n.ConfigMap,
 		n.HorizontalPodAutoscaler,
