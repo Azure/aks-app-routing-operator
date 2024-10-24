@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-patch-3] - 2024-10-24
+
+### Changed
+
+- bump Go - [link](https://github.com/Azure/aks-app-routing-operator/pull/303)
+- split out prom service - [link](https://github.com/Azure/aks-app-routing-operator/pull/303)
+
+
 ## [0.2.1-patch-5] - 2024-10-14
 
 ### Changed
