@@ -1,6 +1,6 @@
 module github.com/Azure/aks-app-routing-operator
 
-go 1.20
+go 1.22
 
 require (
 	github.com/Azure/go-autorest/autorest v0.11.29
