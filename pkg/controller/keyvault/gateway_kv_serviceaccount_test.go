@@ -7,10 +7,12 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -242,7 +244,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    appRoutingSa,
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(singleClientIdGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(singleClientIdGateway).Build()
 			},
 		},
 		{
@@ -251,7 +253,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    appRoutingSa,
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(multiClientIdGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(multiClientIdGateway).Build()
 			},
 		},
 		{
@@ -260,7 +262,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(nilOptionsGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(nilOptionsGateway).Build()
 			},
 		},
 		{
@@ -269,7 +271,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(noListenersGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(noListenersGateway).Build()
 			},
 		},
 		{
@@ -278,7 +280,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(saGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(saGateway).Build()
 			},
 		},
 		{
@@ -287,7 +289,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(noListenersGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(noListenersGateway).Build()
 			},
 		},
 		{
@@ -296,7 +298,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    appRoutingSa,
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(multiClientIdGateway, appRoutingSa).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(multiClientIdGateway, appRoutingSa).Build()
 			},
 		},
 		{
@@ -305,7 +307,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			expectedError: nil,
 			expectedSa:    &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return fake.NewClientBuilder().WithObjects(multiClientIdGateway, &corev1.ServiceAccount{
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(multiClientIdGateway, &corev1.ServiceAccount{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "v1",
 						Kind:       "ServiceAccount",
@@ -324,6 +326,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 
 	for _, tc := range tcs {
 		// Define preexisting state
+		ctx := logr.NewContext(context.Background(), logr.Discard())
 		c := tc.generateClientState()
 		k := &KvServiceAccountReconciler{
 			client: c,
@@ -335,19 +338,20 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 		beforeErrCount := testutils.GetErrMetricCount(t, kvSaControllerName)
 		beforeRequestCount := testutils.GetReconcileMetricCount(t, kvSaControllerName, metrics.LabelSuccess)
 
-		_, err := k.Reconcile(context.Background(), req)
+		_, err := k.Reconcile(ctx, req)
 
 		if tc.expectedError == nil {
 			require.Equal(t, nil, err)
 			// compare service accounts
 			actualSa := &corev1.ServiceAccount{}
-			_ = c.Get(context.Background(), types.NamespacedName{Name: tc.expectedSa.Name, Namespace: tc.expectedSa.Namespace}, actualSa)
-			require.Equal(t, tc.expectedSa.ObjectMeta, actualSa.ObjectMeta)
+			_ = c.Get(ctx, types.NamespacedName{Name: tc.expectedSa.Name, Namespace: tc.expectedSa.Namespace}, actualSa)
+			require.Equal(t, tc.expectedSa.ObjectMeta.Name, actualSa.ObjectMeta.Name)
+			require.Equal(t, tc.expectedSa.ObjectMeta.Namespace, actualSa.ObjectMeta.Namespace)
+			require.Equal(t, tc.expectedSa.ObjectMeta.Annotations, actualSa.ObjectMeta.Annotations)
 			require.Equal(t, tc.expectedSa.TypeMeta, actualSa.TypeMeta)
-			require.Equal(t, tc.expectedSa.Annotations, actualSa.Annotations)
 
 			require.Equal(t, testutils.GetErrMetricCount(t, kvSaControllerName), beforeErrCount)
-			require.Greater(t, testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
+			require.Greater(t, testutils.GetReconcileMetricCount(t, kvSaControllerName, metrics.LabelSuccess), beforeRequestCount)
 
 		} else {
 			require.Equal(t, tc.expectedError.Error(), err.Error())

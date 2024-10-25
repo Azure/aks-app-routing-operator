@@ -42,7 +42,7 @@ var (
 			IngressClassName: &spcTestIngressClassName,
 		},
 	}
-	spcTestDefaultConf = buildTestSpcConfig("test-msi", "test-tenant", "test-cloud")
+	spcTestDefaultConf = buildTestSpcConfig("test-msi", "test-tenant", "test-cloud", "test-ing", "test-uri")
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -338,14 +338,16 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	assert.Greater(t, afterRequestCount, beforeRequestCount)
 }
 
-func buildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
-	spcTestConf := config.Config{
-		MSIClientID: msiClient,
-		TenantID:    tenantID,
-		Cloud:       cloud,
+func buildTestSpcConfig(clientId, tenantID, cloud, name, certUri string) SPCConfig {
+	spcTestConf := SPCConfig{
+		ClientId:        clientId,
+		TenantId:        tenantID,
+		Cloud:           cloud,
+		Name:            name,
+		KeyvaultCertUri: certUri,
 	}
 
-	return &spcTestConf
+	return spcTestConf
 }
 
 func TestIsNginxAnnotation(t *testing.T) {

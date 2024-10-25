@@ -108,8 +108,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 			Name:            DefaultNginxCertName(nic),
 			Cloud:           i.config.Cloud,
 		}
-		err := buildSPC(spc, spcConf)
-
+		err = buildSPC(spc, spcConf)
 		if err != nil {
 			var userErr userError
 			if errors.As(err, &userErr) {

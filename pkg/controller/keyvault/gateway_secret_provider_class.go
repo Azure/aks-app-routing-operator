@@ -223,7 +223,7 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 	switch inputClientId {
 	case "":
 		// pull service account
-		var wiSa *corev1.ServiceAccount
+		wiSa := &corev1.ServiceAccount{}
 		err = k8sclient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: saName}, wiSa)
 		if err != nil {
 			if client.IgnoreNotFound(err) == nil {

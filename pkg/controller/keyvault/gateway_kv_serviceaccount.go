@@ -105,6 +105,9 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
+	if toCreate.Annotations == nil {
+		toCreate.Annotations = map[string]string{}
+	}
 	toCreate.Annotations[wiSaClientIdAnnotation] = clientId
 
 	err = util.Upsert(ctx, k.client, toCreate)

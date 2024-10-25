@@ -119,7 +119,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Name:            certSecretName(ing.Name),
 				Cloud:           i.config.Cloud,
 			}
-			if err := buildSPC(spc, spcConf); err != nil {
+			if err = buildSPC(spc, spcConf); err != nil {
 				var userErr userError
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))

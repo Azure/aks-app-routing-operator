@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 
@@ -26,6 +27,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -645,7 +647,9 @@ func TestNewPlaceholderPodController(t *testing.T) {
 	require.NoError(t, err)
 
 	// test nil ingress manager for nginx ingress controller
-	err = NewPlaceholderPodController(m, conf, nil)
+	nilIm, err := manager.New(restConfig, manager.Options{Controller: ctrlconfig.Controller{SkipNameValidation: to.Ptr(true)}, Metrics: metricsserver.Options{BindAddress: ":0"}})
+	require.NoError(t, err)
+	err = NewPlaceholderPodController(nilIm, conf, nil)
 	require.NoError(t, err)
 }
 
@@ -783,7 +787,7 @@ func TestBuildDeployment(t *testing.T) {
 	var emptyObj client.Object
 
 	err := p.buildDeployment(ctx, dep, spc, emptyObj)
-	require.EqualError(t, err, "failed to build deployment: object type not ingress or nginxingresscontroller")
+	require.EqualError(t, err, "failed to build deployment: object type not ingress, nginxingresscontroller, or gateway")
 }
 
 func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProviderClass {
