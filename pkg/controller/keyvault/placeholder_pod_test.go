@@ -705,11 +705,11 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	}
 
 	// Default scenarios for ingress and nginxingresscontroller. Does not clean when spc required fields are there
-	cleanPod, err := p.placeholderPodCleanCheck(nic)
+	cleanPod, err := p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, nic)
 	require.NoError(t, err)
 	require.Equal(t, false, cleanPod)
 
-	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
 	require.NoError(t, err)
 	require.Equal(t, false, cleanPod)
 
@@ -717,19 +717,19 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 
 	// nic without key vault uri
 	nic.Spec.DefaultSSLCertificate.KeyVaultURI = nil
-	cleanPod, err = p.placeholderPodCleanCheck(nic)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, nic)
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
 	// nic without DefaultSSLCertificate
 	nic.Spec.DefaultSSLCertificate = nil
-	cleanPod, err = p.placeholderPodCleanCheck(nic)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, nic)
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
 	// ingress without IngressClassName
 	ing.Spec.IngressClassName = nil
-	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
@@ -737,19 +737,19 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 
 	// ingress with empty Name field
 	ing.Name = ""
-	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
 	// unmanaged ingress
 	ing.Spec.IngressClassName = &unmanagedIngClassName
-	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
 	// ingress that hits an error while checking if it's managed
 	ing.Spec.IngressClassName = &errorIngClassName
-	cleanPod, err = p.placeholderPodCleanCheck(ing)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
 	require.Error(t, err, "determining if ingress is managed: an error has occured checking if ingress is managed")
 	require.Equal(t, false, cleanPod)
 }
