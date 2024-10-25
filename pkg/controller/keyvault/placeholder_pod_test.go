@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
@@ -681,6 +682,7 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	require.NoError(t, v1alpha1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
 
 	nic := placeholderTestNginxIngress.DeepCopy()
 	ing := placeholderTestIng.DeepCopy()
@@ -688,9 +690,15 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	unmanagedIngClassName := "unmanagedClassName"
 	errorIngClassName := "errorClassName"
 
+	gw := gatewayWithCidListenerAndSaListener.DeepCopy()
+	// not sure why this happens but otherwise resourceversion is 999 after deepcopy
+	gw.ObjectMeta.ResourceVersion = ""
+
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
 	require.NoError(t, c.Create(ctx, nic))
 	require.NoError(t, c.Create(ctx, ing))
+	fmt.Println("rv", gw.ObjectMeta.ResourceVersion)
+	require.NoError(t, c.Create(ctx, gw))
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
@@ -714,6 +722,14 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	require.Equal(t, false, cleanPod)
 
 	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
+	require.NoError(t, err)
+	require.Equal(t, false, cleanPod)
+
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}}, gw)
+	require.NoError(t, err)
+	require.Equal(t, false, cleanPod)
+
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener-2"}}, gw)
 	require.NoError(t, err)
 	require.Equal(t, false, cleanPod)
 
@@ -756,6 +772,24 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{}, ing)
 	require.Error(t, err, "determining if ingress is managed: an error has occured checking if ingress is managed")
 	require.Equal(t, false, cleanPod)
+
+	// gw with no matching listeners
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener-3"}}, gw)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	// gw with listener that doesn't have a cert uri
+	gw.Spec.Listeners[0].TLS.Options["kubernetes.azure.com/tls-cert-keyvault-uri"] = ""
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}}, gw)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
+	// gw with listener that doesn't have TLS
+	gw.Spec.Listeners[0].TLS = nil
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}}, gw)
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
+
 }
 
 func TestBuildDeployment(t *testing.T) {
@@ -765,6 +799,7 @@ func TestBuildDeployment(t *testing.T) {
 	require.NoError(t, v1alpha1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
 
 	spc := placeholderSpc.DeepCopy()
 
@@ -788,6 +823,25 @@ func TestBuildDeployment(t *testing.T) {
 
 	err := p.buildDeployment(ctx, dep, spc, emptyObj)
 	require.EqualError(t, err, "failed to build deployment: object type not ingress, nginxingresscontroller, or gateway")
+
+	// test gateway owner annotation
+	gwSpc := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-spc",
+			Namespace: "test-ns",
+		},
+	}
+
+	gwObj := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gw",
+			Namespace: "test-ns",
+		},
+	}
+
+	err = p.buildDeployment(ctx, dep, gwSpc, gwObj)
+	require.Equal(t, nil, err)
+	require.Equal(t, dep.Spec.Template.Annotations["kubernetes.azure.com/gateway-owner"], "test-gw")
 }
 
 func getDefaultNginxSpc(nic *v1alpha1.NginxIngressController) *secv1.SecretProviderClass {
