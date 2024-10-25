@@ -80,8 +80,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return res, client.IgnoreNotFound(err)
 	}
 
-	// check its TLS options - needs to have both
-	// cert uri and either serviceaccount name or clientid --> if one without the other, propagate a warning event
+	// check its TLS options - needs to have both cert uri and either serviceaccount name or clientid
 	for index, listener := range gwObj.Spec.Listeners {
 		spc := &secv1.SecretProviderClass{
 			TypeMeta: metav1.TypeMeta{
@@ -154,7 +153,6 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Name:      gatewayv1.ObjectName(GenerateGwListenerCertName(gwObj.Name, listener.Name)),
 			}
 			gwObj.Spec.Listeners[index].TLS.CertificateRefs = []gatewayv1.SecretObjectReference{newCertRef}
-
 		} else {
 			// we should delete the SPC if it exists
 			logger.Info(fmt.Sprintf("attempting to remove unused SPC %s", spc.Name))
@@ -174,7 +172,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	logger.Info("reconciling Gateway resource with new secret refs for each TLS-enabled listener")
-	if err := util.Upsert(ctx, g.client, gwObj); err != nil {
+	if err = util.Upsert(ctx, g.client, gwObj); err != nil {
 		errString := fmt.Sprintf("failed to reconcile Gateway resource %s: %q", req.Name, err)
 		logger.Error(err, errString)
 		g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateGateway", errString)
