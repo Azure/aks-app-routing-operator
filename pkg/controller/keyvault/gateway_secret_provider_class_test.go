@@ -299,7 +299,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 					annotatedServiceAccount,
 				).Build()
 			},
-			expectedSpcs:  []*secv1.SecretProviderClass{validSpc},
+			expectedSpcs:  []*secv1.SecretProviderClass{clientIdSpc},
 			expectedError: nil,
 		},
 		{
@@ -308,7 +308,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithCid).Build()
 			},
-			expectedSpcs:  []*secv1.SecretProviderClass{validSpc},
+			expectedSpcs:  []*secv1.SecretProviderClass{clientIdSpc},
 			expectedError: nil,
 		},
 		{
@@ -317,7 +317,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithCidListenerAndSaListener, annotatedServiceAccount).Build()
 			},
-			expectedSpcs:  []*secv1.SecretProviderClass{validSpc, validSpc2},
+			expectedSpcs:  []*secv1.SecretProviderClass{clientIdSpc, serviceAccountSpc},
 			expectedError: nil,
 		},
 		{
@@ -343,6 +343,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		t.Logf("starting case %s", tc.name)
 		ctx := logr.NewContext(context.Background(), logr.Discard())
 		c := tc.generateClientState()
 		recorder := record.NewFakeRecorder(1)

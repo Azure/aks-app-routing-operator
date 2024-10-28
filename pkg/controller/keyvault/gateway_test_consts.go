@@ -313,7 +313,7 @@ var (
 
 	nonIstioGateway = modifyGateway(gwWithSa, func(gwObj *gatewayv1.Gateway) { gwObj.Spec.GatewayClassName = "" })
 
-	validSpc = &secv1.SecretProviderClass{
+	clientIdSpc = &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "secrets-store.csi.x-k8s.io/v1",
 			Kind:       "SecretProviderClass",
@@ -356,7 +356,7 @@ var (
 		},
 	}
 
-	validSpc2 = &secv1.SecretProviderClass{
+	serviceAccountSpc = &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "secrets-store.csi.x-k8s.io/v1",
 			Kind:       "SecretProviderClass",

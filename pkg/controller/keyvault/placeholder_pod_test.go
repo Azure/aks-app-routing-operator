@@ -426,47 +426,63 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 }
 
 func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
+	recorder := record.NewFakeRecorder(1)
 	gw := gatewayWithCidListenerAndSaListener.DeepCopy()
-	spc := validSpc.DeepCopy()
-	spc.Generation = 123
+	cspc := clientIdSpc.DeepCopy()
+	cspc.Generation = 123
 
-	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, corev1.AddToScheme, appsv1.AddToScheme).WithObjects(spc, gw, appRoutingSa).Build()
+	saspc := serviceAccountSpc.DeepCopy()
+	saspc.Generation = 124
+
+	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, corev1.AddToScheme, appsv1.AddToScheme).WithObjects(cspc, saspc, gw, appRoutingSa, annotatedServiceAccount).Build()
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
+		events: recorder,
 	}
 
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
-	// Create placeholder pod deployment
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
+	// Create placeholder pod deployment for clientId listener
+	cidReq := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: cspc.Namespace, Name: cspc.Name}}
 	beforeErrCount := testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount := testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	_, err := p.Reconcile(ctx, req)
+	_, err := p.Reconcile(ctx, cidReq)
+	require.Equal(t, 0, len(recorder.Events))
 	require.NoError(t, err)
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	dep := &appsv1.Deployment{
+	// Create placeholder pod deployment for serviceaccount listener
+	saReq := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: saspc.Namespace, Name: saspc.Name}}
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, saReq)
+	require.Equal(t, 0, len(recorder.Events))
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	cDep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      spc.Name,
-			Namespace: spc.Namespace,
+			Name:      cspc.Name,
+			Namespace: cspc.Namespace,
 		},
 	}
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
 
 	replicas := int32(1)
 	historyLimit := int32(2)
 
-	expectedLabels := map[string]string{"app": spc.Name}
-	expected := appsv1.DeploymentSpec{
+	expectedCidLabels := map[string]string{"app": cspc.Name}
+	expectedCidDep := appsv1.DeploymentSpec{
 		Replicas:             &replicas,
 		RevisionHistoryLimit: &historyLimit,
-		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
+		Selector:             &metav1.LabelSelector{MatchLabels: expectedCidLabels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: expectedLabels,
+				Labels: expectedCidLabels,
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": "123",
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
@@ -511,38 +527,143 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 						CSI: &corev1.CSIVolumeSource{
 							Driver:           "secrets-store.csi.k8s.io",
 							ReadOnly:         util.ToPtr(true),
-							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
+							VolumeAttributes: map[string]string{"secretProviderClass": cspc.Name},
 						},
 					},
 				}},
 			}),
 		},
 	}
-	assert.Equal(t, expected, dep.Spec)
+	require.Equal(t, expectedCidDep, cDep.Spec)
 
-	// Prove idempotence
+	saDep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      saspc.Name,
+			Namespace: saspc.Namespace,
+		},
+	}
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep))
+
+	expectedSaLabels := map[string]string{"app": saspc.Name}
+	expectedSaDep := appsv1.DeploymentSpec{
+		Replicas:             &replicas,
+		RevisionHistoryLimit: &historyLimit,
+		Selector:             &metav1.LabelSelector{MatchLabels: expectedSaLabels},
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: expectedSaLabels,
+				Annotations: map[string]string{
+					"kubernetes.azure.com/observed-generation": "124",
+					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/gateway-owner":       gw.Name,
+					"openservicemesh.io/sidecar-injection":     "disabled",
+				},
+			},
+			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
+				AutomountServiceAccountToken: util.ToPtr(false),
+				Containers: []corev1.Container{{
+					Name:  "placeholder",
+					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "secrets",
+						MountPath: "/mnt/secrets",
+						ReadOnly:  true,
+					}},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("20m"),
+							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
+				}},
+				Volumes: []corev1.Volume{{
+					Name: "secrets",
+					VolumeSource: corev1.VolumeSource{
+						CSI: &corev1.CSIVolumeSource{
+							Driver:           "secrets-store.csi.k8s.io",
+							ReadOnly:         util.ToPtr(true),
+							VolumeAttributes: map[string]string{"secretProviderClass": saspc.Name},
+						},
+					},
+				}},
+			}),
+		},
+	}
+	assert.Equal(t, expectedSaDep, saDep.Spec)
+
+	// Prove idempotence for clientId deployment
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	_, err = p.Reconcile(ctx, req)
+	_, err = p.Reconcile(ctx, cidReq)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(recorder.Events))
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
+	require.Equal(t, expectedCidDep, cDep.Spec)
+
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Update the secret class generation
-	spc.Generation = 234
-	expected.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
-	require.NoError(t, c.Update(ctx, spc))
+	cspc.Generation = 234
+	expectedCidDep.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
+	require.NoError(t, c.Update(ctx, cspc))
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	_, err = p.Reconcile(ctx, req)
+	_, err = p.Reconcile(ctx, cidReq)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(recorder.Events))
+
+	// Prove the generation annotation was updated
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
+	require.Equal(t, expectedCidDep, cDep.Spec)
+
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
+	// Prove idempotence for the SA deployment
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, saReq)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(recorder.Events))
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep))
+	require.Equal(t, expectedSaDep, saDep.Spec)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Update the secret class generation
+	saspc.Generation = 234
+	expectedSaDep.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
+	require.NoError(t, c.Update(ctx, saspc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, saReq)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(recorder.Events))
+
 	// Prove the generation annotation was updated
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
-	assert.Equal(t, expected, dep.Spec)
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep))
+	require.Equal(t, expectedSaDep, saDep.Spec)
+
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Change the gw resource's GatewayClass
 	gw.Spec.GatewayClassName = "notistio"
@@ -550,33 +671,21 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 
 	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
 	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	_, err = p.Reconcile(ctx, req)
+	_, err = p.Reconcile(ctx, cidReq)
 	require.NoError(t, err)
 	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
-	// Prove the deployment was deleted
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
-
+	// Prove the cid deployment was deleted
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
 	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
 
-	// Prove that placeholder deployment retains immutable fields during updates
-	oldPlaceholder := &appsv1.Deployment{}
-	labels := map[string]string{"foo": "bar", "fizz": "buzz"}
-	oldPlaceholder.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
-	oldPlaceholder.Name = "immutable-test"
-	require.NoError(t, c.Create(ctx, oldPlaceholder), "failed to create old placeholder deployment")
-	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
-	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
-	_, err = p.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(oldPlaceholder)})
-	require.NoError(t, err)
-	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
-	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+	// Prove the sa deployment was deleted
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
+	// Prove idempotence
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
 
-	updatedPlaceholder := &appsv1.Deployment{}
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(oldPlaceholder), updatedPlaceholder), "failed to get updated placeholder deployment")
-	assert.Equal(t, labels, updatedPlaceholder.Spec.Selector.MatchLabels, "selector labels should have been retained")
 }
 
 func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {

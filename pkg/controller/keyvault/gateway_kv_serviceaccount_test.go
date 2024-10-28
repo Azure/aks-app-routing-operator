@@ -180,7 +180,7 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		fmt.Println("Starting case", tc.name)
+		t.Logf("starting case %s", tc.name)
 		// Define preexisting state
 		ctx := logr.NewContext(context.Background(), logr.Discard())
 		c := tc.generateClientState()
