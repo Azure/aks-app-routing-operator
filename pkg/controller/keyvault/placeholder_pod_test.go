@@ -688,6 +688,41 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 
 }
 
+func TestVerifyServiceAccount(t *testing.T) {
+	tcs := []struct {
+		name                   string
+		spc                    *secv1.SecretProviderClass
+		obj                    client.Object
+		expectedServiceAccount string
+		expectedError          error
+	}{
+		{
+			name:                   "happy path with input serviceaccount",
+			spc:                    serviceAccountSpc,
+			obj:                    gatewayWithOnlyServiceAccounts,
+			expectedServiceAccount: "test-sa-2",
+		},
+		{
+			name:                   "happy path with client id",
+			spc:                    serviceAccountSpc,
+			obj:                    gatewayWithCid,
+			expectedServiceAccount: appRoutingSaName,
+		},
+		{
+			name: "no matching listeners",
+		},
+		{
+			name: "nonexistent service account referenced",
+		},
+		{
+			name: "app routing service account doesn't exist",
+		},
+		{
+			name: "incorrect object type",
+		},
+	}
+}
+
 func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	ing := placeholderTestIng.DeepCopy()
 	spc := placeholderSpc.DeepCopy()
