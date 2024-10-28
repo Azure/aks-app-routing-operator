@@ -20,140 +20,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-var (
-	singleClientIdGateway = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-						},
-					},
-				},
-			},
-		},
-	}
-	multiClientIdGateway = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	nilOptionsGateway = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: nil,
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: nil,
-					},
-				},
-			},
-		},
-	}
-
-	noListenersGateway = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{},
-		},
-	}
-
-	saGateway = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa-1",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa-2",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	multiUniqueCidGateway = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-1",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-2",
-						},
-					},
-				},
-			},
-		},
-	}
-)
-
 func Test_extractClientId(t *testing.T) {
 	tcs := []struct {
 		name             string
@@ -163,13 +29,13 @@ func Test_extractClientId(t *testing.T) {
 	}{
 		{
 			name:             "happy path single client id",
-			gwObj:            singleClientIdGateway,
+			gwObj:            gatewayWithOnlyClientId,
 			expectedClientId: "test-client-id",
 			expectedErr:      nil,
 		},
 		{
 			name:             "happy path multiple client id",
-			gwObj:            multiClientIdGateway,
+			gwObj:            gatewayWithMultipleListenersAndOnlyOneClientId,
 			expectedClientId: "test-client-id",
 			expectedErr:      nil,
 		},
@@ -187,13 +53,13 @@ func Test_extractClientId(t *testing.T) {
 		},
 		{
 			name:             "only service accounts/no client IDs",
-			gwObj:            saGateway,
+			gwObj:            gatewayWithOnlyServiceAccounts,
 			expectedClientId: "",
 			expectedErr:      nil,
 		},
 		{
 			name:             "multiple different client IDs",
-			gwObj:            multiUniqueCidGateway,
+			gwObj:            gwWithNoCertMultipleCid,
 			expectedClientId: "",
 			expectedErr:      newUserError(fmt.Errorf("user specified multiple clientIds in one gateway resource"), "multiple unique clientIds specified. Please select one clientId to associate with the azure-app-routing-kv ServiceAccount"),
 		},
@@ -215,45 +81,32 @@ func Test_extractClientId(t *testing.T) {
 	}
 }
 
-var appRoutingSa = &corev1.ServiceAccount{
-	TypeMeta: metav1.TypeMeta{
-		APIVersion: "v1",
-		Kind:       "ServiceAccount",
-	},
-	ObjectMeta: metav1.ObjectMeta{
-		Name:      "azure-app-routing-kv",
-		Namespace: "test-ns",
-		Annotations: map[string]string{
-			"azure.workload.identity/client-id": "test-client-id",
-		},
-	},
-}
-
 func Test_KvServiceAccountReconciler(t *testing.T) {
 
 	tcs := []struct {
 		name                string
 		gwObj               *gatewayv1.Gateway
 		expectedError       error
+		expectedUserErr     string
 		expectedSa          *corev1.ServiceAccount
 		generateClientState func() client.Client
 	}{
 		{
 			name:          "happy path single client id",
-			gwObj:         singleClientIdGateway,
+			gwObj:         gatewayWithOnlyClientId,
 			expectedError: nil,
 			expectedSa:    appRoutingSa,
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(singleClientIdGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithOnlyClientId).Build()
 			},
 		},
 		{
 			name:          "happy path multiple client id",
-			gwObj:         multiClientIdGateway,
+			gwObj:         gatewayWithMultipleListenersAndOnlyOneClientId,
 			expectedError: nil,
 			expectedSa:    appRoutingSa,
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(multiClientIdGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithMultipleListenersAndOnlyOneClientId).Build()
 			},
 		},
 		{
@@ -276,38 +129,40 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 		},
 		{
 			name:          "only service accounts/no client IDs",
-			gwObj:         saGateway,
+			gwObj:         gatewayWithOnlyServiceAccounts,
 			expectedError: nil,
 			expectedSa:    &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(saGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithOnlyServiceAccounts).Build()
 			},
 		},
 		{
-			name:          "multiple different client IDs",
-			gwObj:         multiUniqueCidGateway,
-			expectedError: nil,
-			expectedSa:    &corev1.ServiceAccount{},
+			name:            "multiple different client IDs",
+			gwObj:           gwWithNoCertMultipleCid,
+			expectedError:   nil,
+			expectedUserErr: "Warning InvalidInput multiple unique clientIds specified. Please select one clientId to associate with the azure-app-routing-kv ServiceAccount",
+			expectedSa:      &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(noListenersGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithNoCertMultipleCid).Build()
 			},
 		},
 		{
 			name:          "existing app routing SA with same client ID",
-			gwObj:         multiClientIdGateway,
+			gwObj:         gatewayWithMultipleListenersAndOnlyOneClientId,
 			expectedError: nil,
 			expectedSa:    appRoutingSa,
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(multiClientIdGateway, appRoutingSa).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithMultipleListenersAndOnlyOneClientId, appRoutingSa).Build()
 			},
 		},
 		{
-			name:          "existing app routing SA with different client ID",
-			gwObj:         multiClientIdGateway,
-			expectedError: nil,
-			expectedSa:    &corev1.ServiceAccount{},
+			name:            "existing app routing SA with different client ID",
+			gwObj:           gatewayWithMultipleListenersAndOnlyOneClientId,
+			expectedError:   nil,
+			expectedUserErr: "Warning InvalidInput gateway specifies clientId test-client-id but azure-app-routing-kv ServiceAccount already uses clientId test-client-id-3",
+			expectedSa:      &corev1.ServiceAccount{},
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(multiClientIdGateway, &corev1.ServiceAccount{
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithMultipleListenersAndOnlyOneClientId, &corev1.ServiceAccount{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "v1",
 						Kind:       "ServiceAccount",
@@ -325,12 +180,14 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		fmt.Println("Starting case", tc.name)
 		// Define preexisting state
 		ctx := logr.NewContext(context.Background(), logr.Discard())
 		c := tc.generateClientState()
+		recorder := record.NewFakeRecorder(1)
 		k := &KvServiceAccountReconciler{
 			client: c,
-			events: record.NewFakeRecorder(1),
+			events: recorder,
 		}
 
 		// Define initial metrics
@@ -357,5 +214,13 @@ func Test_KvServiceAccountReconciler(t *testing.T) {
 			require.Equal(t, tc.expectedError.Error(), err.Error())
 			require.Greater(t, testutils.GetErrMetricCount(t, kvSaControllerName), beforeErrCount)
 		}
+
+		if tc.expectedUserErr != "" {
+			require.Greater(t, len(recorder.Events), 0)
+			require.Equal(t, tc.expectedUserErr, <-recorder.Events)
+		} else {
+			require.Equal(t, 0, len(recorder.Events))
+		}
+
 	}
 }

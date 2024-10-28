@@ -40,9 +40,9 @@ func NewKvServiceAccountReconciler(mgr ctrl.Manager) error {
 
 }
 
-func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	res := ctrl.Result{}
-	var err error
+func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
+	res = ctrl.Result{}
+	err = nil
 
 	defer func() {
 		metrics.HandleControllerReconcileMetrics(kvSaControllerName, res, err)
@@ -50,29 +50,32 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return res, err
+		return
 	}
 	logger = kvSaControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
 	gwObj := &gatewayv1.Gateway{}
 	if err = k.client.Get(ctx, req.NamespacedName, gwObj); err != nil {
-		return res, client.IgnoreNotFound(err)
+		err = client.IgnoreNotFound(err)
+		return
 	}
 
 	clientId, err := extractClientIdForManagedSa(gwObj)
-	if clientId == "" {
-		return res, err
-	}
 
 	if err != nil {
 		var userErr userError
 		if errors.As(err, &userErr) {
+			err = nil
 			logger.Info("user error while extracting clientId from Gateway: %s", userErr.userMessage)
 			k.events.Event(gwObj, Warning.String(), "InvalidInput", userErr.userMessage)
-			return res, nil
+			return
 		}
 		logger.Error(err, "failed to extract clientId from Gateway object")
-		return res, err
+		return
+	}
+
+	if clientId == "" {
+		return
 	}
 
 	toCreate := &corev1.ServiceAccount{
@@ -92,31 +95,32 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	err = k.client.Get(ctx, types.NamespacedName{Name: toCreate.Name, Namespace: toCreate.Namespace}, existing)
 	if client.IgnoreNotFound(err) != nil {
 		logger.Error(err, "failed to fetch existing app routing serviceaccount")
-		return res, err
+		return
 	}
 
-	if existing != nil && existing.Annotations != nil && existing.Annotations[wiSaClientIdAnnotation] != "" {
+	if existing.Annotations != nil && existing.Annotations[wiSaClientIdAnnotation] != "" {
 		existingClientId := existing.Annotations[wiSaClientIdAnnotation]
 		if existingClientId != clientId {
 			errText := fmt.Sprintf("gateway specifies clientId %s but azure-app-routing-kv ServiceAccount already uses clientId %s", clientId, existingClientId)
 			logger.Info(errText)
 			k.events.Event(gwObj, Warning.String(), "InvalidInput", errText)
-			return res, err
+			return
 		}
 	}
 
-	if toCreate.Annotations == nil {
-		toCreate.Annotations = map[string]string{}
-	}
-	toCreate.Annotations[wiSaClientIdAnnotation] = clientId
+	toCreate.Annotations = map[string]string{wiSaClientIdAnnotation: clientId}
 
 	err = util.Upsert(ctx, k.client, toCreate)
 
-	return res, err
+	return
 }
 
 func extractClientIdForManagedSa(gwObj *gatewayv1.Gateway) (string, error) {
 	var ret string
+
+	if gwObj.Spec.GatewayClassName != istioGatewayClassName {
+		return "", nil
+	}
 
 	if gwObj.Spec.Listeners == nil || len(gwObj.Spec.Listeners) == 0 {
 		return "", nil

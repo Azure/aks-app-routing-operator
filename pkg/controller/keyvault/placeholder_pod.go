@@ -129,6 +129,9 @@ func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretPro
 			return true, nil
 		}
 	case *gatewayv1.Gateway:
+		if t.Spec.GatewayClassName != istioGatewayClassName {
+			return true, nil
+		}
 		for _, listener := range t.Spec.Listeners {
 			if spc.Name != GenerateGwListenerCertName(t.Name, listener.Name) {
 				continue

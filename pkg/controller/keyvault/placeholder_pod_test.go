@@ -425,6 +425,160 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	assert.Equal(t, labels, updatedPlaceholder.Spec.Selector.MatchLabels, "selector labels should have been retained")
 }
 
+func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
+	gw := gatewayWithCidListenerAndSaListener.DeepCopy()
+	spc := validSpc.DeepCopy()
+	spc.Generation = 123
+
+	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, corev1.AddToScheme, appsv1.AddToScheme).WithObjects(spc, gw, appRoutingSa).Build()
+	p := &PlaceholderPodController{
+		client: c,
+		config: &config.Config{Registry: "test-registry"},
+	}
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+
+	// Create placeholder pod deployment
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
+	beforeErrCount := testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err := p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      spc.Name,
+			Namespace: spc.Namespace,
+		},
+	}
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
+
+	replicas := int32(1)
+	historyLimit := int32(2)
+
+	expectedLabels := map[string]string{"app": spc.Name}
+	expected := appsv1.DeploymentSpec{
+		Replicas:             &replicas,
+		RevisionHistoryLimit: &historyLimit,
+		Selector:             &metav1.LabelSelector{MatchLabels: expectedLabels},
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: expectedLabels,
+				Annotations: map[string]string{
+					"kubernetes.azure.com/observed-generation": "123",
+					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
+					"kubernetes.azure.com/gateway-owner":       gw.Name,
+					"openservicemesh.io/sidecar-injection":     "disabled",
+				},
+			},
+			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
+				AutomountServiceAccountToken: util.ToPtr(false),
+				Containers: []corev1.Container{{
+					Name:  "placeholder",
+					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "secrets",
+						MountPath: "/mnt/secrets",
+						ReadOnly:  true,
+					}},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("20m"),
+							corev1.ResourceMemory: resource.MustParse("24Mi"),
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged:               util.ToPtr(false),
+						AllowPrivilegeEscalation: util.ToPtr(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot:           util.ToPtr(true),
+						RunAsUser:              util.Int64Ptr(65535),
+						RunAsGroup:             util.Int64Ptr(65535),
+						ReadOnlyRootFilesystem: util.ToPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
+				}},
+				Volumes: []corev1.Volume{{
+					Name: "secrets",
+					VolumeSource: corev1.VolumeSource{
+						CSI: &corev1.CSIVolumeSource{
+							Driver:           "secrets-store.csi.k8s.io",
+							ReadOnly:         util.ToPtr(true),
+							VolumeAttributes: map[string]string{"secretProviderClass": spc.Name},
+						},
+					},
+				}},
+			}),
+		},
+	}
+	assert.Equal(t, expected, dep.Spec)
+
+	// Prove idempotence
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Update the secret class generation
+	spc.Generation = 234
+	expected.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
+	require.NoError(t, c.Update(ctx, spc))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Prove the generation annotation was updated
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
+	assert.Equal(t, expected, dep.Spec)
+
+	// Change the gw resource's GatewayClass
+	gw.Spec.GatewayClassName = "notistio"
+	require.NoError(t, c.Update(ctx, gw))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Prove the deployment was deleted
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
+	// Prove idempotence
+	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+
+	// Prove that placeholder deployment retains immutable fields during updates
+	oldPlaceholder := &appsv1.Deployment{}
+	labels := map[string]string{"foo": "bar", "fizz": "buzz"}
+	oldPlaceholder.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
+	oldPlaceholder.Name = "immutable-test"
+	require.NoError(t, c.Create(ctx, oldPlaceholder), "failed to create old placeholder deployment")
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(oldPlaceholder)})
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
+
+	updatedPlaceholder := &appsv1.Deployment{}
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(oldPlaceholder), updatedPlaceholder), "failed to get updated placeholder deployment")
+	assert.Equal(t, labels, updatedPlaceholder.Spec.Selector.MatchLabels, "selector labels should have been retained")
+}
+
 func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	ing := placeholderTestIng.DeepCopy()
 	spc := placeholderSpc.DeepCopy()
@@ -697,7 +851,6 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
 	require.NoError(t, c.Create(ctx, nic))
 	require.NoError(t, c.Create(ctx, ing))
-	fmt.Println("rv", gw.ObjectMeta.ResourceVersion)
 	require.NoError(t, c.Create(ctx, gw))
 	p := &PlaceholderPodController{
 		client: c,
@@ -779,17 +932,28 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	require.Equal(t, true, cleanPod)
 
 	// gw with listener that doesn't have a cert uri
-	gw.Spec.Listeners[0].TLS.Options["kubernetes.azure.com/tls-cert-keyvault-uri"] = ""
-	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}}, gw)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}},
+		modifyGateway(gw, func(gw *gatewayv1.Gateway) {
+			gw.Spec.Listeners[0].TLS.Options["kubernetes.azure.com/tls-cert-keyvault-uri"] = ""
+		}))
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
 	// gw with listener that doesn't have TLS
-	gw.Spec.Listeners[0].TLS = nil
-	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}}, gw)
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}},
+		modifyGateway(gw, func(gw *gatewayv1.Gateway) {
+			gw.Spec.Listeners[0].TLS = nil
+		}))
 	require.NoError(t, err)
 	require.Equal(t, true, cleanPod)
 
+	// gw with non-istio gatewayclass
+	cleanPod, err = p.placeholderPodCleanCheck(&secv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Namespace: "test-ns", Name: "kv-gw-cert-test-gw-test-listener"}},
+		modifyGateway(gw, func(gw *gatewayv1.Gateway) {
+			gw.Spec.GatewayClassName = "not-istio"
+		}))
+	require.NoError(t, err)
+	require.Equal(t, true, cleanPod)
 }
 
 func TestBuildDeployment(t *testing.T) {

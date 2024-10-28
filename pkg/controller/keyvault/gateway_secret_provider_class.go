@@ -40,9 +40,6 @@ type GatewaySecretProviderClassReconciler struct {
 }
 
 func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.Config) error {
-	if conf.DisableKeyvault {
-		return nil
-	}
 	metrics.InitControllerMetrics(gatewaySecretProviderControllerName)
 
 	return gatewaySecretProviderControllerName.AddToController(
@@ -56,9 +53,9 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 	})
 }
 
-func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	res := ctrl.Result{}
-	var err error
+func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
+	res = ctrl.Result{}
+	err = nil
 
 	// set up metrics given result/error
 	defer func() {
@@ -68,7 +65,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	// set up logger
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return res, err
+		return
 	}
 	logger = gatewaySecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
@@ -77,7 +74,12 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	err = g.client.Get(ctx, req.NamespacedName, gwObj)
 
 	if err != nil {
-		return res, client.IgnoreNotFound(err)
+		err = client.IgnoreNotFound(err)
+		return
+	}
+
+	if gwObj.Spec.GatewayClassName != istioGatewayClassName {
+		return
 	}
 
 	// check its TLS options - needs to have both cert uri and either serviceaccount name or clientid
@@ -103,16 +105,18 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		logger = logger.WithValues("spc", spc.Name)
 
 		if listenerIsKvEnabled(listener) {
-			clientId, err := retrieveClientIdFromListener(ctx, g.client, req.Namespace, listener.TLS.Options)
+			var clientId string
+			clientId, err = retrieveClientIdFromListener(ctx, g.client, req.Namespace, listener.TLS.Options)
 			if err != nil {
 				var userErr userError
 				if errors.As(err, &userErr) {
-					logger.Info(fmt.Sprintf("failed to fetch clientId for SPC for listener %s due to user error: %q, sending warning event", listener.Name, userErr.userMessage))
+					logger.Info(fmt.Sprintf("failed to fetch clientId for SPC for listener %s due to user error: %s, sending warning event", listener.Name, userErr.userMessage))
 					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
-					return res, nil
+					err = nil
+					return
 				}
 				logger.Error(err, fmt.Sprintf("failed to fetch clientId for listener %s: %q", listener.Name, err.Error()))
-				return res, err
+				return
 			}
 
 			// otherwise it's active + valid - build SPC
@@ -131,18 +135,19 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				if errors.As(err, &userErr) {
 					logger.Info("failed to build SecretProviderClass from user error: %q sending warning event", userErr.userMessage)
 					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
-					return res, nil
+					err = nil
+					return
 				}
 				logger.Error(err, fmt.Sprintf("building SPC for listener %s: %s", listener.Name, err.Error()))
-				return res, err
+				return
 			}
 
 			logger.Info(fmt.Sprintf("reconciling SecretProviderClass %s for listener %s", spc.Name, listener.Name))
-			if err := util.Upsert(ctx, g.client, spc); err != nil {
+			if err = util.Upsert(ctx, g.client, spc); err != nil {
 				errString := fmt.Sprintf("failed to reconcile SecretProviderClass %s: %q", req.Name, err)
 				logger.Error(err, errString)
 				g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateSPC", errString)
-				return res, err
+				return
 			}
 
 			logger.Info(fmt.Sprintf("preemptively attaching secret reference for listener %s", listener.Name))
@@ -158,14 +163,14 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			logger.Info(fmt.Sprintf("attempting to remove unused SPC %s", spc.Name))
 
 			deletionSpc := &secv1.SecretProviderClass{}
-			if err := client.IgnoreNotFound(g.client.Get(ctx, client.ObjectKeyFromObject(spc), deletionSpc)); err != nil {
-				return res, err
+			if err = client.IgnoreNotFound(g.client.Get(ctx, client.ObjectKeyFromObject(spc), deletionSpc)); err != nil {
+				return
 			}
 
 			if manifests.HasTopLevelLabels(deletionSpc.Labels) {
 				// return if we fail to delete, but otherwise, keep going
-				if err := g.client.Delete(ctx, deletionSpc); client.IgnoreNotFound(err) != nil {
-					return res, err
+				if err = g.client.Delete(ctx, deletionSpc); client.IgnoreNotFound(err) != nil {
+					return
 				}
 			}
 		}
@@ -208,7 +213,7 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 		return "", newUserError(errors.New("user specified clientId or SA but no cert URI in a listener"), "detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
 	}
 	if saName != "" && inputClientId != "" {
-		return "", newUserError(errors.New("user specified both serviceaccount and a clientId in the same listener"), "both ServiceAccountName and ClientId have been specified, please specify one or the other")
+		return "", newUserError(errors.New("user specified both serviceaccount and a clientId in the same listener"), "both ServiceAccount name and clientId have been specified, please specify one or the other")
 	}
 
 	// this should never happen since we check for this prior to this function call but just to be safe

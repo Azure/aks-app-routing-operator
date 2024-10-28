@@ -3,15 +3,12 @@ package keyvault
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -243,258 +240,6 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 	}
 }
 
-var (
-	gwWithCertWithoutOthers = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gwWithSa = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gatewayWithCid = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-client-id":    "test-client-id",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gatewayWithCidListenerAndSaListener = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-client-id":    "test-client-id",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a35",
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gwWithCidAndSa = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-client-id":       "test-client-id",
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gwWithoutTls = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{},
-					},
-				},
-			},
-		},
-	}
-
-	validSpc = &secv1.SecretProviderClass{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "secrets-store.csi.x-k8s.io/v1",
-			Kind:       "SecretProviderClass",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kv-gw-cert-test-gw-test-listener",
-			Namespace: "test-ns",
-			Labels:    manifests.GetTopLevelLabels(),
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "gateway.networking.k8s.io/v1",
-				Controller: util.ToPtr(true),
-				Kind:       "Gateway",
-				Name:       "test-gw",
-			}},
-		},
-		Spec: secv1.SecretProviderClassSpec{
-			Provider: secv1.Provider("azure"),
-			SecretObjects: []*secv1.SecretObject{{
-				SecretName: "kv-gw-cert-test-gw-test-listener",
-				Type:       "kubernetes.io/tls",
-				Data: []*secv1.SecretObjectData{
-					{
-						ObjectName: "testcert",
-						Key:        "tls.key",
-					},
-					{
-						ObjectName: "testcert",
-						Key:        "tls.crt",
-					},
-				},
-			}},
-			// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-			Parameters: map[string]string{
-				"keyvaultName":           "testvault",
-				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": "test-client-id",
-				"tenantId":               "test-tenant-id",
-				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a34\\\"}\"]}",
-			},
-		},
-	}
-
-	validSpc2 = &secv1.SecretProviderClass{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "secrets-store.csi.x-k8s.io/v1",
-			Kind:       "SecretProviderClass",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kv-gw-cert-test-gw-test-listener-2",
-			Namespace: "test-ns",
-			Labels:    manifests.GetTopLevelLabels(),
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "gateway.networking.k8s.io/v1",
-				Controller: util.ToPtr(true),
-				Kind:       "Gateway",
-				Name:       "test-gw",
-			}},
-		},
-		Spec: secv1.SecretProviderClassSpec{
-			Provider: secv1.Provider("azure"),
-			SecretObjects: []*secv1.SecretObject{{
-				SecretName: "kv-gw-cert-test-gw-test-listener-2",
-				Type:       "kubernetes.io/tls",
-				Data: []*secv1.SecretObjectData{
-					{
-						ObjectName: "testcert",
-						Key:        "tls.key",
-					},
-					{
-						ObjectName: "testcert",
-						Key:        "tls.crt",
-					},
-				},
-			}},
-			// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-			Parameters: map[string]string{
-				"keyvaultName":           "testvault",
-				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": "test-client-id",
-				"tenantId":               "test-tenant-id",
-				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a35\\\"}\"]}",
-			},
-		},
-	}
-
-	annotatedServiceAccount = &corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ServiceAccount",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-sa",
-			Namespace: "test-ns",
-			Annotations: map[string]string{
-				"azure.workload.identity/client-id": "test-client-id",
-			},
-		},
-	}
-)
-
 func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 	tcs := []struct {
 		name                string
@@ -502,6 +247,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 		generateClientState func() client.Client
 		expectedSpcs        []*secv1.SecretProviderClass
 		expectedError       error
+		expectedUserErr     string
 	}{
 		{
 			name:         "cert URI without sa or cid",
@@ -510,7 +256,8 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithCertWithoutOthers).Build()
 			},
-			expectedError: nil,
+			expectedError:   nil,
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided",
 		},
 		{
 			name:  "cert URI with nonexistent sa",
@@ -518,8 +265,9 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithSa).Build()
 			},
-			expectedSpcs:  nil,
-			expectedError: nil,
+			expectedSpcs:    nil,
+			expectedError:   nil,
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa does not exist",
 		},
 		{
 			name:  "cert URI with sa with no annotation, without cid",
@@ -538,8 +286,9 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 						},
 					}).Build()
 			},
-			expectedSpcs:  nil,
-			expectedError: nil,
+			expectedSpcs:    nil,
+			expectedError:   nil,
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: workload identity MSI client ID must be specified for serviceAccount test-sa with annotation azure.workload.identity/client-id",
 		},
 		{
 			name:  "cert URI with sa with correct annotation, without cid",
@@ -573,34 +322,36 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 		},
 		{
 			name:  "cert URI with sa and cid",
-			gwObj: gwWithCidAndSa,
+			gwObj: gwWithCidAndSaInSameListener,
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithCidAndSa).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithCidAndSaInSameListener).Build()
+			},
+			expectedSpcs:    nil,
+			expectedError:   nil,
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: both ServiceAccount name and clientId have been specified, please specify one or the other",
+		},
+		{
+			name:  "non-Istio gateway",
+			gwObj: nonIstioGateway,
+			// ensure it was originally there and that reconciler deletes it
+			generateClientState: func() client.Client {
+				return testutils.RegisterSchemes(t, testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme), secv1.AddToScheme, gatewayv1.Install).WithObjects(nonIstioGateway).Build()
 			},
 			expectedSpcs:  nil,
 			expectedError: nil,
 		},
-		{
-			name:  "no cert URI specified",
-			gwObj: gwWithoutTls,
-			// ensure it was originally there and that reconciler deletes it
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme), secv1.AddToScheme, gatewayv1.Install).WithObjects(gwWithoutTls, validSpc).Build()
-			},
-			expectedSpcs: nil,
-		},
 	}
 
 	for _, tc := range tcs {
-		t.Logf("starting case %s", tc.name)
 		ctx := logr.NewContext(context.Background(), logr.Discard())
 		c := tc.generateClientState()
+		recorder := record.NewFakeRecorder(1)
 		g := GatewaySecretProviderClassReconciler{
 			client: c,
 			config: &config.Config{
 				TenantID: "test-tenant-id",
 			},
-			events: record.NewFakeRecorder(1),
+			events: recorder,
 		}
 
 		// Define initial metrics
@@ -612,12 +363,19 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 
 		if tc.expectedError == nil {
 			require.Nil(t, err)
-			require.Equal(t, testutils.GetErrMetricCount(t, kvSaControllerName), beforeErrCount)
-			require.Greater(t, testutils.GetReconcileMetricCount(t, kvSaControllerName, metrics.LabelSuccess), beforeRequestCount)
+			require.Equal(t, testutils.GetErrMetricCount(t, gatewaySecretProviderControllerName), beforeErrCount)
+			require.Greater(t, testutils.GetReconcileMetricCount(t, gatewaySecretProviderControllerName, metrics.LabelSuccess), beforeRequestCount)
 		} else {
 			t.Logf("expected error: %s", tc.expectedError.Error())
 			require.Equal(t, tc.expectedError.Error(), err.Error())
-			require.Greater(t, testutils.GetErrMetricCount(t, kvSaControllerName), beforeErrCount)
+			require.Greater(t, testutils.GetErrMetricCount(t, gatewaySecretProviderControllerName), beforeErrCount)
+		}
+
+		if tc.expectedUserErr != "" {
+			require.Greater(t, len(recorder.Events), 0)
+			require.Equal(t, tc.expectedUserErr, <-recorder.Events)
+		} else {
+			require.Equal(t, 0, len(recorder.Events))
 		}
 
 		if tc.expectedSpcs == nil {
@@ -650,7 +408,6 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 				matchingListenerName := strings.Replace(expectedSpc.Name, "kv-gw-cert-test-gw-", "", 1)
 				foundListener := false
 				for _, listener := range reconciledGw.Spec.Listeners {
-					fmt.Println("listenerName", listener.TLS.CertificateRefs)
 					if string(listener.Name) == matchingListenerName {
 						foundListener = true
 						require.Equal(t, expectedSpc.Name, string(listener.TLS.CertificateRefs[0].Name))
@@ -659,8 +416,6 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 				}
 				require.True(t, foundListener)
 			}
-
 		}
-
 	}
 }
