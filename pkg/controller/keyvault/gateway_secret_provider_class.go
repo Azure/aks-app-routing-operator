@@ -26,10 +26,6 @@ var (
 	gatewaySecretProviderControllerName = controllername.New("keyvault", "gateway", "secret", "provider")
 )
 
-const (
-	saNameUriErr = "`App Routing requires a Certificate URI as well as a ServiceAccount that references an Identity that has access to your Keyvault in order to pull TLS certificates. Make sure both are specified in your Listener's TLS options for all listeners that require TLS certs."
-)
-
 // GatewaySecretProviderClassReconciler manages a SecretProviderClass for Gateway resource that specifies a ServiceAccount
 // and Keyvault URI in its TLS options field. The SPC is used to mirror the Keyvault values into
 // a k8s secret so that it can be used by the CRD controller.
@@ -120,7 +116,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			// otherwise it's active + valid - build SPC
 			certUri := string(listener.TLS.Options[certUriTLSOption])
 
-			logger.Info("building spc for Gateway resource and upserting ")
+			logger.Info("building spc for listener and upserting")
 			spcConf := SPCConfig{
 				ClientId:        clientId,
 				TenantId:        g.config.TenantID,
