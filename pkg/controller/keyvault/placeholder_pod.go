@@ -152,9 +152,7 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 		obj            client.Object
 		serviceAccount string
 	)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+
 	result := ctrl.Result{}
 
 	switch {
