@@ -53,33 +53,32 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 	})
 }
 
-func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
-	res = ctrl.Result{}
-	err = nil
-
+func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
 	// set up metrics given result/error
 	defer func() {
-		metrics.HandleControllerReconcileMetrics(gatewaySecretProviderControllerName, res, err)
+		metrics.HandleControllerReconcileMetrics(gatewaySecretProviderControllerName, res, retErr)
 	}()
 
 	// set up logger
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return
+		return ctrl.Result{}, fmt.Errorf("creating logger: %w", err)
 	}
 	logger = gatewaySecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
 	// retrieve gateway resource from request + log the get attempt, but ignore not found
 	gwObj := &gatewayv1.Gateway{}
 	err = g.client.Get(ctx, req.NamespacedName, gwObj)
-
 	if err != nil {
-		err = client.IgnoreNotFound(err)
-		return
+		if client.IgnoreNotFound(err) != nil {
+			logger.Error(err, "failed to fetch Gateway")
+			return ctrl.Result{}, fmt.Errorf("fetching gateway: %w", err)
+		}
+		return ctrl.Result{}, nil
 	}
 
 	if gwObj.Spec.GatewayClassName != istioGatewayClassName {
-		return
+		return ctrl.Result{}, nil
 	}
 
 	// check its TLS options - needs to have both cert uri and either serviceaccount name or clientid
@@ -112,11 +111,10 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to fetch clientId for SPC for listener %s due to user error: %s, sending warning event", listener.Name, userErr.userMessage))
 					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
-					err = nil
-					return
+					return ctrl.Result{}, nil
 				}
 				logger.Error(err, fmt.Sprintf("failed to fetch clientId for listener %s: %q", listener.Name, err.Error()))
-				return
+				return ctrl.Result{}, fmt.Errorf("fetching clientId for listener: %w", err)
 			}
 
 			// otherwise it's active + valid - build SPC
@@ -135,19 +133,18 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				if errors.As(err, &userErr) {
 					logger.Info("failed to build SecretProviderClass from user error: %q sending warning event", userErr.userMessage)
 					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
-					err = nil
-					return
+					return ctrl.Result{}, nil
 				}
 				logger.Error(err, fmt.Sprintf("building SPC for listener %s: %s", listener.Name, err.Error()))
-				return
+				return ctrl.Result{}, fmt.Errorf("building spc: %w", err)
 			}
 
 			logger.Info(fmt.Sprintf("reconciling SecretProviderClass %s for listener %s", spc.Name, listener.Name))
 			if err = util.Upsert(ctx, g.client, spc); err != nil {
-				errString := fmt.Sprintf("failed to reconcile SecretProviderClass %s: %q", req.Name, err)
-				logger.Error(err, errString)
-				g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateSPC", errString)
-				return
+				fullErr := fmt.Errorf("failed to reconcile SecretProviderClass %s: %w", req.Name, err)
+				logger.Error(err, fullErr.Error())
+				g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateSPC", fullErr.Error())
+				return ctrl.Result{}, fullErr
 			}
 
 			logger.Info(fmt.Sprintf("preemptively attaching secret reference for listener %s", listener.Name))
@@ -163,14 +160,22 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			logger.Info(fmt.Sprintf("attempting to remove unused SPC %s", spc.Name))
 
 			deletionSpc := &secv1.SecretProviderClass{}
-			if err = client.IgnoreNotFound(g.client.Get(ctx, client.ObjectKeyFromObject(spc), deletionSpc)); err != nil {
-				return
+			if err = g.client.Get(ctx, client.ObjectKeyFromObject(spc), deletionSpc); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					logger.Error(err, fmt.Sprintf("failed to fetch SPC for deletion %s", spc.Name))
+					return ctrl.Result{}, fmt.Errorf("fetching SPC for deletion: %w", err)
+				}
+				return ctrl.Result{}, nil
 			}
 
 			if manifests.HasTopLevelLabels(deletionSpc.Labels) {
 				// return if we fail to delete, but otherwise, keep going
-				if err = g.client.Delete(ctx, deletionSpc); client.IgnoreNotFound(err) != nil {
-					return
+				if err = g.client.Delete(ctx, deletionSpc); err != nil {
+					if client.IgnoreNotFound(err) != nil {
+						logger.Error(err, fmt.Sprintf("failed to delete SPC %s", spc.Name))
+						return ctrl.Result{}, fmt.Errorf("deleting SPC: %w", err)
+					}
+					return ctrl.Result{}, nil
 				}
 			}
 		}
@@ -178,13 +183,13 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 	logger.Info("reconciling Gateway resource with new secret refs for each TLS-enabled listener")
 	if err = util.Upsert(ctx, g.client, gwObj); err != nil {
-		errString := fmt.Sprintf("failed to reconcile Gateway resource %s: %q", req.Name, err)
-		logger.Error(err, errString)
-		g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateGateway", errString)
-		return res, err
+		fullErr := fmt.Errorf("failed to reconcile Gateway resource %s: %w", req.Name, err)
+		logger.Error(err, fullErr.Error())
+		g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateGateway", fullErr.Error())
+		return ctrl.Result{}, fullErr
 	}
 
-	return res, err
+	return ctrl.Result{}, nil
 }
 
 func GenerateGwListenerCertName(gw string, listener gatewayv1.SectionName) string {

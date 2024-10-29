@@ -40,24 +40,20 @@ func NewKvServiceAccountReconciler(mgr ctrl.Manager) error {
 
 }
 
-func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
-	res = ctrl.Result{}
-	err = nil
-
+func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
 	defer func() {
-		metrics.HandleControllerReconcileMetrics(kvSaControllerName, res, err)
+		metrics.HandleControllerReconcileMetrics(kvSaControllerName, res, retErr)
 	}()
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return
+		return ctrl.Result{}, fmt.Errorf("creating logger from context: %w", err)
 	}
 	logger = kvSaControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
 	gwObj := &gatewayv1.Gateway{}
 	if err = k.client.Get(ctx, req.NamespacedName, gwObj); err != nil {
-		err = client.IgnoreNotFound(err)
-		return
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	clientId, err := extractClientIdForManagedSa(gwObj)
@@ -65,17 +61,16 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err != nil {
 		var userErr userError
 		if errors.As(err, &userErr) {
-			err = nil
 			logger.Info("user error while extracting clientId from Gateway: %s", userErr.userMessage)
 			k.events.Event(gwObj, Warning.String(), "InvalidInput", userErr.userMessage)
-			return
+			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "failed to extract clientId from Gateway object")
-		return
+		return ctrl.Result{}, fmt.Errorf("extracting client ID for app routing serviceaccount: %w", err)
 	}
 
 	if clientId == "" {
-		return
+		return ctrl.Result{}, nil
 	}
 
 	toCreate := &corev1.ServiceAccount{
@@ -95,7 +90,7 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	err = k.client.Get(ctx, types.NamespacedName{Name: toCreate.Name, Namespace: toCreate.Namespace}, existing)
 	if client.IgnoreNotFound(err) != nil {
 		logger.Error(err, "failed to fetch existing app routing serviceaccount")
-		return
+		return ctrl.Result{}, fmt.Errorf("checking for existing app routing service account: %w", err)
 	}
 
 	if existing.Annotations != nil && existing.Annotations[wiSaClientIdAnnotation] != "" {
@@ -104,15 +99,13 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			errText := fmt.Sprintf("gateway specifies clientId %s but azure-app-routing-kv ServiceAccount already uses clientId %s", clientId, existingClientId)
 			logger.Info(errText)
 			k.events.Event(gwObj, Warning.String(), "InvalidInput", errText)
-			return
+			return ctrl.Result{}, nil
 		}
 	}
 
 	toCreate.Annotations = map[string]string{wiSaClientIdAnnotation: clientId}
 
-	err = util.Upsert(ctx, k.client, toCreate)
-
-	return
+	return ctrl.Result{}, util.Upsert(ctx, k.client, toCreate)
 }
 
 func extractClientIdForManagedSa(gwObj *gatewayv1.Gateway) (string, error) {

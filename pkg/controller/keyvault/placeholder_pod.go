@@ -64,22 +64,19 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 	})
 }
 
-func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var err error
-	result := ctrl.Result{}
-
+func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
 	// do metrics
 	defer func() {
 		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
 		// this makes sure they have the proper value
 		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
 		// the values of result and err to their zero values, since they were just instantiated
-		metrics.HandleControllerReconcileMetrics(placeholderPodControllerName, result, err)
+		metrics.HandleControllerReconcileMetrics(placeholderPodControllerName, res, retErr)
 	}()
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return result, err
+		return ctrl.Result{}, fmt.Errorf("creating logger: %w", err)
 	}
 	logger = placeholderPodControllerName.AddToLogger(logger).WithValues("namespace", req.Namespace, "name", req.Name)
 
@@ -87,7 +84,11 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	spc := &secv1.SecretProviderClass{}
 	err = p.client.Get(ctx, req.NamespacedName, spc)
 	if err != nil {
-		return result, client.IgnoreNotFound(err)
+		if client.IgnoreNotFound(err) != nil {
+			logger.Error(err, "failed to fetch SPC: %s", err.Error())
+			return ctrl.Result{}, fmt.Errorf("fetching SPC: %w", err)
+		}
+		return ctrl.Result{}, nil
 	}
 	logger = logger.WithValues("name", spc.Name, "namespace", spc.Namespace, "generation", spc.Generation)
 
