@@ -338,18 +338,6 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	assert.Greater(t, afterRequestCount, beforeRequestCount)
 }
 
-func buildTestSpcConfig(clientId, tenantID, cloud, name, certUri string) SPCConfig {
-	spcTestConf := SPCConfig{
-		ClientId:        clientId,
-		TenantId:        tenantID,
-		Cloud:           cloud,
-		Name:            name,
-		KeyvaultCertUri: certUri,
-	}
-
-	return spcTestConf
-}
-
 func TestIsNginxAnnotation(t *testing.T) {
 	cases := []struct {
 		name     string

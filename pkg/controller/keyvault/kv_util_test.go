@@ -48,6 +48,18 @@ var (
 	maxSizeString = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbb"
 )
 
+func buildTestSpcConfig(clientId, tenantID, cloud, name, certUri string) SPCConfig {
+	spcTestConf := SPCConfig{
+		ClientId:        clientId,
+		TenantId:        tenantID,
+		Cloud:           cloud,
+		Name:            name,
+		KeyvaultCertUri: certUri,
+	}
+
+	return spcTestConf
+}
+
 func TestDefaultNginxCertName(t *testing.T) {
 
 	testStr := DefaultNginxCertName(&v1alpha1.NginxIngressController{
