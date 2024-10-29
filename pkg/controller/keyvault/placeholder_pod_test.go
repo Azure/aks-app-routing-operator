@@ -709,8 +709,8 @@ func TestVerifyServiceAccount(t *testing.T) {
 			require.Equal(t, tc.expectedError.Error(), err.Error())
 		} else {
 			require.Nil(t, err)
-			require.Equal(t, tc.expectedServiceAccount, serviceAccount)
 		}
+		require.Equal(t, tc.expectedServiceAccount, serviceAccount)
 	}
 }
 
