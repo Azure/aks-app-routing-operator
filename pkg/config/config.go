@@ -45,6 +45,7 @@ func init() {
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
+	flag.StringVar(&Flags.ActiveDirectoryAuthorityHost, "active-directory-authority-host", "", "the base URL of the cloud's Azure Active Directory")
 }
 
 func (c *Config) Validate() error {

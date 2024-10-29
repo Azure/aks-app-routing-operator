@@ -182,13 +182,14 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 	js, err := json.Marshal(&map[string]interface{}{
-		"tenantId":                    externalDnsConfig.TenantId,
-		"subscriptionId":              externalDnsConfig.Subscription,
-		"resourceGroup":               externalDnsConfig.ResourceGroup,
-		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": true,
-		"cloud":                       conf.Cloud,
-		"location":                    conf.Location,
+		"tenantId":                     externalDnsConfig.TenantId,
+		"subscriptionId":               externalDnsConfig.Subscription,
+		"resourceGroup":                externalDnsConfig.ResourceGroup,
+		"userAssignedIdentityID":       conf.MSIClientID,
+		"useManagedIdentityExtension":  true,
+		"cloud":                        conf.Cloud,
+		"location":                     conf.Location,
+		"activeDirectoryAuthorityHost": conf.ActiveDirectoryAuthorityHost,
 	})
 	if err != nil {
 		panic(err)

@@ -75,7 +75,7 @@ subjects:
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":""}'
+  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":"","activeDirectoryAuthorityHost":"https://login.microsoftonline.com/"}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
