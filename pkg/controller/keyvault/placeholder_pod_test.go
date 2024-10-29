@@ -5,8 +5,10 @@ package keyvault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -14,7 +16,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -238,10 +240,10 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the deployment was deleted
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove that placeholder deployment retains immutable fields during updates
 	oldPlaceholder := &appsv1.Deployment{}
@@ -402,10 +404,10 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the deployment was deleted
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 
 	// Prove that placeholder deployment retains immutable fields during updates
 	oldPlaceholder := &appsv1.Deployment{}
@@ -491,7 +493,8 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.ToPtr(false),
+				ServiceAccountName:           appRoutingSaName,
+				AutomountServiceAccountToken: util.ToPtr(true),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
@@ -560,7 +563,8 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				AutomountServiceAccountToken: util.ToPtr(false),
+				ServiceAccountName:           "test-sa",
+				AutomountServiceAccountToken: util.ToPtr(true),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
 					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
@@ -677,14 +681,17 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the cid deployment was deleted
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
-	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
+	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
+
+	beforeErrCount = testutils.GetErrMetricCount(t, placeholderPodControllerName)
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess)
+	_, err = p.Reconcile(ctx, saReq)
+	require.NoError(t, err)
+	require.Equal(t, testutils.GetErrMetricCount(t, placeholderPodControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the sa deployment was deleted
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
-	// Prove idempotence
-	require.True(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
+	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
 
 }
 
@@ -693,33 +700,100 @@ func TestVerifyServiceAccount(t *testing.T) {
 		name                   string
 		spc                    *secv1.SecretProviderClass
 		obj                    client.Object
+		existingObjects        []client.Object
 		expectedServiceAccount string
 		expectedError          error
 	}{
 		{
 			name:                   "happy path with input serviceaccount",
 			spc:                    serviceAccountSpc,
-			obj:                    gatewayWithOnlyServiceAccounts,
-			expectedServiceAccount: "test-sa-2",
+			obj:                    gatewayWithCidListenerAndSaListener,
+			existingObjects:        []client.Object{annotatedServiceAccount, serviceAccountSpc},
+			expectedServiceAccount: "test-sa",
 		},
 		{
 			name:                   "happy path with client id",
-			spc:                    serviceAccountSpc,
+			spc:                    clientIdSpc,
 			obj:                    gatewayWithCid,
+			existingObjects:        []client.Object{appRoutingSa, clientIdSpc},
 			expectedServiceAccount: appRoutingSaName,
 		},
 		{
-			name: "no matching listeners",
+			name:            "no matching listeners",
+			spc:             serviceAccountSpc,
+			obj:             modifyGateway(gatewayWithCidListenerAndSaListener, func(gw *gatewayv1.Gateway) { gw.Spec.Listeners[1].Name = "test-listener-3" }),
+			existingObjects: []client.Object{gatewayWithCidListenerAndSaListener, annotatedServiceAccount},
+			expectedError:   newUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
+		},
+		{
+			name: "listener matches but doesn't contain service account option",
+			spc:  serviceAccountSpc,
+			obj: modifyGateway(gatewayWithCidListenerAndSaListener, func(gw *gatewayv1.Gateway) {
+				gw.Spec.Listeners[1].TLS.Options = map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{"not-service-account": "test-value"}
+			}),
+			existingObjects: []client.Object{gatewayWithCidListenerAndSaListener, serviceAccountSpc, annotatedServiceAccount},
+			expectedError:   newUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "nonexistent service account referenced",
+			spc:  serviceAccountSpc,
+			obj: modifyGateway(gatewayWithCidListenerAndSaListener, func(gw *gatewayv1.Gateway) {
+				gw.Spec.Listeners[1].TLS.Options = map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{"kubernetes.azure.com/tls-cert-service-account": "fake-sa"}
+			}),
+			existingObjects: []client.Object{serviceAccountSpc, gatewayWithCidListenerAndSaListener, annotatedServiceAccount},
+			expectedError:   newUserError(errors.New("serviceaccounts \"fake-sa\" not found"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
-			name: "app routing service account doesn't exist",
+			name: "service account without required annotation referenced",
+			spc:  serviceAccountSpc,
+			obj:  gatewayWithCidListenerAndSaListener,
+			existingObjects: []client.Object{
+				serviceAccountSpc,
+				gatewayWithCidListenerAndSaListener,
+				&corev1.ServiceAccount{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "v1",
+						Kind:       "ServiceAccount",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:   gatewayWithCidListenerAndSaListener.Namespace,
+						Name:        "test-sa",
+						Annotations: map[string]string{"foo": "bar"},
+					},
+				},
+			},
+			expectedError: newUserError(errors.New("user-specified service account does not contain WI annotation"), "serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity"),
+		},
+		{
+			name:            "app routing service account doesn't exist",
+			spc:             clientIdSpc,
+			obj:             gatewayWithCid,
+			existingObjects: []client.Object{clientIdSpc, gatewayWithCid},
+			expectedError:   util.NewRequeueError(errors.New("serviceaccounts \"azure-app-routing-kv\" not found"), 30*time.Second),
 		},
 		{
 			name: "incorrect object type",
+			spc:  clientIdSpc,
+			obj:  &netv1.Ingress{},
 		},
+	}
+
+	for _, tc := range tcs {
+		t.Logf("starting case %s", tc.name)
+		c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, corev1.AddToScheme).WithObjects(tc.existingObjects...).Build()
+		p := PlaceholderPodController{
+			client: c,
+		}
+
+		serviceAccount, err := p.verifyServiceAccount(context.Background(), tc.spc, tc.obj, logr.Discard())
+
+		if tc.expectedError != nil {
+			require.NotNil(t, err)
+			require.Equal(t, tc.expectedError.Error(), err.Error())
+		} else {
+			require.Nil(t, err)
+			require.Equal(t, tc.expectedServiceAccount, serviceAccount)
+		}
 	}
 }
 
@@ -854,7 +928,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, placeholderPodControllerName, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Prove the deployment was not deleted
-	require.False(t, errors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
+	require.False(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
 }
 
 func TestPlaceholderPodControllerUnmanagedDeploymentUnmanagedSPC(t *testing.T) {

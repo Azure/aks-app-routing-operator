@@ -361,14 +361,17 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 			}
 			if listener.TLS != nil && listener.TLS.Options != nil {
 				serviceAccount = string(listener.TLS.Options[serviceAccountTLSOption])
+				clientId := string(listener.TLS.Options[clientIdTLSOption])
 				if serviceAccount == "" {
-					serviceAccount = appRoutingSaName
+					if clientId != "" {
+						serviceAccount = appRoutingSaName
+					}
 				}
 			}
 		}
 		if serviceAccount == "" {
 			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
-			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain TLS options", spc.Name))
+			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
 		// ensure referenced serviceaccount exists
@@ -379,14 +382,25 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 			return "", err
 		}
 
-		// SA wasn't found, return appropriate error
-		if err != nil {
-			if serviceAccount != appRoutingSaName {
+		if serviceAccount != appRoutingSaName {
+			// SA wasn't found, return appropriate error
+			if err != nil {
 				return "", newUserError(err, fmt.Sprintf("serviceAccount %s was specified in Gateway but does not exist", serviceAccount))
 			}
+			// check for required annotations
+			if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
+				return "", newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", serviceAccount))
+			}
+
+			return serviceAccount, nil
+		}
+
+		if err != nil {
 			logger.Error(err, "could not find app routing service account when user listener contained clientId, re-queuing operation")
 			return "", util.NewRequeueError(err, 30*time.Second)
 		}
+
+		return appRoutingSaName, nil
 	}
 
 	return "", nil
