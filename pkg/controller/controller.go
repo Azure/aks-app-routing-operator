@@ -215,7 +215,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	if conf.EnableGateway {
 		lgr.Info("setting up gateway reconcilers")
 		if err := keyvault.NewGatewaySecretClassProviderReconciler(mgr, conf); err != nil {
-			return fmt.Errorf("setting up Gateway SPC reconciler: %s", err)
+			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
 		}
 
 		if err := keyvault.NewKvServiceAccountReconciler(mgr); err != nil {

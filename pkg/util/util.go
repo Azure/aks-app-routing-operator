@@ -116,7 +116,7 @@ func NewRequeueError(err error, requeueAfter time.Duration) RequeueError {
 }
 
 func (r RequeueError) Error() string {
-	return r.err.Error()
+	return "re queuing: " + r.err.Error()
 }
 
 func (r RequeueError) RequeueAfter() time.Duration {
