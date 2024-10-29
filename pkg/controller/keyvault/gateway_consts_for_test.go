@@ -88,6 +88,34 @@ var (
 		},
 	}
 
+	gwWithNoCertMultipleCid = &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gw",
+			Namespace: "test-ns",
+		},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "istio",
+			Listeners: []gatewayv1.Listener{
+				{
+					Name: "test-listener-1",
+					TLS: &gatewayv1.GatewayTLSConfig{
+						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-1",
+						},
+					},
+				},
+				{
+					Name: "test-listener-2",
+					TLS: &gatewayv1.GatewayTLSConfig{
+						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-2",
+						},
+					},
+				},
+			},
+		},
+	}
+
 	gwWithSa = &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Gateway",
@@ -226,56 +254,6 @@ var (
 		},
 	}
 
-	gwWithNoCertMultipleCid = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-1",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-2",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gwWithoutTls = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{},
-					},
-				},
-			},
-		},
-	}
-
 	nilOptionsGateway = &gatewayv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-gw",
@@ -345,7 +323,6 @@ var (
 					},
 				},
 			}},
-			// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
 			Parameters: map[string]string{
 				"keyvaultName":           "testvault",
 				"useVMManagedIdentity":   "true",
