@@ -155,30 +155,31 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Name:      gatewayv1.ObjectName(GenerateGwListenerCertName(gwObj.Name, listener.Name)),
 			}
 			gwObj.Spec.Listeners[index].TLS.CertificateRefs = []gatewayv1.SecretObjectReference{newCertRef}
-		} else {
-			// we should delete the SPC if it exists
-			logger.Info(fmt.Sprintf("attempting to remove unused SPC %s", spc.Name))
+			continue
+		}
+		// we should delete the SPC if it exists
+		logger.Info(fmt.Sprintf("attempting to remove unused SPC %s", spc.Name))
 
-			deletionSpc := &secv1.SecretProviderClass{}
-			if err = g.client.Get(ctx, client.ObjectKeyFromObject(spc), deletionSpc); err != nil {
+		deletionSpc := &secv1.SecretProviderClass{}
+		if err = g.client.Get(ctx, client.ObjectKeyFromObject(spc), deletionSpc); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				logger.Error(err, fmt.Sprintf("failed to fetch SPC for deletion %s", spc.Name))
+				return ctrl.Result{}, fmt.Errorf("fetching SPC for deletion: %w", err)
+			}
+			return ctrl.Result{}, nil
+		}
+
+		if manifests.HasTopLevelLabels(deletionSpc.Labels) {
+			// return if we fail to delete, but otherwise, keep going
+			if err = g.client.Delete(ctx, deletionSpc); err != nil {
 				if client.IgnoreNotFound(err) != nil {
-					logger.Error(err, fmt.Sprintf("failed to fetch SPC for deletion %s", spc.Name))
-					return ctrl.Result{}, fmt.Errorf("fetching SPC for deletion: %w", err)
+					logger.Error(err, fmt.Sprintf("failed to delete SPC %s", spc.Name))
+					return ctrl.Result{}, fmt.Errorf("deleting SPC: %w", err)
 				}
 				return ctrl.Result{}, nil
 			}
-
-			if manifests.HasTopLevelLabels(deletionSpc.Labels) {
-				// return if we fail to delete, but otherwise, keep going
-				if err = g.client.Delete(ctx, deletionSpc); err != nil {
-					if client.IgnoreNotFound(err) != nil {
-						logger.Error(err, fmt.Sprintf("failed to delete SPC %s", spc.Name))
-						return ctrl.Result{}, fmt.Errorf("deleting SPC: %w", err)
-					}
-					return ctrl.Result{}, nil
-				}
-			}
 		}
+
 	}
 
 	logger.Info("reconciling Gateway resource with new secret refs for each TLS-enabled listener")
