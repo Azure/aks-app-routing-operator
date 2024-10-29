@@ -334,8 +334,9 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	afterErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	afterRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
 
-	assert.Greater(t, afterErrCount, beforeErrCount)
-	assert.Greater(t, afterRequestCount, beforeRequestCount)
+	// user error is not our error, so we shouldn't increment err count
+	assert.Equal(t, afterErrCount, beforeErrCount)
+	assert.Equal(t, afterRequestCount, beforeRequestCount)
 }
 
 func TestIsNginxAnnotation(t *testing.T) {
