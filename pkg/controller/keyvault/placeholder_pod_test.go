@@ -45,8 +45,9 @@ import (
 )
 
 var (
-	placeholderTestIngClassName = "webapprouting.kubernetes.azure.com"
-	placeholderTestIng          = &netv1.Ingress{
+	placeholderPodControllerNameElements = []string{"keyvault", "placeholder", "pod"}
+	placeholderTestIngClassName          = "webapprouting.kubernetes.azure.com"
+	placeholderTestIng                   = &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-ing",
 			Namespace: "default",
@@ -95,7 +96,8 @@ var (
 	}
 )
 
-func ReconcileAndTestSuccessMetrics(t *testing.T, ctx context.Context, controllerName controllername.ControllerNamer, reconciler reconcile.Reconciler, req ctrl.Request) {
+func ReconcileAndTestSuccessMetrics(t *testing.T, ctx context.Context, reconciler reconcile.Reconciler, req ctrl.Request, controllerNameElements []string) {
+	controllerName := controllername.New(controllerNameElements[0], controllerNameElements[1:]...)
 	beforeErrCount := testutils.GetErrMetricCount(t, controllerName)
 	beforeReconcileCount := testutils.GetReconcileMetricCount(t, controllerName, metrics.LabelSuccess)
 	_, err = reconciler.Reconcile(ctx, req)
@@ -136,7 +138,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 
 	// Create placeholder pod deployment
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -211,14 +213,14 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 	assert.Equal(t, expected, dep.Spec)
 
 	// Prove idempotence
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	// Update the secret class generation
 	spc.Generation = 234
 	expected.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
 	require.NoError(t, c.Update(ctx, spc))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	// Prove the generation annotation was updated
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
@@ -228,7 +230,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 	ing.Spec.IngressClassName = nil
 	require.NoError(t, c.Update(ctx, ing))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	// Prove the deployment was deleted
 	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
@@ -243,7 +245,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 	oldPlaceholder.Name = "immutable-test"
 	require.NoError(t, c.Create(ctx, oldPlaceholder), "failed to create old placeholder deployment")
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	updatedPlaceholder := &appsv1.Deployment{}
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(oldPlaceholder), updatedPlaceholder), "failed to get updated placeholder deployment")
@@ -276,7 +278,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 
 	// Create placeholder pod deployment
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -351,14 +353,14 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	assert.Equal(t, expected, dep.Spec)
 
 	// Prove idempotence
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	// Update the secret class generation
 	spc.Generation = 234
 	expected.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
 	require.NoError(t, c.Update(ctx, spc))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	// Prove the generation annotation was updated
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(dep), dep))
@@ -368,7 +370,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	nic.Spec.DefaultSSLCertificate.KeyVaultURI = nil
 	require.NoError(t, c.Update(ctx, nic))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	// Prove the deployment was deleted
 	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(dep), dep)))
@@ -383,7 +385,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 	oldPlaceholder.Name = "immutable-test"
 	require.NoError(t, c.Create(ctx, oldPlaceholder), "failed to create old placeholder deployment")
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, req)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, req, placeholderPodControllerNameElements)
 
 	updatedPlaceholder := &appsv1.Deployment{}
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(oldPlaceholder), updatedPlaceholder), "failed to get updated placeholder deployment")
@@ -411,12 +413,12 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 
 	// Create placeholder pod deployment for clientId listener
 	cidReq := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: cspc.Namespace, Name: cspc.Name}}
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, cidReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
 	require.Equal(t, 0, len(recorder.Events))
 
 	// Create placeholder pod deployment for serviceaccount listener
 	saReq := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: saspc.Namespace, Name: saspc.Name}}
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, saReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 	require.Equal(t, 0, len(recorder.Events))
 
 	cDep := &appsv1.Deployment{
@@ -563,7 +565,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	assert.Equal(t, expectedSaDep, saDep.Spec)
 
 	// Prove idempotence for clientId deployment
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, cidReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
 	require.Equal(t, 0, len(recorder.Events))
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
 	require.Equal(t, expectedCidDep, cDep.Spec)
@@ -573,7 +575,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	expectedCidDep.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
 	require.NoError(t, c.Update(ctx, cspc))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, cidReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
 	require.Equal(t, 0, len(recorder.Events))
 
 	// Prove the generation annotation was updated
@@ -581,7 +583,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	require.Equal(t, expectedCidDep, cDep.Spec)
 
 	// Prove idempotence for the SA deployment
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, saReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep))
 	require.Equal(t, 0, len(recorder.Events))
@@ -592,7 +594,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	expectedSaDep.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
 	require.NoError(t, c.Update(ctx, saspc))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, saReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 	require.Equal(t, 0, len(recorder.Events))
 
 	// Prove the generation annotation was updated
@@ -603,11 +605,11 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	gw.Spec.GatewayClassName = "notistio"
 	require.NoError(t, c.Update(ctx, gw))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, cidReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
 	// Prove the cid deployment was deleted
 	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, placeholderPodControllerName, p, saReq)
+	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 	// Prove the sa deployment was deleted
 	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
 }

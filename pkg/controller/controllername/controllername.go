@@ -28,12 +28,12 @@ type ControllerNamer interface {
 	AddToController(blder *builder.Builder, l logr.Logger) *builder.Builder
 }
 
-// ControllerName ex. {"My","Controller", "Name"} ->  MyControllerName
-type ControllerName []string
+// controllerName ex. {"My","Controller", "Name"} ->  MyControllerName
+type controllerName []string
 
 // New returns a new controllerName after taking each word of the controller name as a separate argument
-func New(firstWord string, additionalWords ...string) ControllerName { // using a non-variadic for the first word makes it impossible to accidentally pass no arguments in. Accepting variadic versus slices also helps with not accepting empty slices and is easier to use
-	cn := make(ControllerName, 0, len(additionalWords)+1)
+func New(firstWord string, additionalWords ...string) controllerName { // using a non-variadic for the first word makes it impossible to accidentally pass no arguments in. Accepting variadic versus slices also helps with not accepting empty slices and is easier to use
+	cn := make(controllerName, 0, len(additionalWords)+1)
 	for _, w := range append([]string{firstWord}, additionalWords...) {
 		cleaned := clean(w)
 		if cleaned != "" {
@@ -55,26 +55,26 @@ func clean(s string) string {
 	return string(rr)
 }
 
-func (c ControllerName) MetricsName() string {
+func (c controllerName) MetricsName() string {
 	return strings.Join(c, metricsNameDelimiter)
 }
 
-func (c ControllerName) LoggerName() string {
+func (c controllerName) LoggerName() string {
 	return strings.Join(c, loggerNameDelimiter)
 }
 
-func (c ControllerName) String() string {
+func (c controllerName) String() string {
 	return strings.Join(c, " ")
 }
 
-func (c ControllerName) AddToLogger(l logr.Logger) logr.Logger {
+func (c controllerName) AddToLogger(l logr.Logger) logr.Logger {
 	return l.
 		WithName(c.LoggerName()).
 		WithValues("controller", c.String()).
 		WithValues("controllerMetricsName", c.MetricsName()) // include metrics name, so we can automate creating queries that check Logs based on alerts
 }
 
-func (c ControllerName) AddToController(blder *builder.Builder, l logr.Logger) *builder.Builder {
+func (c controllerName) AddToController(blder *builder.Builder, l logr.Logger) *builder.Builder {
 	return blder.
 		Named(c.MetricsName()).
 		WithLogConstructor(func(req *reconcile.Request) logr.Logger {
