@@ -103,13 +103,6 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	switch existing.Annotations {
-	case nil:
-		toCreate.Annotations = map[string]string{wiSaClientIdAnnotation: clientId}
-	default:
-		toCreate.Annotations = existing.Annotations
-
-	}
 	toCreate.Annotations = map[string]string{wiSaClientIdAnnotation: clientId}
 
 	return ctrl.Result{}, util.Upsert(ctx, k.client, toCreate)
