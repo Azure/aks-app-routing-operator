@@ -41,7 +41,8 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 	return gatewaySecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
-			For(&gatewayv1.Gateway{}), manager.GetLogger(),
+			For(&gatewayv1.Gateway{}).
+			Owns(&secv1.SecretProviderClass{}), manager.GetLogger(),
 	).Complete(&GatewaySecretProviderClassReconciler{
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),

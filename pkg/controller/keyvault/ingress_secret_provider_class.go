@@ -46,7 +46,8 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 	return ingressSecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
-			For(&netv1.Ingress{}), manager.GetLogger(),
+			For(&netv1.Ingress{}).
+			Owns(&secv1.SecretProviderClass{}), manager.GetLogger(),
 	).Complete(&IngressSecretProviderClassReconciler{
 		client:         manager.GetClient(),
 		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),

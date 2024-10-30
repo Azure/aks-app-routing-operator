@@ -45,7 +45,8 @@ func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Co
 	return nginxSecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
-			For(&approutingv1alpha1.NginxIngressController{}), manager.GetLogger(),
+			For(&approutingv1alpha1.NginxIngressController{}).
+			Owns(&secv1.SecretProviderClass{}), manager.GetLogger(),
 	).Complete(&NginxSecretProviderClassReconciler{
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
