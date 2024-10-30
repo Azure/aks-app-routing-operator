@@ -106,7 +106,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				var userErr userError
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to fetch clientId for SPC for listener %s due to user error: %s, sending warning event", listener.Name, userErr.userMessage))
-					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
+					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
 					return ctrl.Result{}, nil
 				}
 				logger.Error(err, fmt.Sprintf("failed to fetch clientId for listener %s: %q", listener.Name, err.Error()))
@@ -128,7 +128,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				var userErr userError
 				if errors.As(err, &userErr) {
 					logger.Info("failed to build SecretProviderClass from user error: %q sending warning event", userErr.userMessage)
-					g.events.Eventf(gwObj, Warning.String(), "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
+					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
 					return ctrl.Result{}, nil
 				}
 				logger.Error(err, fmt.Sprintf("building SPC for listener %s: %s", listener.Name, err.Error()))
@@ -139,7 +139,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			if err = util.Upsert(ctx, g.client, spc); err != nil {
 				fullErr := fmt.Errorf("failed to reconcile SecretProviderClass %s: %w", req.Name, err)
 				logger.Error(err, fullErr.Error())
-				g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateSPC", fullErr.Error())
+				g.events.Event(gwObj, corev1.EventTypeWarning, "FailedUpdateOrCreateSPC", fullErr.Error())
 				return ctrl.Result{}, fullErr
 			}
 
@@ -182,7 +182,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	if err = util.Upsert(ctx, g.client, gwObj); err != nil {
 		fullErr := fmt.Errorf("failed to reconcile Gateway resource %s: %w", req.Name, err)
 		logger.Error(err, fullErr.Error())
-		g.events.Event(gwObj, Warning.String(), "FailedUpdateOrCreateGateway", fullErr.Error())
+		g.events.Event(gwObj, corev1.EventTypeWarning, "FailedUpdateOrCreateGateway", fullErr.Error())
 		return ctrl.Result{}, fullErr
 	}
 

@@ -15,22 +15,6 @@ import (
 
 var nginxNamePrefix = "keyvault-nginx-"
 
-type EventType int
-
-const (
-	Normal EventType = iota
-	Warning
-)
-
-func (et EventType) String() string {
-	switch et {
-	case Warning:
-		return "Warning"
-	default:
-		return "Normal"
-	}
-}
-
 type SPCConfig struct {
 	ClientId        string
 	TenantId        string

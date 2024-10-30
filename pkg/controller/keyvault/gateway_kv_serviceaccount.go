@@ -62,7 +62,7 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		var userErr userError
 		if errors.As(err, &userErr) {
 			logger.Info("user error while extracting clientId from Gateway: %s", userErr.userMessage)
-			k.events.Event(gwObj, Warning.String(), "InvalidInput", userErr.userMessage)
+			k.events.Event(gwObj, corev1.EventTypeWarning, "InvalidInput", userErr.userMessage)
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "failed to extract clientId from Gateway object")
@@ -98,7 +98,7 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if existingClientId != clientId {
 			errText := fmt.Sprintf("gateway specifies clientId %s but azure-app-routing-kv ServiceAccount already uses clientId %s", clientId, existingClientId)
 			logger.Info(errText)
-			k.events.Event(gwObj, Warning.String(), "InvalidInput", errText)
+			k.events.Event(gwObj, corev1.EventTypeWarning, "InvalidInput", errText)
 			return ctrl.Result{}, nil
 		}
 	}

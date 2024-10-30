@@ -210,7 +210,7 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 		var userErr userError
 		if errors.As(err, &userErr) {
 			logger.Info("user error while verifying if service account exists: %s", userErr.err)
-			p.events.Eventf(obj, Warning.String(), "InvalidInput", userErr.userMessage)
+			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.userMessage)
 			return result, nil
 		}
 		var requeueErr util.RequeueError
@@ -227,7 +227,7 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	logger.Info("reconciling placeholder deployment for secret provider class")
 	if err = p.buildDeployment(ctx, dep, spc, obj); err != nil {
 		err = fmt.Errorf("building deployment: %w", err)
-		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		p.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to build placeholder deployment")
 		return result, err
 	}
@@ -238,7 +238,7 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	}
 
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
-		p.events.Eventf(obj, "Warning", "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		p.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to upsert placeholder deployment")
 		return result, err
 	}
