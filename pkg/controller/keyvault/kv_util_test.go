@@ -14,6 +14,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -268,4 +269,22 @@ func TestUserErrors(t *testing.T) {
 
 	assert.True(t, testError.UserError() == testMsg)
 	assert.True(t, errors.As(testError, &userErr))
+}
+
+func TestShouldReconcileGateway(t *testing.T) {
+	nonIstioGateway := &gatewayv1.Gateway{
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "test-gateway-class",
+		},
+	}
+
+	require.False(t, shouldReconcileGateway(nonIstioGateway))
+
+	istioGateway := &gatewayv1.Gateway{
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "istio",
+		},
+	}
+
+	require.True(t, shouldReconcileGateway(istioGateway))
 }

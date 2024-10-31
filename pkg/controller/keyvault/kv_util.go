@@ -10,6 +10,7 @@ import (
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	v1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -139,4 +140,8 @@ func (b userError) UserError() string {
 
 func newUserError(err error, msg string) userError {
 	return userError{err, msg}
+}
+
+func shouldReconcileGateway(gwObj *gatewayv1.Gateway) bool {
+	return gwObj.Spec.GatewayClassName == istioGatewayClassName
 }

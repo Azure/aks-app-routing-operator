@@ -74,7 +74,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		return ctrl.Result{}, nil
 	}
 
-	if gwObj.Spec.GatewayClassName != istioGatewayClassName {
+	if !shouldReconcileGateway(gwObj) {
 		return ctrl.Result{}, nil
 	}
 
@@ -110,7 +110,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
 					return ctrl.Result{}, nil
 				}
-				logger.Error(err, fmt.Sprintf("failed to fetch clientId for listener %s: %q", listener.Name, err.Error()))
+				logger.Error(err, fmt.Sprintf("failed to fetch clientId for listener %s: %s", listener.Name, err.Error()))
 				return ctrl.Result{}, fmt.Errorf("fetching clientId for listener: %w", err)
 			}
 

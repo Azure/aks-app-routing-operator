@@ -79,8 +79,9 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			Kind:       "ServiceAccount",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appRoutingSaName,
-			Namespace: req.Namespace,
+			Name:        appRoutingSaName,
+			Namespace:   req.Namespace,
+			Annotations: map[string]string{wiSaClientIdAnnotation: clientId},
 		},
 	}
 
@@ -103,15 +104,13 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	toCreate.Annotations = map[string]string{wiSaClientIdAnnotation: clientId}
-
 	return ctrl.Result{}, util.Upsert(ctx, k.client, toCreate)
 }
 
 func extractClientIdForManagedSa(gwObj *gatewayv1.Gateway) (string, error) {
 	var ret string
 
-	if gwObj.Spec.GatewayClassName != istioGatewayClassName {
+	if !shouldReconcileGateway(gwObj) {
 		return "", nil
 	}
 
@@ -122,11 +121,13 @@ func extractClientIdForManagedSa(gwObj *gatewayv1.Gateway) (string, error) {
 		if listener.TLS == nil || listener.TLS.Options == nil {
 			continue
 		}
-		if listener.TLS.Options[clientIdTLSOption] != "" {
-			if ret != "" && string(listener.TLS.Options[clientIdTLSOption]) != ret {
+
+		currentClientId := listener.TLS.Options[clientIdTLSOption]
+		if currentClientId != "" {
+			if ret != "" && string(currentClientId) != ret {
 				return "", newUserError(fmt.Errorf("user specified multiple clientIds in one gateway resource"), "multiple unique clientIds specified. Please select one clientId to associate with the azure-app-routing-kv ServiceAccount")
 			}
-			ret = string(listener.TLS.Options[clientIdTLSOption])
+			ret = string(currentClientId)
 		}
 	}
 
