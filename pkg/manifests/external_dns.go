@@ -29,6 +29,39 @@ const (
 	txtWildcardReplacement  = "approutingwildcard"
 )
 
+type IdentityType int
+
+const (
+	IdentityTypeMSI IdentityType = iota
+	IdentityTypeWorkloadIdentity
+)
+
+func (i IdentityType) ExternalDnsConfigmapKey() string {
+	switch i {
+	case IdentityTypeWorkloadIdentity:
+		return "useWorkloadIdentityExtension"
+	default:
+		return "useManagedIdentityExtension"
+	}
+}
+
+type ResourceType int
+
+const (
+	ResourceTypeIngress = iota
+	ResourceTypeGateway = 1
+)
+
+func (r ResourceType) String() string {
+	switch r {
+	case ResourceTypeGateway:
+		return "Gateway"
+
+	default:
+		return "Ingress"
+	}
+}
+
 // OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
 // If the manifests used by app routing's external dns removes a GroupKind be sure to add
 // it here to clean it up
@@ -74,9 +107,11 @@ func (p Provider) Labels() map[string]string {
 
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
-	TenantId, Subscription, ResourceGroup string
-	Provider                              Provider
-	DnsZoneResourceIDs                    []string
+	TenantId, Subscription, ResourceGroup, ClientId, ResourceName string
+	IdentityType                                                  IdentityType
+	ResourceType                                                  ResourceType
+	Provider                                                      Provider
+	DnsZoneResourceIDs                                            []string
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
@@ -97,7 +132,9 @@ func ExternalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDns
 
 func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
 	var objs []client.Object
-	objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
+	if externalDnsConfig.IdentityType == IdentityTypeMSI {
+		objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
+	}
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
 	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
 
@@ -128,7 +165,7 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 }
 
 func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
-	return &rbacv1.ClusterRole{
+	role := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
 			APIVersion: "rbac.authorization.k8s.io/v1",
@@ -144,17 +181,39 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 				Verbs:     []string{"get", "watch", "list"},
 			},
 			{
-				APIGroups: []string{"extensions", "networking.k8s.io"},
-				Resources: []string{"ingresses"},
-				Verbs:     []string{"get", "watch", "list"},
-			},
-			{
 				APIGroups: []string{""},
 				Resources: []string{"nodes"},
 				Verbs:     []string{"get", "watch", "list"},
 			},
 		},
 	}
+
+	switch externalDnsConfig.ResourceType {
+	case ResourceTypeGateway:
+		role.Rules = append(role.Rules,
+			[]rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},
+					Resources: []string{"namespaces"},
+					Verbs:     []string{"get", "watch", "list"},
+				},
+				{
+					APIGroups: []string{"gateway.networking.k8s.io"},
+					Resources: []string{"gateways", "httproutes", "grpcroutes"},
+					Verbs:     []string{"get", "watch", "list"},
+				},
+			}...,
+		)
+	default:
+		role.Rules = append(role.Rules,
+			rbacv1.PolicyRule{
+				APIGroups: []string{"extensions", "networking.k8s.io"},
+				Resources: []string{"ingresses"},
+				Verbs:     []string{"get", "watch", "list"},
+			})
+	}
+
+	return role
 }
 
 func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
@@ -181,15 +240,21 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-	js, err := json.Marshal(&map[string]interface{}{
-		"tenantId":                    externalDnsConfig.TenantId,
-		"subscriptionId":              externalDnsConfig.Subscription,
-		"resourceGroup":               externalDnsConfig.ResourceGroup,
-		"userAssignedIdentityID":      conf.MSIClientID,
-		"useManagedIdentityExtension": true,
-		"cloud":                       conf.Cloud,
-		"location":                    conf.Location,
-	})
+
+	jsMap := map[string]interface{}{
+		"tenantId":       externalDnsConfig.TenantId,
+		"subscriptionId": externalDnsConfig.Subscription,
+		"resourceGroup":  externalDnsConfig.ResourceGroup,
+		"cloud":          conf.Cloud,
+		"location":       conf.Location,
+	}
+	jsMap[externalDnsConfig.IdentityType.ExternalDnsConfigmapKey()] = true
+
+	if externalDnsConfig.IdentityType == IdentityTypeMSI {
+		jsMap["userAssignedIdentityID"] = externalDnsConfig.ClientId
+	}
+
+	js, err := json.Marshal(&jsMap)
 	if err != nil {
 		panic(err)
 	}
