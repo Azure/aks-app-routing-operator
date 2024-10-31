@@ -68,12 +68,12 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 
 func instances(conf *config.Config) []instance {
 	// public
-	publicCfg := publicConfig(conf)
+	publicCfg := publicConfigForIngress(conf)
 	publicAction := actionFromConfig(publicCfg)
 	publicResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{publicCfg})
 
 	// private
-	privateCfg := privateConfig(conf)
+	privateCfg := privateConfigForIngress(conf)
 	privateAction := actionFromConfig(privateCfg)
 	privateResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{privateCfg})
 
@@ -91,7 +91,7 @@ func instances(conf *config.Config) []instance {
 	}
 }
 
-func publicConfig(conf *config.Config) *manifests.ExternalDnsConfig {
+func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 	return &manifests.ExternalDnsConfig{
 		TenantId:           conf.TenantID,
 		Subscription:       conf.PublicZoneConfig.Subscription,
@@ -101,7 +101,7 @@ func publicConfig(conf *config.Config) *manifests.ExternalDnsConfig {
 	}
 }
 
-func privateConfig(conf *config.Config) *manifests.ExternalDnsConfig {
+func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 	return &manifests.ExternalDnsConfig{
 		TenantId:           conf.TenantID,
 		Subscription:       conf.PrivateZoneConfig.Subscription,
@@ -137,7 +137,7 @@ func getLabels(instances ...instance) map[string]string {
 	}
 
 	for _, i := range instances {
-		for k, v := range i.config.Provider.Labels() {
+		for k, v := range i.config.Labels() {
 			l[k] = v
 		}
 	}

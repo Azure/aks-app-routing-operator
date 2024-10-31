@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -36,7 +37,7 @@ const (
 	IdentityTypeWorkloadIdentity
 )
 
-func (i IdentityType) ExternalDnsConfigmapKey() string {
+func (i IdentityType) ExternalDNSShouldUse() string {
 	switch i {
 	case IdentityTypeWorkloadIdentity:
 		return "useWorkloadIdentityExtension"
@@ -87,31 +88,40 @@ func (p Provider) String() string {
 	}
 }
 
-func (p Provider) ResourceName() string {
-	switch p {
-	case PublicProvider:
-		return externalDnsResourceName
-	case PrivateProvider:
-		return externalDnsResourceName + "-private"
-	default:
-		return ""
-	}
-}
-
-func (p Provider) Labels() map[string]string {
-	labels := map[string]string{
-		k8sNameKey: p.ResourceName(),
-	}
-	return labels
-}
-
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
-	TenantId, Subscription, ResourceGroup, ClientId, ResourceName string
-	IdentityType                                                  IdentityType
-	ResourceType                                                  ResourceType
-	Provider                                                      Provider
-	DnsZoneResourceIDs                                            []string
+	TenantId, Subscription, ResourceGroup,
+	ClientId, ServiceAccountName string
+	IdentityType       IdentityType
+	ResourceType       ResourceType
+	Provider           Provider
+	DnsZoneResourceIDs []string
+}
+
+func (e ExternalDnsConfig) ResourceName() string {
+	var resourcePrefix string
+	var suffix string
+
+	switch e.ResourceType {
+	case ResourceTypeGateway:
+		resourcePrefix = strings.ToLower(e.ResourceType.String()) + "-"
+	}
+
+	switch e.Provider {
+	case PublicProvider:
+		suffix = externalDnsResourceName
+	case PrivateProvider:
+		suffix = externalDnsResourceName + "-private"
+	}
+
+	return resourcePrefix + suffix
+}
+
+func (e ExternalDnsConfig) Labels() map[string]string {
+	labels := map[string]string{
+		k8sNameKey: e.ResourceName(),
+	}
+	return labels
 }
 
 // ExternalDnsResources returns Kubernetes objects required for external dns
@@ -143,7 +153,7 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
 
 	for _, obj := range objs {
-		l := util.MergeMaps(obj.GetLabels(), externalDnsConfig.Provider.Labels())
+		l := util.MergeMaps(obj.GetLabels(), externalDnsConfig.Labels())
 		obj.SetLabels(l)
 	}
 
@@ -157,7 +167,7 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDnsConfig.Provider.ResourceName(),
+			Name:      externalDnsConfig.ResourceName(),
 			Namespace: conf.NS,
 			Labels:    GetTopLevelLabels(),
 		},
@@ -171,7 +181,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   externalDnsConfig.Provider.ResourceName(),
+			Name:   externalDnsConfig.ResourceName(),
 			Labels: GetTopLevelLabels(),
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -223,17 +233,17 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   externalDnsConfig.Provider.ResourceName(),
+			Name:   externalDnsConfig.ResourceName(),
 			Labels: GetTopLevelLabels(),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     externalDnsConfig.Provider.ResourceName(),
+			Name:     externalDnsConfig.ResourceName(),
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
-			Name:      externalDnsConfig.Provider.ResourceName(),
+			Name:      externalDnsConfig.ServiceAccountName,
 			Namespace: conf.NS,
 		}},
 	}
@@ -248,7 +258,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 		"cloud":          conf.Cloud,
 		"location":       conf.Location,
 	}
-	jsMap[externalDnsConfig.IdentityType.ExternalDnsConfigmapKey()] = true
+	jsMap[externalDnsConfig.IdentityType.ExternalDNSShouldUse()] = true
 
 	if externalDnsConfig.IdentityType == IdentityTypeMSI {
 		jsMap["userAssignedIdentityID"] = externalDnsConfig.ClientId
@@ -265,7 +275,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDnsConfig.Provider.ResourceName(),
+			Name:      externalDnsConfig.ResourceName(),
 			Namespace: conf.NS,
 			Labels:    GetTopLevelLabels(),
 		},
@@ -287,7 +297,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	}
 
 	podLabels := GetTopLevelLabels()
-	podLabels["app"] = externalDnsConfig.Provider.ResourceName()
+	podLabels["app"] = externalDnsConfig.ResourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
 
 	return &appsv1.Deployment{
@@ -296,30 +306,29 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDnsConfig.Provider.ResourceName(),
+			Name:      externalDnsConfig.ResourceName(),
 			Namespace: conf.NS,
 			Labels:    GetTopLevelLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas:             to.Int32Ptr(replicas),
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.Provider.ResourceName()}},
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.ResourceName()}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabels,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
-					ServiceAccountName: externalDnsConfig.Provider.ResourceName(),
+					ServiceAccountName: externalDnsConfig.ResourceName(),
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.Provider.String(),
-							"--source=ingress",
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 							"--txt-wildcard-replacement=" + txtWildcardReplacement,
-						}, domainFilters...),
+						}, append(generateDeploymentArgs(externalDnsConfig.ResourceType), domainFilters...)...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",
@@ -352,7 +361,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: externalDnsConfig.Provider.ResourceName(),
+									Name: externalDnsConfig.ResourceName(),
 								},
 							},
 						},
@@ -361,4 +370,18 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			},
 		},
 	}
+}
+
+func generateDeploymentArgs(rt ResourceType) []string {
+	switch rt {
+	case ResourceTypeGateway:
+		return []string{
+			"--source=gateway-httproute",
+			"--source=gateway-grpcroute",
+		}
+	case ResourceTypeIngress:
+		return []string{"--source=ingress"}
+	}
+
+	return []string{}
 }

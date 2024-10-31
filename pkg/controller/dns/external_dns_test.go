@@ -115,7 +115,7 @@ func TestPublicConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := *publicConfig(test.conf)
+		got := *publicConfigForIngress(test.conf)
 		if !reflect.DeepEqual(got, *test.expected) {
 			t.Error(
 				"For", test.name,
@@ -157,7 +157,7 @@ func TestPrivateConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := *privateConfig(test.conf)
+		got := *privateConfigForIngress(test.conf)
 		if !reflect.DeepEqual(got, *test.expected) {
 			t.Error(
 				"For", test.name,
@@ -179,13 +179,13 @@ func TestInstances(t *testing.T) {
 			conf: &noZones,
 			expected: []instance{
 				{
-					config:    publicConfig(&noZones),
-					resources: manifests.ExternalDnsResources(&noZones, []*manifests.ExternalDnsConfig{publicConfig(&noZones)}),
+					config:    publicConfigForIngress(&noZones),
+					resources: manifests.ExternalDnsResources(&noZones, []*manifests.ExternalDnsConfig{publicConfigForIngress(&noZones)}),
 					action:    clean,
 				},
 				{
-					config:    privateConfig(&noZones),
-					resources: manifests.ExternalDnsResources(&noZones, []*manifests.ExternalDnsConfig{privateConfig(&noZones)}),
+					config:    privateConfigForIngress(&noZones),
+					resources: manifests.ExternalDnsResources(&noZones, []*manifests.ExternalDnsConfig{privateConfigForIngress(&noZones)}),
 					action:    clean,
 				},
 			},
@@ -195,13 +195,13 @@ func TestInstances(t *testing.T) {
 			conf: &onlyPrivZones,
 			expected: []instance{
 				{
-					config:    publicConfig(&onlyPrivZones),
-					resources: manifests.ExternalDnsResources(&onlyPrivZones, []*manifests.ExternalDnsConfig{publicConfig(&onlyPrivZones)}),
+					config:    publicConfigForIngress(&onlyPrivZones),
+					resources: manifests.ExternalDnsResources(&onlyPrivZones, []*manifests.ExternalDnsConfig{publicConfigForIngress(&onlyPrivZones)}),
 					action:    clean,
 				},
 				{
-					config:    privateConfig(&onlyPrivZones),
-					resources: manifests.ExternalDnsResources(&onlyPrivZones, []*manifests.ExternalDnsConfig{privateConfig(&onlyPrivZones)}),
+					config:    privateConfigForIngress(&onlyPrivZones),
+					resources: manifests.ExternalDnsResources(&onlyPrivZones, []*manifests.ExternalDnsConfig{privateConfigForIngress(&onlyPrivZones)}),
 					action:    deploy,
 				},
 			},
@@ -211,13 +211,13 @@ func TestInstances(t *testing.T) {
 			conf: &onlyPubZones,
 			expected: []instance{
 				{
-					config:    publicConfig(&onlyPubZones),
-					resources: manifests.ExternalDnsResources(&onlyPubZones, []*manifests.ExternalDnsConfig{publicConfig(&onlyPubZones)}),
+					config:    publicConfigForIngress(&onlyPubZones),
+					resources: manifests.ExternalDnsResources(&onlyPubZones, []*manifests.ExternalDnsConfig{publicConfigForIngress(&onlyPubZones)}),
 					action:    deploy,
 				},
 				{
-					config:    privateConfig(&onlyPubZones),
-					resources: manifests.ExternalDnsResources(&onlyPubZones, []*manifests.ExternalDnsConfig{privateConfig(&onlyPubZones)}),
+					config:    privateConfigForIngress(&onlyPubZones),
+					resources: manifests.ExternalDnsResources(&onlyPubZones, []*manifests.ExternalDnsConfig{privateConfigForIngress(&onlyPubZones)}),
 					action:    clean,
 				},
 			},
@@ -227,13 +227,13 @@ func TestInstances(t *testing.T) {
 			conf: &allZones,
 			expected: []instance{
 				{
-					config:    publicConfig(&allZones),
-					resources: manifests.ExternalDnsResources(&allZones, []*manifests.ExternalDnsConfig{publicConfig(&allZones)}),
+					config:    publicConfigForIngress(&allZones),
+					resources: manifests.ExternalDnsResources(&allZones, []*manifests.ExternalDnsConfig{publicConfigForIngress(&allZones)}),
 					action:    deploy,
 				},
 				{
-					config:    privateConfig(&allZones),
-					resources: manifests.ExternalDnsResources(&allZones, []*manifests.ExternalDnsConfig{privateConfig(&allZones)}),
+					config:    privateConfigForIngress(&allZones),
+					resources: manifests.ExternalDnsResources(&allZones, []*manifests.ExternalDnsConfig{privateConfigForIngress(&allZones)}),
 					action:    deploy,
 				},
 			},
