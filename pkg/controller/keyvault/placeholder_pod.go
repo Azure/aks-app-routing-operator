@@ -130,7 +130,7 @@ func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretPro
 			return true, nil
 		}
 	case *gatewayv1.Gateway:
-		if t.Spec.GatewayClassName != istioGatewayClassName {
+		if !shouldReconcileGateway(t) {
 			return true, nil
 		}
 		for _, listener := range t.Spec.Listeners {
