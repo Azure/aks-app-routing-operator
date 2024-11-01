@@ -13,9 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -226,21 +224,13 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 	}
 
 	var err error
+	var wiSa = &corev1.ServiceAccount{}
 	switch inputClientId {
 	case "":
 		// pull service account
-		wiSa := &corev1.ServiceAccount{}
-		err = k8sclient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: saName}, wiSa)
+		wiSa, err = GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
 		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				return "", newUserError(fmt.Errorf("user-specified serviceAccount %s does not exist", saName), fmt.Sprintf("serviceAccount %s does not exist", saName))
-			}
-			return "", fmt.Errorf("fetching serviceAccount %s: %s", saName, err)
-		}
-
-		if wiSa.Annotations == nil || wiSa.Annotations[wiSaClientIdAnnotation] == "" {
-			errString := fmt.Sprintf("workload identity MSI client ID must be specified for serviceAccount %s with annotation %s", saName, wiSaClientIdAnnotation)
-			return "", newUserError(errors.New("user-specified service account doesn't contain annotation with clientId"), errString)
+			return "", err
 		}
 		return wiSa.Annotations[wiSaClientIdAnnotation], nil
 

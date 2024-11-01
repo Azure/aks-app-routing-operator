@@ -107,7 +107,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
 			},
 			expectedClientId: "",
-			expectedError:    errors.New("user-specified serviceAccount test-sa does not exist"),
+			expectedError:    errors.New("serviceaccounts \"test-sa\" not found"),
 		},
 		{
 			name: "cert URI with sa with no annotation, without cid",
@@ -130,7 +130,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 					}).Build()
 			},
 			expectedClientId: "",
-			expectedError:    errors.New("user-specified service account doesn't contain annotation with clientId"),
+			expectedError:    errors.New("user-specified service account does not contain WI annotation"),
 		},
 		{
 			name: "cert URI with sa with correct annotation, without cid",
@@ -288,7 +288,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			},
 			expectedSpcs:    nil,
 			expectedError:   nil,
-			expectedUserErr: "Warning InvalidInput invalid TLS configuration: workload identity MSI client ID must be specified for serviceAccount test-sa with annotation azure.workload.identity/client-id",
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity",
 		},
 		{
 			name:  "cert URI with sa with correct annotation, without cid",

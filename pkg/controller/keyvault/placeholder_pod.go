@@ -373,33 +373,27 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
-		// ensure referenced serviceaccount exists
-		saObj := &corev1.ServiceAccount{}
-		err := p.client.Get(ctx, types.NamespacedName{Name: serviceAccount, Namespace: spc.Namespace}, saObj)
+		if serviceAccount == appRoutingSaName {
+			// ensure referenced serviceaccount exists
+			saObj := &corev1.ServiceAccount{}
+			err := p.client.Get(ctx, types.NamespacedName{Name: serviceAccount, Namespace: spc.Namespace}, saObj)
 
-		if client.IgnoreNotFound(err) != nil {
+			if client.IgnoreNotFound(err) != nil {
+				return "", err
+			}
+
+			if err != nil {
+				logger.Error(err, "could not find app routing service account when user listener contained clientId, re-queuing operation")
+				return "", util.NewRequeueError(err, 30*time.Second)
+			}
+
+			return appRoutingSaName, nil
+		}
+		_, err := GetServiceAccountAndVerifyWorkloadIdentity(ctx, p.client, serviceAccount, spc.Namespace)
+		if err != nil {
 			return "", err
 		}
-
-		if serviceAccount != appRoutingSaName {
-			// SA wasn't found, return appropriate error
-			if err != nil {
-				return "", newUserError(err, fmt.Sprintf("serviceAccount %s was specified in Gateway but does not exist", serviceAccount))
-			}
-			// check for required annotations
-			if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
-				return "", newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", serviceAccount))
-			}
-
-			return serviceAccount, nil
-		}
-
-		if err != nil {
-			logger.Error(err, "could not find app routing service account when user listener contained clientId, re-queuing operation")
-			return "", util.NewRequeueError(err, 30*time.Second)
-		}
-
-		return appRoutingSaName, nil
+		return serviceAccount, nil
 	}
 
 	return "", nil

@@ -1,14 +1,18 @@
 package keyvault
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -144,4 +148,25 @@ func newUserError(err error, msg string) userError {
 
 func shouldReconcileGateway(gwObj *gatewayv1.Gateway) bool {
 	return gwObj.Spec.GatewayClassName == istioGatewayClassName
+}
+
+func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient client.Client, saName, saNamespace string) (*corev1.ServiceAccount, error) {
+	// ensure referenced serviceaccount exists
+	saObj := &corev1.ServiceAccount{}
+	err := k8sclient.Get(ctx, types.NamespacedName{Name: saName, Namespace: saNamespace}, saObj)
+
+	if client.IgnoreNotFound(err) != nil {
+		return nil, err
+	}
+
+	// SA wasn't found, return appropriate error
+	if err != nil {
+		return nil, newUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
+	}
+	// check for required annotations
+	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
+		return nil, newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
+	}
+
+	return saObj, nil
 }
