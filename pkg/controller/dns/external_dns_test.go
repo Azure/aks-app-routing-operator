@@ -27,11 +27,15 @@ var (
 	uid        = uuid.New().String()
 	noZones    = config.Config{
 		ClusterUid:        uid,
+		MSIClientID:       "client-id",
+		NS:                "test-ns",
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig:  config.DnsZoneConfig{},
 	}
 	onlyPubZones = config.Config{
 		ClusterUid:        uid,
+		MSIClientID:       "client-id",
+		NS:                "test-ns",
 		PrivateZoneConfig: config.DnsZoneConfig{},
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
@@ -41,6 +45,8 @@ var (
 	}
 	onlyPrivZones = config.Config{
 		ClusterUid:       uid,
+		MSIClientID:      "client-id",
+		NS:               "test-ns",
 		PublicZoneConfig: config.DnsZoneConfig{},
 		PrivateZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
@@ -49,7 +55,9 @@ var (
 		},
 	}
 	allZones = config.Config{
-		ClusterUid: uid,
+		ClusterUid:  uid,
+		MSIClientID: "client-id",
+		NS:          "test-ns",
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
@@ -97,6 +105,10 @@ func TestPublicConfig(t *testing.T) {
 				TenantId:           allZones.TenantID,
 				Subscription:       allZones.PublicZoneConfig.Subscription,
 				ResourceGroup:      allZones.PublicZoneConfig.ResourceGroup,
+				ClientId:           onlyPrivZones.MSIClientID,
+				Namespace:          allZones.NS,
+				IdentityType:       manifests.IdentityTypeMSI,
+				ResourceType:       manifests.ResourceTypeIngress,
 				Provider:           manifests.PublicProvider,
 				DnsZoneResourceIDs: util.Keys(allZones.PublicZoneConfig.ZoneIds),
 			},
@@ -108,6 +120,10 @@ func TestPublicConfig(t *testing.T) {
 				TenantId:           onlyPrivZones.TenantID,
 				Subscription:       onlyPrivZones.PublicZoneConfig.Subscription,
 				ResourceGroup:      onlyPrivZones.PublicZoneConfig.ResourceGroup,
+				ClientId:           onlyPrivZones.MSIClientID,
+				Namespace:          allZones.NS,
+				IdentityType:       manifests.IdentityTypeMSI,
+				ResourceType:       manifests.ResourceTypeIngress,
 				Provider:           manifests.PublicProvider,
 				DnsZoneResourceIDs: util.Keys(onlyPrivZones.PublicZoneConfig.ZoneIds),
 			},
@@ -139,6 +155,10 @@ func TestPrivateConfig(t *testing.T) {
 				TenantId:           allZones.TenantID,
 				Subscription:       allZones.PrivateZoneConfig.Subscription,
 				ResourceGroup:      allZones.PrivateZoneConfig.ResourceGroup,
+				ClientId:           onlyPrivZones.MSIClientID,
+				Namespace:          allZones.NS,
+				IdentityType:       manifests.IdentityTypeMSI,
+				ResourceType:       manifests.ResourceTypeIngress,
 				Provider:           manifests.PrivateProvider,
 				DnsZoneResourceIDs: util.Keys(allZones.PrivateZoneConfig.ZoneIds),
 			},
@@ -150,6 +170,10 @@ func TestPrivateConfig(t *testing.T) {
 				TenantId:           onlyPrivZones.TenantID,
 				Subscription:       onlyPrivZones.PrivateZoneConfig.Subscription,
 				ResourceGroup:      onlyPrivZones.PrivateZoneConfig.ResourceGroup,
+				ClientId:           onlyPrivZones.MSIClientID,
+				Namespace:          onlyPrivZones.NS,
+				IdentityType:       manifests.IdentityTypeMSI,
+				ResourceType:       manifests.ResourceTypeIngress,
 				Provider:           manifests.PrivateProvider,
 				DnsZoneResourceIDs: util.Keys(onlyPrivZones.PrivateZoneConfig.ZoneIds),
 			},
@@ -344,17 +368,17 @@ func TestGetLabels(t *testing.T) {
 		{
 			name:      "top level and private",
 			instances: filterAction(instances(&onlyPrivZones), deploy),
-			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
+			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 		},
 		{
 			name:      "top level and public",
 			instances: filterAction(instances(&onlyPubZones), deploy),
-			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
+			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}),
 		},
 		{
 			name:      "all labels",
 			instances: instances(&allZones),
-			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels(), manifests.PrivateProvider.Labels()),
+			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}, map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 		},
 	}
 
@@ -375,7 +399,7 @@ func TestCleanObjs(t *testing.T) {
 			instances: instances(&onlyPubZones),
 			expected: []cleanObj{{
 				resources: instances(&onlyPubZones)[1].resources,
-				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
+				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 			}},
 		},
 		{
@@ -383,7 +407,7 @@ func TestCleanObjs(t *testing.T) {
 			instances: instances(&onlyPrivZones),
 			expected: []cleanObj{{
 				resources: instances(&onlyPrivZones)[0].resources,
-				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
+				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}),
 			}},
 		},
 		{
@@ -392,11 +416,11 @@ func TestCleanObjs(t *testing.T) {
 			expected: []cleanObj{
 				{
 					resources: instances(&noZones)[0].resources,
-					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
+					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}),
 				},
 				{
 					resources: instances(&noZones)[1].resources,
-					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PrivateProvider.Labels()),
+					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 				}},
 		},
 		{
@@ -457,12 +481,9 @@ func TestAddExternalDnsReconciler(t *testing.T) {
 func TestAddExternalDnsCleaner(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
+	testInstances := instances(&noZones)
 
-	err = addExternalDnsCleaner(m, []cleanObj{
-		{
-			resources: instances(&noZones)[0].resources,
-			labels:    util.MergeMaps(manifests.GetTopLevelLabels(), manifests.PublicProvider.Labels()),
-		}})
+	err = addExternalDnsCleaner(m, testInstances)
 	require.NoError(t, err)
 }
 

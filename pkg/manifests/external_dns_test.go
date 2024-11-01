@@ -26,6 +26,9 @@ var (
 		TenantId:           "test-tenant-id",
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-public",
+		Namespace:          "test-namespace",
+		IdentityType:       IdentityTypeMSI,
+		ResourceType:       ResourceTypeIngress,
 		DnsZoneResourceIDs: publicZones,
 		Provider:           PublicProvider,
 	}
@@ -34,6 +37,9 @@ var (
 		TenantId:           "test-tenant-id",
 		Subscription:       "test-subscription-id",
 		ResourceGroup:      "test-resource-group-private",
+		Namespace:          "test-namespace",
+		IdentityType:       IdentityTypeMSI,
+		ResourceType:       ResourceTypeIngress,
 		DnsZoneResourceIDs: privateZones,
 		Provider:           PrivateProvider,
 	}
@@ -46,7 +52,7 @@ var (
 	}{
 		{
 			Name: "full",
-			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",

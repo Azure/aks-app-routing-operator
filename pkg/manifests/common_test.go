@@ -25,25 +25,25 @@ const genFixturesEnv = "GENERATE_FIXTURES"
 const constraintsPath = "./policy/manifests"
 
 var namespaceTestCases = []struct {
-	Name   string
-	Config *config.Config
+	Name          string
+	Config        *config.Config
+	NamespaceName string
 }{
 	{
-		Name: "namespace", Config: &config.Config{
-			NS: "test-namespace",
-		},
+		Name:          "namespace",
+		NamespaceName: "test-namespace",
+		Config:        &config.Config{},
 	},
 	{
-		Name: "another-namespace",
-		Config: &config.Config{
-			NS: "another-test-namespace",
-		},
+		Name:          "another-namespace",
+		NamespaceName: "another-test-namespace",
+		Config:        &config.Config{},
 	},
 }
 
 func TestNamespaceResources(t *testing.T) {
 	for _, tc := range namespaceTestCases {
-		objs := Namespace(tc.Config)
+		objs := Namespace(tc.Config, tc.NamespaceName)
 		fixture := path.Join("fixtures", "common", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, []client.Object{objs})
 	}
