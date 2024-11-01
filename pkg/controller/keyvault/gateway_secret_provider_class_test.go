@@ -26,7 +26,7 @@ import (
 func Test_GenerateGwListenerCertName(t *testing.T) {
 	gwName := "test-gateway"
 	gwListener := "test-listener"
-	require.Equal(t, "kv-gw-cert-test-gateway-test-listener", GenerateGwListenerCertName(gwName, gatewayv1.SectionName(gwListener)))
+	require.Equal(t, "kv-gw-cert-test-gateway-test-listener", generateGwListenerCertName(gwName, gatewayv1.SectionName(gwListener)))
 
 	longName := make([]byte, 255)
 	for i := 0; i < len(longName); i++ {
@@ -39,7 +39,7 @@ func Test_GenerateGwListenerCertName(t *testing.T) {
 		prefix += "a"
 	}
 
-	require.Equal(t, prefix, GenerateGwListenerCertName(string(longName), gatewayv1.SectionName(gwListener)))
+	require.Equal(t, prefix, generateGwListenerCertName(string(longName), gatewayv1.SectionName(gwListener)))
 
 }
 

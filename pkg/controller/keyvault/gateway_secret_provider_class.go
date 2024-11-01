@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -86,7 +87,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Kind:       "SecretProviderClass",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      GenerateGwListenerCertName(gwObj.Name, listener.Name),
+				Name:      generateGwListenerCertName(gwObj.Name, listener.Name),
 				Namespace: req.Namespace,
 				Labels:    manifests.GetTopLevelLabels(),
 				OwnerReferences: []metav1.OwnerReference{{
@@ -122,7 +123,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				ClientId:        clientId,
 				TenantId:        g.config.TenantID,
 				KeyvaultCertUri: certUri,
-				Name:            GenerateGwListenerCertName(gwObj.Name, listener.Name),
+				Name:            generateGwListenerCertName(gwObj.Name, listener.Name),
 			}
 			err = buildSPC(spc, spcConf)
 			if err != nil {
@@ -149,7 +150,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Namespace: to.Ptr(gatewayv1.Namespace(req.Namespace)),
 				Group:     to.Ptr(gatewayv1.Group(corev1.GroupName)),
 				Kind:      to.Ptr(gatewayv1.Kind("Secret")),
-				Name:      gatewayv1.ObjectName(GenerateGwListenerCertName(gwObj.Name, listener.Name)),
+				Name:      gatewayv1.ObjectName(generateGwListenerCertName(gwObj.Name, listener.Name)),
 			}
 			gwObj.Spec.Listeners[index].TLS.CertificateRefs = []gatewayv1.SecretObjectReference{newCertRef}
 			continue
@@ -190,13 +191,13 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	return ctrl.Result{}, nil
 }
 
-func GenerateGwListenerCertName(gw string, listener gatewayv1.SectionName) string {
-	template := fmt.Sprintf("kv-gw-cert-%s-%s", gw, string(listener))
-	if len(template) > 253 {
-		template = template[:253]
+func generateGwListenerCertName(gw string, listener gatewayv1.SectionName) string {
+	certName := fmt.Sprintf("kv-gw-cert-%s-%s", gw, string(listener))
+	if len(certName) > 253 {
+		certName = certName[:253]
 	}
 
-	return template
+	return certName
 }
 
 func listenerIsKvEnabled(listener gatewayv1.Listener) bool {
@@ -224,7 +225,6 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 		return "", newUserError(errors.New("none of the required TLS options were specified"), "none of cert URI, clientId, or service account were specified")
 	}
 
-	var ret string
 	var err error
 	switch inputClientId {
 	case "":
@@ -232,7 +232,7 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 		wiSa := &corev1.ServiceAccount{}
 		err = k8sclient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: saName}, wiSa)
 		if err != nil {
-			if client.IgnoreNotFound(err) == nil {
+			if k8serrors.IsNotFound(err) {
 				return "", newUserError(fmt.Errorf("user-specified serviceAccount %s does not exist", saName), fmt.Sprintf("serviceAccount %s does not exist", saName))
 			}
 			return "", fmt.Errorf("fetching serviceAccount %s: %s", saName, err)
@@ -242,11 +242,9 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 			errString := fmt.Sprintf("workload identity MSI client ID must be specified for serviceAccount %s with annotation %s", saName, wiSaClientIdAnnotation)
 			return "", newUserError(errors.New("user-specified service account doesn't contain annotation with clientId"), errString)
 		}
-		ret = wiSa.Annotations[wiSaClientIdAnnotation]
+		return wiSa.Annotations[wiSaClientIdAnnotation], nil
 
 	default:
-		ret = inputClientId
+		return inputClientId, nil
 	}
-
-	return ret, nil
 }

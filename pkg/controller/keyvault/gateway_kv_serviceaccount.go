@@ -56,6 +56,10 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if !shouldReconcileGateway(gwObj) {
+		return ctrl.Result{}, nil
+	}
+
 	clientId, err := extractClientIdForManagedSa(gwObj)
 
 	if err != nil {
@@ -109,10 +113,6 @@ func (k *KvServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 func extractClientIdForManagedSa(gwObj *gatewayv1.Gateway) (string, error) {
 	var ret string
-
-	if !shouldReconcileGateway(gwObj) {
-		return "", nil
-	}
 
 	if gwObj.Spec.Listeners == nil || len(gwObj.Spec.Listeners) == 0 {
 		return "", nil

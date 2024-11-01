@@ -134,7 +134,7 @@ func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretPro
 			return true, nil
 		}
 		for _, listener := range t.Spec.Listeners {
-			if spc.Name != GenerateGwListenerCertName(t.Name, listener.Name) {
+			if spc.Name != generateGwListenerCertName(t.Name, listener.Name) {
 				continue
 			}
 			return !listenerIsKvEnabled(listener), nil
@@ -355,7 +355,7 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 	case *gatewayv1.Gateway:
 		logger.Info("verifying service account referenced by listener exists")
 		for _, listener := range t.Spec.Listeners {
-			if spc.Name != GenerateGwListenerCertName(t.Name, listener.Name) {
+			if spc.Name != generateGwListenerCertName(t.Name, listener.Name) {
 				continue
 			}
 			if listener.TLS != nil && listener.TLS.Options != nil {
