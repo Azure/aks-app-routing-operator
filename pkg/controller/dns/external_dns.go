@@ -92,7 +92,7 @@ func instances(conf *config.Config) []instance {
 }
 
 func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
-	ret := &manifests.ExternalDnsConfig{
+	return &manifests.ExternalDnsConfig{
 		TenantId:           conf.TenantID,
 		Subscription:       conf.PublicZoneConfig.Subscription,
 		ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
@@ -103,9 +103,6 @@ func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 		Provider:           manifests.PublicProvider,
 		DnsZoneResourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
 	}
-
-	return ret
-
 }
 
 func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
