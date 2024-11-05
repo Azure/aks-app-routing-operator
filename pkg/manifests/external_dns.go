@@ -97,7 +97,7 @@ type ExternalDnsConfig struct {
 	DnsZoneResourceIDs []string
 }
 
-func externalDNSResourceName(e *ExternalDnsConfig) string {
+func (e *ExternalDnsConfig) resourceName() string {
 	var resourcePrefix string
 	var suffix string
 
@@ -118,7 +118,7 @@ func externalDNSResourceName(e *ExternalDnsConfig) string {
 
 func ExternalDNSLabels(e *ExternalDnsConfig) map[string]string {
 	labels := map[string]string{
-		k8sNameKey: externalDNSResourceName(e),
+		k8sNameKey: e.resourceName(),
 	}
 	return labels
 }
@@ -164,7 +164,7 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDNSResourceName(externalDnsConfig),
+			Name:      externalDnsConfig.resourceName(),
 			Namespace: externalDnsConfig.Namespace,
 			Labels:    GetTopLevelLabels(),
 		},
@@ -178,7 +178,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   externalDNSResourceName(externalDnsConfig),
+			Name:   externalDnsConfig.resourceName(),
 			Labels: GetTopLevelLabels(),
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -229,7 +229,7 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 	case IdentityTypeWorkloadIdentity:
 		serviceAccount = externalDnsConfig.ServiceAccountName
 	default:
-		serviceAccount = externalDNSResourceName(externalDnsConfig)
+		serviceAccount = externalDnsConfig.resourceName()
 	}
 	ret := &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -237,13 +237,13 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   externalDNSResourceName(externalDnsConfig),
+			Name:   externalDnsConfig.resourceName(),
 			Labels: GetTopLevelLabels(),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     externalDNSResourceName(externalDnsConfig),
+			Name:     externalDnsConfig.resourceName(),
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
@@ -281,7 +281,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDNSResourceName(externalDnsConfig),
+			Name:      externalDnsConfig.resourceName(),
 			Namespace: externalDnsConfig.Namespace,
 			Labels:    GetTopLevelLabels(),
 		},
@@ -303,7 +303,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	}
 
 	podLabels := GetTopLevelLabels()
-	podLabels["app"] = externalDNSResourceName(externalDnsConfig)
+	podLabels["app"] = externalDnsConfig.resourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
 
 	var serviceAccount string
@@ -311,7 +311,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	case IdentityTypeWorkloadIdentity:
 		serviceAccount = externalDnsConfig.ServiceAccountName
 	default:
-		serviceAccount = externalDNSResourceName(externalDnsConfig)
+		serviceAccount = externalDnsConfig.resourceName()
 	}
 
 	return &appsv1.Deployment{
@@ -320,14 +320,14 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      externalDNSResourceName(externalDnsConfig),
+			Name:      externalDnsConfig.resourceName(),
 			Namespace: externalDnsConfig.Namespace,
 			Labels:    GetTopLevelLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas:             to.Int32Ptr(replicas),
 			RevisionHistoryLimit: util.Int32Ptr(2),
-			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDNSResourceName(externalDnsConfig)}},
+			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.resourceName()}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabels,
@@ -375,7 +375,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: externalDNSResourceName(externalDnsConfig),
+									Name: externalDnsConfig.resourceName(),
 								},
 							},
 						},
