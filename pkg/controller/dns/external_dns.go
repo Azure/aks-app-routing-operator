@@ -99,7 +99,7 @@ func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 		ClientId:           conf.MSIClientID,
 		Namespace:          conf.NS,
 		IdentityType:       manifests.IdentityTypeMSI,
-		ResourceType:       manifests.ResourceTypeIngress,
+		ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
 		Provider:           manifests.PublicProvider,
 		DnsZoneResourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
 	}
@@ -113,7 +113,7 @@ func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 		ClientId:           conf.MSIClientID,
 		Namespace:          conf.NS,
 		IdentityType:       manifests.IdentityTypeMSI,
-		ResourceType:       manifests.ResourceTypeIngress,
+		ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
 		Provider:           manifests.PrivateProvider,
 		DnsZoneResourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
 	}

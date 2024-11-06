@@ -577,7 +577,7 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: gateway-external-dns-private
+    app.kubernetes.io/name: test-dns-config-private
   name: test-private-service-account
   namespace: test-namespace
 ---
@@ -587,8 +587,8 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: gateway-external-dns-private
-  name: gateway-external-dns-private
+    app.kubernetes.io/name: test-dns-config-private
+  name: test-dns-config-private
 rules:
   - apiGroups:
       - ""
@@ -626,12 +626,12 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: gateway-external-dns-private
-  name: gateway-external-dns-private
+    app.kubernetes.io/name: test-dns-config-private
+  name: test-dns-config-private
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: gateway-external-dns-private
+  name: test-dns-config-private
 subjects:
   - kind: ServiceAccount
     name: test-private-service-account
@@ -645,8 +645,8 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: gateway-external-dns-private
-  name: gateway-external-dns-private
+    app.kubernetes.io/name: test-dns-config-private
+  name: test-dns-config-private
   namespace: test-namespace
 ---
 apiVersion: apps/v1
@@ -655,21 +655,21 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: gateway-external-dns-private
-  name: gateway-external-dns-private
+    app.kubernetes.io/name: test-dns-config-private
+  name: test-dns-config-private
   namespace: test-namespace
 spec:
   replicas: 1
   revisionHistoryLimit: 2
   selector:
     matchLabels:
-      app: gateway-external-dns-private
+      app: test-dns-config-private
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        app: gateway-external-dns-private
+        app: test-dns-config-private
         app.kubernetes.io/managed-by: aks-app-routing-operator
         checksum/configmap: 620b97bffe28961e
     spec:
@@ -750,13 +750,13 @@ spec:
               name: azure-config
               readOnly: true
       priorityClassName: system-cluster-critical
-      serviceAccountName: gateway-external-dns-private
+      serviceAccountName: test-dns-config-private
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
       volumes:
         - configMap:
-            name: gateway-external-dns-private
+            name: test-dns-config-private
           name: azure-config
 status: {}
 ---

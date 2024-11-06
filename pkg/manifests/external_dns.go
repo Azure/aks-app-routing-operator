@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
-	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -90,30 +89,25 @@ func (p Provider) string() string {
 // ExternalDnsConfig defines configuration options for required resources for external dns
 type ExternalDnsConfig struct {
 	TenantId, Subscription, ResourceGroup,
-	ClientId, ServiceAccountName, Namespace string
+	ClientId, ServiceAccountName, Namespace,
+	CRDName string
 	IdentityType       IdentityType
-	ResourceType       ResourceType
+	ResourceTypes      []ResourceType
 	Provider           Provider
 	DnsZoneResourceIDs []string
 }
 
 func (e *ExternalDnsConfig) resourceName() string {
-	var resourcePrefix string
-	var suffix string
-
-	switch e.ResourceType {
-	case ResourceTypeGateway:
-		resourcePrefix = strings.ToLower(e.ResourceType.string()) + "-"
+	if e.CRDName == "" {
+		switch e.Provider {
+		case PublicProvider:
+			return externalDnsResourceName
+		case PrivateProvider:
+			return externalDnsResourceName + "-private"
+		}
 	}
+	return e.CRDName
 
-	switch e.Provider {
-	case PublicProvider:
-		suffix = externalDnsResourceName
-	case PrivateProvider:
-		suffix = externalDnsResourceName + "-private"
-	}
-
-	return resourcePrefix + suffix
 }
 
 func ExternalDNSLabels(e *ExternalDnsConfig) map[string]string {
@@ -194,43 +188,12 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			},
 		},
 	}
-
-	switch externalDnsConfig.ResourceType {
-	case ResourceTypeGateway:
-		role.Rules = append(role.Rules,
-			[]rbacv1.PolicyRule{
-				{
-					APIGroups: []string{""},
-					Resources: []string{"namespaces"},
-					Verbs:     []string{"get", "watch", "list"},
-				},
-				{
-					APIGroups: []string{"gateway.networking.k8s.io"},
-					Resources: []string{"gateways", "httproutes", "grpcroutes"},
-					Verbs:     []string{"get", "watch", "list"},
-				},
-			}...,
-		)
-	default:
-		role.Rules = append(role.Rules,
-			rbacv1.PolicyRule{
-				APIGroups: []string{"extensions", "networking.k8s.io"},
-				Resources: []string{"ingresses"},
-				Verbs:     []string{"get", "watch", "list"},
-			})
-	}
-
+	addResourceSpecificRules(role, externalDnsConfig.ResourceTypes...)
 	return role
 }
 
 func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
-	var serviceAccount string
-	switch externalDnsConfig.IdentityType {
-	case IdentityTypeWorkloadIdentity:
-		serviceAccount = externalDnsConfig.ServiceAccountName
-	default:
-		serviceAccount = externalDnsConfig.resourceName()
-	}
+	serviceAccount := getServiceAccount(externalDnsConfig)
 	ret := &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRoleBinding",
@@ -306,13 +269,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	podLabels["app"] = externalDnsConfig.resourceName()
 	podLabels["checksum/configmap"] = configMapHash[:16]
 
-	var serviceAccount string
-	switch externalDnsConfig.IdentityType {
-	case IdentityTypeWorkloadIdentity:
-		serviceAccount = externalDnsConfig.ServiceAccountName
-	default:
-		serviceAccount = externalDnsConfig.resourceName()
-	}
+	serviceAccount := getServiceAccount(externalDnsConfig)
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -342,7 +299,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 							"--txt-wildcard-replacement=" + txtWildcardReplacement,
-						}, append(generateResourceDeploymentArgs(externalDnsConfig.ResourceType), domainFilters...)...),
+						}, append(generateResourceDeploymentArgs(externalDnsConfig.ResourceTypes...), domainFilters...)...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",
@@ -386,6 +343,15 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	}
 }
 
+func getServiceAccount(externalDnsConfig *ExternalDnsConfig) string {
+	switch externalDnsConfig.IdentityType {
+	case IdentityTypeWorkloadIdentity:
+		return externalDnsConfig.ServiceAccountName
+	default:
+		return externalDnsConfig.resourceName()
+	}
+}
+
 func generateResourceDeploymentArgs(rts ...ResourceType) []string {
 	var ret []string
 	for _, rt := range rts {
@@ -401,4 +367,33 @@ func generateResourceDeploymentArgs(rts ...ResourceType) []string {
 	}
 
 	return ret
+}
+
+func addResourceSpecificRules(role *rbacv1.ClusterRole, resourceTypes ...ResourceType) {
+	for _, rt := range resourceTypes {
+		switch rt {
+		case ResourceTypeGateway:
+			role.Rules = append(role.Rules,
+				[]rbacv1.PolicyRule{
+					{
+						APIGroups: []string{""},
+						Resources: []string{"namespaces"},
+						Verbs:     []string{"get", "watch", "list"},
+					},
+					{
+						APIGroups: []string{"gateway.networking.k8s.io"},
+						Resources: []string{"gateways", "httproutes", "grpcroutes"},
+						Verbs:     []string{"get", "watch", "list"},
+					},
+				}...,
+			)
+		default:
+			role.Rules = append(role.Rules,
+				rbacv1.PolicyRule{
+					APIGroups: []string{"extensions", "networking.k8s.io"},
+					Resources: []string{"ingresses"},
+					Verbs:     []string{"get", "watch", "list"},
+				})
+		}
+	}
 }

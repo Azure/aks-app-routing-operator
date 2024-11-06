@@ -138,6 +138,7 @@ spec:
             - --provider=azure
             - --source=gateway-httproute
             - --source=gateway-grpcroute
+            - --source=ingress
             - --interval=3m0s
             - --txt-owner-id=test-cluster-uid
             - --txt-wildcard-replacement=approutingwildcard

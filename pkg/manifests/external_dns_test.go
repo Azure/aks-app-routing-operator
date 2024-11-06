@@ -28,7 +28,7 @@ var (
 		ResourceGroup:      "test-resource-group-public",
 		Namespace:          "test-namespace",
 		IdentityType:       IdentityTypeMSI,
-		ResourceType:       ResourceTypeIngress,
+		ResourceTypes:      []ResourceType{ResourceTypeIngress},
 		DnsZoneResourceIDs: publicZones,
 		Provider:           PublicProvider,
 	}
@@ -39,7 +39,7 @@ var (
 		ResourceGroup:      "test-resource-group-private",
 		Namespace:          "test-namespace",
 		IdentityType:       IdentityTypeMSI,
-		ResourceType:       ResourceTypeIngress,
+		ResourceTypes:      []ResourceType{ResourceTypeIngress},
 		DnsZoneResourceIDs: privateZones,
 		Provider:           PrivateProvider,
 	}
@@ -50,10 +50,11 @@ var (
 		ResourceGroup:      "test-resource-group-public",
 		Namespace:          "test-namespace",
 		IdentityType:       IdentityTypeWorkloadIdentity,
-		ResourceType:       ResourceTypeGateway,
+		ResourceTypes:      []ResourceType{ResourceTypeGateway},
 		DnsZoneResourceIDs: publicZones,
 		Provider:           PublicProvider,
 		ServiceAccountName: "test-service-account",
+		CRDName:            "test-dns-config",
 	}
 
 	privateGwConfig = &ExternalDnsConfig{
@@ -62,10 +63,24 @@ var (
 		ResourceGroup:      "test-resource-group-private",
 		Namespace:          "test-namespace",
 		IdentityType:       IdentityTypeWorkloadIdentity,
-		ResourceType:       ResourceTypeGateway,
+		ResourceTypes:      []ResourceType{ResourceTypeGateway, ResourceTypeIngress},
 		DnsZoneResourceIDs: privateZones,
 		Provider:           PrivateProvider,
 		ServiceAccountName: "test-private-service-account",
+		CRDName:            "test-dns-config-private",
+	}
+
+	privateGwIngressConfig = &ExternalDnsConfig{
+		TenantId:           "test-tenant-id",
+		Subscription:       "test-subscription-id",
+		ResourceGroup:      "test-resource-group-private",
+		Namespace:          "test-namespace",
+		IdentityType:       IdentityTypeWorkloadIdentity,
+		ResourceTypes:      []ResourceType{ResourceTypeGateway, ResourceTypeIngress},
+		DnsZoneResourceIDs: privateZones,
+		Provider:           PrivateProvider,
+		ServiceAccountName: "test-private-service-account",
+		CRDName:            "test-dns-config-private",
 	}
 
 	testCases = []struct {
@@ -133,6 +148,17 @@ var (
 				},
 			},
 			DnsConfigs: []*ExternalDnsConfig{privateGwConfig},
+		},
+		{
+			Name: "private-ingress-gateway",
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Second * 10},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{privateGwIngressConfig},
 		},
 	}
 )
