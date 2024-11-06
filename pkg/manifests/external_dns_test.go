@@ -44,6 +44,30 @@ var (
 		Provider:           PrivateProvider,
 	}
 
+	publicGwConfig = &ExternalDnsConfig{
+		TenantId:           "test-tenant-id",
+		Subscription:       "test-subscription-id",
+		ResourceGroup:      "test-resource-group-public",
+		Namespace:          "test-namespace",
+		IdentityType:       IdentityTypeWorkloadIdentity,
+		ResourceType:       ResourceTypeGateway,
+		DnsZoneResourceIDs: publicZones,
+		Provider:           PublicProvider,
+		ServiceAccountName: "test-service-account",
+	}
+
+	privateGwConfig = &ExternalDnsConfig{
+		TenantId:           "test-tenant-id",
+		Subscription:       "test-subscription-id",
+		ResourceGroup:      "test-resource-group-private",
+		Namespace:          "test-namespace",
+		IdentityType:       IdentityTypeWorkloadIdentity,
+		ResourceType:       ResourceTypeGateway,
+		DnsZoneResourceIDs: privateZones,
+		Provider:           PrivateProvider,
+		ServiceAccountName: "test-private-service-account",
+	}
+
 	testCases = []struct {
 		Name       string
 		Conf       *config.Config
@@ -87,6 +111,28 @@ var (
 				},
 			},
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
+		},
+		{
+			Name: "all-possibilities",
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Second * 10},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig, publicGwConfig, privateGwConfig},
+		},
+		{
+			Name: "private-gateway",
+			Conf: &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Second * 10},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{privateGwConfig},
 		},
 	}
 )
