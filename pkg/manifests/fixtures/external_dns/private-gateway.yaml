@@ -187,7 +187,7 @@ spec:
               name: azure-config
               readOnly: true
       priorityClassName: system-cluster-critical
-      serviceAccountName: test-dns-config-private
+      serviceAccountName: test-private-service-account
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
