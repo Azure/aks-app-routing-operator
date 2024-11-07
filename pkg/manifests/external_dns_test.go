@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -22,72 +24,76 @@ var (
 
 	clusterUid = "test-cluster-uid"
 
-	publicDnsConfig = &ExternalDnsConfig{
-		TenantId:           "test-tenant-id",
-		Subscription:       "test-subscription-id",
-		ResourceGroup:      "test-resource-group-public",
-		Namespace:          "test-namespace",
-		IdentityType:       IdentityTypeMSI,
-		ResourceTypes:      []ResourceType{ResourceTypeIngress},
-		DnsZoneResourceIDs: publicZones,
-		Provider:           PublicProvider,
+	publicDnsConfig = &externalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-public",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeMSI,
+		resourceTypes:      []ResourceType{ResourceTypeIngress},
+		dnsZoneResourceIDs: publicZones,
+		provider:           PublicProvider,
+	}
+	privateDnsConfig = &externalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-private",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeMSI,
+		resourceTypes:      []ResourceType{ResourceTypeIngress},
+		dnsZoneResourceIDs: privateZones,
+		provider:           PrivateProvider,
 	}
 
-	privateDnsConfig = &ExternalDnsConfig{
-		TenantId:           "test-tenant-id",
-		Subscription:       "test-subscription-id",
-		ResourceGroup:      "test-resource-group-private",
-		Namespace:          "test-namespace",
-		IdentityType:       IdentityTypeMSI,
-		ResourceTypes:      []ResourceType{ResourceTypeIngress},
-		DnsZoneResourceIDs: privateZones,
-		Provider:           PrivateProvider,
+	publicGwConfig = &externalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-public",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      []ResourceType{ResourceTypeGateway},
+		dnsZoneResourceIDs: publicZones,
+		provider:           PublicProvider,
+		serviceAccountName: "test-service-account",
+		crdName:            "test-dns-config",
 	}
 
-	publicGwConfig = &ExternalDnsConfig{
-		TenantId:           "test-tenant-id",
-		Subscription:       "test-subscription-id",
-		ResourceGroup:      "test-resource-group-public",
-		Namespace:          "test-namespace",
-		IdentityType:       IdentityTypeWorkloadIdentity,
-		ResourceTypes:      []ResourceType{ResourceTypeGateway},
-		DnsZoneResourceIDs: publicZones,
-		Provider:           PublicProvider,
-		ServiceAccountName: "test-service-account",
-		CRDName:            "test-dns-config",
+	privateGwConfig = &externalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-private",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      []ResourceType{ResourceTypeGateway},
+		dnsZoneResourceIDs: privateZones,
+		provider:           PrivateProvider,
+		serviceAccountName: "test-private-service-account",
+		crdName:            "test-dns-config-private",
 	}
 
-	privateGwConfig = &ExternalDnsConfig{
-		TenantId:           "test-tenant-id",
-		Subscription:       "test-subscription-id",
-		ResourceGroup:      "test-resource-group-private",
-		Namespace:          "test-namespace",
-		IdentityType:       IdentityTypeWorkloadIdentity,
-		ResourceTypes:      []ResourceType{ResourceTypeGateway, ResourceTypeIngress},
-		DnsZoneResourceIDs: privateZones,
-		Provider:           PrivateProvider,
-		ServiceAccountName: "test-private-service-account",
-		CRDName:            "test-dns-config-private",
-	}
-
-	privateGwIngressConfig = &ExternalDnsConfig{
-		TenantId:           "test-tenant-id",
-		Subscription:       "test-subscription-id",
-		ResourceGroup:      "test-resource-group-private",
-		Namespace:          "test-namespace",
-		IdentityType:       IdentityTypeWorkloadIdentity,
-		ResourceTypes:      []ResourceType{ResourceTypeGateway, ResourceTypeIngress},
-		DnsZoneResourceIDs: privateZones,
-		Provider:           PrivateProvider,
-		ServiceAccountName: "test-private-service-account",
-		CRDName:            "test-dns-config-private",
+	privateGwIngressConfig = &externalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-private",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      []ResourceType{ResourceTypeGateway, ResourceTypeIngress},
+		dnsZoneResourceIDs: privateZones,
+		provider:           PrivateProvider,
+		serviceAccountName: "test-private-service-account",
+		crdName:            "test-dns-config-private",
 	}
 
 	testCases = []struct {
 		Name       string
 		Conf       *config.Config
 		Deploy     *appsv1.Deployment
-		DnsConfigs []*ExternalDnsConfig
+		DnsConfigs []*externalDnsConfig
 	}{
 		{
 			Name: "full",
@@ -98,12 +104,12 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
+			DnsConfigs: []*externalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
 			Name:       "no-ownership",
 			Conf:       &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
-			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
+			DnsConfigs: []*externalDnsConfig{publicDnsConfig},
 		},
 		{
 			Name: "private",
@@ -114,7 +120,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*ExternalDnsConfig{privateDnsConfig},
+			DnsConfigs: []*externalDnsConfig{privateDnsConfig},
 		},
 		{
 			Name: "short-sync-interval",
@@ -125,7 +131,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
+			DnsConfigs: []*externalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
 			Name: "all-possibilities",
@@ -136,7 +142,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig, publicGwConfig, privateGwConfig},
+			DnsConfigs: []*externalDnsConfig{publicDnsConfig, privateDnsConfig, publicGwConfig, privateGwConfig},
 		},
 		{
 			Name: "private-gateway",
@@ -147,7 +153,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*ExternalDnsConfig{privateGwConfig},
+			DnsConfigs: []*externalDnsConfig{privateGwConfig},
 		},
 		{
 			Name: "private-ingress-gateway",
@@ -158,7 +164,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*ExternalDnsConfig{privateGwIngressConfig},
+			DnsConfigs: []*externalDnsConfig{privateGwIngressConfig},
 		},
 	}
 )
@@ -166,10 +172,120 @@ var (
 func TestExternalDnsResources(t *testing.T) {
 	for _, tc := range testCases {
 
-		objs := ExternalDnsResources(tc.Conf, tc.DnsConfigs)
+		objs := externalDnsResources(tc.Conf, tc.DnsConfigs)
 
 		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, objs)
 		GatekeeperTest(t, fixture)
+	}
+}
+
+func TestExternalDNSConfig(t *testing.T) {
+	conf := &config.Config{
+		ClusterUid:      clusterUid,
+		DnsSyncInterval: time.Minute * 3,
+		Cloud:           "test-cloud",
+	}
+
+	noOsmConf := &config.Config{
+		ClusterUid:      clusterUid,
+		DnsSyncInterval: time.Minute * 3,
+		DisableOSM:      true,
+		Cloud:           "test-cloud",
+	}
+
+	testCases := []struct {
+		name               string
+		conf               *config.Config
+		tenantId           string
+		subscription       string
+		resourceGroup      string
+		msiclientID        string
+		serviceAccountName string
+		namespace          string
+		crdName            string
+		identityType       IdentityType
+		resourceTypes      []ResourceType
+		provider           provider
+		dnsZoneResourceIDs []string
+		expectedObjects    []client.Object
+		expectedLabels     map[string]string
+	}{
+		{
+			name:               "public ingress no osm",
+			conf:               noOsmConf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-public",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "test-sa",
+			namespace:          "test-namespace",
+			crdName:            "",
+			identityType:       IdentityTypeMSI,
+			resourceTypes:      []ResourceType{ResourceTypeIngress},
+			provider:           PublicProvider,
+			dnsZoneResourceIDs: []string{publicZoneOne, publicZoneTwo},
+			expectedLabels:     map[string]string{"app.kubernetes.io/name": "external-dns"},
+			expectedObjects:    externalDnsResources(noOsmConf, []*externalDnsConfig{publicDnsConfig}),
+		},
+		{
+			name:               "private ingress",
+			conf:               conf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-private",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "test-sa",
+			namespace:          "test-namespace",
+			crdName:            "",
+			identityType:       IdentityTypeMSI,
+			resourceTypes:      []ResourceType{ResourceTypeIngress},
+			provider:           PrivateProvider,
+			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
+			expectedLabels:     map[string]string{"app.kubernetes.io/name": "external-dns-private"},
+			expectedObjects:    externalDnsResources(conf, []*externalDnsConfig{privateDnsConfig}),
+		},
+		{
+			name:               "public gateway",
+			conf:               conf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-public",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "test-service-account",
+			namespace:          "test-namespace",
+			crdName:            "test-dns-config",
+			identityType:       IdentityTypeWorkloadIdentity,
+			resourceTypes:      []ResourceType{ResourceTypeGateway},
+			provider:           PublicProvider,
+			dnsZoneResourceIDs: []string{publicZoneOne, publicZoneTwo},
+			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+			expectedObjects:    externalDnsResources(conf, []*externalDnsConfig{publicGwConfig}),
+		},
+		{
+			name:               "private gateway no osm",
+			conf:               noOsmConf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-private",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "test-private-service-account",
+			namespace:          "test-namespace",
+			crdName:            "test-dns-config-private",
+			identityType:       IdentityTypeWorkloadIdentity,
+			resourceTypes:      []ResourceType{ResourceTypeGateway},
+			provider:           PrivateProvider,
+			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
+			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
+			expectedObjects:    externalDnsResources(noOsmConf, []*externalDnsConfig{privateGwConfig}),
+		},
+	}
+	for _, tc := range testCases {
+		ret := NewExternalDNSConfig(tc.conf, tc.tenantId, tc.subscription, tc.resourceGroup, tc.msiclientID, tc.serviceAccountName, tc.namespace, tc.crdName, tc.identityType, tc.resourceTypes, tc.provider, tc.dnsZoneResourceIDs)
+		actualObjs := ret.Resources()
+		actualLabels := ret.Labels()
+		require.Equal(t, tc.expectedObjects, actualObjs, "objects do not match for case %s", tc.name)
+		require.Equal(t, tc.expectedLabels, actualLabels, "labels do not match for case %s", tc.name)
+
 	}
 }

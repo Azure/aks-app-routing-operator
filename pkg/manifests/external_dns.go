@@ -66,16 +66,16 @@ func (r ResourceType) string() string {
 // it here to clean it up
 var OldExternalDnsGks []schema.GroupKind
 
-type Provider int
+type provider int
 
-var Providers = []Provider{PublicProvider, PrivateProvider}
+var providers = []provider{PublicProvider, PrivateProvider}
 
 const (
-	PublicProvider Provider = iota
+	PublicProvider provider = iota
 	PrivateProvider
 )
 
-func (p Provider) string() string {
+func (p provider) string() string {
 	switch p {
 	case PublicProvider:
 		return "azure"
@@ -86,44 +86,87 @@ func (p Provider) string() string {
 	}
 }
 
-// ExternalDnsConfig defines configuration options for required resources for external dns
-type ExternalDnsConfig struct {
-	TenantId, Subscription, ResourceGroup,
-	ClientId, ServiceAccountName, Namespace,
-	CRDName string
-	IdentityType       IdentityType
-	ResourceTypes      []ResourceType
-	Provider           Provider
-	DnsZoneResourceIDs []string
+// ExternalDNSConfig contains externaldns resources based on input configuration
+type ExternalDNSConfig struct {
+	resources          []client.Object
+	labels             map[string]string
+	dnsZoneResourceIds []string
 }
 
-func (e *ExternalDnsConfig) resourceName() string {
-	if e.CRDName == "" {
-		switch e.Provider {
+func (e *ExternalDNSConfig) Resources() []client.Object {
+	return e.resources
+}
+
+func (e *ExternalDNSConfig) Labels() map[string]string {
+	return e.labels
+}
+
+func (e *ExternalDNSConfig) DnsZoneResourceIds() []string {
+	return e.dnsZoneResourceIds
+}
+
+func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceGroup, clientId, serviceAccountName, namespace, crdName string, identityType IdentityType, resourceTypes []ResourceType, provider provider, dnszoneresourceids []string) *ExternalDNSConfig {
+	ret := &ExternalDNSConfig{}
+	externaldnsconf := &externalDnsConfig{
+		tenantId:           tenantId,
+		subscription:       subscription,
+		resourceGroup:      resourceGroup,
+		clientId:           clientId,
+		serviceAccountName: serviceAccountName,
+		namespace:          namespace,
+		crdName:            crdName,
+		identityType:       identityType,
+		resourceTypes:      resourceTypes,
+		provider:           provider,
+		dnsZoneResourceIDs: dnszoneresourceids,
+	}
+
+	ret.resources = externalDnsResources(conf, []*externalDnsConfig{externaldnsconf})
+	ret.labels = externalDNSLabels(externaldnsconf)
+	ret.dnsZoneResourceIds = dnszoneresourceids
+
+	return ret
+
+}
+
+// externalDnsConfig defines configuration options for required resources for external dns
+type externalDnsConfig struct {
+	tenantId, subscription, resourceGroup,
+	clientId, serviceAccountName, namespace,
+	crdName string
+	identityType       IdentityType
+	resourceTypes      []ResourceType
+	provider           provider
+	dnsZoneResourceIDs []string
+}
+
+func (e *externalDnsConfig) resourceName() string {
+	if e.crdName == "" {
+		switch e.provider {
 		case PublicProvider:
 			return externalDnsResourceName
 		case PrivateProvider:
 			return externalDnsResourceName + "-private"
 		}
 	}
-	return e.CRDName
+	return e.crdName + "-" + externalDnsResourceName
 
 }
 
-func ExternalDNSLabels(e *ExternalDnsConfig) map[string]string {
+func externalDNSLabels(e *externalDnsConfig) map[string]string {
 	labels := map[string]string{
 		k8sNameKey: e.resourceName(),
 	}
 	return labels
 }
 
-// ExternalDnsResources returns Kubernetes objects required for external dns
-func ExternalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
+// externalDnsResources returns Kubernetes objects required for external dns
+func externalDnsResources(conf *config.Config, externalDnsConfigs []*externalDnsConfig) []client.Object {
 	var objs []client.Object
 	for _, dnsConfig := range externalDnsConfigs {
 		// Can safely assume the namespace exists if using kube-system
-		if dnsConfig.Namespace != "" && dnsConfig.Namespace != "kube-system" {
-			objs = append(objs, Namespace(conf, dnsConfig.Namespace))
+		if dnsConfig.namespace != "" && dnsConfig.namespace != "kube-system" {
+			objs = append(objs, Namespace(conf, dnsConfig.namespace))
 		}
 		objs = append(objs, externalDnsResourcesFromConfig(conf, dnsConfig)...)
 	}
@@ -131,9 +174,9 @@ func ExternalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDns
 	return objs
 }
 
-func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
+func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *externalDnsConfig) []client.Object {
 	var objs []client.Object
-	if externalDnsConfig.IdentityType == IdentityTypeMSI {
+	if externalDnsConfig.identityType == IdentityTypeMSI {
 		objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
 	}
 	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
@@ -144,14 +187,14 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	objs = append(objs, newExternalDNSDeployment(conf, externalDnsConfig, dnsCmHash))
 
 	for _, obj := range objs {
-		l := util.MergeMaps(obj.GetLabels(), ExternalDNSLabels(externalDnsConfig))
+		l := util.MergeMaps(obj.GetLabels(), externalDNSLabels(externalDnsConfig))
 		obj.SetLabels(l)
 	}
 
 	return objs
 }
 
-func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
+func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *externalDnsConfig) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -159,13 +202,13 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDnsConfig.resourceName(),
-			Namespace: externalDnsConfig.Namespace,
+			Namespace: externalDnsConfig.namespace,
 			Labels:    GetTopLevelLabels(),
 		},
 	}
 }
 
-func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
+func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *externalDnsConfig) *rbacv1.ClusterRole {
 	role := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
@@ -188,11 +231,11 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			},
 		},
 	}
-	addResourceSpecificRules(role, externalDnsConfig.ResourceTypes...)
+	addResourceSpecificRules(role, externalDnsConfig.resourceTypes...)
 	return role
 }
 
-func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
+func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *externalDnsConfig) *rbacv1.ClusterRoleBinding {
 	serviceAccount := getServiceAccount(externalDnsConfig)
 	ret := &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -211,26 +254,26 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
 			Name:      serviceAccount,
-			Namespace: externalDnsConfig.Namespace,
+			Namespace: externalDnsConfig.namespace,
 		}},
 	}
 
 	return ret
 }
 
-func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
+func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *externalDnsConfig) (*corev1.ConfigMap, string) {
 
 	jsMap := map[string]interface{}{
-		"tenantId":       externalDnsConfig.TenantId,
-		"subscriptionId": externalDnsConfig.Subscription,
-		"resourceGroup":  externalDnsConfig.ResourceGroup,
+		"tenantId":       externalDnsConfig.tenantId,
+		"subscriptionId": externalDnsConfig.subscription,
+		"resourceGroup":  externalDnsConfig.resourceGroup,
 		"cloud":          conf.Cloud,
 		"location":       conf.Location,
 	}
-	jsMap[externalDnsConfig.IdentityType.externalDNSIdentityConfiguration()] = true
+	jsMap[externalDnsConfig.identityType.externalDNSIdentityConfiguration()] = true
 
-	if externalDnsConfig.IdentityType == IdentityTypeMSI {
-		jsMap["userAssignedIdentityID"] = externalDnsConfig.ClientId
+	if externalDnsConfig.identityType == IdentityTypeMSI {
+		jsMap["userAssignedIdentityID"] = externalDnsConfig.clientId
 	}
 
 	js, err := json.Marshal(&jsMap)
@@ -245,7 +288,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDnsConfig.resourceName(),
-			Namespace: externalDnsConfig.Namespace,
+			Namespace: externalDnsConfig.namespace,
 			Labels:    GetTopLevelLabels(),
 		},
 		Data: map[string]string{
@@ -254,10 +297,10 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string) *appsv1.Deployment {
+func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *externalDnsConfig, configMapHash string) *appsv1.Deployment {
 	domainFilters := []string{}
 
-	for _, zoneId := range externalDnsConfig.DnsZoneResourceIDs {
+	for _, zoneId := range externalDnsConfig.dnsZoneResourceIDs {
 		parsedZone, err := azure.ParseResourceID(zoneId)
 		if err != nil {
 			continue
@@ -278,7 +321,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      externalDnsConfig.resourceName(),
-			Namespace: externalDnsConfig.Namespace,
+			Namespace: externalDnsConfig.namespace,
 			Labels:    GetTopLevelLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -295,11 +338,11 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
 						Args: append([]string{
-							"--provider=" + externalDnsConfig.Provider.string(),
+							"--provider=" + externalDnsConfig.provider.string(),
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 							"--txt-wildcard-replacement=" + txtWildcardReplacement,
-						}, append(generateResourceDeploymentArgs(externalDnsConfig.ResourceTypes...), domainFilters...)...),
+						}, append(generateResourceDeploymentArgs(externalDnsConfig.resourceTypes...), domainFilters...)...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",
@@ -343,10 +386,10 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	}
 }
 
-func getServiceAccount(externalDnsConfig *ExternalDnsConfig) string {
-	switch externalDnsConfig.IdentityType {
+func getServiceAccount(externalDnsConfig *externalDnsConfig) string {
+	switch externalDnsConfig.identityType {
 	case IdentityTypeWorkloadIdentity:
-		return externalDnsConfig.ServiceAccountName
+		return externalDnsConfig.serviceAccountName
 	default:
 		return externalDnsConfig.resourceName()
 	}

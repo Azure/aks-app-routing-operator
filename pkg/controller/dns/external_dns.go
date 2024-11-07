@@ -32,7 +32,7 @@ func addExternalDnsCleaner(manager ctrl.Manager, instances []instance) error {
 		retriever = retriever.Add(common.RetrieverFromObjs(obj.resources, obj.labels)) // clean up entire unused external dns applications
 	}
 	for _, instance := range instances {
-		labels := util.MergeMaps(manifests.ExternalDNSLabels(instance.config), manifests.GetTopLevelLabels())
+		labels := util.MergeMaps(instance.config.Labels(), manifests.GetTopLevelLabels())
 		retriever = retriever.Add(common.RetrieverFromGk(labels, manifests.OldExternalDnsGks...)) // clean up unused types from previous versions of app routing
 	}
 
@@ -70,12 +70,12 @@ func instances(conf *config.Config) []instance {
 	// public
 	publicCfg := publicConfigForIngress(conf)
 	publicAction := actionFromConfig(publicCfg)
-	publicResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{publicCfg})
+	publicResources := publicCfg.Resources()
 
 	// private
 	privateCfg := privateConfigForIngress(conf)
 	privateAction := actionFromConfig(privateCfg)
-	privateResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{privateCfg})
+	privateResources := privateCfg.Resources()
 
 	return []instance{
 		{
@@ -91,32 +91,37 @@ func instances(conf *config.Config) []instance {
 	}
 }
 
-func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
-	return &manifests.ExternalDnsConfig{
-		TenantId:           conf.TenantID,
-		Subscription:       conf.PublicZoneConfig.Subscription,
-		ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
-		ClientId:           conf.MSIClientID,
-		Namespace:          conf.NS,
-		IdentityType:       manifests.IdentityTypeMSI,
-		ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
-		Provider:           manifests.PublicProvider,
-		DnsZoneResourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
-	}
+func publicConfigForIngress(conf *config.Config) *manifests.ExternalDNSConfig {
+	return manifests.NewExternalDNSConfig(
+		conf,
+		conf.TenantID,
+		conf.PublicZoneConfig.Subscription,
+		conf.PublicZoneConfig.ResourceGroup,
+		conf.MSIClientID,
+		"",
+		conf.NS,
+		"",
+		manifests.IdentityTypeMSI,
+		[]manifests.ResourceType{manifests.ResourceTypeIngress},
+		manifests.PublicProvider,
+		util.Keys(conf.PublicZoneConfig.ZoneIds))
 }
 
-func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
-	return &manifests.ExternalDnsConfig{
-		TenantId:           conf.TenantID,
-		Subscription:       conf.PrivateZoneConfig.Subscription,
-		ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
-		ClientId:           conf.MSIClientID,
-		Namespace:          conf.NS,
-		IdentityType:       manifests.IdentityTypeMSI,
-		ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
-		Provider:           manifests.PrivateProvider,
-		DnsZoneResourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
-	}
+func privateConfigForIngress(conf *config.Config) *manifests.ExternalDNSConfig {
+	return manifests.NewExternalDNSConfig(
+		conf,
+		conf.TenantID,
+		conf.PrivateZoneConfig.Subscription,
+		conf.PrivateZoneConfig.ResourceGroup,
+		conf.MSIClientID,
+		"",
+		conf.NS,
+		"",
+		manifests.IdentityTypeMSI,
+		[]manifests.ResourceType{manifests.ResourceTypeIngress},
+		manifests.PrivateProvider,
+		util.Keys(conf.PrivateZoneConfig.ZoneIds),
+	)
 }
 
 func filterAction(instances []instance, action action) []instance {
@@ -145,7 +150,7 @@ func getLabels(instances ...instance) map[string]string {
 	}
 
 	for _, i := range instances {
-		for k, v := range manifests.ExternalDNSLabels(i.config) {
+		for k, v := range i.config.Labels() {
 			l[k] = v
 		}
 	}
@@ -166,8 +171,8 @@ func cleanObjs(instances []instance) []cleanObj {
 	return cleanObjs
 }
 
-func actionFromConfig(conf *manifests.ExternalDnsConfig) action {
-	if len(conf.DnsZoneResourceIDs) == 0 {
+func actionFromConfig(conf *manifests.ExternalDNSConfig) action {
+	if len(conf.DnsZoneResourceIds()) == 0 {
 		return clean
 	}
 

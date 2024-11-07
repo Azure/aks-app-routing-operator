@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/open-policy-agent/gatekeeper/v3/pkg/gator/reader"
 	"github.com/open-policy-agent/gatekeeper/v3/pkg/gator/test"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -250,7 +249,7 @@ func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
 
 	expected, err := os.ReadFile(fixturePath)
 	require.NoError(t, err)
-	assert.YAMLEq(t, string(expected), string(actual))
+	require.Equal(t, string(expected), string(actual), "expected and actual do not match for fixture %s", fixturePath)
 }
 
 type GatekeeperException struct {

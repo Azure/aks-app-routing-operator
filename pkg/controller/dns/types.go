@@ -6,7 +6,7 @@ import (
 )
 
 type instance struct {
-	config    *manifests.ExternalDnsConfig
+	config    *manifests.ExternalDNSConfig
 	resources []client.Object
 	action    action
 }
