@@ -91,7 +91,7 @@ func instances(conf *config.Config) []instance {
 	}
 }
 
-func publicConfigForIngress(conf *config.Config) *manifests.ExternalDNSConfig {
+func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 	return manifests.NewExternalDNSConfig(
 		conf,
 		conf.TenantID,
@@ -107,7 +107,7 @@ func publicConfigForIngress(conf *config.Config) *manifests.ExternalDNSConfig {
 		util.Keys(conf.PublicZoneConfig.ZoneIds))
 }
 
-func privateConfigForIngress(conf *config.Config) *manifests.ExternalDNSConfig {
+func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 	return manifests.NewExternalDNSConfig(
 		conf,
 		conf.TenantID,
@@ -171,7 +171,7 @@ func cleanObjs(instances []instance) []cleanObj {
 	return cleanObjs
 }
 
-func actionFromConfig(conf *manifests.ExternalDNSConfig) action {
+func actionFromConfig(conf *manifests.ExternalDnsConfig) action {
 	if len(conf.DnsZoneResourceIds()) == 0 {
 		return clean
 	}

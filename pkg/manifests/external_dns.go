@@ -86,28 +86,36 @@ func (p provider) string() string {
 	}
 }
 
-// ExternalDNSConfig contains externaldns resources based on input configuration
-type ExternalDNSConfig struct {
+// ExternalDnsConfig contains externaldns resources based on input configuration
+type ExternalDnsConfig struct {
+	//internally exposed
+	tenantId, subscription, resourceGroup,
+	clientId, serviceAccountName, namespace,
+	crdName string
+	identityType  IdentityType
+	resourceTypes []ResourceType
+	provider      provider
+
+	// externally exposed
 	resources          []client.Object
 	labels             map[string]string
-	dnsZoneResourceIds []string
+	dnsZoneResourceIDs []string
 }
 
-func (e *ExternalDNSConfig) Resources() []client.Object {
+func (e *ExternalDnsConfig) Resources() []client.Object {
 	return e.resources
 }
 
-func (e *ExternalDNSConfig) Labels() map[string]string {
+func (e *ExternalDnsConfig) Labels() map[string]string {
 	return e.labels
 }
 
-func (e *ExternalDNSConfig) DnsZoneResourceIds() []string {
-	return e.dnsZoneResourceIds
+func (e *ExternalDnsConfig) DnsZoneResourceIds() []string {
+	return e.dnsZoneResourceIDs
 }
 
-func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceGroup, clientId, serviceAccountName, namespace, crdName string, identityType IdentityType, resourceTypes []ResourceType, provider provider, dnszoneresourceids []string) *ExternalDNSConfig {
-	ret := &ExternalDNSConfig{}
-	externaldnsconf := &externalDnsConfig{
+func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceGroup, clientId, serviceAccountName, namespace, crdName string, identityType IdentityType, resourceTypes []ResourceType, provider provider, dnszoneresourceids []string) *ExternalDnsConfig {
+	ret := &ExternalDnsConfig{
 		tenantId:           tenantId,
 		subscription:       subscription,
 		resourceGroup:      resourceGroup,
@@ -121,26 +129,14 @@ func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceG
 		dnsZoneResourceIDs: dnszoneresourceids,
 	}
 
-	ret.resources = externalDnsResources(conf, []*externalDnsConfig{externaldnsconf})
-	ret.labels = externalDNSLabels(externaldnsconf)
-	ret.dnsZoneResourceIds = dnszoneresourceids
+	ret.resources = externalDnsResources(conf, []*ExternalDnsConfig{ret})
+	ret.labels = externalDNSLabels(ret)
 
 	return ret
 
 }
 
-// externalDnsConfig defines configuration options for required resources for external dns
-type externalDnsConfig struct {
-	tenantId, subscription, resourceGroup,
-	clientId, serviceAccountName, namespace,
-	crdName string
-	identityType       IdentityType
-	resourceTypes      []ResourceType
-	provider           provider
-	dnsZoneResourceIDs []string
-}
-
-func (e *externalDnsConfig) resourceName() string {
+func (e *ExternalDnsConfig) resourceName() string {
 	if e.crdName == "" {
 		switch e.provider {
 		case PublicProvider:
@@ -153,7 +149,7 @@ func (e *externalDnsConfig) resourceName() string {
 
 }
 
-func externalDNSLabels(e *externalDnsConfig) map[string]string {
+func externalDNSLabels(e *ExternalDnsConfig) map[string]string {
 	labels := map[string]string{
 		k8sNameKey: e.resourceName(),
 	}
@@ -161,7 +157,7 @@ func externalDNSLabels(e *externalDnsConfig) map[string]string {
 }
 
 // externalDnsResources returns Kubernetes objects required for external dns
-func externalDnsResources(conf *config.Config, externalDnsConfigs []*externalDnsConfig) []client.Object {
+func externalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDnsConfig) []client.Object {
 	var objs []client.Object
 	namespaces := make(map[string]bool)
 	for _, dnsConfig := range externalDnsConfigs {
@@ -176,7 +172,7 @@ func externalDnsResources(conf *config.Config, externalDnsConfigs []*externalDns
 	return objs
 }
 
-func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *externalDnsConfig) []client.Object {
+func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
 	var objs []client.Object
 	if externalDnsConfig.identityType == IdentityTypeMSI {
 		objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
@@ -196,7 +192,7 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *exte
 	return objs
 }
 
-func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *externalDnsConfig) *corev1.ServiceAccount {
+func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -210,7 +206,7 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *extern
 	}
 }
 
-func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *externalDnsConfig) *rbacv1.ClusterRole {
+func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
 	role := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
@@ -237,7 +233,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *externalD
 	return role
 }
 
-func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *externalDnsConfig) *rbacv1.ClusterRoleBinding {
+func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRoleBinding {
 	serviceAccount := getServiceAccount(externalDnsConfig)
 	ret := &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -263,7 +259,7 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *ex
 	return ret
 }
 
-func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *externalDnsConfig) (*corev1.ConfigMap, string) {
+func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 
 	jsMap := map[string]interface{}{
 		"tenantId":       externalDnsConfig.tenantId,
@@ -299,7 +295,7 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *externalDns
 	}, hex.EncodeToString(hash[:])
 }
 
-func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *externalDnsConfig, configMapHash string) *appsv1.Deployment {
+func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string) *appsv1.Deployment {
 	domainFilters := []string{}
 
 	for _, zoneId := range externalDnsConfig.dnsZoneResourceIDs {
@@ -388,7 +384,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *externalDn
 	}
 }
 
-func getServiceAccount(externalDnsConfig *externalDnsConfig) string {
+func getServiceAccount(externalDnsConfig *ExternalDnsConfig) string {
 	switch externalDnsConfig.identityType {
 	case IdentityTypeWorkloadIdentity:
 		return externalDnsConfig.serviceAccountName

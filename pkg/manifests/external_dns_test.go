@@ -24,7 +24,7 @@ var (
 
 	clusterUid = "test-cluster-uid"
 
-	publicDnsConfig = &externalDnsConfig{
+	publicDnsConfig = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-public",
@@ -35,7 +35,7 @@ var (
 		dnsZoneResourceIDs: publicZones,
 		provider:           PublicProvider,
 	}
-	privateDnsConfig = &externalDnsConfig{
+	privateDnsConfig = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-private",
@@ -47,7 +47,7 @@ var (
 		provider:           PrivateProvider,
 	}
 
-	publicGwConfig = &externalDnsConfig{
+	publicGwConfig = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-public",
@@ -61,7 +61,7 @@ var (
 		crdName:            "test-dns-config",
 	}
 
-	privateGwConfig = &externalDnsConfig{
+	privateGwConfig = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-private",
@@ -75,7 +75,7 @@ var (
 		crdName:            "test-dns-config-private",
 	}
 
-	privateGwIngressConfig = &externalDnsConfig{
+	privateGwIngressConfig = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-private",
@@ -93,7 +93,7 @@ var (
 		Name       string
 		Conf       *config.Config
 		Deploy     *appsv1.Deployment
-		DnsConfigs []*externalDnsConfig
+		DnsConfigs []*ExternalDnsConfig
 	}{
 		{
 			Name: "full",
@@ -104,12 +104,12 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*externalDnsConfig{publicDnsConfig, privateDnsConfig},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
 			Name:       "no-ownership",
 			Conf:       &config.Config{NS: "test-namespace", ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
-			DnsConfigs: []*externalDnsConfig{publicDnsConfig},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig},
 		},
 		{
 			Name: "private",
@@ -120,7 +120,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*externalDnsConfig{privateDnsConfig},
+			DnsConfigs: []*ExternalDnsConfig{privateDnsConfig},
 		},
 		{
 			Name: "short-sync-interval",
@@ -131,7 +131,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*externalDnsConfig{publicDnsConfig, privateDnsConfig},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
 			Name: "all-possibilities",
@@ -142,7 +142,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*externalDnsConfig{publicDnsConfig, privateDnsConfig, publicGwConfig, privateGwConfig},
+			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig, publicGwConfig, privateGwConfig},
 		},
 		{
 			Name: "private-gateway",
@@ -153,7 +153,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*externalDnsConfig{privateGwConfig},
+			DnsConfigs: []*ExternalDnsConfig{privateGwConfig},
 		},
 		{
 			Name: "private-ingress-gateway",
@@ -164,7 +164,7 @@ var (
 					UID:  "test-operator-deploy-uid",
 				},
 			},
-			DnsConfigs: []*externalDnsConfig{privateGwIngressConfig},
+			DnsConfigs: []*ExternalDnsConfig{privateGwIngressConfig},
 		},
 	}
 )
@@ -226,7 +226,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			provider:           PublicProvider,
 			dnsZoneResourceIDs: []string{publicZoneOne, publicZoneTwo},
 			expectedLabels:     map[string]string{"app.kubernetes.io/name": "external-dns"},
-			expectedObjects:    externalDnsResources(noOsmConf, []*externalDnsConfig{publicDnsConfig}),
+			expectedObjects:    externalDnsResources(noOsmConf, []*ExternalDnsConfig{publicDnsConfig}),
 		},
 		{
 			name:               "private ingress",
@@ -243,7 +243,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			provider:           PrivateProvider,
 			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
 			expectedLabels:     map[string]string{"app.kubernetes.io/name": "external-dns-private"},
-			expectedObjects:    externalDnsResources(conf, []*externalDnsConfig{privateDnsConfig}),
+			expectedObjects:    externalDnsResources(conf, []*ExternalDnsConfig{privateDnsConfig}),
 		},
 		{
 			name:               "public gateway",
@@ -260,7 +260,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			provider:           PublicProvider,
 			dnsZoneResourceIDs: []string{publicZoneOne, publicZoneTwo},
 			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
-			expectedObjects:    externalDnsResources(conf, []*externalDnsConfig{publicGwConfig}),
+			expectedObjects:    externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfig}),
 		},
 		{
 			name:               "private gateway no osm",
@@ -277,7 +277,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			provider:           PrivateProvider,
 			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
 			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
-			expectedObjects:    externalDnsResources(noOsmConf, []*externalDnsConfig{privateGwConfig}),
+			expectedObjects:    externalDnsResources(noOsmConf, []*ExternalDnsConfig{privateGwConfig}),
 		},
 	}
 	for _, tc := range testCases {

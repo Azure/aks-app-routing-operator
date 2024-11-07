@@ -395,7 +395,7 @@ func TestCleanObjs(t *testing.T) {
 func TestActionFromConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		conf     *manifests.ExternalDNSConfig
+		conf     *manifests.ExternalDnsConfig
 		expected action
 	}{
 		{
