@@ -163,9 +163,11 @@ func externalDNSLabels(e *externalDnsConfig) map[string]string {
 // externalDnsResources returns Kubernetes objects required for external dns
 func externalDnsResources(conf *config.Config, externalDnsConfigs []*externalDnsConfig) []client.Object {
 	var objs []client.Object
+	namespaces := make(map[string]bool)
 	for _, dnsConfig := range externalDnsConfigs {
 		// Can safely assume the namespace exists if using kube-system
-		if dnsConfig.namespace != "" && dnsConfig.namespace != "kube-system" {
+		if _, seen := namespaces[dnsConfig.namespace]; dnsConfig.namespace != "" && dnsConfig.namespace != "kube-system" && !seen {
+			namespaces[dnsConfig.namespace] = true
 			objs = append(objs, Namespace(conf, dnsConfig.namespace))
 		}
 		objs = append(objs, externalDnsResourcesFromConfig(conf, dnsConfig)...)

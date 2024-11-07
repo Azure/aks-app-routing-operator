@@ -196,16 +196,6 @@ spec:
 status: {}
 ---
 apiVersion: v1
-kind: Namespace
-metadata:
-  creationTimestamp: null
-  labels:
-    openservicemesh.io/monitored-by: osm
-  name: test-namespace
-spec: {}
-status: {}
----
-apiVersion: v1
 kind: ServiceAccount
 metadata:
   creationTimestamp: null
@@ -390,16 +380,6 @@ spec:
       - configMap:
           name: external-dns-private
         name: azure-config
-status: {}
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  creationTimestamp: null
-  labels:
-    openservicemesh.io/monitored-by: osm
-  name: test-namespace
-spec: {}
 status: {}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -587,16 +567,6 @@ spec:
       - configMap:
           name: test-dns-config-external-dns
         name: azure-config
-status: {}
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  creationTimestamp: null
-  labels:
-    openservicemesh.io/monitored-by: osm
-  name: test-namespace
-spec: {}
 status: {}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
