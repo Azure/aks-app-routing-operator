@@ -7,10 +7,7 @@ const (
 	istioGatewayClassName = "istio"
 
 	certUriTLSOption        = "kubernetes.azure.com/tls-cert-keyvault-uri"
-	clientIdTLSOption       = "kubernetes.azure.com/tls-cert-client-id"
 	serviceAccountTLSOption = "kubernetes.azure.com/tls-cert-service-account"
 
 	wiSaClientIdAnnotation = "azure.workload.identity/client-id"
-
-	appRoutingSaName = "azure-app-routing-kv"
 )

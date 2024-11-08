@@ -205,36 +205,28 @@ func listenerIsKvEnabled(listener gatewayv1.Listener) bool {
 func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, namespace string, options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
 	certUri := string(options[certUriTLSOption])
 	saName := string(options[serviceAccountTLSOption])
-	inputClientId := string(options[clientIdTLSOption])
 
 	// validate user input
-	if certUri != "" && (saName == "" && inputClientId == "") {
-		return "", newUserError(errors.New("user specified cert URI but no serviceaccount or clientid in a listener"), "detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided")
+	if certUri != "" && saName == "" {
+		return "", newUserError(errors.New("user specified cert URI but no serviceaccount in a listener"), "detected Keyvault Cert URI, but no ServiceAccount was provided")
 	}
-	if certUri == "" && (saName != "" || inputClientId != "") {
-		return "", newUserError(errors.New("user specified clientId or SA but no cert URI in a listener"), "detected identity for WorkloadIdentity, but no Keyvault Certificate URI was provided")
-	}
-	if saName != "" && inputClientId != "" {
-		return "", newUserError(errors.New("user specified both serviceaccount and a clientId in the same listener"), "both ServiceAccount name and clientId have been specified, please specify one or the other")
+	if certUri == "" && saName != "" {
+		return "", newUserError(errors.New("user specified but no cert URI in a listener"), "detected ServiceAccount for WorkloadIdentity, but no Keyvault Certificate URI was provided")
 	}
 
 	// this should never happen since we check for this prior to this function call but just to be safe
-	if certUri == "" && saName == "" && inputClientId == "" {
+	if certUri == "" && saName == "" {
 		return "", newUserError(errors.New("none of the required TLS options were specified"), "none of cert URI, clientId, or service account were specified")
 	}
 
 	var err error
 	var wiSa = &corev1.ServiceAccount{}
-	switch inputClientId {
-	case "":
-		// pull service account
-		wiSa, err = GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
-		if err != nil {
-			return "", err
-		}
-		return wiSa.Annotations[wiSaClientIdAnnotation], nil
 
-	default:
-		return inputClientId, nil
+	// pull service account
+	wiSa, err = GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
+	if err != nil {
+		return "", err
 	}
+	return wiSa.Annotations[wiSaClientIdAnnotation], nil
+
 }

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -115,37 +114,6 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	return p.reconcileObjectDeployment(dep, spc, req, ctx, logger)
 }
 
-func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretProviderClass, obj client.Object) (bool, error) {
-	switch t := obj.(type) {
-	case *v1alpha1.NginxIngressController:
-		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
-			return true, nil
-		}
-	case *netv1.Ingress:
-		managed, err := p.ingressManager.IsManaging(t)
-		if err != nil {
-			return false, fmt.Errorf("determining if ingress is managed: %w", err)
-		}
-		if t.Name == "" || t.Spec.IngressClassName == nil || !managed {
-			return true, nil
-		}
-	case *gatewayv1.Gateway:
-		if !shouldReconcileGateway(t) {
-			return true, nil
-		}
-		for _, listener := range t.Spec.Listeners {
-			if spc.Name != generateGwListenerCertName(t.Name, listener.Name) {
-				continue
-			}
-			return !listenerIsKvEnabled(listener), nil
-		}
-		// couldn't find the listener the pod belongs to so return true
-		return true, nil
-	}
-
-	return false, nil
-}
-
 func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
 	var (
 		err            error
@@ -244,6 +212,37 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	}
 
 	return result, nil
+}
+
+func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretProviderClass, obj client.Object) (bool, error) {
+	switch t := obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
+			return true, nil
+		}
+	case *netv1.Ingress:
+		managed, err := p.ingressManager.IsManaging(t)
+		if err != nil {
+			return false, fmt.Errorf("determining if ingress is managed: %w", err)
+		}
+		if t.Name == "" || t.Spec.IngressClassName == nil || !managed {
+			return true, nil
+		}
+	case *gatewayv1.Gateway:
+		if !shouldReconcileGateway(t) {
+			return true, nil
+		}
+		for _, listener := range t.Spec.Listeners {
+			if spc.Name != generateGwListenerCertName(t.Name, listener.Name) {
+				continue
+			}
+			return !listenerIsKvEnabled(listener), nil
+		}
+		// couldn't find the listener the pod belongs to so return true
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // getCurrentDeployment returns the current deployment for the given name or nil if it does not exist. nil, nil is returned if the deployment is not found
@@ -360,35 +359,15 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 			}
 			if listener.TLS != nil && listener.TLS.Options != nil {
 				serviceAccount = string(listener.TLS.Options[serviceAccountTLSOption])
-				clientId := string(listener.TLS.Options[clientIdTLSOption])
-				if serviceAccount == "" {
-					if clientId != "" {
-						serviceAccount = appRoutingSaName
-					}
-				}
+				break
 			}
 		}
+
 		if serviceAccount == "" {
 			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
 			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
-		if serviceAccount == appRoutingSaName {
-			// ensure referenced serviceaccount exists
-			saObj := &corev1.ServiceAccount{}
-			err := p.client.Get(ctx, types.NamespacedName{Name: serviceAccount, Namespace: spc.Namespace}, saObj)
-
-			if client.IgnoreNotFound(err) != nil {
-				return "", err
-			}
-
-			if err != nil {
-				logger.Error(err, "could not find app routing service account when user listener contained clientId, re-queuing operation")
-				return "", util.NewRequeueError(err, 30*time.Second)
-			}
-
-			return appRoutingSaName, nil
-		}
 		_, err := GetServiceAccountAndVerifyWorkloadIdentity(ctx, p.client, serviceAccount, spc.Namespace)
 		if err != nil {
 			return "", err
