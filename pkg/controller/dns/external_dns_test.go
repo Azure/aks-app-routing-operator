@@ -149,6 +149,30 @@ func TestPrivateConfig(t *testing.T) {
 }
 
 func TestInstances(t *testing.T) {
+	noZonesPublic, err := manifests.NewExternalDNSConfig(&noZones, noZones.TenantID, noZones.PublicZoneConfig.Subscription, noZones.PublicZoneConfig.ResourceGroup, noZones.MSIClientID, "", noZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(noZones.PublicZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	noZonesPrivate, err := manifests.NewExternalDNSConfig(&noZones, noZones.TenantID, noZones.PublicZoneConfig.Subscription, noZones.PublicZoneConfig.ResourceGroup, noZones.MSIClientID, "", noZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(noZones.PrivateZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	onlyPrivZonesPublic, err := manifests.NewExternalDNSConfig(&onlyPrivZones, onlyPrivZones.TenantID, onlyPrivZones.PublicZoneConfig.Subscription, onlyPrivZones.PublicZoneConfig.ResourceGroup, onlyPrivZones.MSIClientID, "", onlyPrivZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(onlyPrivZones.PublicZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	onlyPrivZonesPrivate, err := manifests.NewExternalDNSConfig(&onlyPrivZones, onlyPrivZones.TenantID, onlyPrivZones.PrivateZoneConfig.Subscription, onlyPrivZones.PrivateZoneConfig.ResourceGroup, onlyPrivZones.MSIClientID, "", onlyPrivZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(onlyPrivZones.PrivateZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	publicDeployPublic, err := manifests.NewExternalDNSConfig(&onlyPubZones, onlyPubZones.TenantID, onlyPubZones.PublicZoneConfig.Subscription, onlyPubZones.PublicZoneConfig.ResourceGroup, onlyPubZones.MSIClientID, "", onlyPubZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(onlyPubZones.PublicZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	publicDeployPrivate, err := manifests.NewExternalDNSConfig(&onlyPubZones, onlyPubZones.TenantID, onlyPubZones.PrivateZoneConfig.Subscription, onlyPubZones.PrivateZoneConfig.ResourceGroup, onlyPubZones.MSIClientID, "", onlyPubZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(onlyPubZones.PrivateZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	allDeployPublic, err := manifests.NewExternalDNSConfig(&allZones, allZones.TenantID, allZones.PublicZoneConfig.Subscription, allZones.PublicZoneConfig.ResourceGroup, allZones.MSIClientID, "", allZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(allZones.PublicZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
+	allDeployPrivate, err := manifests.NewExternalDNSConfig(&allZones, allZones.TenantID, allZones.PublicZoneConfig.Subscription, allZones.PublicZoneConfig.ResourceGroup, allZones.MSIClientID, "", allZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(allZones.PrivateZoneConfig.ZoneIds))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		conf     *config.Config
@@ -160,12 +184,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfigForIngress(&noZones),
-					resources: manifests.NewExternalDNSConfig(&noZones, noZones.TenantID, noZones.PublicZoneConfig.Subscription, noZones.PublicZoneConfig.ResourceGroup, noZones.MSIClientID, "", noZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(noZones.PublicZoneConfig.ZoneIds)).Resources(),
+					resources: noZonesPublic.Resources(),
 					action:    clean,
 				},
 				{
 					config:    privateConfigForIngress(&noZones),
-					resources: manifests.NewExternalDNSConfig(&noZones, noZones.TenantID, noZones.PublicZoneConfig.Subscription, noZones.PublicZoneConfig.ResourceGroup, noZones.MSIClientID, "", noZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(noZones.PrivateZoneConfig.ZoneIds)).Resources(),
+					resources: noZonesPrivate.Resources(),
 					action:    clean,
 				},
 			},
@@ -176,12 +200,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfigForIngress(&onlyPrivZones),
-					resources: manifests.NewExternalDNSConfig(&onlyPrivZones, onlyPrivZones.TenantID, onlyPrivZones.PublicZoneConfig.Subscription, onlyPrivZones.PublicZoneConfig.ResourceGroup, onlyPrivZones.MSIClientID, "", onlyPrivZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(onlyPrivZones.PublicZoneConfig.ZoneIds)).Resources(),
+					resources: onlyPrivZonesPublic.Resources(),
 					action:    clean,
 				},
 				{
 					config:    privateConfigForIngress(&onlyPrivZones),
-					resources: manifests.NewExternalDNSConfig(&onlyPrivZones, onlyPrivZones.TenantID, onlyPrivZones.PrivateZoneConfig.Subscription, onlyPrivZones.PrivateZoneConfig.ResourceGroup, onlyPrivZones.MSIClientID, "", onlyPrivZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(onlyPrivZones.PrivateZoneConfig.ZoneIds)).Resources(),
+					resources: onlyPrivZonesPrivate.Resources(),
 					action:    deploy,
 				},
 			},
@@ -192,12 +216,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfigForIngress(&onlyPubZones),
-					resources: manifests.NewExternalDNSConfig(&onlyPubZones, onlyPubZones.TenantID, onlyPubZones.PublicZoneConfig.Subscription, onlyPubZones.PublicZoneConfig.ResourceGroup, onlyPubZones.MSIClientID, "", onlyPubZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(onlyPubZones.PublicZoneConfig.ZoneIds)).Resources(),
+					resources: publicDeployPublic.Resources(),
 					action:    deploy,
 				},
 				{
 					config:    privateConfigForIngress(&onlyPubZones),
-					resources: manifests.NewExternalDNSConfig(&onlyPubZones, onlyPubZones.TenantID, onlyPubZones.PrivateZoneConfig.Subscription, onlyPubZones.PrivateZoneConfig.ResourceGroup, onlyPubZones.MSIClientID, "", onlyPubZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(onlyPubZones.PrivateZoneConfig.ZoneIds)).Resources(),
+					resources: publicDeployPrivate.Resources(),
 					action:    clean,
 				},
 			},
@@ -208,12 +232,12 @@ func TestInstances(t *testing.T) {
 			expected: []instance{
 				{
 					config:    publicConfigForIngress(&allZones),
-					resources: manifests.NewExternalDNSConfig(&allZones, allZones.TenantID, allZones.PublicZoneConfig.Subscription, allZones.PublicZoneConfig.ResourceGroup, allZones.MSIClientID, "", allZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, util.Keys(allZones.PublicZoneConfig.ZoneIds)).Resources(),
+					resources: allDeployPublic.Resources(),
 					action:    deploy,
 				},
 				{
 					config:    privateConfigForIngress(&allZones),
-					resources: manifests.NewExternalDNSConfig(&allZones, allZones.TenantID, allZones.PublicZoneConfig.Subscription, allZones.PublicZoneConfig.ResourceGroup, allZones.MSIClientID, "", allZones.NS, "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PrivateProvider, util.Keys(allZones.PrivateZoneConfig.ZoneIds)).Resources(),
+					resources: allDeployPrivate.Resources(),
 					action:    deploy,
 				},
 			},
@@ -221,7 +245,8 @@ func TestInstances(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		instances := instances(test.conf)
+		instances, err := instances(test.conf)
+		require.NoError(t, err)
 		if !reflect.DeepEqual(instances, test.expected) {
 			t.Error(
 				"For", test.name,
@@ -233,9 +258,12 @@ func TestInstances(t *testing.T) {
 }
 
 func TestFilterAction(t *testing.T) {
-	allClean := instances(&noZones)
-	allDeploy := instances(&allZones)
-	oneDeployOneClean := instances(&onlyPrivZones)
+	allClean, err := instances(&noZones)
+	require.NoError(t, err)
+	allDeploy, err := instances(&allZones)
+	require.NoError(t, err)
+	oneDeployOneClean, err := instances(&onlyPrivZones)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name      string
@@ -296,7 +324,8 @@ func TestFilterAction(t *testing.T) {
 }
 
 func TestGetResources(t *testing.T) {
-	instances := instances(&noZones)
+	instances, err := instances(&noZones)
+	require.NoError(t, err)
 	got := getResources(instances)
 	var expected []client.Object
 	for _, instance := range instances {
@@ -311,6 +340,15 @@ func TestGetResources(t *testing.T) {
 }
 
 func TestGetLabels(t *testing.T) {
+	onlyPrivZonesInstances, err := instances(&onlyPrivZones)
+	require.NoError(t, err)
+
+	onlyPubZonesInstances, err := instances(&onlyPubZones)
+	require.NoError(t, err)
+
+	allZonesInstances, err := instances(&allZones)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name      string
 		instances []instance
@@ -323,17 +361,17 @@ func TestGetLabels(t *testing.T) {
 		},
 		{
 			name:      "top level and private",
-			instances: filterAction(instances(&onlyPrivZones), deploy),
+			instances: filterAction(onlyPrivZonesInstances, deploy),
 			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 		},
 		{
 			name:      "top level and public",
-			instances: filterAction(instances(&onlyPubZones), deploy),
+			instances: filterAction(onlyPubZonesInstances, deploy),
 			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}),
 		},
 		{
 			name:      "all labels",
-			instances: instances(&allZones),
+			instances: allZonesInstances,
 			expected:  util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}, map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 		},
 	}
@@ -345,6 +383,18 @@ func TestGetLabels(t *testing.T) {
 }
 
 func TestCleanObjs(t *testing.T) {
+	onlyPrivZonesInstances, err := instances(&onlyPrivZones)
+	require.NoError(t, err)
+
+	onlyPubZonesInstances, err := instances(&onlyPubZones)
+	require.NoError(t, err)
+
+	noZoneInstances, err := instances(&noZones)
+	require.NoError(t, err)
+
+	allZonesInstances, err := instances(&allZones)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name      string
 		instances []instance
@@ -352,36 +402,36 @@ func TestCleanObjs(t *testing.T) {
 	}{
 		{
 			name:      "private dns clean",
-			instances: instances(&onlyPubZones),
+			instances: onlyPubZonesInstances,
 			expected: []cleanObj{{
-				resources: instances(&onlyPubZones)[1].resources,
+				resources: onlyPubZonesInstances[1].resources,
 				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 			}},
 		},
 		{
 			name:      "public dns clean",
-			instances: instances(&onlyPrivZones),
+			instances: onlyPrivZonesInstances,
 			expected: []cleanObj{{
-				resources: instances(&onlyPrivZones)[0].resources,
+				resources: onlyPrivZonesInstances[0].resources,
 				labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}),
 			}},
 		},
 		{
 			name:      "all dns clean",
-			instances: instances(&noZones),
+			instances: noZoneInstances,
 			expected: []cleanObj{
 				{
-					resources: instances(&noZones)[0].resources,
+					resources: noZoneInstances[0].resources,
 					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns"}),
 				},
 				{
-					resources: instances(&noZones)[1].resources,
+					resources: noZoneInstances[1].resources,
 					labels:    util.MergeMaps(manifests.GetTopLevelLabels(), map[string]string{"app.kubernetes.io/name": "external-dns-private"}),
 				}},
 		},
 		{
 			name:      "no dns clean",
-			instances: instances(&allZones),
+			instances: allZonesInstances,
 			expected:  []cleanObj(nil),
 		},
 	}
@@ -393,6 +443,10 @@ func TestCleanObjs(t *testing.T) {
 }
 
 func TestActionFromConfig(t *testing.T) {
+	emptyDns, _ := manifests.NewExternalDNSConfig(&config.Config{}, "tenant", "sub", "rg", "client", "", "ns", "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, []string{})
+	oneDns, _ := manifests.NewExternalDNSConfig(&config.Config{}, "tenant", "sub", "rg", "client", "", "ns", "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, []string{"one"})
+	multipleDns, _ := manifests.NewExternalDNSConfig(&config.Config{}, "tenant", "sub", "rg", "client", "", "ns", "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, []string{"one", "two"})
+
 	tests := []struct {
 		name     string
 		conf     *manifests.ExternalDnsConfig
@@ -400,17 +454,17 @@ func TestActionFromConfig(t *testing.T) {
 	}{
 		{
 			name:     "empty dns",
-			conf:     manifests.NewExternalDNSConfig(&config.Config{}, "tenant", "sub", "rg", "client", "", "ns", "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, []string{}),
+			conf:     emptyDns,
 			expected: clean,
 		},
 		{
 			name:     "one dns",
-			conf:     manifests.NewExternalDNSConfig(&config.Config{}, "tenant", "sub", "rg", "client", "", "ns", "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, []string{"one"}),
+			conf:     oneDns,
 			expected: deploy,
 		},
 		{
 			name:     "multiple dns",
-			conf:     manifests.NewExternalDNSConfig(&config.Config{}, "tenant", "sub", "rg", "client", "", "ns", "", manifests.IdentityTypeMSI, []manifests.ResourceType{manifests.ResourceTypeIngress}, manifests.PublicProvider, []string{"one", "two"}),
+			conf:     multipleDns,
 			expected: deploy,
 		},
 	}
@@ -431,7 +485,9 @@ func TestAddExternalDnsReconciler(t *testing.T) {
 func TestAddExternalDnsCleaner(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
-	testInstances := instances(&noZones)
+
+	testInstances, err := instances(&noZones)
+	require.NoError(t, err)
 
 	err = addExternalDnsCleaner(m, testInstances)
 	require.NoError(t, err)

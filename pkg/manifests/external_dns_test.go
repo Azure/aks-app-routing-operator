@@ -1,6 +1,7 @@
 package manifests
 
 import (
+	"errors"
 	"path"
 	"strings"
 	"testing"
@@ -25,6 +26,7 @@ var (
 	clusterUid = "test-cluster-uid"
 
 	publicDnsConfig = &ExternalDnsConfig{
+		resourceName:       "external-dns",
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-public",
@@ -34,8 +36,11 @@ var (
 		resourceTypes:      []ResourceType{ResourceTypeIngress},
 		dnsZoneResourceIDs: publicZones,
 		provider:           PublicProvider,
+		serviceAccountName: "external-dns",
 	}
 	privateDnsConfig = &ExternalDnsConfig{
+		resourceName:       "external-dns-private",
+		serviceAccountName: "external-dns-private",
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-private",
@@ -58,7 +63,7 @@ var (
 		dnsZoneResourceIDs: publicZones,
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
-		crdName:            "test-dns-config",
+		resourceName:       "test-dns-config-external-dns",
 	}
 
 	privateGwConfig = &ExternalDnsConfig{
@@ -72,7 +77,7 @@ var (
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
-		crdName:            "test-dns-config-private",
+		resourceName:       "test-dns-config-private-external-dns",
 	}
 
 	privateGwIngressConfig = &ExternalDnsConfig{
@@ -86,7 +91,7 @@ var (
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
-		crdName:            "test-dns-config-private",
+		resourceName:       "test-dns-config-private-external-dns",
 	}
 
 	testCases = []struct {
@@ -210,6 +215,7 @@ func TestExternalDNSConfig(t *testing.T) {
 		dnsZoneResourceIDs []string
 		expectedObjects    []client.Object
 		expectedLabels     map[string]string
+		expectedError      error
 	}{
 		{
 			name:               "public ingress no osm",
@@ -279,13 +285,77 @@ func TestExternalDNSConfig(t *testing.T) {
 			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
 			expectedObjects:    externalDnsResources(noOsmConf, []*ExternalDnsConfig{privateGwConfig}),
 		},
+		{
+			name:          "invalid identity type",
+			conf:          conf,
+			identityType:  3,
+			expectedError: errors.New("invalid identity type: 3"),
+		},
+		{
+			name:          "invalid resource type",
+			conf:          conf,
+			resourceTypes: []ResourceType{ResourceTypeGateway, ResourceTypeIngress, 4},
+			expectedError: errors.New("invalid resource type: 4"),
+		},
+		{
+			name:               "gateway resource without crd name",
+			conf:               noOsmConf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-private",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "test-private-service-account",
+			namespace:          "test-namespace",
+			crdName:            "",
+			identityType:       IdentityTypeWorkloadIdentity,
+			resourceTypes:      []ResourceType{ResourceTypeGateway},
+			provider:           PrivateProvider,
+			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
+			expectedError:      errors.New("gateway resource type requires a crd name"),
+		},
+		{
+			name:               "gateway without workload identity",
+			conf:               noOsmConf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-private",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "test-private-service-account",
+			namespace:          "test-namespace",
+			crdName:            "test-crd",
+			identityType:       IdentityTypeMSI,
+			resourceTypes:      []ResourceType{ResourceTypeGateway},
+			provider:           PrivateProvider,
+			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
+			expectedError:      errors.New("gateway resource type can only be used with workload identity"),
+		},
+		{
+			name:               "workload identity without provided serviceaccount",
+			conf:               noOsmConf,
+			tenantId:           "test-tenant-id",
+			subscription:       "test-subscription-id",
+			resourceGroup:      "test-resource-group-private",
+			msiclientID:        "test-client-id",
+			serviceAccountName: "",
+			namespace:          "test-namespace",
+			crdName:            "test-crd",
+			identityType:       IdentityTypeWorkloadIdentity,
+			resourceTypes:      []ResourceType{ResourceTypeIngress},
+			provider:           PrivateProvider,
+			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
+			expectedError:      errors.New("workload identity requires a service account name"),
+		},
 	}
 	for _, tc := range testCases {
-		ret := NewExternalDNSConfig(tc.conf, tc.tenantId, tc.subscription, tc.resourceGroup, tc.msiclientID, tc.serviceAccountName, tc.namespace, tc.crdName, tc.identityType, tc.resourceTypes, tc.provider, tc.dnsZoneResourceIDs)
-		actualObjs := ret.Resources()
-		actualLabels := ret.Labels()
-		require.Equal(t, tc.expectedObjects, actualObjs, "objects do not match for case %s", tc.name)
-		require.Equal(t, tc.expectedLabels, actualLabels, "labels do not match for case %s", tc.name)
-
+		ret, err := NewExternalDNSConfig(tc.conf, tc.tenantId, tc.subscription, tc.resourceGroup, tc.msiclientID, tc.serviceAccountName, tc.namespace, tc.crdName, tc.identityType, tc.resourceTypes, tc.provider, tc.dnsZoneResourceIDs)
+		if tc.expectedError != nil {
+			require.Equal(t, tc.expectedError.Error(), err.Error(), "error does not match for case %s", tc.name)
+		} else {
+			require.NoError(t, err, "unexpected error for case %s", tc.name)
+			actualObjs := ret.Resources()
+			actualLabels := ret.Labels()
+			require.Equal(t, tc.expectedObjects, actualObjs, "objects do not match for case %s", tc.name)
+			require.Equal(t, tc.expectedLabels, actualLabels, "labels do not match for case %s", tc.name)
+		}
 	}
 }

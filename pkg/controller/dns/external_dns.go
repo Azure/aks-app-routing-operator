@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -51,7 +52,10 @@ func addExternalDnsCleaner(manager ctrl.Manager, instances []instance) error {
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
-	instances := instances(conf)
+	instances, err := instances(conf)
+	if err != nil {
+		return fmt.Errorf("failed to create instances: %w", err)
+	}
 
 	deployInstances := filterAction(instances, deploy)
 	deployRes := getResources(deployInstances)
@@ -66,7 +70,7 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 	return nil
 }
 
-func instances(conf *config.Config) []instance {
+func instances(conf *config.Config) ([]instance, error) {
 	// public
 	publicCfg := publicConfigForIngress(conf)
 	publicAction := actionFromConfig(publicCfg)
@@ -88,11 +92,11 @@ func instances(conf *config.Config) []instance {
 			resources: privateResources,
 			action:    privateAction,
 		},
-	}
+	}, nil
 }
 
 func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
-	return manifests.NewExternalDNSConfig(
+	publicconfig, err := manifests.NewExternalDNSConfig(
 		conf,
 		conf.TenantID,
 		conf.PublicZoneConfig.Subscription,
@@ -105,10 +109,15 @@ func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 		[]manifests.ResourceType{manifests.ResourceTypeIngress},
 		manifests.PublicProvider,
 		util.Keys(conf.PublicZoneConfig.ZoneIds))
+
+	if err != nil {
+		// do something
+	}
+	return publicconfig
 }
 
 func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
-	return manifests.NewExternalDNSConfig(
+	privateconfig, err := manifests.NewExternalDNSConfig(
 		conf,
 		conf.TenantID,
 		conf.PrivateZoneConfig.Subscription,
@@ -122,6 +131,11 @@ func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 		manifests.PrivateProvider,
 		util.Keys(conf.PrivateZoneConfig.ZoneIds),
 	)
+
+	if err != nil {
+		// do something
+	}
+	return privateconfig
 }
 
 func filterAction(instances []instance, action action) []instance {
