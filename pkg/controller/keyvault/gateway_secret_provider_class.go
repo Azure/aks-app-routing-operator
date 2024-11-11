@@ -208,15 +208,15 @@ func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, 
 
 	// validate user input
 	if certUri != "" && saName == "" {
-		return "", newUserError(errors.New("user specified cert URI but no serviceaccount in a listener"), "detected Keyvault Cert URI, but no ServiceAccount was provided")
+		return "", newUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "detected Keyvault Cert URI, but no ServiceAccount was provided")
 	}
 	if certUri == "" && saName != "" {
-		return "", newUserError(errors.New("user specified but no cert URI in a listener"), "detected ServiceAccount for WorkloadIdentity, but no Keyvault Certificate URI was provided")
+		return "", newUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "detected ServiceAccount for WorkloadIdentity, but no Keyvault Certificate URI was provided")
 	}
 
 	// this should never happen since we check for this prior to this function call but just to be safe
 	if certUri == "" && saName == "" {
-		return "", newUserError(errors.New("none of the required TLS options were specified"), "none of cert URI, clientId, or service account were specified")
+		return "", newUserError(errors.New("none of the required TLS options were specified"), "cert URI and ServiceAccount were not specified")
 	}
 
 	var err error

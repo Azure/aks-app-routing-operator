@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -394,14 +393,12 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 
 func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	recorder := record.NewFakeRecorder(1)
-	gw := gatewayWithCidListenerAndSaListener.DeepCopy()
-	cspc := clientIdSpc.DeepCopy()
-	cspc.Generation = 123
+	gw := gatewayWithTwoServiceAccounts.DeepCopy()
 
-	saspc := serviceAccountSpc.DeepCopy()
+	saspc := serviceAccountTwoSpc.DeepCopy()
 	saspc.Generation = 124
 
-	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, corev1.AddToScheme, appsv1.AddToScheme).WithObjects(cspc, saspc, gw, appRoutingSa, annotatedServiceAccount).Build()
+	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, corev1.AddToScheme, appsv1.AddToScheme).WithObjects(saspc, gw, annotatedServiceAccount, annotatedServiceAccountTwo).Build()
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
@@ -411,88 +408,13 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	ctx := context.Background()
 	ctx = logr.NewContext(ctx, logr.Discard())
 
-	// Create placeholder pod deployment for clientId listener
-	cidReq := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: cspc.Namespace, Name: cspc.Name}}
-	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
-	require.Equal(t, 0, len(recorder.Events))
-
 	// Create placeholder pod deployment for serviceaccount listener
 	saReq := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: saspc.Namespace, Name: saspc.Name}}
 	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 	require.Equal(t, 0, len(recorder.Events))
 
-	cDep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cspc.Name,
-			Namespace: cspc.Namespace,
-		},
-	}
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
-
 	replicas := int32(1)
 	historyLimit := int32(2)
-
-	expectedCidLabels := map[string]string{"app": cspc.Name}
-	expectedCidDep := appsv1.DeploymentSpec{
-		Replicas:             &replicas,
-		RevisionHistoryLimit: &historyLimit,
-		Selector:             &metav1.LabelSelector{MatchLabels: expectedCidLabels},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: expectedCidLabels,
-				Annotations: map[string]string{
-					"kubernetes.azure.com/observed-generation": "123",
-					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					"kubernetes.azure.com/gateway-owner":       gw.Name,
-					"openservicemesh.io/sidecar-injection":     "disabled",
-				},
-			},
-			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				ServiceAccountName:           appRoutingSaName,
-				AutomountServiceAccountToken: util.ToPtr(true),
-				Containers: []corev1.Container{{
-					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
-					VolumeMounts: []corev1.VolumeMount{{
-						Name:      "secrets",
-						MountPath: "/mnt/secrets",
-						ReadOnly:  true,
-					}},
-					Resources: corev1.ResourceRequirements{
-						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("20m"),
-							corev1.ResourceMemory: resource.MustParse("24Mi"),
-						},
-					},
-					SecurityContext: &corev1.SecurityContext{
-						Privileged:               util.ToPtr(false),
-						AllowPrivilegeEscalation: util.ToPtr(false),
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-						RunAsNonRoot:           util.ToPtr(true),
-						RunAsUser:              util.Int64Ptr(65535),
-						RunAsGroup:             util.Int64Ptr(65535),
-						ReadOnlyRootFilesystem: util.ToPtr(true),
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-				}},
-				Volumes: []corev1.Volume{{
-					Name: "secrets",
-					VolumeSource: corev1.VolumeSource{
-						CSI: &corev1.CSIVolumeSource{
-							Driver:           "secrets-store.csi.k8s.io",
-							ReadOnly:         util.ToPtr(true),
-							VolumeAttributes: map[string]string{"secretProviderClass": cspc.Name},
-						},
-					},
-				}},
-			}),
-		},
-	}
-	require.Equal(t, expectedCidDep, cDep.Spec)
 
 	saDep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -518,7 +440,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 				},
 			},
 			Spec: *manifests.WithPreferSystemNodes(&corev1.PodSpec{
-				ServiceAccountName:           "test-sa",
+				ServiceAccountName:           "test-sa-2",
 				AutomountServiceAccountToken: util.ToPtr(true),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
@@ -564,24 +486,6 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	}
 	assert.Equal(t, expectedSaDep, saDep.Spec)
 
-	// Prove idempotence for clientId deployment
-	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
-	require.Equal(t, 0, len(recorder.Events))
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
-	require.Equal(t, expectedCidDep, cDep.Spec)
-
-	// Update the secret class generation
-	cspc.Generation = 234
-	expectedCidDep.Template.Annotations["kubernetes.azure.com/observed-generation"] = "234"
-	require.NoError(t, c.Update(ctx, cspc))
-
-	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
-	require.Equal(t, 0, len(recorder.Events))
-
-	// Prove the generation annotation was updated
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep))
-	require.Equal(t, expectedCidDep, cDep.Spec)
-
 	// Prove idempotence for the SA deployment
 	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 
@@ -605,10 +509,6 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 	gw.Spec.GatewayClassName = "notistio"
 	require.NoError(t, c.Update(ctx, gw))
 
-	ReconcileAndTestSuccessMetrics(t, ctx, p, cidReq, placeholderPodControllerNameElements)
-	// Prove the cid deployment was deleted
-	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(cDep), cDep)))
-
 	ReconcileAndTestSuccessMetrics(t, ctx, p, saReq, placeholderPodControllerNameElements)
 	// Prove the sa deployment was deleted
 	require.True(t, k8serrors.IsNotFound(c.Get(ctx, client.ObjectKeyFromObject(saDep), saDep)))
@@ -625,58 +525,51 @@ func TestVerifyServiceAccount(t *testing.T) {
 	}{
 		{
 			name:                   "happy path with input serviceaccount",
-			spc:                    serviceAccountSpc,
-			obj:                    gatewayWithCidListenerAndSaListener,
-			existingObjects:        []client.Object{annotatedServiceAccount, serviceAccountSpc},
-			expectedServiceAccount: "test-sa",
-		},
-		{
-			name:                   "happy path with client id",
-			spc:                    clientIdSpc,
-			obj:                    gatewayWithCid,
-			existingObjects:        []client.Object{appRoutingSa, clientIdSpc},
-			expectedServiceAccount: appRoutingSaName,
+			spc:                    serviceAccountTwoSpc,
+			obj:                    gatewayWithTwoServiceAccounts,
+			existingObjects:        []client.Object{annotatedServiceAccount, annotatedServiceAccountTwo, serviceAccountTwoSpc},
+			expectedServiceAccount: "test-sa-2",
 		},
 		{
 			name:            "no matching listeners",
-			spc:             serviceAccountSpc,
-			obj:             modifyGateway(gatewayWithCidListenerAndSaListener, func(gw *gatewayv1.Gateway) { gw.Spec.Listeners[1].Name = "test-listener-3" }),
-			existingObjects: []client.Object{gatewayWithCidListenerAndSaListener, annotatedServiceAccount},
+			spc:             serviceAccountTwoSpc,
+			obj:             modifyGateway(gatewayWithTwoServiceAccounts, func(gw *gatewayv1.Gateway) { gw.Spec.Listeners[1].Name = "test-listener-3" }),
+			existingObjects: []client.Object{gatewayWithTwoServiceAccounts, annotatedServiceAccount},
 			expectedError:   newUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "listener matches but doesn't contain service account option",
-			spc:  serviceAccountSpc,
-			obj: modifyGateway(gatewayWithCidListenerAndSaListener, func(gw *gatewayv1.Gateway) {
+			spc:  serviceAccountTwoSpc,
+			obj: modifyGateway(gatewayWithTwoServiceAccounts, func(gw *gatewayv1.Gateway) {
 				gw.Spec.Listeners[1].TLS.Options = map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{"not-service-account": "test-value"}
 			}),
-			existingObjects: []client.Object{gatewayWithCidListenerAndSaListener, serviceAccountSpc, annotatedServiceAccount},
+			existingObjects: []client.Object{gatewayWithTwoServiceAccounts, serviceAccountTwoSpc, annotatedServiceAccount},
 			expectedError:   newUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "nonexistent service account referenced",
-			spc:  serviceAccountSpc,
-			obj: modifyGateway(gatewayWithCidListenerAndSaListener, func(gw *gatewayv1.Gateway) {
+			spc:  serviceAccountTwoSpc,
+			obj: modifyGateway(gatewayWithTwoServiceAccounts, func(gw *gatewayv1.Gateway) {
 				gw.Spec.Listeners[1].TLS.Options = map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{"kubernetes.azure.com/tls-cert-service-account": "fake-sa"}
 			}),
-			existingObjects: []client.Object{serviceAccountSpc, gatewayWithCidListenerAndSaListener, annotatedServiceAccount},
+			existingObjects: []client.Object{serviceAccountTwoSpc, gatewayWithTwoServiceAccounts, annotatedServiceAccount},
 			expectedError:   newUserError(errors.New("serviceaccounts \"fake-sa\" not found"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "service account without required annotation referenced",
-			spc:  serviceAccountSpc,
-			obj:  gatewayWithCidListenerAndSaListener,
+			spc:  serviceAccountTwoSpc,
+			obj:  gatewayWithTwoServiceAccounts,
 			existingObjects: []client.Object{
-				serviceAccountSpc,
-				gatewayWithCidListenerAndSaListener,
+				serviceAccountTwoSpc,
+				gatewayWithTwoServiceAccounts,
 				&corev1.ServiceAccount{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "v1",
 						Kind:       "ServiceAccount",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace:   gatewayWithCidListenerAndSaListener.Namespace,
-						Name:        "test-sa",
+						Namespace:   gatewayWithTwoServiceAccounts.Namespace,
+						Name:        "test-sa-2",
 						Annotations: map[string]string{"foo": "bar"},
 					},
 				},
@@ -684,15 +577,8 @@ func TestVerifyServiceAccount(t *testing.T) {
 			expectedError: newUserError(errors.New("user-specified service account does not contain WI annotation"), "serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity"),
 		},
 		{
-			name:            "app routing service account doesn't exist",
-			spc:             clientIdSpc,
-			obj:             gatewayWithCid,
-			existingObjects: []client.Object{clientIdSpc, gatewayWithCid},
-			expectedError:   util.NewRequeueError(errors.New("serviceaccounts \"azure-app-routing-kv\" not found"), 30*time.Second),
-		},
-		{
 			name: "incorrect object type",
-			spc:  clientIdSpc,
+			spc:  serviceAccountTwoSpc,
 			obj:  &netv1.Ingress{},
 		},
 	}
@@ -981,7 +867,7 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	unmanagedIngClassName := "unmanagedClassName"
 	errorIngClassName := "errorClassName"
 
-	gw := gatewayWithCidListenerAndSaListener.DeepCopy()
+	gw := gatewayWithTwoServiceAccounts.DeepCopy()
 	// not sure why this happens but otherwise resourceversion is 999 after deepcopy
 	gw.ObjectMeta.ResourceVersion = ""
 

@@ -101,28 +101,3 @@ func FilterMap[K comparable, V comparable](m map[K]V, keep func(K, V) bool) map[
 
 	return new
 }
-
-// RequeueError is a specific kind of error that can be returned by operations that need to eventually be requeued following some duration
-type RequeueError struct {
-	err          error
-	requeueAfter time.Duration
-}
-
-func NewRequeueError(err error, requeueAfter time.Duration) RequeueError {
-	return RequeueError{
-		err:          err,
-		requeueAfter: requeueAfter,
-	}
-}
-
-func (r RequeueError) Error() string {
-	return "re queuing: " + r.err.Error()
-}
-
-func (r RequeueError) RequeueAfter() time.Duration {
-	return r.requeueAfter
-}
-
-func (r RequeueError) OriginalError() error {
-	return r.err
-}

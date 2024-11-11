@@ -181,11 +181,6 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.userMessage)
 			return result, nil
 		}
-		var requeueErr util.RequeueError
-		if errors.As(err, &requeueErr) {
-			result.RequeueAfter = requeueErr.RequeueAfter()
-			return result, nil
-		}
 
 		logger.Error(err, "verifying ServiceAccount for placeholder pod")
 		return result, fmt.Errorf("verifying service account for placeholder pod: %s", err.Error())

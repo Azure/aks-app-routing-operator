@@ -40,82 +40,6 @@ var (
 		},
 	}
 
-	gatewayWithOnlyClientId = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gatewayWithMultipleListenersAndOnlyOneClientId = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gwWithNoCertMultipleCid = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-1",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-client-id": "test-client-id-2",
-						},
-					},
-				},
-			},
-		},
-	}
-
 	gwWithSa = &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Gateway",
@@ -141,66 +65,7 @@ var (
 		},
 	}
 
-	gatewayWithCid = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-client-id":    "test-client-id",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gatewayWithCidListenerAndSaListener = &gatewayv1.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
-			APIVersion: "gateway.networking.k8s.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-client-id":    "test-client-id",
-						},
-					},
-				},
-				{
-					Name: "test-listener-2",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a35",
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gwWithCidAndSaInSameListener = &gatewayv1.Gateway{
+	gatewayWithTwoServiceAccounts = &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Gateway",
 			APIVersion: "gateway.networking.k8s.io/v1",
@@ -217,28 +82,7 @@ var (
 					TLS: &gatewayv1.GatewayTLSConfig{
 						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-							"kubernetes.azure.com/tls-cert-client-id":       "test-client-id",
 							"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	gatewayWithOnlyServiceAccounts = &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gw",
-			Namespace: "test-ns",
-		},
-		Spec: gatewayv1.GatewaySpec{
-			GatewayClassName: "istio",
-			Listeners: []gatewayv1.Listener{
-				{
-					Name: "test-listener-1",
-					TLS: &gatewayv1.GatewayTLSConfig{
-						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-							"kubernetes.azure.com/tls-cert-service-account": "test-sa-1",
 						},
 					},
 				},
@@ -246,6 +90,7 @@ var (
 					Name: "test-listener-2",
 					TLS: &gatewayv1.GatewayTLSConfig{
 						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a35",
 							"kubernetes.azure.com/tls-cert-service-account": "test-sa-2",
 						},
 					},
@@ -291,7 +136,7 @@ var (
 
 	nonIstioGateway = modifyGateway(gwWithSa, func(gwObj *gatewayv1.Gateway) { gwObj.Spec.GatewayClassName = "" })
 
-	clientIdSpc = &secv1.SecretProviderClass{
+	serviceAccountSpc = &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "secrets-store.csi.x-k8s.io/v1",
 			Kind:       "SecretProviderClass",
@@ -323,6 +168,7 @@ var (
 					},
 				},
 			}},
+			// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
 			Parameters: map[string]string{
 				"keyvaultName":           "testvault",
 				"useVMManagedIdentity":   "true",
@@ -333,7 +179,7 @@ var (
 		},
 	}
 
-	serviceAccountSpc = &secv1.SecretProviderClass{
+	serviceAccountTwoSpc = &secv1.SecretProviderClass{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "secrets-store.csi.x-k8s.io/v1",
 			Kind:       "SecretProviderClass",
@@ -369,7 +215,7 @@ var (
 			Parameters: map[string]string{
 				"keyvaultName":           "testvault",
 				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": "test-client-id",
+				"userAssignedIdentityID": "test-client-id-2",
 				"tenantId":               "test-tenant-id",
 				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"testcert\\\",\\\"objectType\\\":\\\"secret\\\",\\\"objectVersion\\\":\\\"f8982febc6894c0697b884f946fb1a35\\\"}\"]}",
 			},
@@ -390,15 +236,17 @@ var (
 		},
 	}
 
-	appRoutingSa = &corev1.ServiceAccount{
+	annotatedServiceAccountTwo = &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
 			Kind:       "ServiceAccount",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "azure-app-routing-kv",
-			Namespace:   "test-ns",
-			Annotations: map[string]string{"azure.workload.identity/client-id": "test-client-id"},
+			Name:      "test-sa-2",
+			Namespace: "test-ns",
+			Annotations: map[string]string{
+				"azure.workload.identity/client-id": "test-client-id-2",
+			},
 		},
 	}
 )

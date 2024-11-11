@@ -63,15 +63,6 @@ func Test_listenerIsKvEnabled(t *testing.T) {
 	}
 	require.Equal(t, false, listenerIsKvEnabled(onlySaListener))
 
-	onlyCidListener := gatewayv1.Listener{
-		TLS: &gatewayv1.GatewayTLSConfig{
-			Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-				"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-			},
-		},
-	}
-	require.Equal(t, false, listenerIsKvEnabled(onlyCidListener))
-
 	nilTlsListener := gatewayv1.Listener{}
 	require.Equal(t, false, listenerIsKvEnabled(nilTlsListener))
 
@@ -87,7 +78,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 		expectedError       error
 	}{
 		{
-			name: "cert URI without sa or cid",
+			name: "cert URI without sa",
 			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
 			},
@@ -95,7 +86,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
 			},
 			expectedClientId: "",
-			expectedError:    errors.New("user specified cert URI but no serviceaccount or clientid in a listener"),
+			expectedError:    errors.New("user specified cert URI but no ServiceAccount in a listener"),
 		},
 		{
 			name: "cert URI with nonexistent sa",
@@ -110,7 +101,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 			expectedError:    errors.New("serviceaccounts \"test-sa\" not found"),
 		},
 		{
-			name: "cert URI with sa with no annotation, without cid",
+			name: "cert URI with sa with no annotation",
 			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 				"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
 				"kubernetes.azure.com/tls-cert-service-account": "test-sa",
@@ -133,7 +124,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 			expectedError:    errors.New("user-specified service account does not contain WI annotation"),
 		},
 		{
-			name: "cert URI with sa with correct annotation, without cid",
+			name: "cert URI with sa with correct annotation",
 			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 				"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
 				"kubernetes.azure.com/tls-cert-service-account": "test-sa",
@@ -159,32 +150,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 			expectedError:    nil,
 		},
 		{
-			name: "cert URI without sa with cid",
-			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-				"kubernetes.azure.com/tls-cert-client-id":    "test-client-id",
-			},
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
-			},
-			expectedClientId: "test-client-id",
-			expectedError:    nil,
-		},
-		{
-			name: "cert URI with sa and cid",
-			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-				"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
-				"kubernetes.azure.com/tls-cert-client-id":       "test-client-id",
-				"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-			},
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
-			},
-			expectedClientId: "",
-			expectedError:    errors.New("user specified both serviceaccount and a clientId in the same listener"),
-		},
-		{
-			name:    "no cert URI without sa or cid",
+			name:    "no cert URI without sa",
 			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{},
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
@@ -193,7 +159,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 			expectedError:    errors.New("none of the required TLS options were specified"),
 		},
 		{
-			name: "no cert URI with sa not cid",
+			name: "no cert URI with sa",
 			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 				"kubernetes.azure.com/tls-cert-service-account": "test-sa",
 			},
@@ -201,30 +167,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
 			},
 			expectedClientId: "",
-			expectedError:    errors.New("user specified clientId or SA but no cert URI in a listener"),
-		},
-		{
-			name: "no cert URI without sa with cid",
-			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-				"kubernetes.azure.com/tls-cert-client-id": "test-client-id",
-			},
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
-			},
-			expectedClientId: "",
-			expectedError:    errors.New("user specified clientId or SA but no cert URI in a listener"),
-		},
-		{
-			name: "no cert URI with sa and cid",
-			options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-				"kubernetes.azure.com/tls-cert-client-id":       "test-client-id",
-				"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-			},
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
-			},
-			expectedClientId: "",
-			expectedError:    errors.New("user specified clientId or SA but no cert URI in a listener"),
+			expectedError:    errors.New("user specified ServiceAccount but no cert URI in a listener"),
 		},
 	}
 
@@ -236,7 +179,6 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 			require.Equal(t, nil, err)
 			require.Equal(t, tc.expectedClientId, clientId)
 		}
-
 	}
 }
 
@@ -250,14 +192,14 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 		expectedUserErr     string
 	}{
 		{
-			name:         "cert URI without sa or cid",
+			name:         "cert URI without sa",
 			gwObj:        gwWithCertWithoutOthers,
 			expectedSpcs: nil,
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithCertWithoutOthers).Build()
 			},
 			expectedError:   nil,
-			expectedUserErr: "Warning InvalidInput invalid TLS configuration: detected Keyvault Cert URI, but no ServiceAccount or Client ID was provided",
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: detected Keyvault Cert URI, but no ServiceAccount was provided",
 		},
 		{
 			name:  "cert URI with nonexistent sa",
@@ -270,7 +212,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa does not exist",
 		},
 		{
-			name:  "cert URI with sa with no annotation, without cid",
+			name:  "cert URI with sa with no annotation",
 			gwObj: gwWithSa,
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(
@@ -291,7 +233,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity",
 		},
 		{
-			name:  "cert URI with sa with correct annotation, without cid",
+			name:  "cert URI with sa with correct annotation",
 			gwObj: gwWithSa,
 			generateClientState: func() client.Client {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(
@@ -299,36 +241,17 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 					annotatedServiceAccount,
 				).Build()
 			},
-			expectedSpcs:  []*secv1.SecretProviderClass{clientIdSpc},
+			expectedSpcs:  []*secv1.SecretProviderClass{serviceAccountSpc},
 			expectedError: nil,
 		},
 		{
-			name:  "cert URI without sa with cid",
-			gwObj: gatewayWithCid,
+			name:  "cert URI with two different SA listeners",
+			gwObj: gatewayWithTwoServiceAccounts,
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithCid).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithTwoServiceAccounts, annotatedServiceAccount, annotatedServiceAccountTwo).Build()
 			},
-			expectedSpcs:  []*secv1.SecretProviderClass{clientIdSpc},
+			expectedSpcs:  []*secv1.SecretProviderClass{serviceAccountSpc, serviceAccountTwoSpc},
 			expectedError: nil,
-		},
-		{
-			name:  "cert URI with sa listener and cid listener",
-			gwObj: gatewayWithCidListenerAndSaListener,
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithCidListenerAndSaListener, annotatedServiceAccount).Build()
-			},
-			expectedSpcs:  []*secv1.SecretProviderClass{clientIdSpc, serviceAccountSpc},
-			expectedError: nil,
-		},
-		{
-			name:  "cert URI with sa and cid",
-			gwObj: gwWithCidAndSaInSameListener,
-			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithCidAndSaInSameListener).Build()
-			},
-			expectedSpcs:    nil,
-			expectedError:   nil,
-			expectedUserErr: "Warning InvalidInput invalid TLS configuration: both ServiceAccount name and clientId have been specified, please specify one or the other",
 		},
 		{
 			name:  "non-Istio gateway",
@@ -376,7 +299,9 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			require.Greater(t, len(recorder.Events), 0)
 			require.Equal(t, tc.expectedUserErr, <-recorder.Events)
 		} else {
-			require.Equal(t, 0, len(recorder.Events))
+			if len(recorder.Events) > 0 {
+				t.Errorf("unexpected user error: %s", <-recorder.Events)
+			}
 		}
 
 		if tc.expectedSpcs == nil {
