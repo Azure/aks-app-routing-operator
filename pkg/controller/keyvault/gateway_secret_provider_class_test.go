@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -188,6 +189,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 		gwObj               *gatewayv1.Gateway
 		generateClientState func() client.Client
 		expectedSpcs        []*secv1.SecretProviderClass
+		expectedGateways    []*gatewayv1.Gateway
 		expectedError       error
 		expectedUserErr     string
 	}{
@@ -279,6 +281,29 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 				return testutils.RegisterSchemes(t, testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme), secv1.AddToScheme, gatewayv1.Install).WithObjects(nilOptionsGateway).Build()
 			},
 			expectedSpcs:  nil,
+			expectedError: nil,
+		},
+		{
+			name:  "gateway with only one active listener",
+			gwObj: gatewayWithOnlyOneActiveListener,
+			generateClientState: func() client.Client {
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(
+					gatewayWithOnlyOneActiveListener,
+					annotatedServiceAccount,
+				).Build()
+			},
+			expectedSpcs: []*secv1.SecretProviderClass{serviceAccountSpc},
+			expectedGateways: []*gatewayv1.Gateway{modifyGateway(gatewayWithOnlyOneActiveListener,
+				func(gwObj *gatewayv1.Gateway) {
+					gwObj.Spec.Listeners[0].TLS.CertificateRefs = []gatewayv1.SecretObjectReference{
+						{
+							Namespace: to.Ptr(gatewayv1.Namespace("test-ns")),
+							Group:     to.Ptr(gatewayv1.Group(corev1.GroupName)),
+							Kind:      to.Ptr(gatewayv1.Kind("Secret")),
+							Name:      gatewayv1.ObjectName("kv-gw-cert-test-gw-test-listener"),
+						},
+					}
+				})},
 			expectedError: nil,
 		},
 	}

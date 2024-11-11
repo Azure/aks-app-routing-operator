@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	gatewaySecretProviderControllerName = controllername.New("keyvault", "gateway", "secret", "provider")
+	gatewaySecretProviderControllerName = controllername.New("gateway", "keyvault", "secret", "provider")
 )
 
 // GatewaySecretProviderClassReconciler manages a SecretProviderClass for Gateway resource that specifies a ServiceAccount
@@ -162,7 +162,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				logger.Error(err, fmt.Sprintf("failed to fetch SPC for deletion %s", spc.Name))
 				return ctrl.Result{}, fmt.Errorf("fetching SPC for deletion: %w", err)
 			}
-			return ctrl.Result{}, nil
+			continue
 		}
 
 		if manifests.HasTopLevelLabels(deletionSpc.Labels) {
@@ -172,7 +172,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 					logger.Error(err, fmt.Sprintf("failed to delete SPC %s", spc.Name))
 					return ctrl.Result{}, fmt.Errorf("deleting SPC: %w", err)
 				}
-				return ctrl.Result{}, nil
+				continue
 			}
 		}
 
