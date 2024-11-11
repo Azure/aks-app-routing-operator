@@ -72,12 +72,20 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 
 func instances(conf *config.Config) ([]instance, error) {
 	// public
-	publicCfg := publicConfigForIngress(conf)
+	publicCfg, err := publicConfigForIngress(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	publicAction := actionFromConfig(publicCfg)
 	publicResources := publicCfg.Resources()
 
 	// private
-	privateCfg := privateConfigForIngress(conf)
+	privateCfg, err := privateConfigForIngress(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	privateAction := actionFromConfig(privateCfg)
 	privateResources := privateCfg.Resources()
 
@@ -95,7 +103,7 @@ func instances(conf *config.Config) ([]instance, error) {
 	}, nil
 }
 
-func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
+func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, error) {
 	publicconfig, err := manifests.NewExternalDNSConfig(
 		conf,
 		conf.TenantID,
@@ -111,12 +119,12 @@ func publicConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 		util.Keys(conf.PublicZoneConfig.ZoneIds))
 
 	if err != nil {
-		// do something
+		return nil, err
 	}
-	return publicconfig
+	return publicconfig, nil
 }
 
-func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
+func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, error) {
 	privateconfig, err := manifests.NewExternalDNSConfig(
 		conf,
 		conf.TenantID,
@@ -133,9 +141,9 @@ func privateConfigForIngress(conf *config.Config) *manifests.ExternalDnsConfig {
 	)
 
 	if err != nil {
-		// do something
+		return nil, err
 	}
-	return privateconfig
+	return privateconfig, nil
 }
 
 func filterAction(instances []instance, action action) []instance {

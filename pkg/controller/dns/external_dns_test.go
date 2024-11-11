@@ -114,7 +114,8 @@ func TestPublicConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := *publicConfigForIngress(test.conf)
+		got, err := publicConfigForIngress(test.conf)
+		require.NoError(t, err)
 		require.Equal(t, test.expectedDnsZones, got.DnsZoneResourceIds(), "zones don't match for %s", test.name)
 		require.Equal(t, test.expectedLabels, got.Labels(), "labels don't match for %s", test.name)
 	}
@@ -142,7 +143,8 @@ func TestPrivateConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := *privateConfigForIngress(test.conf)
+		got, err := privateConfigForIngress(test.conf)
+		require.NoError(t, err)
 		require.Equal(t, test.expectedDnsZones, got.DnsZoneResourceIds(), "zones don't match for %s", test.name)
 		require.Equal(t, test.expectedLabels, got.Labels(), "labels don't match for %s", test.name)
 	}
@@ -183,12 +185,12 @@ func TestInstances(t *testing.T) {
 			conf: &noZones,
 			expected: []instance{
 				{
-					config:    publicConfigForIngress(&noZones),
+					config:    noZonesPublic,
 					resources: noZonesPublic.Resources(),
 					action:    clean,
 				},
 				{
-					config:    privateConfigForIngress(&noZones),
+					config:    noZonesPrivate,
 					resources: noZonesPrivate.Resources(),
 					action:    clean,
 				},
@@ -199,12 +201,12 @@ func TestInstances(t *testing.T) {
 			conf: &onlyPrivZones,
 			expected: []instance{
 				{
-					config:    publicConfigForIngress(&onlyPrivZones),
+					config:    onlyPrivZonesPublic,
 					resources: onlyPrivZonesPublic.Resources(),
 					action:    clean,
 				},
 				{
-					config:    privateConfigForIngress(&onlyPrivZones),
+					config:    onlyPrivZonesPrivate,
 					resources: onlyPrivZonesPrivate.Resources(),
 					action:    deploy,
 				},
@@ -215,12 +217,12 @@ func TestInstances(t *testing.T) {
 			conf: &onlyPubZones,
 			expected: []instance{
 				{
-					config:    publicConfigForIngress(&onlyPubZones),
+					config:    publicDeployPublic,
 					resources: publicDeployPublic.Resources(),
 					action:    deploy,
 				},
 				{
-					config:    privateConfigForIngress(&onlyPubZones),
+					config:    publicDeployPrivate,
 					resources: publicDeployPrivate.Resources(),
 					action:    clean,
 				},
@@ -231,12 +233,12 @@ func TestInstances(t *testing.T) {
 			conf: &allZones,
 			expected: []instance{
 				{
-					config:    publicConfigForIngress(&allZones),
+					config:    allDeployPublic,
 					resources: allDeployPublic.Resources(),
 					action:    deploy,
 				},
 				{
-					config:    privateConfigForIngress(&allZones),
+					config:    allDeployPrivate,
 					resources: allDeployPrivate.Resources(),
 					action:    deploy,
 				},
