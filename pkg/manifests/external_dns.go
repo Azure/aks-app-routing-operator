@@ -115,7 +115,7 @@ func (e *ExternalDnsConfig) DnsZoneResourceIds() []string {
 	return e.dnsZoneResourceIDs
 }
 
-func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceGroup, clientId, inputServiceAccount, namespace, crdName string, identityType IdentityType, resourceTypes []ResourceType, provider provider, dnszoneresourceids []string) (*ExternalDnsConfig, error) {
+func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceGroup, clientId, inputServiceAccount, namespace, inputResourceName string, identityType IdentityType, resourceTypes []ResourceType, provider provider, dnszoneresourceids []string) (*ExternalDnsConfig, error) {
 	// valid values for enums
 	if identityType != IdentityTypeMSI && identityType != IdentityTypeWorkloadIdentity {
 		return nil, fmt.Errorf("invalid identity type: %v", identityType)
@@ -131,7 +131,7 @@ func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceG
 		}
 	}
 
-	if containsGateway && crdName == "" {
+	if containsGateway && inputResourceName == "" {
 		return nil, errors.New("gateway resource type requires a crd name")
 	}
 
@@ -140,7 +140,7 @@ func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceG
 	}
 
 	var resourceName string
-	switch crdName {
+	switch inputResourceName {
 	case "":
 		switch provider {
 		case PublicProvider:
@@ -149,7 +149,7 @@ func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceG
 			resourceName = externalDnsResourceName + "-private"
 		}
 	default:
-		resourceName = crdName + "-" + externalDnsResourceName
+		resourceName = inputResourceName + "-" + externalDnsResourceName
 	}
 
 	if identityType == IdentityTypeWorkloadIdentity && inputServiceAccount == "" {
