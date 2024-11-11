@@ -263,6 +263,24 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			expectedSpcs:  nil,
 			expectedError: nil,
 		},
+		{
+			name:  "no listeners",
+			gwObj: noListenersGateway,
+			generateClientState: func() client.Client {
+				return testutils.RegisterSchemes(t, testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme), secv1.AddToScheme, gatewayv1.Install).WithObjects(noListenersGateway).Build()
+			},
+			expectedSpcs:  nil,
+			expectedError: nil,
+		},
+		{
+			name:  "nil options",
+			gwObj: nilOptionsGateway,
+			generateClientState: func() client.Client {
+				return testutils.RegisterSchemes(t, testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme), secv1.AddToScheme, gatewayv1.Install).WithObjects(nilOptionsGateway).Build()
+			},
+			expectedSpcs:  nil,
+			expectedError: nil,
+		},
 	}
 
 	for _, tc := range tcs {
