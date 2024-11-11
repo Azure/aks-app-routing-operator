@@ -131,10 +131,6 @@ func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceG
 		}
 	}
 
-	if containsGateway && inputResourceName == "" {
-		return nil, errors.New("gateway resource type requires a crd name")
-	}
-
 	if containsGateway && identityType != IdentityTypeWorkloadIdentity {
 		return nil, errors.New("gateway resource type can only be used with workload identity")
 	}

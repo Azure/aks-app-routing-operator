@@ -208,7 +208,7 @@ func TestExternalDNSConfig(t *testing.T) {
 		msiclientID        string
 		serviceAccountName string
 		namespace          string
-		crdName            string
+		inputResourceName  string
 		identityType       IdentityType
 		resourceTypes      []ResourceType
 		provider           provider
@@ -226,7 +226,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			msiclientID:        "test-client-id",
 			serviceAccountName: "test-sa",
 			namespace:          "test-namespace",
-			crdName:            "",
+			inputResourceName:  "",
 			identityType:       IdentityTypeMSI,
 			resourceTypes:      []ResourceType{ResourceTypeIngress},
 			provider:           PublicProvider,
@@ -243,7 +243,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			msiclientID:        "test-client-id",
 			serviceAccountName: "test-sa",
 			namespace:          "test-namespace",
-			crdName:            "",
+			inputResourceName:  "",
 			identityType:       IdentityTypeMSI,
 			resourceTypes:      []ResourceType{ResourceTypeIngress},
 			provider:           PrivateProvider,
@@ -260,7 +260,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			msiclientID:        "test-client-id",
 			serviceAccountName: "test-service-account",
 			namespace:          "test-namespace",
-			crdName:            "test-dns-config",
+			inputResourceName:  "test-dns-config",
 			identityType:       IdentityTypeWorkloadIdentity,
 			resourceTypes:      []ResourceType{ResourceTypeGateway},
 			provider:           PublicProvider,
@@ -277,7 +277,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			msiclientID:        "test-client-id",
 			serviceAccountName: "test-private-service-account",
 			namespace:          "test-namespace",
-			crdName:            "test-dns-config-private",
+			inputResourceName:  "test-dns-config-private",
 			identityType:       IdentityTypeWorkloadIdentity,
 			resourceTypes:      []ResourceType{ResourceTypeGateway},
 			provider:           PrivateProvider,
@@ -298,22 +298,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			expectedError: errors.New("invalid resource type: 4"),
 		},
 		{
-			name:               "gateway resource without crd name",
-			conf:               noOsmConf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-private",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "test-private-service-account",
-			namespace:          "test-namespace",
-			crdName:            "",
-			identityType:       IdentityTypeWorkloadIdentity,
-			resourceTypes:      []ResourceType{ResourceTypeGateway},
-			provider:           PrivateProvider,
-			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
-			expectedError:      errors.New("gateway resource type requires a crd name"),
-		},
-		{
 			name:               "gateway without workload identity",
 			conf:               noOsmConf,
 			tenantId:           "test-tenant-id",
@@ -322,7 +306,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			msiclientID:        "test-client-id",
 			serviceAccountName: "test-private-service-account",
 			namespace:          "test-namespace",
-			crdName:            "test-crd",
+			inputResourceName:  "test-resource",
 			identityType:       IdentityTypeMSI,
 			resourceTypes:      []ResourceType{ResourceTypeGateway},
 			provider:           PrivateProvider,
@@ -338,7 +322,7 @@ func TestExternalDNSConfig(t *testing.T) {
 			msiclientID:        "test-client-id",
 			serviceAccountName: "",
 			namespace:          "test-namespace",
-			crdName:            "test-crd",
+			inputResourceName:  "test-resource",
 			identityType:       IdentityTypeWorkloadIdentity,
 			resourceTypes:      []ResourceType{ResourceTypeIngress},
 			provider:           PrivateProvider,
@@ -347,7 +331,7 @@ func TestExternalDNSConfig(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		ret, err := NewExternalDNSConfig(tc.conf, tc.tenantId, tc.subscription, tc.resourceGroup, tc.msiclientID, tc.serviceAccountName, tc.namespace, tc.crdName, tc.identityType, tc.resourceTypes, tc.provider, tc.dnsZoneResourceIDs)
+		ret, err := NewExternalDNSConfig(tc.conf, tc.tenantId, tc.subscription, tc.resourceGroup, tc.msiclientID, tc.serviceAccountName, tc.namespace, tc.inputResourceName, tc.identityType, tc.resourceTypes, tc.provider, tc.dnsZoneResourceIDs)
 		if tc.expectedError != nil {
 			require.Equal(t, tc.expectedError.Error(), err.Error(), "error does not match for case %s", tc.name)
 		} else {
