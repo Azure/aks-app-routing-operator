@@ -200,138 +200,148 @@ func TestExternalDNSConfig(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name               string
-		conf               *config.Config
-		tenantId           string
-		subscription       string
-		resourceGroup      string
-		msiclientID        string
-		serviceAccountName string
-		namespace          string
-		inputResourceName  string
-		identityType       IdentityType
-		resourceTypes      []ResourceType
-		provider           Provider
-		dnsZoneResourceIDs []string
-		expectedObjects    []client.Object
-		expectedLabels     map[string]string
-		expectedError      error
+		name                   string
+		conf                   *config.Config
+		inputExternalDNSConfig InputExternalDNSConfig
+		expectedObjects        []client.Object
+		expectedLabels         map[string]string
+		expectedError          error
 	}{
 		{
-			name:               "public ingress no osm",
-			conf:               noOsmConf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-public",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "test-sa",
-			namespace:          "test-namespace",
-			inputResourceName:  "",
-			identityType:       IdentityTypeMSI,
-			resourceTypes:      []ResourceType{ResourceTypeIngress},
-			provider:           PublicProvider,
-			dnsZoneResourceIDs: []string{publicZoneOne, publicZoneTwo},
-			expectedLabels:     map[string]string{"app.kubernetes.io/name": "external-dns"},
-			expectedObjects:    externalDnsResources(noOsmConf, []*ExternalDnsConfig{publicDnsConfig}),
+			name: "public ingress no osm",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				Subscription:        "test-subscription-id",
+				ResourceGroup:       "test-resource-group-public",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-sa",
+				Namespace:           "test-namespace",
+				InputResourceName:   "",
+				IdentityType:        IdentityTypeMSI,
+				ResourceTypes:       []ResourceType{ResourceTypeIngress},
+				Provider:            PublicProvider,
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "external-dns"},
+			expectedObjects: externalDnsResources(noOsmConf, []*ExternalDnsConfig{publicDnsConfig}),
 		},
 		{
-			name:               "private ingress",
-			conf:               conf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-private",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "test-sa",
-			namespace:          "test-namespace",
-			inputResourceName:  "",
-			identityType:       IdentityTypeMSI,
-			resourceTypes:      []ResourceType{ResourceTypeIngress},
-			provider:           PrivateProvider,
-			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
-			expectedLabels:     map[string]string{"app.kubernetes.io/name": "external-dns-private"},
-			expectedObjects:    externalDnsResources(conf, []*ExternalDnsConfig{privateDnsConfig}),
+			name: "private ingress",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				Subscription:        "test-subscription-id",
+				ResourceGroup:       "test-resource-group-private",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-sa",
+				Namespace:           "test-namespace",
+				InputResourceName:   "",
+				IdentityType:        IdentityTypeMSI,
+				ResourceTypes:       []ResourceType{ResourceTypeIngress},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "external-dns-private"},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{privateDnsConfig}),
 		},
 		{
-			name:               "public gateway",
-			conf:               conf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-public",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "test-service-account",
-			namespace:          "test-namespace",
-			inputResourceName:  "test-dns-config",
-			identityType:       IdentityTypeWorkloadIdentity,
-			resourceTypes:      []ResourceType{ResourceTypeGateway},
-			provider:           PublicProvider,
-			dnsZoneResourceIDs: []string{publicZoneOne, publicZoneTwo},
-			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
-			expectedObjects:    externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfig}),
+			name: "public gateway",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				Subscription:        "test-subscription-id",
+				ResourceGroup:       "test-resource-group-public",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       []ResourceType{ResourceTypeGateway},
+				Provider:            PublicProvider,
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfig}),
 		},
 		{
-			name:               "private gateway no osm",
-			conf:               noOsmConf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-private",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "test-private-service-account",
-			namespace:          "test-namespace",
-			inputResourceName:  "test-dns-config-private",
-			identityType:       IdentityTypeWorkloadIdentity,
-			resourceTypes:      []ResourceType{ResourceTypeGateway},
-			provider:           PrivateProvider,
-			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
-			expectedLabels:     map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
-			expectedObjects:    externalDnsResources(noOsmConf, []*ExternalDnsConfig{privateGwConfig}),
+			name: "private gateway no osm",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				Subscription:        "test-subscription-id",
+				ResourceGroup:       "test-resource-group-private",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-private-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config-private",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       []ResourceType{ResourceTypeGateway},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
+			expectedObjects: externalDnsResources(noOsmConf, []*ExternalDnsConfig{privateGwConfig}),
 		},
 		{
-			name:          "invalid identity type",
-			conf:          conf,
-			identityType:  3,
+			name: "invalid identity type",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				IdentityType: 3,
+			},
 			expectedError: errors.New("invalid identity type: 3"),
 		},
 		{
-			name:          "invalid resource type",
-			conf:          conf,
-			resourceTypes: []ResourceType{ResourceTypeGateway, ResourceTypeIngress, 4},
+			name: "invalid resource type",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				ResourceTypes: []ResourceType{ResourceTypeGateway, ResourceTypeIngress, 4},
+			},
 			expectedError: errors.New("invalid resource type: 4"),
 		},
 		{
-			name:               "gateway without workload identity",
-			conf:               noOsmConf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-private",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "test-private-service-account",
-			namespace:          "test-namespace",
-			inputResourceName:  "test-resource",
-			identityType:       IdentityTypeMSI,
-			resourceTypes:      []ResourceType{ResourceTypeGateway},
-			provider:           PrivateProvider,
-			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
-			expectedError:      errors.New("gateway resource type can only be used with workload identity"),
+			name: "gateway without workload identity",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				Subscription:        "test-subscription-id",
+				ResourceGroup:       "test-resource-group-private",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-private-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-resource",
+				IdentityType:        IdentityTypeMSI,
+				ResourceTypes:       []ResourceType{ResourceTypeGateway},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
+			},
+			expectedError: errors.New("gateway resource type can only be used with workload identity"),
 		},
 		{
-			name:               "workload identity without provided serviceaccount",
-			conf:               noOsmConf,
-			tenantId:           "test-tenant-id",
-			subscription:       "test-subscription-id",
-			resourceGroup:      "test-resource-group-private",
-			msiclientID:        "test-client-id",
-			serviceAccountName: "",
-			namespace:          "test-namespace",
-			inputResourceName:  "test-resource",
-			identityType:       IdentityTypeWorkloadIdentity,
-			resourceTypes:      []ResourceType{ResourceTypeIngress},
-			provider:           PrivateProvider,
-			dnsZoneResourceIDs: []string{privateZoneOne, privateZoneTwo},
-			expectedError:      errors.New("workload identity requires a service account name"),
+			name: "workload identity without provided serviceaccount",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				Subscription:        "test-subscription-id",
+				ResourceGroup:       "test-resource-group-private",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-resource",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       []ResourceType{ResourceTypeIngress},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
+			},
+			expectedError: errors.New("workload identity requires a service account name"),
 		},
 	}
 	for _, tc := range testCases {
-		ret, err := NewExternalDNSConfig(tc.conf, InputExternalDNSConfig{TenantId: tc.tenantId, Subscription: tc.subscription, ResourceGroup: tc.resourceGroup, ClientId: tc.msiclientID, InputServiceAccount: tc.serviceAccountName, Namespace: tc.namespace, InputResourceName: tc.inputResourceName, IdentityType: tc.identityType, ResourceTypes: tc.resourceTypes, Provider: tc.provider, DnsZoneresourceIDs: tc.dnsZoneResourceIDs})
+		ret, err := NewExternalDNSConfig(tc.conf, tc.inputExternalDNSConfig)
 		if tc.expectedError != nil {
 			require.Equal(t, tc.expectedError.Error(), err.Error(), "error does not match for case %s", tc.name)
 		} else {
