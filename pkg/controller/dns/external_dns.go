@@ -106,17 +106,17 @@ func instances(conf *config.Config) ([]instance, error) {
 func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, error) {
 	publicconfig, err := manifests.NewExternalDNSConfig(
 		conf,
-		conf.TenantID,
-		conf.PublicZoneConfig.Subscription,
-		conf.PublicZoneConfig.ResourceGroup,
-		conf.MSIClientID,
-		"",
-		conf.NS,
-		"",
-		manifests.IdentityTypeMSI,
-		[]manifests.ResourceType{manifests.ResourceTypeIngress},
-		manifests.PublicProvider,
-		util.Keys(conf.PublicZoneConfig.ZoneIds))
+		manifests.InputExternalDNSConfig{
+			TenantId:           conf.TenantID,
+			Subscription:       conf.PublicZoneConfig.Subscription,
+			ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
+			ClientId:           conf.MSIClientID,
+			Namespace:          conf.NS,
+			IdentityType:       manifests.IdentityTypeMSI,
+			ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
+			Provider:           manifests.PublicProvider,
+			DnsZoneresourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
+		})
 
 	if err != nil {
 		return nil, err
@@ -127,17 +127,17 @@ func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, 
 func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, error) {
 	privateconfig, err := manifests.NewExternalDNSConfig(
 		conf,
-		conf.TenantID,
-		conf.PrivateZoneConfig.Subscription,
-		conf.PrivateZoneConfig.ResourceGroup,
-		conf.MSIClientID,
-		"",
-		conf.NS,
-		"",
-		manifests.IdentityTypeMSI,
-		[]manifests.ResourceType{manifests.ResourceTypeIngress},
-		manifests.PrivateProvider,
-		util.Keys(conf.PrivateZoneConfig.ZoneIds),
+		manifests.InputExternalDNSConfig{
+			TenantId:           conf.TenantID,
+			Subscription:       conf.PrivateZoneConfig.Subscription,
+			ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
+			ClientId:           conf.MSIClientID,
+			Namespace:          conf.NS,
+			IdentityType:       manifests.IdentityTypeMSI,
+			ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
+			Provider:           manifests.PrivateProvider,
+			DnsZoneresourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
+		},
 	)
 
 	if err != nil {

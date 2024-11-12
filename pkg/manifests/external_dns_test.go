@@ -211,7 +211,7 @@ func TestExternalDNSConfig(t *testing.T) {
 		inputResourceName  string
 		identityType       IdentityType
 		resourceTypes      []ResourceType
-		provider           provider
+		provider           Provider
 		dnsZoneResourceIDs []string
 		expectedObjects    []client.Object
 		expectedLabels     map[string]string
@@ -331,7 +331,7 @@ func TestExternalDNSConfig(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		ret, err := NewExternalDNSConfig(tc.conf, tc.tenantId, tc.subscription, tc.resourceGroup, tc.msiclientID, tc.serviceAccountName, tc.namespace, tc.inputResourceName, tc.identityType, tc.resourceTypes, tc.provider, tc.dnsZoneResourceIDs)
+		ret, err := NewExternalDNSConfig(tc.conf, InputExternalDNSConfig{TenantId: tc.tenantId, Subscription: tc.subscription, ResourceGroup: tc.resourceGroup, ClientId: tc.msiclientID, InputServiceAccount: tc.serviceAccountName, Namespace: tc.namespace, InputResourceName: tc.inputResourceName, IdentityType: tc.identityType, ResourceTypes: tc.resourceTypes, Provider: tc.provider, DnsZoneresourceIDs: tc.dnsZoneResourceIDs})
 		if tc.expectedError != nil {
 			require.Equal(t, tc.expectedError.Error(), err.Error(), "error does not match for case %s", tc.name)
 		} else {
