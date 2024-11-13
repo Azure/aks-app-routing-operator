@@ -39,18 +39,18 @@ rules:
   - watch
   - list
 - apiGroups:
-  - extensions
-  - networking.k8s.io
+  - ""
   resources:
-  - ingresses
+  - nodes
   verbs:
   - get
   - watch
   - list
 - apiGroups:
-  - ""
+  - extensions
+  - networking.k8s.io
   resources:
-  - nodes
+  - ingresses
   verbs:
   - get
   - watch
@@ -75,7 +75,7 @@ subjects:
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":""}'
+  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":"test-client-id"}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
@@ -107,7 +107,7 @@ spec:
       labels:
         app: external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: 6fc415798cf89a5f
+        checksum/configmap: 7a7768971308cadb
     spec:
       affinity:
         nodeAffinity:
@@ -135,10 +135,10 @@ spec:
       containers:
       - args:
         - --provider=azure
-        - --source=ingress
         - --interval=3m0s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
+        - --source=ingress
         - --domain-filter=test-one.com
         - --domain-filter=test-two.com
         image: /oss/kubernetes/external-dns:v0.14.2

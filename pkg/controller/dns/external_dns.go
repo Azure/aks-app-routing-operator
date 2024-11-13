@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -23,15 +24,16 @@ func addExternalDnsReconciler(manager ctrl.Manager, resources []client.Object) e
 	return common.NewResourceReconciler(manager, controllername.New("external", "dns", "reconciler"), resources, reconcileInterval)
 }
 
-func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
+func addExternalDnsCleaner(manager ctrl.Manager, instances []instance) error {
 	return nil // disable cleaner until we have better test coverage
 
+	objs := cleanObjs(instances)
 	retriever := common.RetrieverEmpty()
 	for _, obj := range objs {
 		retriever = retriever.Add(common.RetrieverFromObjs(obj.resources, obj.labels)) // clean up entire unused external dns applications
 	}
-	for _, provider := range manifests.Providers {
-		labels := util.MergeMaps(provider.Labels(), manifests.GetTopLevelLabels())
+	for _, instance := range instances {
+		labels := util.MergeMaps(instance.config.Labels(), manifests.GetTopLevelLabels())
 		retriever = retriever.Add(common.RetrieverFromGk(labels, manifests.OldExternalDnsGks...)) // clean up unused types from previous versions of app routing
 	}
 
@@ -50,7 +52,10 @@ func addExternalDnsCleaner(manager ctrl.Manager, objs []cleanObj) error {
 
 // NewExternalDns starts all resources required for external dns
 func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
-	instances := instances(conf)
+	instances, err := instances(conf)
+	if err != nil {
+		return fmt.Errorf("failed to create instances: %w", err)
+	}
 
 	deployInstances := filterAction(instances, deploy)
 	deployRes := getResources(deployInstances)
@@ -58,24 +63,31 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 		return err
 	}
 
-	objs := cleanObjs(instances)
-	if err := addExternalDnsCleaner(manager, objs); err != nil {
+	if err := addExternalDnsCleaner(manager, instances); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func instances(conf *config.Config) []instance {
+func instances(conf *config.Config) ([]instance, error) {
 	// public
-	publicCfg := publicConfig(conf)
+	publicCfg, err := publicConfigForIngress(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	publicAction := actionFromConfig(publicCfg)
-	publicResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{publicCfg})
+	publicResources := publicCfg.Resources()
 
 	// private
-	privateCfg := privateConfig(conf)
+	privateCfg, err := privateConfigForIngress(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	privateAction := actionFromConfig(privateCfg)
-	privateResources := manifests.ExternalDnsResources(conf, []*manifests.ExternalDnsConfig{privateCfg})
+	privateResources := privateCfg.Resources()
 
 	return []instance{
 		{
@@ -88,27 +100,50 @@ func instances(conf *config.Config) []instance {
 			resources: privateResources,
 			action:    privateAction,
 		},
-	}
+	}, nil
 }
 
-func publicConfig(conf *config.Config) *manifests.ExternalDnsConfig {
-	return &manifests.ExternalDnsConfig{
-		TenantId:           conf.TenantID,
-		Subscription:       conf.PublicZoneConfig.Subscription,
-		ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
-		Provider:           manifests.PublicProvider,
-		DnsZoneResourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
+func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, error) {
+	publicconfig, err := manifests.NewExternalDNSConfig(
+		conf,
+		manifests.InputExternalDNSConfig{
+			TenantId:           conf.TenantID,
+			Subscription:       conf.PublicZoneConfig.Subscription,
+			ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
+			ClientId:           conf.MSIClientID,
+			Namespace:          conf.NS,
+			IdentityType:       manifests.IdentityTypeMSI,
+			ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
+			Provider:           manifests.PublicProvider,
+			DnsZoneresourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
+		})
+
+	if err != nil {
+		return nil, err
 	}
+	return publicconfig, nil
 }
 
-func privateConfig(conf *config.Config) *manifests.ExternalDnsConfig {
-	return &manifests.ExternalDnsConfig{
-		TenantId:           conf.TenantID,
-		Subscription:       conf.PrivateZoneConfig.Subscription,
-		ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
-		Provider:           manifests.PrivateProvider,
-		DnsZoneResourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
+func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, error) {
+	privateconfig, err := manifests.NewExternalDNSConfig(
+		conf,
+		manifests.InputExternalDNSConfig{
+			TenantId:           conf.TenantID,
+			Subscription:       conf.PrivateZoneConfig.Subscription,
+			ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
+			ClientId:           conf.MSIClientID,
+			Namespace:          conf.NS,
+			IdentityType:       manifests.IdentityTypeMSI,
+			ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
+			Provider:           manifests.PrivateProvider,
+			DnsZoneresourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
+		},
+	)
+
+	if err != nil {
+		return nil, err
 	}
+	return privateconfig, nil
 }
 
 func filterAction(instances []instance, action action) []instance {
@@ -137,7 +172,7 @@ func getLabels(instances ...instance) map[string]string {
 	}
 
 	for _, i := range instances {
-		for k, v := range i.config.Provider.Labels() {
+		for k, v := range i.config.Labels() {
 			l[k] = v
 		}
 	}
@@ -147,21 +182,19 @@ func getLabels(instances ...instance) map[string]string {
 
 func cleanObjs(instances []instance) []cleanObj {
 	var cleanObjs []cleanObj
-	for _, instance := range instances {
-		if instance.action == clean {
-			obj := cleanObj{
-				resources: instance.resources,
-				labels:    getLabels(instance),
-			}
-			cleanObjs = append(cleanObjs, obj)
+	for _, instance := range filterAction(instances, clean) {
+		obj := cleanObj{
+			resources: instance.resources,
+			labels:    getLabels(instance),
 		}
+		cleanObjs = append(cleanObjs, obj)
 	}
 
 	return cleanObjs
 }
 
 func actionFromConfig(conf *manifests.ExternalDnsConfig) action {
-	if len(conf.DnsZoneResourceIDs) == 0 {
+	if len(conf.DnsZoneResourceIds()) == 0 {
 		return clean
 	}
 
