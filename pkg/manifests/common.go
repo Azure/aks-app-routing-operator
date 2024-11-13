@@ -52,14 +52,14 @@ func GetOwnerRefs(owner client.Object, controller bool) []metav1.OwnerReference 
 	}}
 }
 
-func Namespace(conf *config.Config) *corev1.Namespace {
+func Namespace(conf *config.Config, nsName string) *corev1.Namespace {
 	ns := &corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Namespace",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: conf.NS,
+			Name: nsName,
 			// don't set top-level labels,namespace is not managed by operator
 			Labels:      map[string]string{},
 			Annotations: map[string]string{},
