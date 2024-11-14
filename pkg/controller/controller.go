@@ -43,7 +43,8 @@ import (
 var scheme = runtime.NewScheme()
 
 const (
-	nicIngressClassIndex = "spec.ingressClassName"
+	nicIngressClassIndex     = "spec.ingressClassName"
+	gatewayListenerIndexName = "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"
 )
 
 func init() {
@@ -137,6 +138,11 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
 	}
 
+	if err := keyvault.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
+		lgr.Error(err, "adding Gateway Service Account indexer")
+		return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
+	}
+
 	lgr.Info("finished setting up indexers")
 	return nil
 }
@@ -214,7 +220,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 
 	if conf.EnableGateway {
 		lgr.Info("setting up gateway reconcilers")
-		if err := keyvault.NewGatewaySecretClassProviderReconciler(mgr, conf); err != nil {
+		if err := keyvault.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
 			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
 		}
 	}

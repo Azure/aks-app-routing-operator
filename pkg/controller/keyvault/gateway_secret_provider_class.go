@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -34,14 +35,15 @@ type GatewaySecretProviderClassReconciler struct {
 	config *config.Config
 }
 
-func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.Config) error {
+func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.Config, serviceAccountIndexName string) error {
 	metrics.InitControllerMetrics(gatewaySecretProviderControllerName)
 
 	return gatewaySecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
 			For(&gatewayv1.Gateway{}).
-			Owns(&secv1.SecretProviderClass{}), manager.GetLogger(),
+			Owns(&secv1.SecretProviderClass{}).
+			Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(generateGatewayGetter(manager, serviceAccountIndexName))), manager.GetLogger(),
 	).Complete(&GatewaySecretProviderClassReconciler{
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
