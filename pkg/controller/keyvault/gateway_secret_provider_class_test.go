@@ -6,20 +6,27 @@ import (
 	"strings"
 	"testing"
 
+	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
+	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
+	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -278,7 +285,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			name:  "nil options",
 			gwObj: nilOptionsGateway,
 			generateClientState: func() client.Client {
-				return testutils.RegisterSchemes(t, testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme), secv1.AddToScheme, gatewayv1.Install).WithObjects(nilOptionsGateway).Build()
+				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(nilOptionsGateway).Build()
 			},
 			expectedSpcs:  nil,
 			expectedError: nil,
@@ -387,4 +394,85 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			}
 		}
 	}
+}
+
+func Test_GatewaySecretProviderReconciler_ServiceAccountChangeIntegration(t *testing.T) {
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	//c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithTwoServiceAccounts, annotatedServiceAccount, annotatedServiceAccountTwo, serviceAccountSpc).Build()
+	s := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(s))
+	utilruntime.Must(secv1.Install(s))
+	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
+	utilruntime.Must(policyv1alpha1.AddToScheme(s))
+	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
+	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(gatewayv1.Install(s))
+
+	testEnv := &envtest.Environment{
+		Scheme: s,
+	}
+	testRestConfig, err := testEnv.Start()
+	require.NoError(t, err)
+	defer testEnv.Stop()
+
+	m, err := ctrl.NewManager(testRestConfig, ctrl.Options{
+		Scheme: s,
+	})
+	require.NoError(t, err)
+
+	k8sClient, err := client.New(testRestConfig, client.Options{Scheme: s})
+	require.NoError(t, err)
+	require.NotNil(t, k8sClient)
+
+	err = NewGatewaySecretClassProviderReconciler(m, &config.Config{TenantID: "test-tenant-id"}, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
+	require.NoError(t, err)
+
+	go func() {
+		err = m.Start(ctx)
+		require.NoError(t, err)
+	}()
+	defer ctx.Done()
+
+	// deploy initial resources
+	err = k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}})
+	require.NoError(t, err)
+
+	saToCreate := annotatedServiceAccount.DeepCopy()
+	saToCreate.ResourceVersion = ""
+	err = k8sClient.Create(ctx, saToCreate)
+	require.NoError(t, err)
+
+	saToCreateTwo := annotatedServiceAccountTwo.DeepCopy()
+	saToCreateTwo.ResourceVersion = ""
+	err = k8sClient.Create(ctx, saToCreateTwo)
+	require.NoError(t, err)
+
+	gwToCreate := gatewayWithTwoServiceAccounts.DeepCopy()
+	//gwToCreate.ResourceVersion = ""
+	err = k8sClient.Create(ctx, gwToCreate)
+	require.NoError(t, err)
+
+	// ensure initial resources are deployed correctly
+	reconciledSpc := &secv1.SecretProviderClass{}
+	err = k8sClient.Get(ctx, types.NamespacedName{Namespace: serviceAccountSpc.Namespace, Name: serviceAccountSpc.Name}, reconciledSpc)
+	require.Nil(t, err)
+	require.Equal(t, serviceAccountSpc.Spec, reconciledSpc.Spec)
+
+	// now update serviceaccount
+	modifiedSA := annotatedServiceAccount.DeepCopy()
+	modifiedSA.Annotations["azure.workload.identity/client-id"] = "new-client-id"
+	err = k8sClient.Update(ctx, modifiedSA)
+	require.NoError(t, err)
+
+	// ensure update took place correctly
+	reconciledSA := &corev1.ServiceAccount{}
+	err = k8sClient.Get(ctx, types.NamespacedName{Namespace: modifiedSA.Namespace, Name: modifiedSA.Name}, reconciledSA)
+	require.Nil(t, err)
+	require.Equal(t, "new-client-id", reconciledSA.Annotations["azure.workload.identity/client-id"])
+
+	// Ensure clientid was updated on spc
+	reconciledSpc = &secv1.SecretProviderClass{}
+	err = k8sClient.Get(ctx, types.NamespacedName{Namespace: serviceAccountSpc.Namespace, Name: serviceAccountSpc.Name}, reconciledSpc)
+	require.Nil(t, err)
+	require.Equal(t, "new-client-id", reconciledSpc.Spec.Parameters["userAssignedIdentityID"])
 }

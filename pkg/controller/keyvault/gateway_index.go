@@ -47,12 +47,13 @@ func gatewayServiceAccountIndexFn(object client.Object) []string {
 
 func generateGatewayGetter(mgr ctrl.Manager, serviceAccountIndexName string) handler.MapFunc {
 	logger := mgr.GetLogger()
+	fmt.Println("calling generate gateway getter")
 	return func(ctx context.Context, obj client.Object) []ctrl.Request {
+		fmt.Println("generateGatewayGetter")
 		sa, ok := obj.(*corev1.ServiceAccount)
 		if !ok {
 			return nil
 		}
-
 		gateways := &gatewayv1.GatewayList{}
 		err := mgr.GetClient().List(context.TODO(), gateways, client.MatchingFields{serviceAccountIndexName: sa.Name})
 		if err != nil {
