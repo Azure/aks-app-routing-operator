@@ -36,7 +36,6 @@ type GatewaySecretProviderClassReconciler struct {
 }
 
 func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.Config, serviceAccountIndexName string) error {
-	fmt.Println("calling new reconciler func")
 	metrics.InitControllerMetrics(gatewaySecretProviderControllerName)
 
 	return gatewaySecretProviderControllerName.AddToController(
@@ -53,7 +52,6 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 }
 
 func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
-	fmt.Println("Reconcile GatewaySecretProviderClass for ", req.Name)
 	// set up metrics given result/error
 	defer func() {
 		metrics.HandleControllerReconcileMetrics(gatewaySecretProviderControllerName, res, retErr)
