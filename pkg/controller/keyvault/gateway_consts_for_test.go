@@ -99,6 +99,44 @@ var (
 		},
 	}
 
+	fullGw = &gatewayv1.Gateway{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Gateway",
+			APIVersion: "gateway.networking.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gw",
+			Namespace: "test-ns",
+		},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "istio",
+			Listeners: []gatewayv1.Listener{
+				{
+					Name:     "test-listener",
+					Port:     20,
+					Protocol: gatewayv1.ProtocolType("HTTPS"),
+					TLS: &gatewayv1.GatewayTLSConfig{
+						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+							"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+						},
+					},
+				},
+				{
+					Name:     "test-listener-2",
+					Port:     21,
+					Protocol: gatewayv1.ProtocolType("HTTPS"),
+					TLS: &gatewayv1.GatewayTLSConfig{
+						Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+							"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a35",
+							"kubernetes.azure.com/tls-cert-service-account": "test-sa-2",
+						},
+					},
+				},
+			},
+		},
+	}
+
 	gatewayWithOnlyOneActiveListener = &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Gateway",

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	"github.com/stretchr/testify/require"
@@ -17,10 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -28,7 +25,7 @@ import (
 )
 
 func Test_generateGatewayGetter(t *testing.T) {
-	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
+	//c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
 	s := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(s))
 	utilruntime.Must(secv1.Install(s))
@@ -49,13 +46,13 @@ func Test_generateGatewayGetter(t *testing.T) {
 
 	m, err := manager.New(testRestConfig, manager.Options{
 		Scheme: s,
-		NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
-			return c, nil
-		},
+		//NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
+		//	return c, nil
+		//},
 	})
 
 	require.NoError(t, AddGatewayServiceAccountIndex(m.GetFieldIndexer(), "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"))
-
+	require.NoError(t, m.GetClient().Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}}))
 	type testcase struct {
 		name              string
 		serviceAccountObj client.Object
@@ -79,10 +76,10 @@ func Test_generateGatewayGetter(t *testing.T) {
 		{
 			name:              "matching gateways",
 			serviceAccountObj: annotatedServiceAccount,
-			existingGateways:  []client.Object{gatewayWithTwoServiceAccounts},
+			existingGateways:  []client.Object{fullGw},
 			expectedReqs: []ctrl.Request{
 				{
-					NamespacedName: types.NamespacedName{Name: gatewayWithTwoServiceAccounts.Name, Namespace: gatewayWithTwoServiceAccounts.Namespace},
+					NamespacedName: types.NamespacedName{Name: fullGw.Name, Namespace: fullGw.Namespace},
 				},
 			},
 		},
@@ -97,7 +94,6 @@ func Test_generateGatewayGetter(t *testing.T) {
 
 		go func() {
 			err = m.Start(ctx)
-			//require.NoError(t, err)
 		}()
 
 		testFunc := generateGatewayGetter(m, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
