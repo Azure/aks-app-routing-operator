@@ -3,6 +3,7 @@ package keyvault
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -22,11 +23,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
@@ -398,7 +401,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 
 func Test_GatewaySecretProviderReconciler_ServiceAccountChangeIntegration(t *testing.T) {
 	ctx := logr.NewContext(context.Background(), logr.Discard())
-	//c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithTwoServiceAccounts, annotatedServiceAccount, annotatedServiceAccountTwo, serviceAccountSpc).Build()
+	c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gatewayWithTwoServiceAccounts, annotatedServiceAccount, annotatedServiceAccountTwo, serviceAccountSpc).Build()
 	s := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(s))
 	utilruntime.Must(secv1.Install(s))
@@ -408,22 +411,25 @@ func Test_GatewaySecretProviderReconciler_ServiceAccountChangeIntegration(t *tes
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 	utilruntime.Must(gatewayv1.Install(s))
 
-	testEnv := &envtest.Environment{
-		Scheme: s,
+	testenv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "config", "crds"),
+			filepath.Join("..", "..", "..", "vendor", "github.com", "kubernetes-sigs", "gateway-api", "config", "crds", "standard"),
+		},
 	}
-	testRestConfig, err := testEnv.Start()
-	require.NoError(t, err)
-	defer testEnv.Stop()
 
-	m, err := ctrl.NewManager(testRestConfig, ctrl.Options{
+	testRestConfig, err := testenv.Start()
+	require.NoError(t, err)
+
+	m, err := manager.New(testRestConfig, manager.Options{
 		Scheme: s,
+		NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
+			return c, nil
+		},
 	})
-	require.NoError(t, err)
 
-	k8sClient, err := client.New(testRestConfig, client.Options{Scheme: s})
 	require.NoError(t, err)
-	require.NotNil(t, k8sClient)
-
+	k8sClient := m.GetClient()
 	err = NewGatewaySecretClassProviderReconciler(m, &config.Config{TenantID: "test-tenant-id"}, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
 	require.NoError(t, err)
 
@@ -437,19 +443,19 @@ func Test_GatewaySecretProviderReconciler_ServiceAccountChangeIntegration(t *tes
 	err = k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}})
 	require.NoError(t, err)
 
-	saToCreate := annotatedServiceAccount.DeepCopy()
-	saToCreate.ResourceVersion = ""
-	err = k8sClient.Create(ctx, saToCreate)
-	require.NoError(t, err)
-
-	saToCreateTwo := annotatedServiceAccountTwo.DeepCopy()
-	saToCreateTwo.ResourceVersion = ""
-	err = k8sClient.Create(ctx, saToCreateTwo)
-	require.NoError(t, err)
+	//saToCreate := annotatedServiceAccount.DeepCopy()
+	//saToCreate.ResourceVersion = ""
+	//err = k8sClient.Create(ctx, saToCreate)
+	//require.NoError(t, err)
+	//
+	//saToCreateTwo := annotatedServiceAccountTwo.DeepCopy()
+	//saToCreateTwo.ResourceVersion = ""
+	//err = k8sClient.Create(ctx, saToCreateTwo)
+	//require.NoError(t, err)
 
 	gwToCreate := gatewayWithTwoServiceAccounts.DeepCopy()
 	//gwToCreate.ResourceVersion = ""
-	err = k8sClient.Create(ctx, gwToCreate)
+	err = k8sClient.Update(ctx, gwToCreate)
 	require.NoError(t, err)
 
 	// ensure initial resources are deployed correctly

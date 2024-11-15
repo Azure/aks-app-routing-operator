@@ -55,7 +55,7 @@ func generateGatewayGetter(mgr ctrl.Manager, serviceAccountIndexName string) han
 			return nil
 		}
 		gateways := &gatewayv1.GatewayList{}
-		err := mgr.GetClient().List(context.TODO(), gateways, client.MatchingFields{serviceAccountIndexName: sa.Name})
+		err := mgr.GetClient().List(context.TODO(), gateways, client.MatchingFields{serviceAccountIndexName: sa.Name}, client.InNamespace(sa.Namespace))
 		if err != nil {
 			logger.Error(err, "failed to list gateways for service account", "name", sa.Name, "namespace", sa.Namespace)
 			return nil
