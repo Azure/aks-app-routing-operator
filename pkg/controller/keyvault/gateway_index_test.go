@@ -96,13 +96,13 @@ func Test_generateGatewayGetter(t *testing.T) {
 			err = m.Start(ctx)
 			require.NoError(t, err)
 		}()
-		time.Sleep(1 * time.Second) // wait for manager to start
 
 		for _, gw := range tc.existingGateways {
 			err = m.GetClient().Create(ctx, gw)
 			require.NoError(t, err)
 		}
 
+		time.Sleep(1 * time.Second) // wait for manager to start
 		testFunc := generateGatewayGetter(m, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
 		actualReqs := testFunc(ctx, tc.serviceAccountObj)
 		require.ElementsMatch(t, tc.expectedReqs, actualReqs)
