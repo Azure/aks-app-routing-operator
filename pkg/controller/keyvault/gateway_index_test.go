@@ -25,8 +25,98 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
+func Test_gatewayServiceAccountIndexFn(t *testing.T) {
+	tcs := []struct {
+		name                    string
+		gateway                 *gatewayv1.Gateway
+		expectedServiceAccounts []string
+	}{
+		{
+			name:    "no listeners",
+			gateway: noListenersGateway,
+		},
+		{
+			name: "no tls",
+			gateway: &gatewayv1.Gateway{
+				Spec: gatewayv1.GatewaySpec{
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "test-listener",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "no tls options",
+			gateway: &gatewayv1.Gateway{
+				Spec: gatewayv1.GatewaySpec{
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "test-listener",
+							TLS:  &gatewayv1.GatewayTLSConfig{},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "no service accounts",
+			gateway: &gatewayv1.Gateway{
+				Spec: gatewayv1.GatewaySpec{
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "test-listener",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"test-key": "test-value",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                    "multiple service accounts",
+			gateway:                 gatewayWithTwoServiceAccounts,
+			expectedServiceAccounts: []string{"test-sa", "test-sa-2"},
+		},
+		{
+			name: "duplicate service accounts",
+			gateway: &gatewayv1.Gateway{
+				Spec: gatewayv1.GatewaySpec{
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "test-listener",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+								},
+							},
+						},
+						{
+							Name: "test-listener-2",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedServiceAccounts: []string{"test-sa"},
+		},
+	}
+
+	for _, tc := range tcs {
+		actual := gatewayServiceAccountIndexFn(tc.gateway)
+		require.ElementsMatch(t, tc.expectedServiceAccounts, actual)
+	}
+}
+
 func Test_generateGatewayGetter(t *testing.T) {
-	//c := testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).Build()
 	s := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(s))
 	utilruntime.Must(secv1.Install(s))
@@ -43,17 +133,11 @@ func Test_generateGatewayGetter(t *testing.T) {
 	}
 
 	testRestConfig, err := testenv.Start()
-	//defer func() {
-	//	err = testenv.Stop()
-	//	require.NoError(t, err)
-	//}()
+
 	require.NoError(t, err)
 
 	m, err := manager.New(testRestConfig, manager.Options{
 		Scheme: s,
-		//NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
-		//	return c, nil
-		//},
 	})
 	require.NoError(t, err)
 
@@ -66,19 +150,19 @@ func Test_generateGatewayGetter(t *testing.T) {
 		expectedReqs      []ctrl.Request
 	}
 	tests := []testcase{
-		//{
-		//	name:              "non serviceaccount object",
-		//	serviceAccountObj: &corev1.Pod{},
-		//},
-		//{
-		//	name: "no matching gateways",
-		//	serviceAccountObj: &corev1.ServiceAccount{
-		//		ObjectMeta: metav1.ObjectMeta{
-		//			Name:      "test-sa",
-		//			Namespace: "test-ns",
-		//		},
-		//	},
-		//},
+		{
+			name:              "non serviceaccount object",
+			serviceAccountObj: &corev1.Pod{},
+		},
+		{
+			name: "no matching gateways",
+			serviceAccountObj: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-sa",
+					Namespace: "test-ns",
+				},
+			},
+		},
 		{
 			name:              "matching gateways",
 			serviceAccountObj: annotatedServiceAccount,
@@ -90,19 +174,20 @@ func Test_generateGatewayGetter(t *testing.T) {
 			},
 		},
 	}
-	for _, tc := range tests {
-		ctx := context.Background()
-		go func() {
-			err = m.Start(ctx)
-			require.NoError(t, err)
-		}()
+	ctx := context.Background()
+	go func() {
+		err = m.Start(ctx)
+		require.NoError(t, err)
+	}()
 
+	for _, tc := range tests {
 		for _, gw := range tc.existingGateways {
 			err = m.GetClient().Create(ctx, gw)
 			require.NoError(t, err)
 		}
 
-		time.Sleep(1 * time.Second) // wait for manager to start
+		time.Sleep(1 * time.Second) // wait for manager to start + cache update
+
 		testFunc := generateGatewayGetter(m, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
 		actualReqs := testFunc(ctx, tc.serviceAccountObj)
 		require.ElementsMatch(t, tc.expectedReqs, actualReqs)

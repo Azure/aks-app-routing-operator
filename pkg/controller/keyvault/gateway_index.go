@@ -25,6 +25,10 @@ func gatewayServiceAccountIndexFn(object client.Object) []string {
 		return nil
 	}
 
+	if gateway == nil {
+		return nil
+	}
+
 	saSet := map[string]struct{}{}
 
 	for _, listener := range gateway.Spec.Listeners {
@@ -58,8 +62,6 @@ func generateGatewayGetter(mgr ctrl.Manager, serviceAccountIndexName string) han
 			logger.Error(err, "failed to list gateways for service account", "name", sa.Name, "namespace", sa.Namespace)
 			return nil
 		}
-
-		fmt.Println("gateways, ", gateways.Items)
 
 		ret := make([]ctrl.Request, 0)
 		for _, gateway := range gateways.Items {
