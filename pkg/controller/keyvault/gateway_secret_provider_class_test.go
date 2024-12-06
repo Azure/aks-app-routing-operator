@@ -173,7 +173,7 @@ func Test_retrieveClientIdFromListener(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		clientId, err := retrieveClientIdFromListener(context.Background(), tc.generateClientState(), tc.namespace, tc.options)
+		clientId, err := retrieveClientIdForListener(context.Background(), tc.generateClientState(), tc.namespace, tc.options)
 		if tc.expectedError != nil {
 			require.Equal(t, tc.expectedError.Error(), err.Error())
 		} else {

@@ -103,7 +103,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 
 		if listenerIsKvEnabled(listener) {
 			var clientId string
-			clientId, err = retrieveClientIdFromListener(ctx, g.client, req.Namespace, listener.TLS.Options)
+			clientId, err = retrieveClientIdForListener(ctx, g.client, req.Namespace, listener.TLS.Options)
 			if err != nil {
 				var userErr userError
 				if errors.As(err, &userErr) {
@@ -129,7 +129,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			if err != nil {
 				var userErr userError
 				if errors.As(err, &userErr) {
-					logger.Info("failed to build SecretProviderClass from user error: %q sending warning event", userErr.userMessage)
+					logger.Info("failed to build SecretProviderClass from user error: %s, sending warning event", userErr.userMessage)
 					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
 					return ctrl.Result{}, nil
 				}
@@ -204,7 +204,7 @@ func listenerIsKvEnabled(listener gatewayv1.Listener) bool {
 	return listener.TLS != nil && listener.TLS.Options != nil && listener.TLS.Options[tlsCertKvUriAnnotation] != ""
 }
 
-func retrieveClientIdFromListener(ctx context.Context, k8sclient client.Client, namespace string, options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
+func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, namespace string, options map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) (string, error) {
 	certUri := string(options[certUriTLSOption])
 	saName := string(options[serviceAccountTLSOption])
 

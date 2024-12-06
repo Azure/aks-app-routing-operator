@@ -116,7 +116,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("loading CRDs: %w", err)
 	}
 
-	if err := setupIndexers(m, setupLog); err != nil {
+	if err := setupIndexers(m, setupLog, conf); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
 		return nil, fmt.Errorf("setting up indexers: %w", err)
 	}
@@ -129,7 +129,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	return m, nil
 }
 
-func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
+func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error {
 	lgr.Info("setting up indexers")
 
 	lgr.Info("adding Nginx Ingress Controller IngressClass indexer")
@@ -138,9 +138,11 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
 		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
 	}
 
-	if err := keyvault.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
-		lgr.Error(err, "adding Gateway Service Account indexer")
-		return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
+	if conf.EnableGateway {
+		if err := keyvault.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
+			lgr.Error(err, "adding Gateway Service Account indexer")
+			return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
+		}
 	}
 
 	lgr.Info("finished setting up indexers")
