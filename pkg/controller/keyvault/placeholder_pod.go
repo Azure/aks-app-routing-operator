@@ -336,12 +336,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 	return nil
 }
 
-// verifyServiceAccount ensures that the ServiceAccount used to create the placeholder pod exists since there is a race condition between
-// the placeholder pod reconciler and the ServiceAccount reconciler, whereby both are dependent on the creation of Gateway resources, but there is no guarantee
-// that the ServiceAccount reconciler completes before the SPC reconciler and the placeholder pod reconciler. As a result, if the ServiceAccount reconciler
-// has not finished creating the azure-app-routing-kv ServiceAccount, the operation should be re-queued.
-// This also ensures that the user has created the ServiceAccount referenced within their own annotations before we attempt (and potentially fail) to create
-// the placeholder pod.
+// verifyServiceAccount ensures that the ServiceAccount used to create the placeholder pod exists
 func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc *secv1.SecretProviderClass, obj client.Object, logger logr.Logger) (string, error) {
 	var serviceAccount string
 

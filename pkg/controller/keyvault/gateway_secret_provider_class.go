@@ -221,14 +221,11 @@ func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, n
 		return "", newUserError(errors.New("none of the required TLS options were specified"), "cert URI and ServiceAccount were not specified")
 	}
 
-	var err error
-	var wiSa = &corev1.ServiceAccount{}
-
 	// pull service account
-	wiSa, err = GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
+	wiSaClientId, err := GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
 	if err != nil {
 		return "", err
 	}
-	return wiSa.Annotations[wiSaClientIdAnnotation], nil
+	return wiSaClientId, nil
 
 }

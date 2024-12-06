@@ -47,17 +47,17 @@ func shouldDeploySpc(obj client.Object) bool {
 }
 
 func buildSPC(spc *secv1.SecretProviderClass, spcConfig SPCConfig) error {
-	certUri := spcConfig.KeyvaultCertUri
+	certURI := spcConfig.KeyvaultCertUri
 
-	uri, err := url.Parse(certUri)
+	uri, err := url.Parse(certURI)
 	if err != nil {
-		return newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certUri))
+		return newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 
 	if len(chunks) < 3 {
-		return newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certUri))
+		return newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -150,23 +150,23 @@ func shouldReconcileGateway(gwObj *gatewayv1.Gateway) bool {
 	return gwObj.Spec.GatewayClassName == istioGatewayClassName
 }
 
-func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient client.Client, saName, saNamespace string) (*corev1.ServiceAccount, error) {
+func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient client.Client, saName, saNamespace string) (string, error) {
 	// ensure referenced serviceaccount exists
 	saObj := &corev1.ServiceAccount{}
 	err := k8sclient.Get(ctx, types.NamespacedName{Name: saName, Namespace: saNamespace}, saObj)
 
 	if client.IgnoreNotFound(err) != nil {
-		return nil, err
+		return "", err
 	}
 
 	// SA wasn't found, return appropriate error
 	if err != nil {
-		return nil, newUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
+		return "", newUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
 	}
 	// check for required annotations
 	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
-		return nil, newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
+		return "", newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
 	}
 
-	return saObj, nil
+	return saObj.Annotations[wiSaClientIdAnnotation], nil
 }
