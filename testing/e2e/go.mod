@@ -1,6 +1,6 @@
 module github.com/Azure/aks-app-routing-operator/testing/e2e
 
-go 1.22.7
+go 1.23
 
 require (
 	github.com/Azure/aks-app-routing-operator v0.0.3
