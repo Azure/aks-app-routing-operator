@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
@@ -42,6 +43,10 @@ func Test_generateGatewayGetter(t *testing.T) {
 	}
 
 	testRestConfig, err := testenv.Start()
+	//defer func() {
+	//	err = testenv.Stop()
+	//	require.NoError(t, err)
+	//}()
 	require.NoError(t, err)
 
 	m, err := manager.New(testRestConfig, manager.Options{
@@ -50,6 +55,7 @@ func Test_generateGatewayGetter(t *testing.T) {
 		//	return c, nil
 		//},
 	})
+	require.NoError(t, err)
 
 	require.NoError(t, AddGatewayServiceAccountIndex(m.GetFieldIndexer(), "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"))
 	require.NoError(t, m.GetClient().Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}}))
@@ -60,19 +66,19 @@ func Test_generateGatewayGetter(t *testing.T) {
 		expectedReqs      []ctrl.Request
 	}
 	tests := []testcase{
-		{
-			name:              "non serviceaccount object",
-			serviceAccountObj: &corev1.Pod{},
-		},
-		{
-			name: "no matching gateways",
-			serviceAccountObj: &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
-				},
-			},
-		},
+		//{
+		//	name:              "non serviceaccount object",
+		//	serviceAccountObj: &corev1.Pod{},
+		//},
+		//{
+		//	name: "no matching gateways",
+		//	serviceAccountObj: &corev1.ServiceAccount{
+		//		ObjectMeta: metav1.ObjectMeta{
+		//			Name:      "test-sa",
+		//			Namespace: "test-ns",
+		//		},
+		//	},
+		//},
 		{
 			name:              "matching gateways",
 			serviceAccountObj: annotatedServiceAccount,
@@ -84,27 +90,28 @@ func Test_generateGatewayGetter(t *testing.T) {
 			},
 		},
 	}
-	for _, tc := range tests[2:] {
+	for _, tc := range tests {
 		ctx := context.Background()
+		go func() {
+			err = m.Start(ctx)
+			require.NoError(t, err)
+		}()
+		time.Sleep(1 * time.Second) // wait for manager to start
 
 		for _, gw := range tc.existingGateways {
 			err = m.GetClient().Create(ctx, gw)
 			require.NoError(t, err)
 		}
 
-		go func() {
-			err = m.Start(ctx)
-		}()
-
 		testFunc := generateGatewayGetter(m, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
 		actualReqs := testFunc(ctx, tc.serviceAccountObj)
 		require.ElementsMatch(t, tc.expectedReqs, actualReqs)
-		ctx.Done()
 
 		// clean up
 		for _, gw := range tc.existingGateways {
 			err = m.GetClient().Delete(ctx, gw)
 			require.NoError(t, err)
 		}
+
 	}
 }
