@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -174,7 +175,7 @@ func (i *IngressBackendReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	logger.Info("reconciling OSM ingress backend for ingress")
 	err = util.Upsert(ctx, i.client, backend)
 	if err != nil {
-		i.events.Eventf(ing, "Warning", "FailedUpdateOrCreateIngressBackend", "error while creating or updating IngressBackend needed for OSM integration: %s", err)
+		i.events.Eventf(ing, corev1.EventTypeWarning, "FailedUpdateOrCreateIngressBackend", "error while creating or updating IngressBackend needed for OSM integration: %s", err)
 	}
 
 	return result, err
