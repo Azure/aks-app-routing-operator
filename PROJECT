@@ -10,11 +10,26 @@ repo: github.com/Azure/aks-app-routing-operator
 resources:
 - api:
     crdVersion: v1
-    namespaced: false
   controller: true
   domain: kubernetes.azure.com
   group: approuting
   kind: NginxIngressController
+  path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: kubernetes.azure.com
+  group: approuting
+  kind: ExternalDNSConfiguration
+  path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: kubernetes.azure.com
+  group: approuting
+  kind: ClusterExternalDNSConfiguration
   path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
   version: v1alpha1
 version: "3"
