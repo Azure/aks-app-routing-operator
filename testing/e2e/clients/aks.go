@@ -92,6 +92,16 @@ var OsmClusterOpt = McOpt{
 	},
 }
 
+func VmCountOpt(count int32) McOpt {
+	return McOpt{
+		Name: fmt.Sprintf("%d virtual machines", count),
+		fn: func(mc *armcontainerservice.ManagedCluster) error {
+			mc.Properties.AgentPoolProfiles[0].Count = to.Ptr(count)
+			return nil
+		},
+	}
+}
+
 func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string, options map[string]struct{}) *aks {
 	return &aks{
 		name:           id.ResourceName,
@@ -444,7 +454,7 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 		logs = *result.Properties.Logs
 	}
 	if opt.outputFile != "" {
-		outputFile, err := os.OpenFile(opt.outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		outputFile, err := os.OpenFile(opt.outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {
 			return fmt.Errorf("creating output file %s: %w", opt.outputFile, err)
 		}

@@ -67,16 +67,14 @@ func (r ResourceType) string() string {
 // it here to clean it up
 var OldExternalDnsGks []schema.GroupKind
 
-type provider int
-
-var providers = []provider{PublicProvider, PrivateProvider}
+type Provider int
 
 const (
-	PublicProvider provider = iota
+	PublicProvider Provider = iota
 	PrivateProvider
 )
 
-func (p provider) string() string {
+func (p Provider) string() string {
 	switch p {
 	case PublicProvider:
 		return "azure"
@@ -87,15 +85,23 @@ func (p provider) string() string {
 	}
 }
 
+type InputExternalDNSConfig struct {
+	TenantId, Subscription, ResourceGroup, ClientId, InputServiceAccount, Namespace, InputResourceName string
+	IdentityType                                                                                       IdentityType
+	ResourceTypes                                                                                      []ResourceType
+	Provider                                                                                           Provider
+	DnsZoneresourceIDs                                                                                 []string
+}
+
 // ExternalDnsConfig contains externaldns resources based on input configuration
 type ExternalDnsConfig struct {
-	//internally exposed
+	// internally exposed
 	tenantId, subscription, resourceGroup,
 	clientId, serviceAccountName, namespace,
 	resourceName string
 	identityType  IdentityType
 	resourceTypes []ResourceType
-	provider      provider
+	provider      Provider
 
 	// externally exposed
 	resources          []client.Object
@@ -115,14 +121,14 @@ func (e *ExternalDnsConfig) DnsZoneResourceIds() []string {
 	return e.dnsZoneResourceIDs
 }
 
-func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceGroup, clientId, inputServiceAccount, namespace, inputResourceName string, identityType IdentityType, resourceTypes []ResourceType, provider provider, dnszoneresourceids []string) (*ExternalDnsConfig, error) {
+func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfig) (*ExternalDnsConfig, error) {
 	// valid values for enums
-	if identityType != IdentityTypeMSI && identityType != IdentityTypeWorkloadIdentity {
-		return nil, fmt.Errorf("invalid identity type: %v", identityType)
+	if inputConfig.IdentityType != IdentityTypeMSI && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
+		return nil, fmt.Errorf("invalid identity type: %v", inputConfig.IdentityType)
 	}
 
 	containsGateway := false
-	for _, rt := range resourceTypes {
+	for _, rt := range inputConfig.ResourceTypes {
 		if rt != ResourceTypeIngress && rt != ResourceTypeGateway {
 			return nil, fmt.Errorf("invalid resource type: %v", rt)
 		}
@@ -131,58 +137,53 @@ func NewExternalDNSConfig(conf *config.Config, tenantId, subscription, resourceG
 		}
 	}
 
-	if containsGateway && inputResourceName == "" {
-		return nil, errors.New("gateway resource type requires a crd name")
-	}
-
-	if containsGateway && identityType != IdentityTypeWorkloadIdentity {
+	if containsGateway && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
 		return nil, errors.New("gateway resource type can only be used with workload identity")
 	}
 
 	var resourceName string
-	switch inputResourceName {
+	switch inputConfig.InputResourceName {
 	case "":
-		switch provider {
+		switch inputConfig.Provider {
 		case PublicProvider:
 			resourceName = externalDnsResourceName
 		case PrivateProvider:
 			resourceName = externalDnsResourceName + "-private"
 		}
 	default:
-		resourceName = inputResourceName + "-" + externalDnsResourceName
+		resourceName = inputConfig.InputResourceName + "-" + externalDnsResourceName
 	}
 
-	if identityType == IdentityTypeWorkloadIdentity && inputServiceAccount == "" {
+	if inputConfig.IdentityType == IdentityTypeWorkloadIdentity && inputConfig.InputServiceAccount == "" {
 		return nil, errors.New("workload identity requires a service account name")
 	}
 
 	var serviceAccount string
-	switch identityType {
+	switch inputConfig.IdentityType {
 	case IdentityTypeWorkloadIdentity:
-		serviceAccount = inputServiceAccount
+		serviceAccount = inputConfig.InputServiceAccount
 	default:
 		serviceAccount = resourceName
 	}
 
 	ret := &ExternalDnsConfig{
 		resourceName:       resourceName,
-		tenantId:           tenantId,
-		subscription:       subscription,
-		resourceGroup:      resourceGroup,
-		clientId:           clientId,
+		tenantId:           inputConfig.TenantId,
+		subscription:       inputConfig.Subscription,
+		resourceGroup:      inputConfig.ResourceGroup,
+		clientId:           inputConfig.ClientId,
 		serviceAccountName: serviceAccount,
-		namespace:          namespace,
-		identityType:       identityType,
-		resourceTypes:      resourceTypes,
-		provider:           provider,
-		dnsZoneResourceIDs: dnszoneresourceids,
+		namespace:          inputConfig.Namespace,
+		identityType:       inputConfig.IdentityType,
+		resourceTypes:      inputConfig.ResourceTypes,
+		provider:           inputConfig.Provider,
+		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
 	}
 
 	ret.resources = externalDnsResources(conf, []*ExternalDnsConfig{ret})
 	ret.labels = externalDNSLabels(ret)
 
 	return ret, nil
-
 }
 
 func externalDNSLabels(e *ExternalDnsConfig) map[string]string {
@@ -295,7 +296,6 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-
 	jsMap := map[string]interface{}{
 		"tenantId":       externalDnsConfig.tenantId,
 		"subscriptionId": externalDnsConfig.subscription,
@@ -369,7 +369,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
+						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.provider.string(),
 							"--interval=" + conf.DnsSyncInterval.String(),
