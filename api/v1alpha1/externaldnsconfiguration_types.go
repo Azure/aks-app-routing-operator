@@ -1,7 +1,14 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	ConditionTypeExternalDNSDeploymentReady     = "ExternalDNSDeploymentReady"
+	ConditionTypeExternalDNSDeploymentAvailable = "ExternalDNSDeploymentAvailable"
+	ConditionTypeExternalDns
 )
 
 func init() {
@@ -20,7 +27,23 @@ type ExternalDNSConfiguration struct {
 	Status ExternalDNSConfigurationStatus `json:"status,omitempty"`
 }
 
-// ExternalDNSConfigurationSpec defines the desired state of ExternalDNSConfiguration.
+func (e *ExternalDNSConfiguration) GetCondition(conditionType string) *metav1.Condition {
+	return meta.FindStatusCondition(e.Status.Conditions, conditionType)
+}
+
+func (e *ExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
+	curr := e.GetCondition(condition.Type)
+	if curr != nil && curr.Status == condition.Status && curr.Reason == condition.Reason && curr.Message == condition.Message {
+		curr.ObservedGeneration = e.Generation
+		return
+	}
+
+	condition.ObservedGeneration = e.Generation
+	condition.LastTransitionTime = metav1.Now()
+	meta.SetStatusCondition(&e.Status.Conditions, condition)
+}
+
+// ExternalDNSConfigurationSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
 type ExternalDNSConfigurationSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Format:=uuid

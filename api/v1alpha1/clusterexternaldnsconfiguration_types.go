@@ -1,37 +1,91 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ClusterExternalDNSConfigurationSpec defines the desired state of ClusterExternalDNSConfiguration.
-type ClusterExternalDNSConfigurationSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of ClusterExternalDNSConfiguration. Edit clusterexternaldnsconfiguration_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// ClusterExternalDNSConfigurationStatus defines the observed state of ClusterExternalDNSConfiguration.
-type ClusterExternalDNSConfigurationStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
-
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// ClusterExternalDNSConfiguration is the Schema for the clusterexternaldnsconfigurations API.
+// ClusterExternalDNSConfiguration allows users to specify desired the state of a cluster-scoped ExternalDNS configuration.
 type ClusterExternalDNSConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   ClusterExternalDNSConfigurationSpec   `json:"spec,omitempty"`
 	Status ClusterExternalDNSConfigurationStatus `json:"status,omitempty"`
+}
+
+func (c *ClusterExternalDNSConfiguration) GetCondition(conditionType string) *metav1.Condition {
+	return meta.FindStatusCondition(c.Status.Conditions, conditionType)
+}
+
+func (c *ClusterExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
+	curr := c.GetCondition(condition.Type)
+	if curr != nil && curr.Status == condition.Status && curr.Reason == condition.Reason && curr.Message == condition.Message {
+		curr.ObservedGeneration = c.Generation
+		return
+	}
+
+	condition.ObservedGeneration = c.Generation
+	condition.LastTransitionTime = metav1.Now()
+	meta.SetStatusCondition(&c.Status.Conditions, condition)
+}
+
+// ClusterExternalDNSConfigurationSpec defines the desired state of ClusterExternalDNSConfiguration.
+type ClusterExternalDNSConfigurationSpec struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Format:=uuid
+	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+	TenantID string `json:"tenantID"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems:=1
+	// +kubebuilder:validation:MaxItems:=20
+	// +kubebuilder:validation:items:Pattern:=`(?i)\/subscriptions\/(.{36})\/resourcegroups\/(.+?)\/providers\/Microsoft.network\/(dnszones|privatednszones)\/(.+)`
+	// +listType:=set
+	DNSZoneResourceIDs []string `json:"dnsZoneResourceIDs"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems:=1
+	// +kubebuilder:validation:items:enum:=ingress;gateway
+	// +listType:=set
+	ResourceTypes []string `json:"resourceTypes"`
+
+	// +kubebuilder:validation:Required
+	Identity ExternalDNSConfigurationIdentity `json:"identity"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	ResourceNamespace string `json:"resourceNamespace"`
+
+	// +optional
+	Filters ClusterExternalDNSConfigurationFilters `json:"filters,omitempty"`
+}
+
+type ClusterExternalDNSConfigurationFilters struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	GatewayNamespace string `json:"gatewayNamespace,omitempty"`
+
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	RouteNamespace string `json:"routeNamespace,omitempty"`
+
+	ExternalDNSConfigurationFilters `json:",inline"`
+}
+
+// ClusterExternalDNSConfigurationStatus defines the observed state of ClusterExternalDNSConfiguration.
+type ClusterExternalDNSConfigurationStatus struct { // keeping these two separate for now in case cluster-wide needs to be different
+	ExternalDNSConfigurationStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true

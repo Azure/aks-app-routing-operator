@@ -227,6 +227,12 @@ type ManagedObjectReference struct {
 	APIGroup string `json:"apiGroup"`
 }
 
+type Conditioner interface {
+	GetCondition(t string) *metav1.Condition
+	getConditions() *[]metav1.Condition
+	getGeneration() int64
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster,shortName=nic
@@ -247,21 +253,33 @@ type NginxIngressController struct {
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
 }
 
+func (n *NginxIngressController) getGeneration() int64 {
+	return n.Generation
+}
+
+func (n *NginxIngressController) getConditions() *[]metav1.Condition {
+	return &n.Status.Conditions
+}
+
 func (n *NginxIngressController) GetCondition(t string) *metav1.Condition {
 	return meta.FindStatusCondition(n.Status.Conditions, t)
 }
 
 func (n *NginxIngressController) SetCondition(c metav1.Condition) {
-	current := n.GetCondition(c.Type)
+	VerifyAndSetCondition(n, c)
+}
 
-	if current != nil && current.Status == c.Status && current.Message == c.Message && current.Reason == c.Reason {
-		current.ObservedGeneration = n.Generation
+func VerifyAndSetCondition(c Conditioner, condition metav1.Condition) {
+	current := c.GetCondition(condition.Type)
+
+	if current != nil && current.Status == condition.Status && current.Message == condition.Message && current.Reason == condition.Reason {
+		current.ObservedGeneration = c.getGeneration()
 		return
 	}
 
-	c.ObservedGeneration = n.Generation
-	c.LastTransitionTime = metav1.Now()
-	meta.SetStatusCondition(&n.Status.Conditions, c)
+	condition.ObservedGeneration = c.getGeneration()
+	condition.LastTransitionTime = metav1.Now()
+	meta.SetStatusCondition(c.getConditions(), condition)
 }
 
 // Collides returns whether the fields in this NginxIngressController would collide with an existing resources making it
