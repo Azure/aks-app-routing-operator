@@ -7,7 +7,9 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	promDTO "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
@@ -48,4 +50,13 @@ func StartTestingEnv() (*rest.Config, *envtest.Environment, error) {
 
 func CleanupTestingEnv(env *envtest.Environment) error {
 	return env.Stop()
+}
+
+func RegisterSchemes(t *testing.T, builder *fake.ClientBuilder, regFuncs ...func(s *runtime.Scheme) error) *fake.ClientBuilder {
+	scheme := runtime.NewScheme()
+	for _, regFunc := range regFuncs {
+		require.NoError(t, regFunc(scheme))
+	}
+
+	return builder.WithScheme(scheme)
 }

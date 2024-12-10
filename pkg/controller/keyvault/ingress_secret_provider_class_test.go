@@ -42,7 +42,7 @@ var (
 			IngressClassName: &spcTestIngressClassName,
 		},
 	}
-	spcTestDefaultConf = buildTestSpcConfig("test-msi", "test-tenant", "test-cloud")
+	spcTestDefaultConf = buildTestSpcConfig("test-msi", "test-tenant", "test-cloud", "test-ing", "test-uri")
 )
 
 func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
@@ -334,18 +334,9 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	afterErrCount := testutils.GetErrMetricCount(t, ingressSecretProviderControllerName)
 	afterRequestCount := testutils.GetReconcileMetricCount(t, ingressSecretProviderControllerName, metrics.LabelError)
 
-	assert.Greater(t, afterErrCount, beforeErrCount)
-	assert.Greater(t, afterRequestCount, beforeRequestCount)
-}
-
-func buildTestSpcConfig(msiClient, tenantID, cloud string) *config.Config {
-	spcTestConf := config.Config{
-		MSIClientID: msiClient,
-		TenantID:    tenantID,
-		Cloud:       cloud,
-	}
-
-	return &spcTestConf
+	// user error is not our error, so we shouldn't increment err count
+	assert.Equal(t, afterErrCount, beforeErrCount)
+	assert.Equal(t, afterRequestCount, beforeRequestCount)
 }
 
 func TestIsNginxAnnotation(t *testing.T) {
