@@ -95,7 +95,7 @@ type InputExternalDNSConfig struct {
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
 type ExternalDnsConfig struct {
-	//internally exposed
+	// internally exposed
 	tenantId, subscription, resourceGroup,
 	clientId, serviceAccountName, namespace,
 	resourceName string
@@ -184,7 +184,6 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 	ret.labels = externalDNSLabels(ret)
 
 	return ret, nil
-
 }
 
 func externalDNSLabels(e *ExternalDnsConfig) map[string]string {
@@ -297,7 +296,6 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-
 	jsMap := map[string]interface{}{
 		"tenantId":       externalDnsConfig.tenantId,
 		"subscriptionId": externalDnsConfig.subscription,
@@ -371,7 +369,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
+						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
 						Args: append([]string{
 							"--provider=" + externalDnsConfig.provider.string(),
 							"--interval=" + conf.DnsSyncInterval.String(),

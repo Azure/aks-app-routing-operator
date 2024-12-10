@@ -141,7 +141,7 @@ spec:
         - --source=ingress
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
-        image: /oss/kubernetes/external-dns:v0.14.2
+        image: /oss/v2/kubernetes/external-dns:v0.15.0
         livenessProbe:
           failureThreshold: 3
           httpGet:
