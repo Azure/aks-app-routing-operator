@@ -17,6 +17,7 @@ func init() {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+//+kubebuilder:resource:shortName=edc
 
 // ExternalDNSConfiguration is the Schema for the externaldnsconfigurations API.
 type ExternalDNSConfiguration struct {
@@ -31,16 +32,16 @@ func (e *ExternalDNSConfiguration) GetCondition(conditionType string) *metav1.Co
 	return meta.FindStatusCondition(e.Status.Conditions, conditionType)
 }
 
-func (e *ExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
-	curr := e.GetCondition(condition.Type)
-	if curr != nil && curr.Status == condition.Status && curr.Reason == condition.Reason && curr.Message == condition.Message {
-		curr.ObservedGeneration = e.Generation
-		return
-	}
+func (e *ExternalDNSConfiguration) getConditions() *[]metav1.Condition {
+	return &e.Status.Conditions
+}
 
-	condition.ObservedGeneration = e.Generation
-	condition.LastTransitionTime = metav1.Now()
-	meta.SetStatusCondition(&e.Status.Conditions, condition)
+func (e *ExternalDNSConfiguration) getGeneration() int64 {
+	return e.Generation
+}
+
+func (e *ExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
+	VerifyAndSetCondition(e, condition)
 }
 
 // ExternalDNSConfigurationSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.

@@ -10,6 +10,7 @@ import (
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Cluster,shortName=cedc
 
 // ClusterExternalDNSConfiguration allows users to specify desired the state of a cluster-scoped ExternalDNS configuration.
 type ClusterExternalDNSConfiguration struct {
@@ -24,16 +25,16 @@ func (c *ClusterExternalDNSConfiguration) GetCondition(conditionType string) *me
 	return meta.FindStatusCondition(c.Status.Conditions, conditionType)
 }
 
-func (c *ClusterExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
-	curr := c.GetCondition(condition.Type)
-	if curr != nil && curr.Status == condition.Status && curr.Reason == condition.Reason && curr.Message == condition.Message {
-		curr.ObservedGeneration = c.Generation
-		return
-	}
+func (c *ClusterExternalDNSConfiguration) getConditions() *[]metav1.Condition {
+	return &c.Status.Conditions
+}
 
-	condition.ObservedGeneration = c.Generation
-	condition.LastTransitionTime = metav1.Now()
-	meta.SetStatusCondition(&c.Status.Conditions, condition)
+func (c *ClusterExternalDNSConfiguration) getGeneration() int64 {
+	return c.Generation
+}
+
+func (c *ClusterExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
+	VerifyAndSetCondition(c, condition)
 }
 
 // ClusterExternalDNSConfigurationSpec defines the desired state of ClusterExternalDNSConfiguration.
@@ -89,6 +90,7 @@ type ClusterExternalDNSConfigurationStatus struct { // keeping these two separat
 }
 
 // +kubebuilder:object:root=true
+//+kubebuilder:resource:scope=Cluster
 
 // ClusterExternalDNSConfigurationList contains a list of ClusterExternalDNSConfiguration.
 type ClusterExternalDNSConfigurationList struct {
