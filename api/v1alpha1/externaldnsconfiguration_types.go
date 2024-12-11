@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/Azure/aks-app-routing-operator/api"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,7 +20,7 @@ func init() {
 // +kubebuilder:subresource:status
 //+kubebuilder:resource:shortName=edc
 
-// ExternalDNSConfiguration is the Schema for the externaldnsconfigurations API.
+// ExternalDNSConfiguration allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
 type ExternalDNSConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -32,16 +33,16 @@ func (e *ExternalDNSConfiguration) GetCondition(conditionType string) *metav1.Co
 	return meta.FindStatusCondition(e.Status.Conditions, conditionType)
 }
 
-func (e *ExternalDNSConfiguration) getConditions() *[]metav1.Condition {
+func (e *ExternalDNSConfiguration) GetConditions() *[]metav1.Condition {
 	return &e.Status.Conditions
 }
 
-func (e *ExternalDNSConfiguration) getGeneration() int64 {
+func (e *ExternalDNSConfiguration) GetGeneration() int64 {
 	return e.Generation
 }
 
 func (e *ExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
-	VerifyAndSetCondition(e, condition)
+	api.VerifyAndSetCondition(e, condition)
 }
 
 // ExternalDNSConfigurationSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.

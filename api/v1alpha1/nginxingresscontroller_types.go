@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/api"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -227,12 +228,6 @@ type ManagedObjectReference struct {
 	APIGroup string `json:"apiGroup"`
 }
 
-type Conditioner interface {
-	GetCondition(t string) *metav1.Condition
-	getConditions() *[]metav1.Condition
-	getGeneration() int64
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster,shortName=nic
@@ -253,11 +248,11 @@ type NginxIngressController struct {
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
 }
 
-func (n *NginxIngressController) getGeneration() int64 {
+func (n *NginxIngressController) GetGeneration() int64 {
 	return n.Generation
 }
 
-func (n *NginxIngressController) getConditions() *[]metav1.Condition {
+func (n *NginxIngressController) GetConditions() *[]metav1.Condition {
 	return &n.Status.Conditions
 }
 
@@ -266,20 +261,7 @@ func (n *NginxIngressController) GetCondition(t string) *metav1.Condition {
 }
 
 func (n *NginxIngressController) SetCondition(c metav1.Condition) {
-	VerifyAndSetCondition(n, c)
-}
-
-func VerifyAndSetCondition(c Conditioner, condition metav1.Condition) {
-	current := c.GetCondition(condition.Type)
-
-	if current != nil && current.Status == condition.Status && current.Message == condition.Message && current.Reason == condition.Reason {
-		current.ObservedGeneration = c.getGeneration()
-		return
-	}
-
-	condition.ObservedGeneration = c.getGeneration()
-	condition.LastTransitionTime = metav1.Now()
-	meta.SetStatusCondition(c.getConditions(), condition)
+	api.VerifyAndSetCondition(n, c)
 }
 
 // Collides returns whether the fields in this NginxIngressController would collide with an existing resources making it

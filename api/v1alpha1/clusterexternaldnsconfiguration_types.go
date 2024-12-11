@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/Azure/aks-app-routing-operator/api"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,16 +26,16 @@ func (c *ClusterExternalDNSConfiguration) GetCondition(conditionType string) *me
 	return meta.FindStatusCondition(c.Status.Conditions, conditionType)
 }
 
-func (c *ClusterExternalDNSConfiguration) getConditions() *[]metav1.Condition {
+func (c *ClusterExternalDNSConfiguration) GetConditions() *[]metav1.Condition {
 	return &c.Status.Conditions
 }
 
-func (c *ClusterExternalDNSConfiguration) getGeneration() int64 {
+func (c *ClusterExternalDNSConfiguration) GetGeneration() int64 {
 	return c.Generation
 }
 
 func (c *ClusterExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
-	VerifyAndSetCondition(c, condition)
+	api.VerifyAndSetCondition(c, condition)
 }
 
 // ClusterExternalDNSConfigurationSpec defines the desired state of ClusterExternalDNSConfiguration.
