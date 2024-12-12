@@ -20,7 +20,7 @@ func init() {
 // +kubebuilder:subresource:status
 //+kubebuilder:resource:shortName=edc
 
-// ExternalDNSConfiguration allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
+// ExternalDNSConfiguration allows users to specify desired the state of a namespace-scoped ExternalDNS configuration and includes information about the state of their resources in the form of Kubernetes events.
 type ExternalDNSConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -47,11 +47,13 @@ func (e *ExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
 
 // ExternalDNSConfigurationSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
 type ExternalDNSConfigurationSpec struct {
+	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Format:=uuid
 	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 	TenantID string `json:"tenantID"`
 
+	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These should be in the same resource group and be of the same type (public or private).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=20
@@ -59,35 +61,44 @@ type ExternalDNSConfigurationSpec struct {
 	// +listType:=set
 	DNSZoneResourceIDs []string `json:"dnsZoneResourceIDs"`
 
+	// ResourceTypes is a list of Kubernetes resource types that the ExternalDNS controller should manage. The supported resource types are 'ingress' and 'gateway'.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:items:enum:=ingress;gateway
 	// +listType:=set
 	ResourceTypes []string `json:"resourceTypes"`
 
+	// Identity contains information about the identity that ExternalDNS will use to interface with Azure resources.
 	// +kubebuilder:validation:Required
 	Identity ExternalDNSConfigurationIdentity `json:"identity"`
 
+	// Filters contains optional filters that the ExternalDNS controller should use to determine which resources to manage.
 	// +optional
 	Filters ExternalDNSConfigurationFilters `json:"filters,omitempty"`
 }
 
+// ExternalDNSConfigurationIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
 type ExternalDNSConfigurationIdentity struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+
+	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. It must be in the same namespace as the ExternalDNSConfiguration.
 	ServiceAccount string `json:"serviceAccount"`
 }
 
 type ExternalDNSConfigurationFilters struct {
+	// GatewayLabels contains key-value pairs that the ExternalDNS controller will use to filter the gateways that it manages.
+	// +optional
 	GatewayLabels map[string]string `json:"gatewayLabels,omitempty"`
-	RouteLabels   map[string]string `json:"routeLabels,omitempty"`
+
+	// RouteLabels contains key-value pairs that the ExternalDNS controller will use to filter the HTTPRoutes that it manages.
+	// +optional
+	RouteLabels map[string]string `json:"routeLabels,omitempty"`
 }
 
 // ExternalDNSConfigurationStatus defines the observed state of ExternalDNSConfiguration.
 type ExternalDNSConfigurationStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 	// Conditions is an array of current observed conditions for the ExternalDNSConfiguration
 	// +optional
 	// +patchMergeKey=type
