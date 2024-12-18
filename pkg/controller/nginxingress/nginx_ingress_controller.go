@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -372,7 +373,7 @@ func (n *nginxIngressControllerReconciler) updateStatusIngressClass(nic *approut
 	} else {
 		nic.SetCondition(metav1.Condition{
 			Type:    approutingv1alpha1.ConditionTypeIngressClassReady,
-			Status:  "True",
+			Status:  metav1.ConditionTrue,
 			Reason:  "IngressClassIsReady",
 			Message: "Ingress Class is up-to-date ",
 		})
