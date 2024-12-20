@@ -131,7 +131,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		err = e.client.Get(ctx, client.ObjectKeyFromObject(svc), svc)
 		if err == nil {
 			logger.Info("publishing FailedMount warning event to service", "service", svc.Name, "namespace", svc.Namespace)
-			e.events.Event(svc, "Warning", "FailedMount", event.Message)
+			e.events.Event(svc, corev1.EventTypeWarning, "FailedMount", event.Message)
 		}
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return result, fmt.Errorf("getting owner service: %w", err)
@@ -139,7 +139,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	logger.Info("publishing FailedMount warning event to ingress", "ingress", ingress.Name, "namespace", ingress.Namespace)
-	e.events.Event(ingress, "Warning", "FailedMount", event.Message)
+	e.events.Event(ingress, corev1.EventTypeWarning, "FailedMount", event.Message)
 	return result, nil
 }
 
