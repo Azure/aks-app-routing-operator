@@ -4,33 +4,24 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: nginxingresscontrollers.approuting.kubernetes.azure.com
+  name: clusterexternaldnsconfigurations.approuting.kubernetes.azure.com
 spec:
   group: approuting.kubernetes.azure.com
   names:
-    kind: NginxIngressController
-    listKind: NginxIngressControllerList
-    plural: nginxingresscontrollers
+    kind: ClusterExternalDNSConfiguration
+    listKind: ClusterExternalDNSConfigurationList
+    plural: clusterexternaldnsconfigurations
     shortNames:
-    - nic
-    singular: nginxingresscontroller
+    - cedc
+    singular: clusterexternaldnsconfiguration
   scope: Cluster
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .spec.ingressClassName
-      name: IngressClass
-      type: string
-    - jsonPath: .spec.controllerNamePrefix
-      name: ControllerNamePrefix
-      type: string
-    - jsonPath: .status.conditions[?(@.type=="Available")].status
-      name: Available
-      type: string
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NginxIngressController is the Schema for the nginxingresscontrollers
-          API
+        description: ClusterExternalDNSConfiguration allows users to specify desired
+          the state of a cluster-scoped ExternalDNS configuration and includes information
+          about the state of their resources in the form of Kubernetes events.
         properties:
           apiVersion:
             description: |-
@@ -50,143 +41,85 @@ spec:
           metadata:
             type: object
           spec:
-            default:
-              controllerNamePrefix: nginx
-              ingressClassName: nginx.approuting.kubernetes.azure.com
-            description: NginxIngressControllerSpec defines the desired state of NginxIngressController
+            description: ClusterExternalDNSConfigurationSpec allows users to specify
+              desired the state of a cluster-scoped ExternalDNS configuration.
             properties:
-              controllerNamePrefix:
-                default: nginx
-                description: ControllerNamePrefix is the name to use for the managed
-                  NGINX Ingress Controller resources.
-                maxLength: 60
-                minLength: 1
-                pattern: ^[a-z0-9][-a-z0-9]*[a-z0-9]$
-                type: string
-                x-kubernetes-validations:
-                - message: Value is immutable
-                  rule: self == oldSelf
-              customHTTPErrors:
-                description: CustomHTTPErrors defines the error codes that the NginxIngressController
-                  should send to its default-backend in case of error.
+              dnsZoneResourceIDs:
+                description: DNSZoneResourceIDs is a list of Azure Resource IDs of
+                  the DNS zones that the ExternalDNS controller should manage. These
+                  should be in the same resource group and be of the same type (public
+                  or private).
                 items:
-                  format: int32
-                  type: integer
+                  type: string
+                maxItems: 20
+                minItems: 1
                 type: array
-              defaultBackendService:
-                description: |-
-                  DefaultBackendService defines the service that the NginxIngressController should default to when given HTTP traffic with not matching known server names.
-                  The controller directs traffic to the first port of the service.
+                x-kubernetes-list-type: set
+              filters:
+                description: Filters contains optional filters that the ExternalDNS
+                  controller should use to determine which resources to manage.
                 properties:
-                  name:
-                    maxLength: 253
-                    minLength: 1
-                    pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
-                    type: string
-                  namespace:
+                  gatewayLabels:
+                    additionalProperties:
+                      type: string
+                    description: GatewayLabels contains key-value pairs that the ExternalDNS
+                      controller will use to filter the Gateways that it manages.
+                    type: object
+                  routeAndIngressLabels:
+                    additionalProperties:
+                      type: string
+                    description: RouteAndIngressLabels contains key-value pairs that
+                      the ExternalDNS controller will use to filter the HTTPRoutes
+                      and Ingresses that it manages.
+                    type: object
+                type: object
+              identity:
+                description: Identity contains information about the identity that
+                  ExternalDNS will use to interface with Azure resources.
+                properties:
+                  serviceAccount:
+                    description: ServiceAccount is the name of the Kubernetes ServiceAccount
+                      that ExternalDNS will use to interface with Azure resources.
+                      It must be in the same namespace as the ExternalDNSConfiguration.
                     maxLength: 253
                     minLength: 1
                     pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                     type: string
                 required:
-                - name
-                - namespace
+                - serviceAccount
                 type: object
-              defaultSSLCertificate:
-                description: |-
-                  DefaultSSLCertificate defines whether the NginxIngressController should use a certain SSL certificate by default.
-                  If this field is omitted, no default certificate will be used.
-                maxProperties: 2
-                properties:
-                  forceSSLRedirect:
-                    default: false
-                    description: ForceSSLRedirect is a flag that sets the global value
-                      of redirects to HTTPS if there is a defined DefaultSSLCertificate
-                    type: boolean
-                  keyVaultURI:
-                    description: Secret in the form of a Key Vault URI
-                    type: string
-                  secret:
-                    description: Secret is a struct that holds the name and namespace
-                      fields used for the default ssl secret
-                    properties:
-                      name:
-                        maxLength: 253
-                        minLength: 1
-                        pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
-                        type: string
-                      namespace:
-                        maxLength: 253
-                        minLength: 1
-                        pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
-                        type: string
-                    required:
-                    - name
-                    - namespace
-                    type: object
-                type: object
-                x-kubernetes-validations:
-                - rule: (isURL(self.keyVaultURI) || !has(self.keyVaultURI))
-                - rule: ((self.forceSSLRedirect == true) && (has(self.secret) || has(self.keyVaultURI))
-                    || (self.forceSSLRedirect == false))
-              ingressClassName:
-                default: nginx.approuting.kubernetes.azure.com
-                description: |-
-                  IngressClassName is the name of the IngressClass that will be used for the NGINX Ingress Controller. Defaults to metadata.name if
-                  not specified.
+              resourceNamespace:
+                description: ResourceNamespace is the namespace where the ExternalDNS
+                  resources will be deployed by app routing.
                 maxLength: 253
                 minLength: 1
                 pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                 type: string
-                x-kubernetes-validations:
-                - message: Value is immutable
-                  rule: self == oldSelf
-              loadBalancerAnnotations:
-                additionalProperties:
+              resourceTypes:
+                description: ResourceTypes is a list of Kubernetes resource types
+                  that the ExternalDNS controller should manage. The supported resource
+                  types are 'ingress' and 'gateway'.
+                items:
                   type: string
-                description: |-
-                  LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations
-                  will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
-                type: object
-              scaling:
-                description: Scaling defines configuration options for how the Ingress
-                  Controller scales
-                properties:
-                  maxReplicas:
-                    description: MaxReplicas is the upper limit for the number of
-                      Ingress Controller replicas. It defaults to 100 pods.
-                    format: int32
-                    minimum: 1
-                    type: integer
-                  minReplicas:
-                    description: MinReplicas is the lower limit for the number of
-                      Ingress Controller replicas. It defaults to 2 pods.
-                    format: int32
-                    minimum: 1
-                    type: integer
-                  threshold:
-                    description: |-
-                      Threshold defines how quickly the Ingress Controller pods should scale based on workload. Rapid means the Ingress Controller
-                      will scale quickly and aggressively, which is the best choice for handling sudden and significant traffic spikes. Steady
-                      is the opposite, prioritizing cost-effectiveness. Steady is the best choice when fewer replicas handling more work is desired or when
-                      traffic isn't expected to fluctuate. Balanced is a good mix between the two that works for most use-cases. If unspecified, this field
-                      defaults to balanced.
-                    enum:
-                    - rapid
-                    - balanced
-                    - steady
-                    type: string
-                type: object
-                x-kubernetes-validations:
-                - rule: (!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas
-                    <= self.maxReplicas)
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: set
+              tenantID:
+                description: TenantID is the ID of the Azure tenant where the DNS
+                  zones are located.
+                format: uuid
+                pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+                type: string
             required:
-            - controllerNamePrefix
-            - ingressClassName
+            - dnsZoneResourceIDs
+            - identity
+            - resourceNamespace
+            - resourceTypes
+            - tenantID
             type: object
           status:
-            description: NginxIngressControllerStatus defines the observed state of
-              NginxIngressController
+            description: ClusterExternalDNSConfigurationStatus contains information
+              about the state of the managed ExternalDNS resources.
             properties:
               collisionCount:
                 description: |-
@@ -197,7 +130,7 @@ spec:
                 type: integer
               conditions:
                 description: Conditions is an array of current observed conditions
-                  for the NGINX Ingress Controller
+                  for the ExternalDNSConfiguration
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for
@@ -269,24 +202,10 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              controllerAvailableReplicas:
-                description: ControllerAvailableReplicas is the number of available
-                  replicas of the NGINX Ingress Controller deployment
+              externalDNSReadyReplicas:
                 format: int32
                 type: integer
-              controllerReadyReplicas:
-                description: ControllerReadyReplicas is the number of ready replicas
-                  of the NGINX Ingress Controller deployment
-                format: int32
-                type: integer
-              controllerReplicas:
-                description: ControllerReplicas is the desired number of replicas
-                  of the NGINX Ingress Controller
-                format: int32
-                type: integer
-              controllerUnavailableReplicas:
-                description: ControllerUnavailableReplicas is the number of unavailable
-                  replicas of the NGINX Ingress Controller deployment
+              externalDNSUnavailableReplicas:
                 format: int32
                 type: integer
               managedResourceRefs:
@@ -314,9 +233,10 @@ spec:
                   - name
                   type: object
                 type: array
+            required:
+            - externalDNSReadyReplicas
+            - externalDNSUnavailableReplicas
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true
