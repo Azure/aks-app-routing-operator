@@ -71,24 +71,7 @@ type ClusterExternalDNSConfigurationSpec struct {
 
 	// Filters contains optional filters that the ExternalDNS controller should use to determine which resources to manage.
 	// +optional
-	Filters ClusterExternalDNSConfigurationFilters `json:"filters,omitempty"`
-}
-
-type ClusterExternalDNSConfigurationFilters struct {
-	// GatewayNamespace is the namespace where ExternalDNS should look for Gateway resources to manage.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	// +optional
-	GatewayNamespace string `json:"gatewayNamespace,omitempty"`
-
-	// RouteNamespace is the namespace where ExternalDNS should look for HTTPRoute resources to manage.
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	RouteNamespace string `json:"routeNamespace,omitempty"`
-
-	ExternalDNSConfigurationFilters `json:",inline"`
+	Filters ExternalDNSConfigurationFilters `json:"filters,omitempty"`
 }
 
 // ClusterExternalDNSConfigurationStatus contains information about the state of the managed ExternalDNS resources.

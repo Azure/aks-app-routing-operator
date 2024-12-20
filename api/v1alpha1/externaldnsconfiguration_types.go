@@ -88,13 +88,13 @@ type ExternalDNSConfigurationIdentity struct {
 }
 
 type ExternalDNSConfigurationFilters struct {
-	// GatewayLabels contains key-value pairs that the ExternalDNS controller will use to filter the gateways that it manages.
+	// GatewayLabels contains key-value pairs that the ExternalDNS controller will use to filter the Gateways that it manages.
 	// +optional
 	GatewayLabels map[string]string `json:"gatewayLabels,omitempty"`
 
-	// RouteLabels contains key-value pairs that the ExternalDNS controller will use to filter the HTTPRoutes that it manages.
+	// RouteAndIngressLabels contains key-value pairs that the ExternalDNS controller will use to filter the HTTPRoutes and Ingresses that it manages.
 	// +optional
-	RouteLabels map[string]string `json:"routeLabels,omitempty"`
+	RouteAndIngressLabels map[string]string `json:"routeAndIngressLabels,omitempty"`
 }
 
 // ExternalDNSConfigurationStatus defines the observed state of ExternalDNSConfiguration.
