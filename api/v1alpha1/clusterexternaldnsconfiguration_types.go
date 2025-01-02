@@ -54,7 +54,7 @@ type ClusterExternalDNSConfigurationSpec struct {
 	// ResourceTypes is a list of Kubernetes resource types that the ExternalDNS controller should manage. The supported resource types are 'ingress' and 'gateway'.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
-	// +kubebuilder:validation:items:enum:=ingress;gateway
+	// +kubebuilder:validation:items:Enum:=ingress;gateway
 	// +listType:=set
 	ResourceTypes []string `json:"resourceTypes"`
 
