@@ -20,7 +20,7 @@ import (
 
 var nginxNamePrefix = "keyvault-nginx-"
 
-type SPCConfig struct {
+type spcConfig struct {
 	ClientId        string
 	TenantId        string
 	KeyvaultCertUri string
@@ -46,7 +46,7 @@ func shouldDeploySpc(obj client.Object) bool {
 	}
 }
 
-func buildSPC(spc *secv1.SecretProviderClass, spcConfig SPCConfig) error {
+func buildSPC(spc *secv1.SecretProviderClass, spcConfig spcConfig) error {
 	certURI := spcConfig.KeyvaultCertUri
 
 	uri, err := url.Parse(certURI)
@@ -156,7 +156,7 @@ func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient c
 	err := k8sclient.Get(ctx, types.NamespacedName{Name: saName, Namespace: saNamespace}, saObj)
 
 	if client.IgnoreNotFound(err) != nil {
-		return "", err
+		return "", fmt.Errorf("failed to fetch serviceaccount to verify workload identity configuration: %s", err)
 	}
 
 	// SA wasn't found, return appropriate error

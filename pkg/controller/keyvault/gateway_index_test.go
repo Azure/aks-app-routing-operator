@@ -174,7 +174,7 @@ func Test_generateGatewayGetter(t *testing.T) {
 			},
 		},
 	}
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		err = m.Start(ctx)
 		require.NoError(t, err)
@@ -199,4 +199,7 @@ func Test_generateGatewayGetter(t *testing.T) {
 		}
 
 	}
+	// done with tests, so shut down the manager
+	cancel()
+
 }

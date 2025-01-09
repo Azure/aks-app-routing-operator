@@ -49,8 +49,8 @@ var (
 	maxSizeString = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbb"
 )
 
-func buildTestSpcConfig(clientId, tenantID, cloud, name, certUri string) SPCConfig {
-	spcTestConf := SPCConfig{
+func buildTestSpcConfig(clientId, tenantID, cloud, name, certUri string) spcConfig {
+	spcTestConf := spcConfig{
 		ClientId:        clientId,
 		TenantId:        tenantID,
 		Cloud:           cloud,

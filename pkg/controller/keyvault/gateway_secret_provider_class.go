@@ -119,7 +119,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			certUri := string(listener.TLS.Options[certUriTLSOption])
 
 			logger.Info("building spc for listener and upserting")
-			spcConf := SPCConfig{
+			spcConf := spcConfig{
 				ClientId:        clientId,
 				TenantId:        g.config.TenantID,
 				KeyvaultCertUri: certUri,
@@ -181,7 +181,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	logger.Info("reconciling Gateway resource with new secret refs for each TLS-enabled listener")
-	if err = util.Upsert(ctx, g.client, gwObj); err != nil {
+	if err = g.client.Update(ctx, gwObj); client.IgnoreNotFound(err) != nil {
 		fullErr := fmt.Errorf("failed to reconcile Gateway resource %s: %w", req.Name, err)
 		logger.Error(err, fullErr.Error())
 		g.events.Event(gwObj, corev1.EventTypeWarning, "FailedUpdateOrCreateGateway", fullErr.Error())
@@ -210,15 +210,15 @@ func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, n
 
 	// validate user input
 	if certUri != "" && saName == "" {
-		return "", newUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "detected Keyvault Cert URI, but no ServiceAccount was provided")
+		return "", newUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account")
 	}
 	if certUri == "" && saName != "" {
-		return "", newUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "detected ServiceAccount for WorkloadIdentity, but no Keyvault Certificate URI was provided")
+		return "", newUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not. Please provide a TLS Cert URI via the TLS option kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
 	// this should never happen since we check for this prior to this function call but just to be safe
 	if certUri == "" && saName == "" {
-		return "", newUserError(errors.New("none of the required TLS options were specified"), "cert URI and ServiceAccount were not specified")
+		return "", newUserError(errors.New("none of the required TLS options were specified"), "KeyVault Cert URI and ServiceAccount must both be specified to use TLS functionality in App Routing")
 	}
 
 	// pull service account

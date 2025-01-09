@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,12 +42,7 @@ func gatewayServiceAccountIndexFn(object client.Object) []string {
 		}
 	}
 
-	saSlice := make([]string, 0, len(saSet))
-	for sa := range saSet {
-		saSlice = append(saSlice, sa)
-	}
-
-	return saSlice
+	return util.Keys(saSet)
 }
 
 func generateGatewayGetter(mgr ctrl.Manager, serviceAccountIndexName string) handler.MapFunc {
@@ -57,7 +53,7 @@ func generateGatewayGetter(mgr ctrl.Manager, serviceAccountIndexName string) han
 			return nil
 		}
 		gateways := &gatewayv1.GatewayList{}
-		err := mgr.GetClient().List(context.TODO(), gateways, client.MatchingFields{serviceAccountIndexName: sa.Name}, client.InNamespace(sa.Namespace))
+		err := mgr.GetClient().List(ctx, gateways, client.MatchingFields{serviceAccountIndexName: sa.Name}, client.InNamespace(sa.Namespace))
 		if err != nil {
 			logger.Error(err, "failed to list gateways for service account", "name", sa.Name, "namespace", sa.Namespace)
 			return nil

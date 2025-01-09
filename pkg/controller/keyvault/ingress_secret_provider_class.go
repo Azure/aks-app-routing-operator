@@ -111,7 +111,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 		logManagedIngress(logger, ing)
 
 		if shouldDeploySpc(ing) {
-			spcConf := SPCConfig{
+			spcConf := spcConfig{
 				ClientId:        i.config.MSIClientID,
 				TenantId:        i.config.TenantID,
 				KeyvaultCertUri: ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"],

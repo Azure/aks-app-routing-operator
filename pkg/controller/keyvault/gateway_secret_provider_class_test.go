@@ -201,7 +201,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 				return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme).WithObjects(gwWithCertWithoutOthers).Build()
 			},
 			expectedError:   nil,
-			expectedUserErr: "Warning InvalidInput invalid TLS configuration: detected Keyvault Cert URI, but no ServiceAccount was provided",
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account",
 		},
 		{
 			name:  "cert URI with nonexistent sa",

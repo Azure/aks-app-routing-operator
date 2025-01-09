@@ -100,7 +100,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	logger.Info("building spc and upserting if managed with labels")
 
 	if shouldDeploySpc(nic) {
-		spcConf := SPCConfig{
+		spcConf := spcConfig{
 			ClientId:        i.config.MSIClientID,
 			TenantId:        i.config.TenantID,
 			KeyvaultCertUri: *nic.Spec.DefaultSSLCertificate.KeyVaultURI,
