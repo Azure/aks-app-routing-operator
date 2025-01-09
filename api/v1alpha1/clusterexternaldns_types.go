@@ -34,7 +34,7 @@ func (c *ClusterExternalDNS) SetCondition(condition metav1.Condition) {
 	api.VerifyAndSetCondition(c, condition)
 }
 
-// ClusterExternalDNSSpec allows users to specify desired the state of a cluster-scoped ExternalDNS configuration.
+// ClusterExternalDNSSpec allows users to specify desired the state of a cluster-scoped ExternalDNS deployment.
 type ClusterExternalDNSSpec struct {
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
@@ -42,7 +42,7 @@ type ClusterExternalDNSSpec struct {
 	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 	TenantID string `json:"tenantID"`
 
-	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These should be in the same resource group and be of the same type (public or private).
+	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These must be in the same resource group and be of the same type (public or private).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=20

@@ -42,12 +42,12 @@ spec:
             type: object
           spec:
             description: ClusterExternalDNSSpec allows users to specify desired the
-              state of a cluster-scoped ExternalDNS configuration.
+              state of a cluster-scoped ExternalDNS deployment.
             properties:
               dnsZoneResourceIDs:
                 description: DNSZoneResourceIDs is a list of Azure Resource IDs of
                   the DNS zones that the ExternalDNS controller should manage. These
-                  should be in the same resource group and be of the same type (public
+                  must be in the same resource group and be of the same type (public
                   or private).
                 items:
                   type: string

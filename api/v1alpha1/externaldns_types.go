@@ -18,9 +18,9 @@ func init() {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-//+kubebuilder:resource:shortName=edc
+//+kubebuilder:resource:shortName=edns
 
-// ExternalDNS allows users to specify desired the state of a namespace-scoped ExternalDNS configuration and includes information about the state of their resources in the form of Kubernetes events.
+// ExternalDNS allows users to specify desired the state of a namespace-scoped ExternalDNS deployment and includes information about the state of their resources in the form of Kubernetes events.
 type ExternalDNS struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -45,7 +45,7 @@ func (e *ExternalDNS) SetCondition(condition metav1.Condition) {
 	api.VerifyAndSetCondition(e, condition)
 }
 
-// ExternalDNSSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
+// ExternalDNSSpec allows users to specify desired the state of a namespace-scoped ExternalDNS deployment.
 type ExternalDNSSpec struct {
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
@@ -53,7 +53,7 @@ type ExternalDNSSpec struct {
 	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 	TenantID string `json:"tenantID"`
 
-	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These should be in the same resource group and be of the same type (public or private).
+	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These must be in the same resource group and be of the same type (public or private).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=20

@@ -12,7 +12,7 @@ spec:
     listKind: ExternalDNSList
     plural: externaldnses
     shortNames:
-    - edc
+    - edns
     singular: externaldns
   scope: Namespaced
   versions:
@@ -20,7 +20,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: ExternalDNS allows users to specify desired the state of a namespace-scoped
-          ExternalDNS configuration and includes information about the state of their
+          ExternalDNS deployment and includes information about the state of their
           resources in the form of Kubernetes events.
         properties:
           apiVersion:
@@ -42,12 +42,12 @@ spec:
             type: object
           spec:
             description: ExternalDNSSpec allows users to specify desired the state
-              of a namespace-scoped ExternalDNS configuration.
+              of a namespace-scoped ExternalDNS deployment.
             properties:
               dnsZoneResourceIDs:
                 description: DNSZoneResourceIDs is a list of Azure Resource IDs of
                   the DNS zones that the ExternalDNS controller should manage. These
-                  should be in the same resource group and be of the same type (public
+                  must be in the same resource group and be of the same type (public
                   or private).
                 items:
                   type: string
