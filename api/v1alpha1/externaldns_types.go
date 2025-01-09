@@ -25,6 +25,7 @@ type ExternalDNS struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   ExternalDNSSpec   `json:"spec,omitempty"`
 	Status ExternalDNSStatus `json:"status,omitempty"`
 }
@@ -82,7 +83,7 @@ type ExternalDNSIdentity struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-
+	// +kubebuilder:validation:Required
 	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. It must be in the same namespace as the ExternalDNS.
 	ServiceAccount string `json:"serviceAccount"`
 }

@@ -14,6 +14,7 @@ type ClusterExternalDNS struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   ClusterExternalDNSSpec   `json:"spec,omitempty"`
 	Status ClusterExternalDNSStatus `json:"status,omitempty"`
 }
