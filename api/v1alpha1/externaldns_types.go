@@ -13,40 +13,40 @@ const (
 )
 
 func init() {
-	SchemeBuilder.Register(&ExternalDNSConfiguration{}, &ExternalDNSConfigurationList{})
+	SchemeBuilder.Register(&ExternalDNS{}, &ExternalDNSList{})
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 //+kubebuilder:resource:shortName=edc
 
-// ExternalDNSConfiguration allows users to specify desired the state of a namespace-scoped ExternalDNS configuration and includes information about the state of their resources in the form of Kubernetes events.
-type ExternalDNSConfiguration struct {
+// ExternalDNS allows users to specify desired the state of a namespace-scoped ExternalDNS configuration and includes information about the state of their resources in the form of Kubernetes events.
+type ExternalDNS struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ExternalDNSConfigurationSpec   `json:"spec,omitempty"`
-	Status ExternalDNSConfigurationStatus `json:"status,omitempty"`
+	Spec   ExternalDNSSpec   `json:"spec,omitempty"`
+	Status ExternalDNSStatus `json:"status,omitempty"`
 }
 
-func (e *ExternalDNSConfiguration) GetCondition(conditionType string) *metav1.Condition {
+func (e *ExternalDNS) GetCondition(conditionType string) *metav1.Condition {
 	return meta.FindStatusCondition(e.Status.Conditions, conditionType)
 }
 
-func (e *ExternalDNSConfiguration) GetConditions() *[]metav1.Condition {
+func (e *ExternalDNS) GetConditions() *[]metav1.Condition {
 	return &e.Status.Conditions
 }
 
-func (e *ExternalDNSConfiguration) GetGeneration() int64 {
+func (e *ExternalDNS) GetGeneration() int64 {
 	return e.Generation
 }
 
-func (e *ExternalDNSConfiguration) SetCondition(condition metav1.Condition) {
+func (e *ExternalDNS) SetCondition(condition metav1.Condition) {
 	api.VerifyAndSetCondition(e, condition)
 }
 
-// ExternalDNSConfigurationSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
-type ExternalDNSConfigurationSpec struct {
+// ExternalDNSSpec allows users to specify desired the state of a namespace-scoped ExternalDNS configuration.
+type ExternalDNSSpec struct {
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Format:=uuid
@@ -70,24 +70,24 @@ type ExternalDNSConfigurationSpec struct {
 
 	// Identity contains information about the identity that ExternalDNS will use to interface with Azure resources.
 	// +kubebuilder:validation:Required
-	Identity ExternalDNSConfigurationIdentity `json:"identity"`
+	Identity ExternalDNSIdentity `json:"identity"`
 
 	// Filters contains optional filters that the ExternalDNS controller should use to determine which resources to manage.
 	// +optional
-	Filters ExternalDNSConfigurationFilters `json:"filters,omitempty"`
+	Filters ExternalDNSFilters `json:"filters,omitempty"`
 }
 
-// ExternalDNSConfigurationIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
-type ExternalDNSConfigurationIdentity struct {
+// ExternalDNSIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
+type ExternalDNSIdentity struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 
-	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. It must be in the same namespace as the ExternalDNSConfiguration.
+	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. It must be in the same namespace as the ExternalDNS.
 	ServiceAccount string `json:"serviceAccount"`
 }
 
-type ExternalDNSConfigurationFilters struct {
+type ExternalDNSFilters struct {
 	// GatewayLabels contains key-value pairs that the ExternalDNS controller will use to filter the Gateways that it manages.
 	// +optional
 	GatewayLabels map[string]string `json:"gatewayLabels,omitempty"`
@@ -97,9 +97,9 @@ type ExternalDNSConfigurationFilters struct {
 	RouteAndIngressLabels map[string]string `json:"routeAndIngressLabels,omitempty"`
 }
 
-// ExternalDNSConfigurationStatus defines the observed state of ExternalDNSConfiguration.
-type ExternalDNSConfigurationStatus struct {
-	// Conditions is an array of current observed conditions for the ExternalDNSConfiguration
+// ExternalDNSStatus defines the observed state of ExternalDNS.
+type ExternalDNSStatus struct {
+	// Conditions is an array of current observed conditions for the ExternalDNS
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -123,9 +123,9 @@ type ExternalDNSConfigurationStatus struct {
 
 // +kubebuilder:object:root=true
 
-// ExternalDNSConfigurationList contains a list of ExternalDNSConfiguration.
-type ExternalDNSConfigurationList struct {
+// ExternalDNSList contains a list of ExternalDNS.
+type ExternalDNSList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ExternalDNSConfiguration `json:"items"`
+	Items           []ExternalDNS `json:"items"`
 }

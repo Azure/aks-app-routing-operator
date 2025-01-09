@@ -7,17 +7,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func validClusterExternalDNSConfiguration() *ClusterExternalDNSConfiguration {
-	return &ClusterExternalDNSConfiguration{
+func validClusterExternalDNS() *ClusterExternalDNS {
+	return &ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
 			Namespace: "default",
 		},
-		Spec: ClusterExternalDNSConfigurationSpec{
+		Spec: ClusterExternalDNSSpec{
 			TenantID:           "tenant-id",
 			DNSZoneResourceIDs: []string{"dnszone-id", "dnszone-id2"},
 			ResourceTypes:      []string{"ingress", "gateway"},
-			Identity: ExternalDNSConfigurationIdentity{
+			Identity: ExternalDNSIdentity{
 				ServiceAccount: "test-sa",
 			},
 			ResourceNamespace: "test-namespace",
@@ -25,9 +25,9 @@ func validClusterExternalDNSConfiguration() *ClusterExternalDNSConfiguration {
 	}
 }
 
-func TestClusterExternalDNSConfigurationSetCondition(t *testing.T) {
+func TestClusterExternalDNSSetCondition(t *testing.T) {
 	// new condition
-	cedc := validClusterExternalDNSConfiguration()
+	cedc := validClusterExternalDNS()
 	cedc.Generation = 456
 
 	cond := metav1.Condition{

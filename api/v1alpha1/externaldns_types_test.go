@@ -7,26 +7,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func validExternalDNSConfiguration() *ExternalDNSConfiguration {
-	return &ExternalDNSConfiguration{
+func validExternalDNS() *ExternalDNS {
+	return &ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
 			Namespace: "default",
 		},
-		Spec: ExternalDNSConfigurationSpec{
+		Spec: ExternalDNSSpec{
 			TenantID:           "tenant-id",
 			DNSZoneResourceIDs: []string{"dnszone-id", "dnszone-id2"},
 			ResourceTypes:      []string{"ingress", "gateway"},
-			Identity: ExternalDNSConfigurationIdentity{
+			Identity: ExternalDNSIdentity{
 				ServiceAccount: "test-sa",
 			},
 		},
 	}
 }
 
-func TestExternalDNSConfigurationSetCondition(t *testing.T) {
+func TestExternalDNSSetCondition(t *testing.T) {
 	// new condition
-	edc := validExternalDNSConfiguration()
+	edc := validExternalDNS()
 	edc.Generation = 456
 
 	cond := metav1.Condition{

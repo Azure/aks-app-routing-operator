@@ -4,24 +4,24 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: externaldnsconfigurations.approuting.kubernetes.azure.com
+  name: clusterexternaldnses.approuting.kubernetes.azure.com
 spec:
   group: approuting.kubernetes.azure.com
   names:
-    kind: ExternalDNSConfiguration
-    listKind: ExternalDNSConfigurationList
-    plural: externaldnsconfigurations
+    kind: ClusterExternalDNS
+    listKind: ClusterExternalDNSList
+    plural: clusterexternaldnses
     shortNames:
-    - edc
-    singular: externaldnsconfiguration
-  scope: Namespaced
+    - cedns
+    singular: clusterexternaldns
+  scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ExternalDNSConfiguration allows users to specify desired the
-          state of a namespace-scoped ExternalDNS configuration and includes information
-          about the state of their resources in the form of Kubernetes events.
+        description: ClusterExternalDNS allows users to specify desired the state
+          of a cluster-scoped ExternalDNS deployment and includes information about
+          the state of their resources in the form of Kubernetes events.
         properties:
           apiVersion:
             description: |-
@@ -41,8 +41,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ExternalDNSConfigurationSpec allows users to specify desired
-              the state of a namespace-scoped ExternalDNS configuration.
+            description: ClusterExternalDNSSpec allows users to specify desired the
+              state of a cluster-scoped ExternalDNS configuration.
             properties:
               dnsZoneResourceIDs:
                 description: DNSZoneResourceIDs is a list of Azure Resource IDs of
@@ -80,7 +80,7 @@ spec:
                   serviceAccount:
                     description: ServiceAccount is the name of the Kubernetes ServiceAccount
                       that ExternalDNS will use to interface with Azure resources.
-                      It must be in the same namespace as the ExternalDNSConfiguration.
+                      It must be in the same namespace as the ExternalDNS.
                     maxLength: 253
                     minLength: 1
                     pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
@@ -88,6 +88,13 @@ spec:
                 required:
                 - serviceAccount
                 type: object
+              resourceNamespace:
+                description: ResourceNamespace is the namespace where the ExternalDNS
+                  resources will be deployed by app routing.
+                maxLength: 253
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
+                type: string
               resourceTypes:
                 description: ResourceTypes is a list of Kubernetes resource types
                   that the ExternalDNS controller should manage. The supported resource
@@ -106,12 +113,13 @@ spec:
             required:
             - dnsZoneResourceIDs
             - identity
+            - resourceNamespace
             - resourceTypes
             - tenantID
             type: object
           status:
-            description: ExternalDNSConfigurationStatus defines the observed state
-              of ExternalDNSConfiguration.
+            description: ClusterExternalDNSStatus contains information about the state
+              of the managed ExternalDNS resources.
             properties:
               collisionCount:
                 description: |-
@@ -122,7 +130,7 @@ spec:
                 type: integer
               conditions:
                 description: Conditions is an array of current observed conditions
-                  for the ExternalDNSConfiguration
+                  for the ExternalDNS
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for
