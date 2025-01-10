@@ -7,7 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
 func validExternalDNS() *ExternalDNS {
@@ -120,7 +121,12 @@ func TestKubebuilderValidation(t *testing.T) {
 
 	scheme := runtime.NewScheme()
 	_ = AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	testEnv := &envtest.Environment{}
+	cfg, err := testEnv.Start()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	fakeClient, _ := client.New(cfg, client.Options{Scheme: scheme})
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
