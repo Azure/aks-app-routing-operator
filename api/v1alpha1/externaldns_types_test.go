@@ -1,10 +1,13 @@
 package v1alpha1
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func validExternalDNS() *ExternalDNS {
@@ -14,9 +17,12 @@ func validExternalDNS() *ExternalDNS {
 			Namespace: "default",
 		},
 		Spec: ExternalDNSSpec{
-			TenantID:           "tenant-id",
-			DNSZoneResourceIDs: []string{"dnszone-id", "dnszone-id2"},
-			ResourceTypes:      []string{"ingress", "gateway"},
+			TenantID: "123e4567-e89b-12d3-a456-426614174000",
+			DNSZoneResourceIDs: []string{
+				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+			},
+			ResourceTypes: []string{"ingress", "gateway"},
 			Identity: ExternalDNSIdentity{
 				ServiceAccount: "test-sa",
 			},
@@ -76,4 +82,56 @@ func TestExternalDNSSetCondition(t *testing.T) {
 	require.Equal(t, edc.Generation, got.ObservedGeneration)
 	require.Equal(t, cond.Reason, got.Reason)
 	require.Equal(t, cond.Message, got.Message)
+}
+
+func TestKubebuilderValidation(t *testing.T) {
+	tcs := []struct {
+		name          string
+		edc           *ExternalDNS
+		expectedError error
+	}{
+		{
+			name:          "valid",
+			edc:           validExternalDNS(),
+			expectedError: nil,
+		},
+		{
+			name: "different resourcegroups",
+			edc: &ExternalDNS{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "diff-rg",
+					Namespace: "default",
+				},
+				Spec: ExternalDNSSpec{
+					TenantID: "tenant-id",
+					DNSZoneResourceIDs: []string{
+						"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+						"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test2/providers/Microsoft.network/dnszones/test2",
+					},
+					ResourceTypes: []string{"ingress", "gateway"},
+					Identity: ExternalDNSIdentity{
+						ServiceAccount: "test-sa",
+					},
+				},
+			},
+			expectedError: errors.New("All items must have the same resource group"),
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := fakeClient.Create(nil, tc.edc)
+			if tc.expectedError != nil {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
 }

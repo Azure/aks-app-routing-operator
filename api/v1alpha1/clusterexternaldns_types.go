@@ -37,17 +37,26 @@ func (c *ClusterExternalDNS) SetCondition(condition metav1.Condition) {
 
 // ClusterExternalDNSSpec allows users to specify desired the state of a cluster-scoped ExternalDNS deployment.
 type ClusterExternalDNSSpec struct {
+	// ResourceName is the name that will be used for the ExternalDNS deployment and related resources. Will default to the name of the ClusterExternalDNS resource if not specified.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	// +kubebuilder:validation:Required
+	ResourceName string `json:"resourceName,omitempty"`
+
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Format:=uuid
 	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 	TenantID string `json:"tenantID"`
 
-	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These must be in the same resource group and be of the same type (public or private).
+	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These must be in the same resource group and be of the same type (public or private). The number of zones is currently capped at 20 but may be expanded in the future.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=20
 	// +kubebuilder:validation:items:Pattern:=`(?i)\/subscriptions\/(.{36})\/resourcegroups\/(.+?)\/providers\/Microsoft.network\/(dnszones|privatednszones)\/(.+)`
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$') && item.split('/')[2] == self[0].split('/')[2])",message="All items must have the same subscription ID."
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$') && item.split('/')[4] == self[0].split('/')[4])",message="All items must have the same resource group."
 	// +listType:=set
 	DNSZoneResourceIDs []string `json:"dnsZoneResourceIDs"`
 

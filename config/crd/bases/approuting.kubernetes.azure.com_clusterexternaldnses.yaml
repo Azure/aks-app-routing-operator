@@ -48,13 +48,21 @@ spec:
                 description: DNSZoneResourceIDs is a list of Azure Resource IDs of
                   the DNS zones that the ExternalDNS controller should manage. These
                   must be in the same resource group and be of the same type (public
-                  or private).
+                  or private). The number of zones is currently capped at 20 but may
+                  be expanded in the future.
                 items:
                   type: string
                 maxItems: 20
                 minItems: 1
                 type: array
                 x-kubernetes-list-type: set
+                x-kubernetes-validations:
+                - message: All items must have the same subscription ID.
+                  rule: self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$')
+                    && item.split('/')[2] == self[0].split('/')[2])
+                - message: All items must have the same resource group.
+                  rule: self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$')
+                    && item.split('/')[4] == self[0].split('/')[4])
               filters:
                 description: Filters contains optional filters that the ExternalDNS
                   controller should use to determine which resources to manage.
@@ -88,6 +96,14 @@ spec:
                 required:
                 - serviceAccount
                 type: object
+              resourceName:
+                description: ResourceName is the name that will be used for the ExternalDNS
+                  deployment and related resources. Will default to the name of the
+                  ClusterExternalDNS resource if not specified.
+                maxLength: 253
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
+                type: string
               resourceNamespace:
                 description: ResourceNamespace is the namespace where the ExternalDNS
                   resources will be deployed by app routing.

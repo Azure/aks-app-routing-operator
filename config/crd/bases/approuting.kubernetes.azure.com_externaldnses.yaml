@@ -55,6 +55,13 @@ spec:
                 minItems: 1
                 type: array
                 x-kubernetes-list-type: set
+                x-kubernetes-validations:
+                - message: All items must have the same subscription ID.
+                  rule: self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$')
+                    && item.split('/')[2] == self[0].split('/')[2])
+                - message: All items must have the same resource group.
+                  rule: self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$')
+                    && item.split('/')[4] == self[0].split('/')[4])
               filters:
                 description: Filters contains optional filters that the ExternalDNS
                   controller should use to determine which resources to manage.
@@ -88,6 +95,14 @@ spec:
                 required:
                 - serviceAccount
                 type: object
+              resourceName:
+                description: ResourceName is the name that will be used for the ExternalDNS
+                  deployment and related resources. Will default to the name of the
+                  ExternalDNS resource if not specified.
+                maxLength: 253
+                minLength: 1
+                pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
+                type: string
               resourceTypes:
                 description: ResourceTypes is a list of Kubernetes resource types
                   that the ExternalDNS controller should manage. The supported resource

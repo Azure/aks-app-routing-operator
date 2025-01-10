@@ -48,6 +48,13 @@ func (e *ExternalDNS) SetCondition(condition metav1.Condition) {
 
 // ExternalDNSSpec allows users to specify desired the state of a namespace-scoped ExternalDNS deployment.
 type ExternalDNSSpec struct {
+	// ResourceName is the name that will be used for the ExternalDNS deployment and related resources. Will default to the name of the ExternalDNS resource if not specified.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	// +kubebuilder:validation:Required
+	ResourceName string `json:"resourceName,omitempty"`
+
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Format:=uuid
@@ -59,6 +66,8 @@ type ExternalDNSSpec struct {
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=20
 	// +kubebuilder:validation:items:Pattern:=`(?i)\/subscriptions\/(.{36})\/resourcegroups\/(.+?)\/providers\/Microsoft.network\/(dnszones|privatednszones)\/(.+)`
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$') && item.split('/')[2] == self[0].split('/')[2])",message="All items must have the same subscription ID."
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$') && item.split('/')[4] == self[0].split('/')[4])",message="All items must have the same resource group."
 	// +listType:=set
 	DNSZoneResourceIDs []string `json:"dnsZoneResourceIDs"`
 
