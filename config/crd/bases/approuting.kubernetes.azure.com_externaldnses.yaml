@@ -57,11 +57,9 @@ spec:
                 x-kubernetes-list-type: set
                 x-kubernetes-validations:
                 - message: All items must have the same subscription ID.
-                  rule: self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$')
-                    && item.split('/')[2] == self[0].split('/')[2])
+                  rule: self.all(item, item.split('/')[2] == self[0].split('/')[2])
                 - message: All items must have the same resource group.
-                  rule: self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$')
-                    && item.split('/')[4] == self[0].split('/')[4])
+                  rule: self.all(item, item.split('/')[4] == self[0].split('/')[4])
               filters:
                 description: Filters contains optional filters that the ExternalDNS
                   controller should use to determine which resources to manage.

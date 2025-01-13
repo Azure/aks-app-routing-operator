@@ -54,9 +54,13 @@ type ClusterExternalDNSSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=20
+	// +kubebuilder:validation:items:UniqueItems:=true
+	// +kubebuilder:validation:items:MaxLength:=172
+	// +kubebuilder:validation:items:MinLength:=103
+	// +kubebuilder:validation:items:MaxProperties:=1
 	// +kubebuilder:validation:items:Pattern:=`(?i)\/subscriptions\/(.{36})\/resourcegroups\/(.+?)\/providers\/Microsoft.network\/(dnszones|privatednszones)\/(.+)`
-	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$') && item.split('/')[2] == self[0].split('/')[2])",message="All items must have the same subscription ID."
-	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('^/subscriptions/([^/]+)/resourceGroups/([^/]+)/providers/([^/]+)/([^/]+)/([^/]+)$') && item.split('/')[4] == self[0].split('/')[4])",message="All items must have the same resource group."
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[2] == self[0].split('/')[2])",message="All items must have the same subscription ID."
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[4] == self[0].split('/')[4])",message="All items must have the same resource group."
 	// +listType:=set
 	DNSZoneResourceIDs []string `json:"dnsZoneResourceIDs"`
 
