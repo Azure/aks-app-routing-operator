@@ -51,15 +51,17 @@ spec:
                   or private).
                 items:
                   type: string
-                maxItems: 20
+                maxItems: 7
                 minItems: 1
                 type: array
                 x-kubernetes-list-type: set
                 x-kubernetes-validations:
-                - message: All items must have the same subscription ID.
+                - message: all items must have the same subscription ID
                   rule: self.all(item, item.split('/')[2] == self[0].split('/')[2])
-                - message: All items must have the same resource group.
+                - message: all items must have the same resource group
                   rule: self.all(item, item.split('/')[4] == self[0].split('/')[4])
+                - message: all items must be of the same resource type
+                  rule: self.all(item, item.split('/')[7] == self[0].split('/')[7])
               filters:
                 description: Filters contains optional filters that the ExternalDNS
                   controller should use to determine which resources to manage.
@@ -107,9 +109,13 @@ spec:
                   types are 'ingress' and 'gateway'.
                 items:
                   type: string
+                maxItems: 2
                 minItems: 1
                 type: array
                 x-kubernetes-list-type: set
+                x-kubernetes-validations:
+                - message: all items must be either 'gateway' or 'ingress'
+                  rule: self.all(item, item.matches('(?i)(gateway|ingress)'))
               tenantID:
                 description: TenantID is the ID of the Azure tenant where the DNS
                   zones are located.

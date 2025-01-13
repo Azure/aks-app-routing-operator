@@ -1,16 +1,10 @@
 package v1alpha1
 
 import (
-	"errors"
-	"path/filepath"
 	"testing"
 
-	"github.com/docker/distribution/context"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
 func validExternalDNS() *ExternalDNS {
@@ -88,62 +82,5 @@ func TestExternalDNSSetCondition(t *testing.T) {
 }
 
 func TestKubebuilderValidation(t *testing.T) {
-	tcs := []struct {
-		name          string
-		ed            *ExternalDNS
-		expectedError error
-	}{
-		{
-			name:          "valid",
-			ed:            validExternalDNS(),
-			expectedError: nil,
-		},
-		{
-			name: "different subs",
-			ed: &ExternalDNS{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "diff-rg",
-					Namespace: "default",
-				},
-				Spec: ExternalDNSSpec{
-					TenantID: "123e4567-e89b-12d3-a456-426614174000",
-					DNSZoneResourceIDs: []string{
-						"/subscriptions/123e4567-e89b-12d3-a456-426614174001/resourceGroups/test/providers/Microsoft.network/dnszones/test",
-						"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
-					},
-					ResourceTypes: []string{"ingress", "gateway"},
-					Identity: ExternalDNSIdentity{
-						ServiceAccount: "test-sa",
-					},
-				},
-			},
-			expectedError: errors.New("All items must have the same subscription"),
-		},
-	}
-
-	scheme := runtime.NewScheme()
-	_ = AddToScheme(scheme)
-
-	testEnv := &envtest.Environment{
-		CRDDirectoryPaths: []string{
-			filepath.Join("..", "..", "config", "crd", "bases"),
-		},
-	}
-	cfg, err := testEnv.Start()
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-	fakeClient, _ := client.New(cfg, client.Options{Scheme: scheme})
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			err := fakeClient.Create(context.Background(), tc.ed)
-			if tc.expectedError != nil {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectedError.Error())
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 
 }

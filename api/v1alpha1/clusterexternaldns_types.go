@@ -53,21 +53,22 @@ type ClusterExternalDNSSpec struct {
 	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These must be in the same resource group and be of the same type (public or private). The number of zones is currently capped at 20 but may be expanded in the future.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
-	// +kubebuilder:validation:MaxItems:=20
+	// +kubebuilder:validation:MaxItems:=7
 	// +kubebuilder:validation:items:UniqueItems:=true
 	// +kubebuilder:validation:items:MaxLength:=172
 	// +kubebuilder:validation:items:MinLength:=103
 	// +kubebuilder:validation:items:MaxProperties:=1
-	// +kubebuilder:validation:items:Pattern:=`(?i)\/subscriptions\/(.{36})\/resourcegroups\/(.+?)\/providers\/Microsoft.network\/(dnszones|privatednszones)\/(.+)`
-	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[2] == self[0].split('/')[2])",message="All items must have the same subscription ID."
-	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[4] == self[0].split('/')[4])",message="All items must have the same resource group."
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[2] == self[0].split('/')[2])",message="all items must have the same subscription ID"
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[4] == self[0].split('/')[4])",message="all items must have the same resource group"
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[7] == self[0].split('/')[7])",message="all items must be of the same resource type"
 	// +listType:=set
 	DNSZoneResourceIDs []string `json:"dnsZoneResourceIDs"`
 
 	// ResourceTypes is a list of Kubernetes resource types that the ExternalDNS controller should manage. The supported resource types are 'ingress' and 'gateway'.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
-	// +kubebuilder:validation:items:Enum:=ingress;gateway
+	// +kubebuilder:validation:MaxItems:=2
+	// +kubebuilder:validation:XValidation:rule="self.all(item, item.matches('(?i)(gateway|ingress)'))",message="all items must be either 'gateway' or 'ingress'"
 	// +listType:=set
 	ResourceTypes []string `json:"resourceTypes"`
 
