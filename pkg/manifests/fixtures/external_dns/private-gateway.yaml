@@ -8,24 +8,14 @@ metadata:
 spec: {}
 status: {}
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  creationTimestamp: null
-  labels:
-    app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: external-dns-private
-  name: external-dns-private
-  namespace: test-namespace
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: external-dns-private
-  name: external-dns-private
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+  name: test-dns-config-private-external-dns
 rules:
 - apiGroups:
   - ""
@@ -47,10 +37,19 @@ rules:
   - watch
   - list
 - apiGroups:
-  - extensions
-  - networking.k8s.io
+  - ""
   resources:
-  - ingresses
+  - namespaces
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  - httproutes
+  - grpcroutes
   verbs:
   - get
   - watch
@@ -62,27 +61,27 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: external-dns-private
-  name: external-dns-private
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+  name: test-dns-config-private-external-dns
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: external-dns-private
+  name: test-dns-config-private-external-dns
 subjects:
 - kind: ServiceAccount
-  name: external-dns-private
+  name: test-private-service-account
   namespace: test-namespace
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useManagedIdentityExtension":true,"userAssignedIdentityID":"test-client-id"}'
+  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: external-dns-private
-  name: external-dns-private
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+  name: test-dns-config-private-external-dns
   namespace: test-namespace
 ---
 apiVersion: apps/v1
@@ -91,23 +90,23 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: external-dns-private
-  name: external-dns-private
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+  name: test-dns-config-private-external-dns
   namespace: test-namespace
 spec:
   replicas: 1
   revisionHistoryLimit: 2
   selector:
     matchLabels:
-      app: external-dns-private
+      app: test-dns-config-private-external-dns
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        app: external-dns-private
+        app: test-dns-config-private-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: aa75575c57a3fa54
+        checksum/configmap: 10d3362c74fab97c
     spec:
       affinity:
         nodeAffinity:
@@ -135,10 +134,11 @@ spec:
       containers:
       - args:
         - --provider=azure-private-dns
-        - --interval=3m0s
+        - --interval=10s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
-        - --source=ingress
+        - --source=gateway-httproute
+        - --source=gateway-grpcroute
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
         image: /oss/v2/kubernetes/external-dns:v0.15.0
@@ -185,13 +185,13 @@ spec:
           name: azure-config
           readOnly: true
       priorityClassName: system-cluster-critical
-      serviceAccountName: external-dns-private
+      serviceAccountName: test-private-service-account
       tolerations:
       - key: CriticalAddonsOnly
         operator: Exists
       volumes:
       - configMap:
-          name: external-dns-private
+          name: test-dns-config-private-external-dns
         name: azure-config
 status: {}
 ---

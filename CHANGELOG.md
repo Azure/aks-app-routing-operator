@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-patch-5] - 2025-01-07
+
+### Changed
+ - bump crypto to v0.31.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/329)
+ - bump net to v0.33.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/329)
+
+## [0.2.1-patch-7] - 2025-01-07
+
+### Changed
+ - bump crypto to v0.31.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/330)
+ - bump net to v0.33.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/330)
+
+## [0.2.3-patch-4] - 2024-12-06
+
+### Changed
+
+- bump Go - [link](https://github.com/Azure/aks-app-routing-operator/pull/315)
+- bump externaldns to v0.15.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/315)
+
+## [0.2.1-patch-6] - 2024-12-06
+
+### Changed
+
+- bump Go - [link](https://github.com/Azure/aks-app-routing-operator/pull/316)
+- bump externaldns to v0.15.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/316)
+
 ## [0.2.3-patch-3] - 2024-10-24
 
 ### Changed

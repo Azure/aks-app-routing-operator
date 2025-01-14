@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/open-policy-agent/gatekeeper/v3/pkg/gator/reader"
 	"github.com/open-policy-agent/gatekeeper/v3/pkg/gator/test"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -25,25 +24,25 @@ const genFixturesEnv = "GENERATE_FIXTURES"
 const constraintsPath = "./policy/manifests"
 
 var namespaceTestCases = []struct {
-	Name   string
-	Config *config.Config
+	Name          string
+	Config        *config.Config
+	NamespaceName string
 }{
 	{
-		Name: "namespace", Config: &config.Config{
-			NS: "test-namespace",
-		},
+		Name:          "namespace",
+		NamespaceName: "test-namespace",
+		Config:        &config.Config{},
 	},
 	{
-		Name: "another-namespace",
-		Config: &config.Config{
-			NS: "another-test-namespace",
-		},
+		Name:          "another-namespace",
+		NamespaceName: "another-test-namespace",
+		Config:        &config.Config{},
 	},
 }
 
 func TestNamespaceResources(t *testing.T) {
 	for _, tc := range namespaceTestCases {
-		objs := Namespace(tc.Config)
+		objs := Namespace(tc.Config, tc.NamespaceName)
 		fixture := path.Join("fixtures", "common", tc.Name) + ".yaml"
 		AssertFixture(t, fixture, []client.Object{objs})
 	}
@@ -250,7 +249,7 @@ func AssertFixture(t *testing.T, fixturePath string, objs []client.Object) {
 
 	expected, err := os.ReadFile(fixturePath)
 	require.NoError(t, err)
-	assert.YAMLEq(t, string(expected), string(actual))
+	require.Equal(t, string(expected), string(actual), "expected and actual do not match for fixture %s", fixturePath)
 }
 
 type GatekeeperException struct {
