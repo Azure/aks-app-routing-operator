@@ -197,7 +197,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("missing required field \"dnsZoneResourceIDs\""),
+						expectedError: errors.New("spec.dnsZoneResourceIDs in body should have at least 1 items"),
 					},
 					{
 						name: "no resourcetypes",
@@ -217,7 +217,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("missing required field \"resourceTypes\""),
+						expectedError: errors.New("spec.dnsZoneResourceIDs in body should have at least 1 items"),
 					},
 					{
 						name: "empty resourcetypes",
@@ -238,7 +238,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("resourceTypes in body should have at least 1 items"),
+						expectedError: errors.New("spec.dnsZoneResourceIDs in body should have at least 1 items"),
 					},
 					{
 						name: "invalid resourcetypes",
