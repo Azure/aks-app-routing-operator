@@ -78,7 +78,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("missing required field \"resourceNamespace\""),
+						expectedError: errors.New("resourceNamespace in body should be at least 1 chars long"),
 					},
 					{
 						name: "invalid tenant ID",
