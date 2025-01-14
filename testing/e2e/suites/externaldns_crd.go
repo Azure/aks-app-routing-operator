@@ -95,7 +95,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("missing required field \"tenantID\""),
+						expectedError: errors.New("should match '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"),
 					},
 					{
 						name: "different subs",
