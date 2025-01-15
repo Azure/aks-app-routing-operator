@@ -217,7 +217,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("required value, <nil>: Invalid value: \"null\""),
+						expectedError: errors.New("Required value, <nil>: Invalid value: \"null\""),
 					},
 					{
 						name: "empty resourcetypes",
