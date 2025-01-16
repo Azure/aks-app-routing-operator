@@ -24,7 +24,7 @@ require (
 	github.com/sethvargo/go-githubactions v1.1.0
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	golang.org/x/sync v0.8.0
+	golang.org/x/sync v0.10.0
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
