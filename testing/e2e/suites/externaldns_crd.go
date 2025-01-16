@@ -308,7 +308,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 				}
 
 				for _, tc := range tcs {
-					err := c.Create(context.Background(), tc.ed)
+					err := c.Patch(context.Background(), tc.ed, client.Apply)
 					if tc.expectedError != nil {
 						if err == nil {
 							return fmt.Errorf("expected error: %s", tc.expectedError.Error())
