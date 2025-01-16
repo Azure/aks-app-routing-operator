@@ -107,7 +107,7 @@ spec:
       labels:
         app: external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: 7a7768971308cadb
+        checksum/configmap: 86d95ce2f8b58999
     spec:
       affinity:
         nodeAffinity:
@@ -294,7 +294,7 @@ spec:
       labels:
         app: external-dns-private
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: aa75575c57a3fa54
+        checksum/configmap: b9795d4a196f584d
     spec:
       affinity:
         nodeAffinity:

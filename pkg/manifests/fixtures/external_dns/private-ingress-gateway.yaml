@@ -83,7 +83,7 @@ subjects:
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
+  azure.json: '{"activeDirectoryAuthorityHost":"","cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
@@ -115,7 +115,7 @@ spec:
       labels:
         app: test-dns-config-private-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
-        checksum/configmap: 10d3362c74fab97c
+        checksum/configmap: 7f248ea40060b041
     spec:
       affinity:
         nodeAffinity:
