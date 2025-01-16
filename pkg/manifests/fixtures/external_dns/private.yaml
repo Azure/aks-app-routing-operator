@@ -15,7 +15,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns-private
-    kubernetes.azure.com/managedby: aks
   name: external-dns-private
   namespace: test-namespace
 ---
@@ -26,7 +25,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns-private
-    kubernetes.azure.com/managedby: aks
   name: external-dns-private
 rules:
 - apiGroups:
@@ -65,7 +63,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns-private
-    kubernetes.azure.com/managedby: aks
   name: external-dns-private
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -85,7 +82,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns-private
-    kubernetes.azure.com/managedby: aks
   name: external-dns-private
   namespace: test-namespace
 ---
@@ -96,7 +92,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: external-dns-private
-    kubernetes.azure.com/managedby: aks
   name: external-dns-private
   namespace: test-namespace
 spec:
@@ -113,7 +108,6 @@ spec:
         app: external-dns-private
         app.kubernetes.io/managed-by: aks-app-routing-operator
         checksum/configmap: aa75575c57a3fa54
-        kubernetes.azure.com/managedby: aks
     spec:
       affinity:
         nodeAffinity:

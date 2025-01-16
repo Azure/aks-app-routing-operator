@@ -14,7 +14,7 @@ const operatorName = "aks-app-routing-operator"
 
 // GetTopLevelLabels returns labels that every resource App Routing manages have
 func GetTopLevelLabels() map[string]string { // this is a function to avoid any accidental mutation due to maps being reference types
-	return map[string]string{"app.kubernetes.io/managed-by": operatorName, "kubernetes.azure.com/managedby": "aks"}
+	return map[string]string{"app.kubernetes.io/managed-by": operatorName}
 }
 
 // HasTopLevelLabels returns true if the given labels match the top level labels
