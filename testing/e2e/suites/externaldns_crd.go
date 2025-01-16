@@ -238,7 +238,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("spec.dnsZoneResourceIDs in body should have at least 1 items"),
+						expectedError: errors.New("spec.resourceTypes in body should have at least 1 items"),
 					},
 					{
 						name: "invalid resourcetypes",
