@@ -19,7 +19,7 @@ func validClusterExternalDNS() *v1alpha1.ClusterExternalDNS {
 	return &v1alpha1.ClusterExternalDNS{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha1.GroupVersion.String(),
-			Kind:       "ExternalDNS",
+			Kind:       "ClusterExternalDNS",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test",
@@ -67,7 +67,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "no-resourcens",
@@ -91,7 +91,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "invalid-tenant",
@@ -115,7 +115,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "no-tenant",
@@ -138,7 +138,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "diff-sub",
@@ -163,7 +163,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "diff-type",
@@ -188,7 +188,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "duplicate-zones",
@@ -213,7 +213,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "diff-rg",
@@ -238,7 +238,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "no-zones",
@@ -260,7 +260,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "no-resourcetypes",
@@ -284,7 +284,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "empty-resourcetypes",
@@ -309,7 +309,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "invalid-resourcetypes",
@@ -334,7 +334,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "no-identity",
@@ -356,7 +356,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
-								Kind:       "ExternalDNS",
+								Kind:       "ClusterExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "no-sa",
