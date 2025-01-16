@@ -328,7 +328,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 				}
 
 				for _, tc := range tcs {
-					err := c.Patch(context.Background(), tc.ced, client.Apply)
+					err := c.Create(context.Background(), tc.ced)
 					if tc.expectedError != nil {
 						if err == nil {
 							return fmt.Errorf("expected error: %s", tc.expectedError.Error())
@@ -338,7 +338,8 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						}
 
 					} else {
-						if err != nil {
+						// ignore already exists since same cluster is used for multiple tests
+						if client.IgnoreAlreadyExists(err) != nil {
 							return fmt.Errorf("unexpected error: %s", err.Error())
 						}
 					}
