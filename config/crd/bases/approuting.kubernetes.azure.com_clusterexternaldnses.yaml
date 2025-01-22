@@ -48,7 +48,7 @@ spec:
                 description: DNSZoneResourceIDs is a list of Azure Resource IDs of
                   the DNS zones that the ExternalDNS controller should manage. These
                   must be in the same resource group and be of the same type (public
-                  or private). The number of zones is currently capped at 20 but may
+                  or private). The number of zones is currently capped at 7 but may
                   be expanded in the future.
                 items:
                   type: string
