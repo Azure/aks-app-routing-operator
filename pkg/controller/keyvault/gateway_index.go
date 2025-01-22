@@ -22,11 +22,7 @@ func AddGatewayServiceAccountIndex(indexer client.FieldIndexer, indexName string
 
 func gatewayServiceAccountIndexFn(object client.Object) []string {
 	gateway, ok := object.(*gatewayv1.Gateway)
-	if !ok {
-		return nil
-	}
-
-	if gateway == nil {
+	if !ok || gateway == nil {
 		return nil
 	}
 
