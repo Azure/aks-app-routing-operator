@@ -80,7 +80,3 @@ func TestExternalDNSSetCondition(t *testing.T) {
 	require.Equal(t, cond.Reason, got.Reason)
 	require.Equal(t, cond.Message, got.Message)
 }
-
-func TestKubebuilderValidation(t *testing.T) {
-
-}
