@@ -1,13 +1,17 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestToPtr(t *testing.T) {
@@ -16,6 +20,54 @@ func TestToPtr(t *testing.T) {
 
 	stringVar := "string"
 	require.Equal(t, &stringVar, ToPtr(stringVar))
+}
+
+func TestToInt32Ptr(t *testing.T) {
+	var int32Var = int32(2)
+	require.Equal(t, &int32Var, Int32Ptr(int32Var))
+}
+
+func TestToInt64Ptr(t *testing.T) {
+	var int64Var = int64(2)
+	require.Equal(t, &int64Var, Int64Ptr(int64Var))
+}
+
+func TestUseServerSideApply(t *testing.T) {
+	require.Equal(t, patchType, client.Merge)
+	UseServerSideApply()
+	require.Equal(t, patchType, client.Apply)
+
+	// reset
+	patchType = client.Merge
+}
+
+func TestUpsert(t *testing.T) {
+	configMap := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "configmap",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"testkey": "testvalue",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithObjects(configMap).Build()
+	configMap.Data["newkey"] = "newvalue"
+
+	err := Upsert(context.Background(), fakeClient, configMap)
+	require.NoError(t, err)
+
+	// ensure both values were merged
+	got := &corev1.ConfigMap{}
+	err = fakeClient.Get(context.Background(), client.ObjectKeyFromObject(configMap), got)
+	require.NoError(t, err)
+	require.Equal(t, "testvalue", got.Data["testkey"])
+	require.Equal(t, "newvalue", got.Data["newkey"])
 }
 
 func TestFindOwnerKind(t *testing.T) {
