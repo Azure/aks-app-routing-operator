@@ -42,7 +42,7 @@ dev: clean ## Deploys a development environment useful for testing the operator 
 push: ## Pushes the current operator code to the current development environment
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt
 	az acr login -n `cat devenv/state/registry.txt`
-	docker build -t `cat devenv/state/operator-image-tag.txt` .
+	docker build -t `cat devenv/state/operator-image-tag.txt` --file ./docker/operator.Dockerfile .
 	docker push `cat devenv/state/operator-image-tag.txt`
 	./devenv/scripts/push_image.sh
 
