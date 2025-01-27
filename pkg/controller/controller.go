@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -42,7 +43,8 @@ import (
 var scheme = runtime.NewScheme()
 
 const (
-	nicIngressClassIndex = "spec.ingressClassName"
+	nicIngressClassIndex     = "spec.ingressClassName"
+	gatewayListenerIndexName = "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"
 )
 
 func init() {
@@ -69,6 +71,7 @@ func registerSchemes(s *runtime.Scheme) {
 	utilruntime.Must(policyv1alpha1.AddToScheme(s))
 	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(gatewayv1.Install(s))
 }
 
 func NewRestConfig(conf *config.Config) *rest.Config {
@@ -113,7 +116,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("loading CRDs: %w", err)
 	}
 
-	if err := setupIndexers(m, setupLog); err != nil {
+	if err := setupIndexers(m, setupLog, conf); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
 		return nil, fmt.Errorf("setting up indexers: %w", err)
 	}
@@ -126,13 +129,20 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	return m, nil
 }
 
-func setupIndexers(mgr ctrl.Manager, lgr logr.Logger) error {
+func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error {
 	lgr.Info("setting up indexers")
 
 	lgr.Info("adding Nginx Ingress Controller IngressClass indexer")
 	if err := nginxingress.AddIngressClassNameIndex(mgr.GetFieldIndexer(), nicIngressClassIndex); err != nil {
 		lgr.Error(err, "adding Nginx Ingress Controller IngressClass indexer")
 		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
+	}
+
+	if conf.EnableGateway {
+		if err := keyvault.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
+			lgr.Error(err, "adding Gateway Service Account indexer")
+			return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
+		}
 	}
 
 	lgr.Info("finished setting up indexers")
@@ -208,6 +218,13 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	lgr.Info("setting up ingress backend reconciler")
 	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressSourceSpecer); err != nil {
 		return fmt.Errorf("setting up ingress backend reconciler: %w", err)
+	}
+
+	if conf.EnableGateway {
+		lgr.Info("setting up gateway reconcilers")
+		if err := keyvault.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
+			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
+		}
 	}
 
 	lgr.Info("finished setting up controllers")

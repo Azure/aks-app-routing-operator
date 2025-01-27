@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,7 +45,8 @@ func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Co
 	return nginxSecretProviderControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
-			For(&approutingv1alpha1.NginxIngressController{}), manager.GetLogger(),
+			For(&approutingv1alpha1.NginxIngressController{}).
+			Owns(&secv1.SecretProviderClass{}), manager.GetLogger(),
 	).Complete(&NginxSecretProviderClassReconciler{
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
@@ -51,22 +54,19 @@ func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Co
 	})
 }
 
-func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var err error
-	result := ctrl.Result{}
-
+func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, retErr error) {
 	// do metrics
 	defer func() {
 		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
 		//this makes sure they have the proper value
 		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
 		//the values of result and err to their zero values, since they were just instantiated
-		metrics.HandleControllerReconcileMetrics(nginxSecretProviderControllerName, result, err)
+		metrics.HandleControllerReconcileMetrics(nginxSecretProviderControllerName, result, retErr)
 	}()
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return result, err
+		return ctrl.Result{}, fmt.Errorf("initializing logger: %w", err)
 	}
 	logger = nginxSecretProviderControllerName.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
@@ -74,7 +74,7 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	nic := &approutingv1alpha1.NginxIngressController{}
 	err = i.client.Get(ctx, req.NamespacedName, nic)
 	if err != nil {
-		return result, client.IgnoreNotFound(err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("name", nic.Name, "generation", nic.Generation)
 
@@ -98,49 +98,55 @@ func (i *NginxSecretProviderClassReconciler) Reconcile(ctx context.Context, req 
 	}
 	logger = logger.WithValues("spc", spc.Name)
 	logger.Info("building spc and upserting if managed with labels")
-	upsertSPC, err := buildSPC(nic, spc, i.config)
 
-	if err != nil {
-		var userErr userError
-		if errors.As(err, &userErr) {
-			logger.Info(fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s. sending warning event", userErr.Error()))
-			i.events.Eventf(nic, "Warning", "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
-			return result, nil
+	if shouldDeploySpc(nic) {
+		spcConf := spcConfig{
+			ClientId:        i.config.MSIClientID,
+			TenantId:        i.config.TenantID,
+			KeyvaultCertUri: *nic.Spec.DefaultSSLCertificate.KeyVaultURI,
+			Name:            DefaultNginxCertName(nic),
+			Cloud:           i.config.Cloud,
+		}
+		err = buildSPC(spc, spcConf)
+		if err != nil {
+			var userErr userError
+			if errors.As(err, &userErr) {
+				logger.Info(fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s. sending warning event", userErr.Error()))
+				i.events.Eventf(nic, corev1.EventTypeWarning, "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+				return ctrl.Result{}, nil
+			}
+
+			logger.Error(err, fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s.", err.Error()))
+			return ctrl.Result{}, err
 		}
 
-		logger.Error(err, fmt.Sprintf("failed to build secret provider class for nginx ingress controller with error: %s.", err.Error()))
-		return result, err
-	}
-
-	if upsertSPC {
 		logger.Info("reconciling secret provider class for ingress")
 		err = util.Upsert(ctx, i.client, spc)
 		if err != nil {
-			i.events.Eventf(nic, "Warning", "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
+			i.events.Eventf(nic, corev1.EventTypeWarning, "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
 			logger.Error(err, fmt.Sprintf("failed to upsert secret provider class for nginx ingress class with error: %s.", err.Error()))
 		}
-		return result, err
-	} else {
-		logger.Info("spc is either not managed or key vault uri was removed")
+		return ctrl.Result{}, err
 	}
 
-	logger.Info("cleaning unused spc if ingress is managed")
-	logger.Info("getting secret provider class for ingress")
+	logger.Info("spc is either not managed or key vault uri was removed")
+	logger.Info("getting and cleaning unused spc if ingress is managed")
 
 	toCleanSPC := &secv1.SecretProviderClass{}
 
 	err = i.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC)
 	if err != nil {
-		return result, client.IgnoreNotFound(err)
+		logger.Error(err, "failed to fetch existing spc")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	if manifests.HasTopLevelLabels(toCleanSPC.Labels) {
 		logger.Info("removing secret provider class for ingress")
 		err = i.client.Delete(ctx, toCleanSPC)
-		return result, client.IgnoreNotFound(err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	} else {
 		logger.Info("spc was not managed so spc was not removed")
 	}
 
-	return result, nil
+	return ctrl.Result{}, nil
 }
