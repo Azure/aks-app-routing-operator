@@ -3,16 +3,19 @@ package keyvault
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/url"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
-	"testing"
 )
 
 var (
@@ -46,6 +49,18 @@ var (
 	maxSizeString = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbb"
 )
 
+func buildTestSpcConfig(clientId, tenantID, cloud, name, certUri string) spcConfig {
+	spcTestConf := spcConfig{
+		ClientId:        clientId,
+		TenantId:        tenantID,
+		Cloud:           cloud,
+		Name:            name,
+		KeyvaultCertUri: certUri,
+	}
+
+	return spcTestConf
+}
+
 func TestDefaultNginxCertName(t *testing.T) {
 
 	testStr := DefaultNginxCertName(&v1alpha1.NginxIngressController{
@@ -70,6 +85,15 @@ func TestCertSecretName(t *testing.T) {
 	require.Equal(t, "keyvault-anotheringressname", certSecretName("anotheringressname"))
 }
 
+func TestIngressSecretProviderClassReconcilershouldDeploySpc(t *testing.T) {
+	ing := buildSpcTestIngress.DeepCopy()
+	ing.Annotations = map[string]string{
+		"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test.vault.azure.net/secrets/test-secret",
+	}
+	ok := shouldDeploySpc(ing)
+	require.True(t, ok, "SPC should be built")
+
+}
 func TestIngressSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 	cases := []struct {
 		name, configCloud, spcCloud string
@@ -102,15 +126,23 @@ func TestIngressSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 			}
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := buildSPC(ing, spc, buildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
+			err := buildSPC(spc, buildTestSpcConfig("test-msi", "test-tenant", c.configCloud, certSecretName(ing.Name), ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]))
 			require.NoError(t, err, "building SPC should not error")
-			require.True(t, ok, "SPC should be built")
 
 			spcCloud, ok := spc.Spec.Parameters[kvcsi.CloudNameParameter]
 			require.Equal(t, c.expected, ok, "SPC cloud annotation unexpected")
 			require.Equal(t, c.spcCloud, spcCloud, "SPC cloud annotation doesn't match")
 		})
 	}
+}
+
+func TestNginxSecretProviderClassReconcilershouldDeploySpc(t *testing.T) {
+	nic := buildSpcTestNginxIngress.DeepCopy()
+	testSecretUri := "https://test.vault.azure.net/secrets/test-secret"
+	nic.Spec.DefaultSSLCertificate.KeyVaultURI = &testSecretUri
+
+	ok := shouldDeploySpc(nic)
+	require.True(t, ok, "SPC should be built")
 }
 
 func TestNginxSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
@@ -141,12 +173,10 @@ func TestNginxSecretProviderClassReconcilerbuildSPCCloud(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			nic := buildSpcTestNginxIngress.DeepCopy()
 			testSecretUri := "https://test.vault.azure.net/secrets/test-secret"
-			nic.Spec.DefaultSSLCertificate.KeyVaultURI = &testSecretUri
 
 			spc := &secv1.SecretProviderClass{}
-			ok, err := buildSPC(nic, spc, buildTestSpcConfig("test-msi", "test-tenant", c.configCloud))
+			err := buildSPC(spc, buildTestSpcConfig("test-msi", "test-tenant", c.configCloud, DefaultNginxCertName(nic), testSecretUri))
 			require.NoError(t, err, "building SPC should not error")
-			require.True(t, ok, "SPC should be built")
 
 			spcCloud, ok := spc.Spec.Parameters[kvcsi.CloudNameParameter]
 			require.Equal(t, c.expected, ok, "SPC cloud annotation unexpected")
@@ -162,21 +192,47 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		},
 	}
 
-	t.Run("nil annotations", func(t *testing.T) {
+	invalidUrlNic := &v1alpha1.NginxIngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-nic",
+			Namespace: "test-namespace",
+		},
+		Spec: v1alpha1.NginxIngressControllerSpec{
+			IngressClassName: spcTestNginxIngressClassName,
+			DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
+				Secret:      nil,
+				KeyVaultURI: nil},
+		},
+	}
+
+	t.Run("nil annotations ing", func(t *testing.T) {
 		ing := invalidURLIng.DeepCopy()
 
-		ok, err := buildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+		ok := shouldDeploySpc(ing)
 		assert.False(t, ok)
-		require.NoError(t, err)
 	})
 
-	t.Run("empty url", func(t *testing.T) {
+	t.Run("nil cert nic", func(t *testing.T) {
+		nic := invalidUrlNic.DeepCopy()
+
+		ok := shouldDeploySpc(nic)
+		assert.False(t, ok)
+	})
+
+	t.Run("empty url ing", func(t *testing.T) {
 		ing := invalidURLIng.DeepCopy()
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": ""}
 
-		ok, err := buildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+		ok := shouldDeploySpc(ing)
 		assert.False(t, ok)
-		require.NoError(t, err)
+	})
+
+	t.Run("empty url nic", func(t *testing.T) {
+		nic := invalidUrlNic.DeepCopy()
+		nic.Spec.DefaultSSLCertificate.KeyVaultURI = to.Ptr("")
+
+		ok := shouldDeploySpc(nic)
+		assert.False(t, ok)
 	})
 
 	t.Run("url with control character", func(t *testing.T) {
@@ -184,8 +240,8 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		cc := string([]byte{0x7f})
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": cc}
 
-		ok, err := buildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
-		assert.False(t, ok)
+		err := buildSPC(&secv1.SecretProviderClass{}, buildTestSpcConfig("test-client-id", "test-tenant-id", "AzurePublicCloud", certSecretName(ing.Name), ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]))
+
 		_, expectedErr := url.Parse(cc) // the exact error depends on operating system
 		require.EqualError(t, err, fmt.Sprintf("%s", expectedErr))
 	})
@@ -194,8 +250,7 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 		ing := invalidURLIng.DeepCopy()
 		ing.Annotations = map[string]string{"kubernetes.azure.com/tls-cert-keyvault-uri": "http://test.com/foo"}
 
-		ok, err := buildSPC(ing, &secv1.SecretProviderClass{}, spcTestDefaultConf)
-		assert.False(t, ok)
+		err := buildSPC(&secv1.SecretProviderClass{}, buildTestSpcConfig("test-client-id", "test-tenant-id", "AzurePublicCloud", certSecretName(ing.Name), ing.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]))
 		require.EqualError(t, err, "uri Path contains too few segments: has: 2 requires greater than: 3 uri path: /foo")
 	})
 }
@@ -203,9 +258,8 @@ func TestIngressSecretProviderClassReconcilerBuildSPCInvalidURLs(t *testing.T) {
 func TestBuildSPCWithWrongObject(t *testing.T) {
 	var obj client.Object
 
-	ok, err := buildSPC(obj, &secv1.SecretProviderClass{}, spcTestDefaultConf)
+	ok := shouldDeploySpc(obj)
 	assert.False(t, ok)
-	require.EqualError(t, err, fmt.Sprintf("incorrect object type: %s", obj))
 }
 
 func TestUserErrors(t *testing.T) {
@@ -215,4 +269,22 @@ func TestUserErrors(t *testing.T) {
 
 	assert.True(t, testError.UserError() == testMsg)
 	assert.True(t, errors.As(testError, &userErr))
+}
+
+func TestShouldReconcileGateway(t *testing.T) {
+	nonIstioGateway := &gatewayv1.Gateway{
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "test-gateway-class",
+		},
+	}
+
+	require.False(t, shouldReconcileGateway(nonIstioGateway))
+
+	istioGateway := &gatewayv1.Gateway{
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "istio",
+		},
+	}
+
+	require.True(t, shouldReconcileGateway(istioGateway))
 }
