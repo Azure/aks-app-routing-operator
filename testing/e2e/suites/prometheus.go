@@ -11,9 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var (
-	promNs = manifests.UncollisionedNs()
-)
+var promNs = manifests.UncollisionedNs()
 
 func promSuite(in infra.Provisioned) []test {
 	return []test{
@@ -30,7 +28,7 @@ func promSuite(in infra.Provisioned) []test {
 
 				c, err := client.New(config, client.Options{})
 				if err != nil {
-					return fmt.Errorf("creating client: %w")
+					return fmt.Errorf("creating client: %w", err)
 				}
 
 				lgr.Info("creating namespace")

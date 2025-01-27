@@ -2,6 +2,7 @@ package manifests
 
 import (
 	_ "embed"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:embed embedded/customErrorsClient.go
+//go:embed embedded/customErrorsClient.golang
 var ceClientContents string
 
 //go:embed embedded/404.html
@@ -64,59 +65,57 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 	}
 
 	errorsServerName := name + "-nginx-errors-server"
-	errorsServerDeployment :=
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Deployment",
-				APIVersion: "apps/v1",
+	errorsServerDeployment := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      errorsServerName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      errorsServerName,
-				Namespace: namespace,
-				Labels: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: to.Ptr(int32(1)),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": errorsServerName},
 			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: to.Ptr(int32(1)),
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{"app": errorsServerName},
-				},
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": errorsServerName,
-						},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": errorsServerName,
 					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{{
-							Name:  "nginx-error-server",
-							Image: "registry.k8s.io/ingress-nginx/nginx-errors:v20230505@sha256:3600dcd1bbd0d05959bb01af4b272714e94d22d24a64e91838e7183c80e53f7f",
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "http",
-									ContainerPort: 8080,
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "custom-error-pages",
-									MountPath: "/www",
-								},
-							},
-						}},
-						Volumes: []corev1.Volume{
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "nginx-error-server",
+						Image: "registry.k8s.io/ingress-nginx/nginx-errors:v20230505@sha256:3600dcd1bbd0d05959bb01af4b272714e94d22d24a64e91838e7183c80e53f7f",
+						Ports: []corev1.ContainerPort{
 							{
-								Name: "custom-error-pages",
-								VolumeSource: corev1.VolumeSource{
-									ConfigMap: &corev1.ConfigMapVolumeSource{
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "custom-error-pages",
-										},
-										Items: []corev1.KeyToPath{
-											{Key: "404", Path: "404.html"},
-											{Key: "503", Path: "503.html"},
-										},
+								Name:          "http",
+								ContainerPort: 8080,
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "custom-error-pages",
+								MountPath: "/www",
+							},
+						},
+					}},
+					Volumes: []corev1.Volume{
+						{
+							Name: "custom-error-pages",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "custom-error-pages",
+									},
+									Items: []corev1.KeyToPath{
+										{Key: "404", Path: "404.html"},
+										{Key: "503", Path: "503.html"},
 									},
 								},
 							},
@@ -124,126 +123,122 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 					},
 				},
 			},
-		}
+		},
+	}
 
 	errorsServiceName := name + "-nginx-errors-service"
 	if serviceName != nil {
 		errorsServiceName = *serviceName
 	}
-	errorsService :=
-		&corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Service",
-				APIVersion: "v1",
+	errorsService := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      errorsServiceName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      errorsServiceName,
-				Namespace: namespace,
-				Annotations: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       80,
+				TargetPort: intstr.FromInt(8080),
+			}},
+			Selector: map[string]string{
+				"app": errorsServerName,
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:       "http",
-					Port:       80,
-					TargetPort: intstr.FromInt(8080),
-				}},
-				Selector: map[string]string{
-					"app": errorsServerName,
-				},
-			},
-		}
+		},
+	}
 
-	liveService :=
-		&corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Service",
-				APIVersion: "v1",
+	liveService := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "live-service",
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "live-service",
-				Namespace: namespace,
-				Annotations: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       5678,
+				TargetPort: intstr.FromInt(5678),
+			}},
+			Selector: map[string]string{
+				"app": "live",
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:       "http",
-					Port:       5678,
-					TargetPort: intstr.FromInt(5678),
-				}},
-				Selector: map[string]string{
-					"app": "live",
-				},
-			},
-		}
+		},
+	}
 
-	deadService :=
-		&corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Service",
-				APIVersion: "v1",
+	deadService := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dead-service",
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "dead-service",
-				Namespace: namespace,
-				Annotations: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.FromInt(8080),
+			}},
+			Selector: map[string]string{
+				"app": "dead",
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:       "http",
-					Port:       8080,
-					TargetPort: intstr.FromInt(8080),
-				}},
-				Selector: map[string]string{
-					"app": "dead",
-				},
-			},
-		}
+		},
+	}
 
-	customErrorPagesConfigMap :=
-		&corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "custom-error-pages",
-				Namespace: namespace,
-			},
-			Data: map[string]string{
-				"404": notFoundContents,
-				"503": unavailableContents,
-			},
-		}
+	customErrorPagesConfigMap := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "custom-error-pages",
+			Namespace: namespace,
+		},
+		Data: map[string]string{
+			"404": notFoundContents,
+			"503": unavailableContents,
+		},
+	}
 
-	liveServicePod :=
-		&corev1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Pod",
-				APIVersion: "v1",
+	liveServicePod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "live-app",
+			Labels: map[string]string{
+				"app": "live",
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "live-app",
-				Labels: map[string]string{
-					"app": "live",
-				},
-				Namespace: namespace,
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  "live-app",
-						Image: "hashicorp/http-echo",
-						Args:  []string{"-text=live service"},
-					},
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "live-app",
+					Image: "hashicorp/http-echo",
+					Args:  []string{"-text=live service"},
 				},
 			},
-		}
+		},
+	}
 
 	liveIngress := &netv1.Ingress{
 		TypeMeta: metav1.TypeMeta{

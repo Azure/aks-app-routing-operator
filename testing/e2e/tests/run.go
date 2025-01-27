@@ -91,7 +91,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 
 	go func() {
 		if err := recover(); err != nil {
-			lgr.Error(fmt.Sprintf("panic occured: %w", err))
+			lgr.Error(fmt.Sprintf("panic occurred: %s", err))
 		}
 	}()
 
