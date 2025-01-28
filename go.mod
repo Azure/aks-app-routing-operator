@@ -29,8 +29,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-require github.com/Azure/aks-app-routing-operator/testing/e2e v0.0.0-20250127205528-065d467735c8
-
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0 // indirect
