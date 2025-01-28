@@ -2,6 +2,7 @@ package manifests
 
 import (
 	_ "embed"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -10,10 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:embed embedded/defaultBackendClient.go
+//go:embed embedded/defaultBackendClient.golang
 var dbClientContents string
 
-//go:embed embedded/defaultBackendServer.go
+//go:embed embedded/defaultBackendServer.golang
 var dbServerContents string
 
 var (
@@ -68,60 +69,58 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 	serverDeployment := newGoDeployment(serverContents, namespace, serverName)
 	ingressName := name + "-ingress"
 
-	service :=
-		&corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Service",
-				APIVersion: "v1",
+	service := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      serviceName,
-				Namespace: namespace,
-				Annotations: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.FromInt(8080),
+			}},
+			Selector: map[string]string{
+				"app": serverName,
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:       "http",
-					Port:       8080,
-					TargetPort: intstr.FromInt(8080),
-				}},
-				Selector: map[string]string{
-					"app": serverName,
-				},
-			},
-		}
+		},
+	}
 
 	// Default server deployment
 	defaultServerName := "default-" + name + "-server"
 	defaultServiceName := "default-" + name + "-service"
 
 	defaultServerDeployment := newGoDeployment(dbServerContents, namespace, defaultServerName)
-	dbService :=
-		&corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Service",
-				APIVersion: "v1",
+	dbService := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultServiceName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      defaultServiceName,
-				Namespace: namespace,
-				Annotations: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.FromInt(8080),
+			}},
+			Selector: map[string]string{
+				"app": defaultServerName,
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:       "http",
-					Port:       8080,
-					TargetPort: intstr.FromInt(8080),
-				}},
-				Selector: map[string]string{
-					"app": defaultServerName,
-				},
-			},
-		}
+		},
+	}
 
 	ingress := &netv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
