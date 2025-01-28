@@ -380,7 +380,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 					Scheme: scheme,
 				})
 				if err != nil {
-					return fmt.Errorf("creating client: %w")
+					return fmt.Errorf("creating client: %w", err)
 				}
 
 				for _, tc := range tcs {
