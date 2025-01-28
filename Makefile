@@ -55,7 +55,7 @@ e2e-deploy: ## runs only deploy
 
 unit: ## Runs unit tests
 	docker build ./devenv/ -t app-routing-dev:latest
-	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test ./...
+	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test -race ./...
 
 crd: generate manifests ## Generates all associated files from CRD
 
