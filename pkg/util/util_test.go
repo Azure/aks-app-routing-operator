@@ -32,15 +32,6 @@ func TestToInt64Ptr(t *testing.T) {
 	require.Equal(t, &int64Var, Int64Ptr(int64Var))
 }
 
-func TestUseServerSideApply(t *testing.T) {
-	require.Equal(t, patchType, client.Merge)
-	UseServerSideApply()
-	require.Equal(t, patchType, client.Apply)
-
-	// reset
-	patchType = client.Merge
-}
-
 func TestUpsert(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
