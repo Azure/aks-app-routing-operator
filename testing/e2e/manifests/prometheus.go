@@ -17,7 +17,7 @@ const (
 	promConfigFile = "prometheus.yaml"
 )
 
-//go:embed embedded/prom.go
+//go:embed embedded/prom.golang
 var promClientContents string
 
 type prometheusResources struct {

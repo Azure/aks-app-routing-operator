@@ -6,3 +6,7 @@ coverage.out
 
 .env
 bin/*
+
+# e2e files
+infra-config.json
+job-app-routing-operator-e2e.log

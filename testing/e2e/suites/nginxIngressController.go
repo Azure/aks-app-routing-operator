@@ -66,7 +66,7 @@ func nicTests(in infra.Provisioned) []test {
 					Scheme: scheme,
 				})
 				if err != nil {
-					return fmt.Errorf("creating client: %w")
+					return fmt.Errorf("creating client: %w", err)
 				}
 
 				// validate that crd rejected with invalid fields
@@ -271,7 +271,7 @@ func nicTests(in infra.Provisioned) []test {
 					Scheme: scheme,
 				})
 				if err != nil {
-					return fmt.Errorf("creating client: %w")
+					return fmt.Errorf("creating client: %w", err)
 				}
 
 				privateNic := manifests.NewNginxIngressController("private", "private.ingress.class")
@@ -346,7 +346,7 @@ func nicTests(in infra.Provisioned) []test {
 					Scheme: scheme,
 				})
 				if err != nil {
-					return fmt.Errorf("creating client: %w")
+					return fmt.Errorf("creating client: %w", err)
 				}
 
 				// get keyvault uri

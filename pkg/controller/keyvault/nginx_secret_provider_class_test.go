@@ -5,9 +5,10 @@ package keyvault
 
 import (
 	"context"
+	"testing"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"testing"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -297,6 +298,7 @@ func TestNginxSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 	afterErrCount := testutils.GetErrMetricCount(t, nginxSecretProviderControllerName)
 	afterRequestCount := testutils.GetReconcileMetricCount(t, nginxSecretProviderControllerName, metrics.LabelError)
 
-	assert.Greater(t, afterErrCount, beforeErrCount)
-	assert.Greater(t, afterRequestCount, beforeRequestCount)
+	// no new errors from invalid url
+	assert.Equal(t, afterErrCount, beforeErrCount)
+	assert.Equal(t, afterRequestCount, beforeRequestCount)
 }

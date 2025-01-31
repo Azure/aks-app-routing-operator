@@ -42,24 +42,20 @@ dev: clean ## Deploys a development environment useful for testing the operator 
 push: ## Pushes the current operator code to the current development environment
 	echo "$(shell cat devenv/state/registry.txt)/app-routing-operator:$(shell date +%s)" > devenv/state/operator-image-tag.txt
 	az acr login -n `cat devenv/state/registry.txt`
-	docker build -t `cat devenv/state/operator-image-tag.txt` .
+	docker build -t `cat devenv/state/operator-image-tag.txt` --file ./docker/operator.Dockerfile .
 	docker push `cat devenv/state/operator-image-tag.txt`
 	./devenv/scripts/push_image.sh
 
 e2e: ## Runs end-to-end tests
-	# parenthesis preserve current working directory
-	(cd testing/e2e && \
-	 go run ./main.go infra --subscription=${SUBSCRIPTION_ID} --tenant=${TENANT_ID} --names=${INFRA_NAMES} && \
-	 go run ./main.go deploy)
-
+	go run ./cmd/e2e/main.go infra --subscription=${SUBSCRIPTION_ID} --tenant=${TENANT_ID} --names=${INFRA_NAMES} 
+	go run ./cmd/e2e/main.go deploy
+	
 e2e-deploy: ## runs only deploy
-	(cd testing/e2e && \
-    	 go run ./main.go deploy)
-
+	go run ./cmd/e2e/main.go deploy
 
 unit: ## Runs unit tests
 	docker build ./devenv/ -t app-routing-dev:latest
-	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test ./...
+	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test -race ./...
 
 crd: generate manifests ## Generates all associated files from CRD
 

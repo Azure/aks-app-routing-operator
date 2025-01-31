@@ -76,5 +76,6 @@ type Config struct {
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
 	CrdPath                             string
+	EnableGateway                       bool
 	ActiveDirectoryAuthorityHost        string
 }
