@@ -8,31 +8,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
-	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
-	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/fake"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	controllerruntimefake "sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
 func TestLogger(t *testing.T) {
@@ -89,8 +79,8 @@ func TestGetSelfDeploy(t *testing.T) {
 	})
 }
 
-func TestSetup(t *testing.T) {
-	testConfig := &config.Config{
+func minimalTestConfig() *config.Config {
+	return &config.Config{
 		DefaultController:        config.Standard,
 		NS:                       "test-namespace",
 		Registry:                 "test-registry",
@@ -104,30 +94,21 @@ func TestSetup(t *testing.T) {
 		OperatorDeployment:       "app-routing-operator",
 		CrdPath:                  validCrdPath,
 	}
-	testenv := &envtest.Environment{
-		CRDDirectoryPaths: []string{
-			filepath.Join("..", "..", "config", "crd", "bases"),
-			filepath.Join("..", "..", "config", "gatewaycrd"),
-		},
-	}
+}
+
+func TestSetup(t *testing.T) {
+	testConfig := minimalTestConfig()
+	testenv := testutils.NewTestEnvironment()
 
 	testRestConfig, err := testenv.Start()
 	require.NoError(t, err)
 
-	s := runtime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(s))
-	utilruntime.Must(secv1.Install(s))
-	utilruntime.Must(cfgv1alpha2.AddToScheme(s))
-	utilruntime.Must(policyv1alpha1.AddToScheme(s))
-	utilruntime.Must(approutingv1alpha1.AddToScheme(s))
-	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(gatewayv1.Install(s))
+	s := testutils.NewTestScheme()
 
 	mgr, err := manager.New(testRestConfig, manager.Options{
 		Scheme: s,
 	})
 	require.NoError(t, err)
-
 	require.NoError(t, setupIndexers(mgr, logr.Discard(), testConfig))
 	require.NoError(t, setupControllers(mgr, testConfig, logr.Discard(), controllerruntimefake.NewFakeClient()))
 	require.NoError(t, setupProbes(testConfig, mgr, logr.Discard()))
