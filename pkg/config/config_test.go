@@ -60,6 +60,24 @@ var validateTestCases = []struct {
 		},
 	},
 	{
+		Name: "valid-full-with-adah",
+		Conf: &Config{
+			DefaultController:            Standard,
+			NS:                           "test-namespace",
+			Registry:                     "test-registry",
+			MSIClientID:                  "test-msi-client-id",
+			TenantID:                     "test-tenant-id",
+			Cloud:                        "test-cloud",
+			Location:                     "test-location",
+			ConcurrencyWatchdogThres:     101,
+			ConcurrencyWatchdogVotes:     2,
+			ClusterUid:                   "test-cluster-uid",
+			OperatorDeployment:           "app-routing-operator",
+			CrdPath:                      validCrdPath,
+			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+		},
+	},
+	{
 		Name: "missing operator deployment",
 		Conf: &Config{
 			DefaultController:        Standard,

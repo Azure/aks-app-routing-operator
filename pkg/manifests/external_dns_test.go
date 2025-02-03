@@ -102,7 +102,7 @@ var (
 	}{
 		{
 			Name: "full",
-			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3, ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/"},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-operator-deploy",

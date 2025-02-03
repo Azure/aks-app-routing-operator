@@ -46,6 +46,8 @@ func init() {
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
 	flag.BoolVar(&Flags.EnableGateway, "enable-gateway", false, "whether or not to support and create controllers for Gateway API resources")
+	// default value of blank since externalDNS will only overwrite if this value isn't blank - https://github.com/kubernetes-sigs/external-dns/blob/290f8c848dc726b1266b9185c4ebb5b397488090/provider/azure/config.go#L70C5-L70C33
+	flag.StringVar(&Flags.ActiveDirectoryAuthorityHost, "active-directory-authority-host", "", "the base URL of the cloud's Azure Active Directory")
 }
 
 func (c *Config) Validate() error {

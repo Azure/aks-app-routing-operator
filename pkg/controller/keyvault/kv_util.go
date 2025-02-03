@@ -107,6 +107,12 @@ func buildSPC(spc *secv1.SecretProviderClass, spcConfig spcConfig) error {
 		spc.Spec.Parameters[kvcsi.CloudNameParameter] = spcConfig.Cloud
 	}
 
+	// special case for StackCloud
+	if spcConfig.Cloud == "AzureStackCloud" {
+		//spc.Spec.Parameters["cloudName"] = "AzureStackCloud"
+		spc.Spec.Parameters["cloudEnvFileName"] = "/etc/kubernetes/akscustom.json"
+	}
+
 	return nil
 }
 

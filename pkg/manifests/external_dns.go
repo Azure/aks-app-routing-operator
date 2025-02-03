@@ -297,11 +297,12 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 	jsMap := map[string]interface{}{
-		"tenantId":       externalDnsConfig.tenantId,
-		"subscriptionId": externalDnsConfig.subscription,
-		"resourceGroup":  externalDnsConfig.resourceGroup,
-		"cloud":          conf.Cloud,
-		"location":       conf.Location,
+		"tenantId":                     externalDnsConfig.tenantId,
+		"subscriptionId":               externalDnsConfig.subscription,
+		"resourceGroup":                externalDnsConfig.resourceGroup,
+		"cloud":                        conf.Cloud,
+		"location":                     conf.Location,
+		"activeDirectoryAuthorityHost": conf.ActiveDirectoryAuthorityHost,
 	}
 	jsMap[externalDnsConfig.identityType.externalDNSIdentityConfiguration()] = true
 
