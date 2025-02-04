@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,4 +113,11 @@ func isBestPracticeLoggerName(controllerName string) bool {
 	match, _ := regexp.MatchString(pattern, controllerName)
 
 	return match
+}
+
+func TestAddToLogger(t *testing.T) {
+	cn := New("Fake", "Controller")
+	logger := testr.New(t)
+	cn.AddToLogger(logger)
+	require.NotNil(t, logger)
 }
