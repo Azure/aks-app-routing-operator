@@ -356,6 +356,7 @@ func podIsActive(ctx context.Context, lgr logr.Logger, cl client.Client, pod cli
 		return false, nil
 	}
 	if err != nil {
+		lgr.Error(err, "failed to get pod")
 		return false, fmt.Errorf("getting pod: %w", err)
 	}
 
