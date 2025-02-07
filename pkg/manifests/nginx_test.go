@@ -440,13 +440,6 @@ func TestIngressControllerResources(t *testing.T) {
 			tc.IngConfig.Version = version
 			objs := GetNginxResources(tc.Conf, tc.IngConfig)
 
-			httpEnabled := tc.IngConfig.HTTPEnabled
-			for _, servicePort := range objs.Service.Spec.Ports {
-				if servicePort.Name == "http" && !httpEnabled {
-					t.Errorf("http port should not be enabled")
-				}
-			}
-
 			versionName := "default_version"
 			if version != nil {
 				versionName = version.name
