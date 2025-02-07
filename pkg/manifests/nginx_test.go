@@ -41,6 +41,7 @@ var (
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
 		},
+		HTTPEnabled:                    true,
 		MinReplicas:                    2,
 		MaxReplicas:                    100,
 		TargetCPUUtilizationPercentage: 80,
@@ -127,6 +128,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
+				HTTPEnabled:                    true,
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
@@ -152,6 +154,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
+				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakenamespace/fakename",
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
@@ -178,6 +181,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
+				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakenamespace/fakename",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
@@ -205,6 +209,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
+				HTTPEnabled:                    true,
 				DefaultBackendService:          "fakenamespace/fakename",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
@@ -233,6 +238,7 @@ var (
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
 				CustomHTTPErrors:               "404,503",
+				HTTPEnabled:                    true,
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
@@ -259,6 +265,7 @@ var (
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
 				CustomHTTPErrors:               "404,503",
+				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
 				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
 				ForceSSLRedirect:               true,
@@ -287,6 +294,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
+				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
 				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
 				ForceSSLRedirect:               true,
@@ -315,6 +323,7 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
+				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
@@ -370,6 +379,28 @@ var (
 				return &copy
 			}(),
 		},
+		{
+			Name: "full-with-http-disabled",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.HTTPEnabled = false
+				return &copy
+			}(),
+		},
 	}
 	classTestCases = []struct {
 		Name      string
@@ -408,6 +439,13 @@ func TestIngressControllerResources(t *testing.T) {
 		for _, version := range nginxVersions {
 			tc.IngConfig.Version = version
 			objs := GetNginxResources(tc.Conf, tc.IngConfig)
+
+			httpEnabled := tc.IngConfig.HTTPEnabled
+			for _, servicePort := range objs.Service.Spec.Ports {
+				if servicePort.Name == "http" && !httpEnabled {
+					t.Errorf("http port should not be enabled")
+				}
+			}
 
 			versionName := "default_version"
 			if version != nil {

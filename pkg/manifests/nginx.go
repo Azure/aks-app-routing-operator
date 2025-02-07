@@ -310,7 +310,7 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 		}
 	}
 
-	return &corev1.Service{
+	ret := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
 			APIVersion: "v1",
@@ -327,11 +327,6 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			Selector:              ingressConfig.PodLabels(),
 			Ports: []corev1.ServicePort{
 				{
-					Name:       "http",
-					Port:       80,
-					TargetPort: intstr.FromString("http"),
-				},
-				{
 					Name:       "https",
 					Port:       443,
 					TargetPort: intstr.FromString("https"),
@@ -339,6 +334,18 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			},
 		},
 	}
+
+	if ingressConfig.HTTPEnabled {
+		ret.Spec.Ports = append([]corev1.ServicePort{
+			{
+				Name:       "http",
+				Port:       80,
+				TargetPort: intstr.FromString("http"),
+			},
+		}, ret.Spec.Ports...)
+	}
+
+	return ret
 }
 
 func newNginxIngressControllerPromService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
