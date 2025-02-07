@@ -335,7 +335,7 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 		},
 	}
 
-	if ingressConfig.HTTPEnabled {
+	if !ingressConfig.HTTPDisabled {
 		ret.Spec.Ports = append([]corev1.ServicePort{
 			{
 				Name:       "http",
@@ -412,7 +412,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
 	}
 
-	return &appsv1.Deployment{
+	ret := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
 			APIVersion: "apps/v1",
@@ -458,10 +458,6 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						},
 						Ports: []corev1.ContainerPort{
 							{
-								Name:          "http",
-								ContainerPort: 80,
-							},
-							{
 								Name:          "https",
 								ContainerPort: 443,
 							},
@@ -478,6 +474,17 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 			},
 		},
 	}
+
+	if !ingressConfig.HTTPDisabled {
+		ret.Spec.Template.Spec.Containers[0].Ports = append([]corev1.ContainerPort{
+			{
+				Name:          "http",
+				ContainerPort: 80,
+			},
+		}, ret.Spec.Template.Spec.Containers[0].Ports...)
+	}
+
+	return ret
 }
 
 func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.ConfigMap {

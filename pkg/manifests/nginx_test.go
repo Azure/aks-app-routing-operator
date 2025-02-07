@@ -41,7 +41,6 @@ var (
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
 		},
-		HTTPEnabled:                    true,
 		MinReplicas:                    2,
 		MaxReplicas:                    100,
 		TargetCPUUtilizationPercentage: 80,
@@ -128,7 +127,6 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				HTTPEnabled:                    true,
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
@@ -154,7 +152,6 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakenamespace/fakename",
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
@@ -181,7 +178,6 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakenamespace/fakename",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
@@ -209,7 +205,6 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				HTTPEnabled:                    true,
 				DefaultBackendService:          "fakenamespace/fakename",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
@@ -238,7 +233,6 @@ var (
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
 				CustomHTTPErrors:               "404,503",
-				HTTPEnabled:                    true,
 				MinReplicas:                    2,
 				MaxReplicas:                    100,
 				TargetCPUUtilizationPercentage: 80,
@@ -265,7 +259,6 @@ var (
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
 				CustomHTTPErrors:               "404,503",
-				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
 				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
 				ForceSSLRedirect:               true,
@@ -294,7 +287,6 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "fakesslnamespace/fakesslname",
 				DefaultBackendService:          "fakebackendnamespace/fakebackendname",
 				ForceSSLRedirect:               true,
@@ -323,7 +315,6 @@ var (
 				ControllerClass:                "test-controller-class",
 				ResourceName:                   "nginx",
 				IcName:                         "nginx-private",
-				HTTPEnabled:                    true,
 				DefaultSSLCertificate:          "",
 				ForceSSLRedirect:               true,
 				MinReplicas:                    2,
@@ -380,6 +371,32 @@ var (
 			}(),
 		},
 		{
+			Name: "internal-with-http-disabled",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				HTTPDisabled:                   true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
 			Name: "full-with-http-disabled",
 			Conf: &config.Config{
 				NS:          "test-namespace",
@@ -397,7 +414,7 @@ var (
 			},
 			IngConfig: func() *NginxIngressConfig {
 				copy := *ingConfig
-				copy.HTTPEnabled = false
+				copy.HTTPDisabled = true
 				return &copy
 			}(),
 		},
