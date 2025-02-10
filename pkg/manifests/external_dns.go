@@ -48,18 +48,9 @@ func (i IdentityType) externalDNSIdentityConfiguration() string {
 
 type ResourceType int
 
-const (
-	ResourceTypeIngress ResourceType = iota
-	ResourceTypeGateway
-)
-
-func (r ResourceType) string() string {
-	switch r {
-	case ResourceTypeGateway:
-		return "Gateway"
-	default:
-		return "Ingress"
-	}
+type ResourceTypes struct {
+	Ingress bool
+	Gateway bool
 }
 
 // OldExternalDnsGks is a slice of GroupKinds that were previously used by ExternalDns.
@@ -88,7 +79,7 @@ func (p Provider) string() string {
 type InputExternalDNSConfig struct {
 	TenantId, Subscription, ResourceGroup, ClientId, InputServiceAccount, Namespace, InputResourceName string
 	IdentityType                                                                                       IdentityType
-	ResourceTypes                                                                                      []ResourceType
+	ResourceTypes                                                                                      ResourceTypes
 	Provider                                                                                           Provider
 	DnsZoneresourceIDs                                                                                 []string
 }
@@ -100,7 +91,7 @@ type ExternalDnsConfig struct {
 	clientId, serviceAccountName, namespace,
 	resourceName string
 	identityType  IdentityType
-	resourceTypes []ResourceType
+	resourceTypes ResourceTypes
 	provider      Provider
 
 	// externally exposed
@@ -127,17 +118,7 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		return nil, fmt.Errorf("invalid identity type: %v", inputConfig.IdentityType)
 	}
 
-	containsGateway := false
-	for _, rt := range inputConfig.ResourceTypes {
-		if rt != ResourceTypeIngress && rt != ResourceTypeGateway {
-			return nil, fmt.Errorf("invalid resource type: %v", rt)
-		}
-		if rt == ResourceTypeGateway {
-			containsGateway = true
-		}
-	}
-
-	if containsGateway && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
+	if inputConfig.ResourceTypes.Gateway && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
 		return nil, errors.New("gateway resource type can only be used with workload identity")
 	}
 
@@ -266,7 +247,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			},
 		},
 	}
-	addResourceSpecificRules(role, externalDnsConfig.resourceTypes...)
+	addResourceSpecificRules(role, externalDnsConfig.resourceTypes)
 	return role
 }
 
@@ -375,7 +356,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 							"--txt-wildcard-replacement=" + txtWildcardReplacement,
-						}, append(generateResourceDeploymentArgs(externalDnsConfig.resourceTypes...), domainFilters...)...),
+						}, append(generateResourceDeploymentArgs(externalDnsConfig.resourceTypes), domainFilters...)...),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",
@@ -419,48 +400,47 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	}
 }
 
-func generateResourceDeploymentArgs(rts ...ResourceType) []string {
+func generateResourceDeploymentArgs(rts ResourceTypes) []string {
 	var ret []string
-	for _, rt := range rts {
-		switch rt {
-		case ResourceTypeGateway:
-			ret = append(ret, []string{
-				"--source=gateway-httproute",
-				"--source=gateway-grpcroute",
-			}...)
-		case ResourceTypeIngress:
-			ret = append(ret, "--source=ingress")
-		}
+
+	if rts.Gateway {
+		ret = append(ret, []string{
+			"--source=gateway-httproute",
+			"--source=gateway-grpcroute",
+		}...)
+	}
+
+	if rts.Ingress {
+		ret = append(ret, "--source=ingress")
 	}
 
 	return ret
 }
 
-func addResourceSpecificRules(role *rbacv1.ClusterRole, resourceTypes ...ResourceType) {
-	for _, rt := range resourceTypes {
-		switch rt {
-		case ResourceTypeGateway:
-			role.Rules = append(role.Rules,
-				[]rbacv1.PolicyRule{
-					{
-						APIGroups: []string{""},
-						Resources: []string{"namespaces"},
-						Verbs:     []string{"get", "watch", "list"},
-					},
-					{
-						APIGroups: []string{"gateway.networking.k8s.io"},
-						Resources: []string{"gateways", "httproutes", "grpcroutes"},
-						Verbs:     []string{"get", "watch", "list"},
-					},
-				}...,
-			)
-		default:
-			role.Rules = append(role.Rules,
-				rbacv1.PolicyRule{
-					APIGroups: []string{"extensions", "networking.k8s.io"},
-					Resources: []string{"ingresses"},
+func addResourceSpecificRules(role *rbacv1.ClusterRole, resourceTypes ResourceTypes) {
+	if resourceTypes.Gateway {
+		role.Rules = append(role.Rules,
+			[]rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},
+					Resources: []string{"namespaces"},
 					Verbs:     []string{"get", "watch", "list"},
-				})
-		}
+				},
+				{
+					APIGroups: []string{"gateway.networking.k8s.io"},
+					Resources: []string{"gateways", "httproutes", "grpcroutes"},
+					Verbs:     []string{"get", "watch", "list"},
+				},
+			}...,
+		)
 	}
+	if resourceTypes.Ingress {
+		role.Rules = append(role.Rules,
+			rbacv1.PolicyRule{
+				APIGroups: []string{"extensions", "networking.k8s.io"},
+				Resources: []string{"ingresses"},
+				Verbs:     []string{"get", "watch", "list"},
+			})
+	}
+
 }
