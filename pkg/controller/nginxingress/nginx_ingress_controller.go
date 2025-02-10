@@ -560,6 +560,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		ServiceConfig: &manifests.ServiceConfig{
 			Annotations: nic.Spec.LoadBalancerAnnotations,
 		},
+		HTTPDisabled:                   nic.Spec.HTTPDisabled,
 		MinReplicas:                    minReplicas,
 		MaxReplicas:                    maxReplicas,
 		TargetCPUUtilizationPercentage: getTargetCPUUtilizationPercentage(nic),
