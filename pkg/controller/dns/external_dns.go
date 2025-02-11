@@ -108,13 +108,10 @@ func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, 
 		conf,
 		manifests.InputExternalDNSConfig{
 			TenantId:           conf.TenantID,
-			Subscription:       conf.PublicZoneConfig.Subscription,
-			ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
 			ClientId:           conf.MSIClientID,
 			Namespace:          conf.NS,
 			IdentityType:       manifests.IdentityTypeMSI,
 			ResourceTypes:      manifests.ResourceTypes{Ingress: true},
-			Provider:           manifests.PublicProvider,
 			DnsZoneresourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
 		})
 
@@ -129,13 +126,10 @@ func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig,
 		conf,
 		manifests.InputExternalDNSConfig{
 			TenantId:           conf.TenantID,
-			Subscription:       conf.PrivateZoneConfig.Subscription,
-			ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
 			ClientId:           conf.MSIClientID,
 			Namespace:          conf.NS,
 			IdentityType:       manifests.IdentityTypeMSI,
 			ResourceTypes:      manifests.ResourceTypes{Ingress: true},
-			Provider:           manifests.PrivateProvider,
 			DnsZoneresourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
 		},
 	)

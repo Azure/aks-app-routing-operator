@@ -57,7 +57,7 @@ func (e *ExternalDNSCRDReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// construct externalDNSConfig
-	externalDnsConf := manifests.ExternalDnsConfig{}
+	externalDnsConf, err := generateExternalDNSConfigForManifests(e.config, externalDNSObj)
 
 	return ctrl.Result{}, nil
 }

@@ -212,8 +212,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			conf: noOsmConf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
-				Subscription:        "test-subscription-id",
-				ResourceGroup:       "test-resource-group-public",
 				ClientId:            "test-client-id",
 				InputServiceAccount: "test-sa",
 				Namespace:           "test-namespace",
@@ -232,8 +230,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			conf: conf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
-				Subscription:        "test-subscription-id",
-				ResourceGroup:       "test-resource-group-private",
 				ClientId:            "test-client-id",
 				InputServiceAccount: "test-sa",
 				Namespace:           "test-namespace",
@@ -252,8 +248,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			conf: conf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
-				Subscription:        "test-subscription-id",
-				ResourceGroup:       "test-resource-group-public",
 				ClientId:            "test-client-id",
 				InputServiceAccount: "test-service-account",
 				Namespace:           "test-namespace",
@@ -272,8 +266,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			conf: noOsmConf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
-				Subscription:        "test-subscription-id",
-				ResourceGroup:       "test-resource-group-private",
 				ClientId:            "test-client-id",
 				InputServiceAccount: "test-private-service-account",
 				Namespace:           "test-namespace",
@@ -300,8 +292,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			conf: noOsmConf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
-				Subscription:        "test-subscription-id",
-				ResourceGroup:       "test-resource-group-private",
 				ClientId:            "test-client-id",
 				InputServiceAccount: "test-private-service-account",
 				Namespace:           "test-namespace",
@@ -318,8 +308,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			conf: noOsmConf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
-				Subscription:        "test-subscription-id",
-				ResourceGroup:       "test-resource-group-private",
 				ClientId:            "test-client-id",
 				InputServiceAccount: "",
 				Namespace:           "test-namespace",
@@ -330,6 +318,53 @@ func TestExternalDNSConfig(t *testing.T) {
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 			},
 			expectedError: errors.New("workload identity requires a service account name"),
+		},
+		{
+			name: "no dns zones",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-resource",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       ResourceTypes{Ingress: true},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{},
+			},
+			expectedError: errors.New("no dns zones were provided"),
+		},
+		{
+			name: "different resource types",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-resource",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       ResourceTypes{Ingress: true},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{privateZoneOne, publicZoneOne},
+			},
+			expectedError: errors.New("all DNS zones must be of the same type, found zones with resourcetypes privatednszone and dnszone"),
+		},
+		{
+			name: "case-insensitive for resource types",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-resource",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       ResourceTypes{Ingress: true},
+				Provider:            PrivateProvider,
+				DnsZoneresourceIDs:  []string{strings.ToUpper(publicZoneTwo), publicZoneOne},
+			},
 		},
 	}
 	for _, tc := range testCases {

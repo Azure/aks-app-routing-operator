@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -77,11 +78,10 @@ func (p Provider) string() string {
 }
 
 type InputExternalDNSConfig struct {
-	TenantId, Subscription, ResourceGroup, ClientId, InputServiceAccount, Namespace, InputResourceName string
-	IdentityType                                                                                       IdentityType
-	ResourceTypes                                                                                      ResourceTypes
-	Provider                                                                                           Provider
-	DnsZoneresourceIDs                                                                                 []string
+	TenantId, ClientId, InputServiceAccount, Namespace, InputResourceName string
+	IdentityType                                                          IdentityType
+	ResourceTypes                                                         ResourceTypes
+	DnsZoneresourceIDs                                                    []string
 }
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
@@ -122,14 +122,52 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		return nil, errors.New("gateway resource type can only be used with workload identity")
 	}
 
+	if len(inputConfig.DnsZoneresourceIDs) == 0 {
+		return nil, errors.New("no DNSZones were provided")
+	}
+
+	firstZone, err := azure.ParseResourceID(inputConfig.DnsZoneresourceIDs[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid dns zone resource id: %s", inputConfig.DnsZoneresourceIDs[0])
+	}
+
+	firstZoneResourceType := firstZone.ResourceType
+	firstZoneSub := firstZone.SubscriptionID
+	firstZoneRg := firstZone.ResourceGroup
+
+	for _, zone := range inputConfig.DnsZoneresourceIDs[1:] {
+		parsedZone, err := azure.ParseResourceID(zone)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dns zone resource id: %s", zone)
+		}
+
+		if !strings.EqualFold(parsedZone.ResourceType, firstZoneResourceType) {
+			return nil, fmt.Errorf("all DNS zones must be of the same type, found zones with resourcetypes %s and %s", firstZoneResourceType, parsedZone.ResourceType)
+		}
+
+		if err := config.ValidateProviderSubAndRg(parsedZone, firstZoneSub, firstZoneRg); err != nil {
+			return nil, err
+		}
+	}
+
+	var provider Provider
+	switch strings.ToLower(firstZoneResourceType) {
+	case config.PrivateZoneType:
+		provider = PrivateProvider
+	case config.PublicZoneType:
+		provider = PublicProvider
+	default:
+		return nil, fmt.Errorf("invalid resource type %s", firstZoneResourceType)
+	}
+
 	var resourceName string
 	switch inputConfig.InputResourceName {
 	case "":
-		switch inputConfig.Provider {
-		case PublicProvider:
-			resourceName = externalDnsResourceName
+		switch provider {
 		case PrivateProvider:
 			resourceName = externalDnsResourceName + "-private"
+		default:
+			resourceName = externalDnsResourceName
 		}
 	default:
 		resourceName = inputConfig.InputResourceName + "-" + externalDnsResourceName
@@ -150,14 +188,14 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 	ret := &ExternalDnsConfig{
 		resourceName:       resourceName,
 		tenantId:           inputConfig.TenantId,
-		subscription:       inputConfig.Subscription,
-		resourceGroup:      inputConfig.ResourceGroup,
+		subscription:       firstZoneSub,
+		resourceGroup:      firstZoneRg,
 		clientId:           inputConfig.ClientId,
 		serviceAccountName: serviceAccount,
 		namespace:          inputConfig.Namespace,
 		identityType:       inputConfig.IdentityType,
 		resourceTypes:      inputConfig.ResourceTypes,
-		provider:           inputConfig.Provider,
+		provider:           provider,
 		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
 	}
 
