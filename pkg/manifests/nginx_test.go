@@ -370,6 +370,54 @@ var (
 				return &copy
 			}(),
 		},
+		{
+			Name: "internal-with-http-disabled",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: &NginxIngressConfig{
+				ControllerClass:                "test-controller-class",
+				ResourceName:                   "nginx",
+				IcName:                         "nginx-private",
+				HTTPDisabled:                   true,
+				MinReplicas:                    2,
+				MaxReplicas:                    100,
+				TargetCPUUtilizationPercentage: 80,
+			},
+		},
+		{
+			Name: "full-with-http-disabled",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.HTTPDisabled = true
+				return &copy
+			}(),
+		},
 	}
 	classTestCases = []struct {
 		Name      string
