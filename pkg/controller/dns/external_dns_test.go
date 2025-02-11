@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -40,7 +41,7 @@ var (
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
-			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com": {}},
+			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/dnszones/test.com": {}},
 		},
 	}
 	onlyPrivZones = config.Config{
@@ -61,7 +62,7 @@ var (
 		PublicZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
 			ResourceGroup: "resourcegroup",
-			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/publicdnszones/test.com": {}},
+			ZoneIds:       map[string]struct{}{"/subscriptions/subscription/resourceGroups/resourcegroup/providers/Microsoft.Network/dnszones/test.com": {}},
 		},
 		PrivateZoneConfig: config.DnsZoneConfig{
 			Subscription:  "subscription",
@@ -151,28 +152,32 @@ func TestPrivateConfig(t *testing.T) {
 }
 
 func TestInstances(t *testing.T) {
-	noZonesPublic, err := manifests.NewExternalDNSConfig(&noZones, manifests.InputExternalDNSConfig{TenantId: noZones.TenantID, ClientId: noZones.MSIClientID, Namespace: noZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(noZones.PublicZoneConfig.ZoneIds)})
+	noZonesPublic, err := manifests.NewExternalDNSConfig(&noZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: noZones.TenantID, ClientId: noZones.MSIClientID, Namespace: noZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(noZones.PublicZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	noZonesPrivate, err := manifests.NewExternalDNSConfig(&noZones, manifests.InputExternalDNSConfig{TenantId: noZones.TenantID, ClientId: noZones.MSIClientID, Namespace: noZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(noZones.PrivateZoneConfig.ZoneIds)})
+	noZonesPrivate, err := manifests.NewExternalDNSConfig(&noZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PrivateProvider), TenantId: noZones.TenantID, ClientId: noZones.MSIClientID, Namespace: noZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(noZones.PrivateZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	onlyPrivZonesPublic, err := manifests.NewExternalDNSConfig(&onlyPrivZones, manifests.InputExternalDNSConfig{TenantId: onlyPrivZones.TenantID, ClientId: onlyPrivZones.MSIClientID, Namespace: onlyPrivZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPrivZones.PublicZoneConfig.ZoneIds)})
+	_, err = manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{}})
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "provider must be specified via inputconfig if no DNS zones are provided")
+
+	onlyPrivZonesPublic, err := manifests.NewExternalDNSConfig(&onlyPrivZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: onlyPrivZones.TenantID, ClientId: onlyPrivZones.MSIClientID, Namespace: onlyPrivZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPrivZones.PublicZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	onlyPrivZonesPrivate, err := manifests.NewExternalDNSConfig(&onlyPrivZones, manifests.InputExternalDNSConfig{TenantId: onlyPrivZones.TenantID, ClientId: onlyPrivZones.MSIClientID, Namespace: onlyPrivZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPrivZones.PrivateZoneConfig.ZoneIds)})
+	onlyPrivZonesPrivate, err := manifests.NewExternalDNSConfig(&onlyPrivZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PrivateProvider), TenantId: onlyPrivZones.TenantID, ClientId: onlyPrivZones.MSIClientID, Namespace: onlyPrivZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPrivZones.PrivateZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	publicDeployPublic, err := manifests.NewExternalDNSConfig(&onlyPubZones, manifests.InputExternalDNSConfig{TenantId: onlyPubZones.TenantID, ClientId: onlyPubZones.MSIClientID, Namespace: onlyPubZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPubZones.PublicZoneConfig.ZoneIds)})
+	publicDeployPublic, err := manifests.NewExternalDNSConfig(&onlyPubZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: onlyPubZones.TenantID, ClientId: onlyPubZones.MSIClientID, Namespace: onlyPubZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPubZones.PublicZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	publicDeployPrivate, err := manifests.NewExternalDNSConfig(&onlyPubZones, manifests.InputExternalDNSConfig{TenantId: onlyPubZones.TenantID, ClientId: onlyPubZones.MSIClientID, Namespace: onlyPubZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPubZones.PrivateZoneConfig.ZoneIds)})
+	publicDeployPrivate, err := manifests.NewExternalDNSConfig(&onlyPubZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PrivateProvider), TenantId: onlyPubZones.TenantID, ClientId: onlyPubZones.MSIClientID, Namespace: onlyPubZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(onlyPubZones.PrivateZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	allDeployPublic, err := manifests.NewExternalDNSConfig(&allZones, manifests.InputExternalDNSConfig{TenantId: allZones.TenantID, ClientId: allZones.MSIClientID, Namespace: allZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(allZones.PublicZoneConfig.ZoneIds)})
+	allDeployPublic, err := manifests.NewExternalDNSConfig(&allZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: allZones.TenantID, ClientId: allZones.MSIClientID, Namespace: allZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(allZones.PublicZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
-	allDeployPrivate, err := manifests.NewExternalDNSConfig(&allZones, manifests.InputExternalDNSConfig{TenantId: allZones.TenantID, ClientId: allZones.MSIClientID, Namespace: allZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(allZones.PrivateZoneConfig.ZoneIds)})
+	allDeployPrivate, err := manifests.NewExternalDNSConfig(&allZones, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PrivateProvider), TenantId: allZones.TenantID, ClientId: allZones.MSIClientID, Namespace: allZones.NS, IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: util.Keys(allZones.PrivateZoneConfig.ZoneIds)})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -250,10 +255,19 @@ func TestInstances(t *testing.T) {
 		instances, err := instances(test.conf)
 		require.NoError(t, err)
 		if !reflect.DeepEqual(instances, test.expected) {
+			expectedObjects := make([]client.Object, 0)
+			for _, expectedInstance := range test.expected {
+				expectedObjects = append(expectedObjects, expectedInstance.resources...)
+			}
+			actualObjects := make([]client.Object, 0)
+			for _, actualInstance := range instances {
+				actualObjects = append(actualObjects, actualInstance.resources...)
+			}
 			t.Error(
 				"For", test.name,
-				"expected", test.expected,
-				"got", instances,
+				"expected objects", expectedObjects,
+				"\n",
+				"got", actualObjects,
 			)
 		}
 	}
@@ -445,9 +459,12 @@ func TestCleanObjs(t *testing.T) {
 }
 
 func TestActionFromConfig(t *testing.T) {
-	emptyDns, _ := manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{}})
-	oneDns, _ := manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{"one"}})
-	multipleDns, _ := manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{"one", "two"}})
+	emptyDns, err := manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{}})
+	require.NoError(t, err)
+	oneDns, err := manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test"}})
+	require.NoError(t, err)
+	multipleDns, err := manifests.NewExternalDNSConfig(&config.Config{}, manifests.InputExternalDNSConfig{Provider: to.Ptr(manifests.PublicProvider), TenantId: "tenant", ClientId: "client", Namespace: "ns", IdentityType: manifests.IdentityTypeMSI, ResourceTypes: manifests.ResourceTypes{Ingress: true}, DnsZoneresourceIDs: []string{"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test", "/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2"}})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name     string

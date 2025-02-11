@@ -79,6 +79,7 @@ func (p Provider) string() string {
 
 type InputExternalDNSConfig struct {
 	TenantId, ClientId, InputServiceAccount, Namespace, InputResourceName string
+	Provider                                                              *Provider
 	IdentityType                                                          IdentityType
 	ResourceTypes                                                         ResourceTypes
 	DnsZoneresourceIDs                                                    []string
@@ -122,42 +123,50 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		return nil, errors.New("gateway resource type can only be used with workload identity")
 	}
 
-	if len(inputConfig.DnsZoneresourceIDs) == 0 {
-		return nil, errors.New("no DNS Zones were provided")
-	}
-
-	firstZone, err := azure.ParseResourceID(inputConfig.DnsZoneresourceIDs[0])
-	if err != nil {
-		return nil, fmt.Errorf("invalid dns zone resource id: %s", inputConfig.DnsZoneresourceIDs[0])
-	}
-
-	firstZoneResourceType := firstZone.ResourceType
-	firstZoneSub := firstZone.SubscriptionID
-	firstZoneRg := firstZone.ResourceGroup
-
-	for _, zone := range inputConfig.DnsZoneresourceIDs[1:] {
-		parsedZone, err := azure.ParseResourceID(zone)
-		if err != nil {
-			return nil, fmt.Errorf("invalid dns zone resource id: %s", zone)
-		}
-
-		if !strings.EqualFold(parsedZone.ResourceType, firstZoneResourceType) {
-			return nil, fmt.Errorf("all DNS zones must be of the same type, found zones with resourcetypes %s and %s", firstZoneResourceType, parsedZone.ResourceType)
-		}
-
-		if err := config.ValidateProviderSubAndRg(parsedZone, firstZoneSub, firstZoneRg); err != nil {
-			return nil, err
-		}
-	}
-
+	var firstZoneResourceType string
+	var firstZoneSub string
+	var firstZoneRg string
 	var provider Provider
-	switch strings.ToLower(firstZoneResourceType) {
-	case config.PrivateZoneType:
-		provider = PrivateProvider
-	case config.PublicZoneType:
-		provider = PublicProvider
-	default:
-		return nil, fmt.Errorf("invalid resource type %s", firstZoneResourceType)
+
+	if len(inputConfig.DnsZoneresourceIDs) > 0 {
+		firstZone, err := azure.ParseResourceID(inputConfig.DnsZoneresourceIDs[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid dns zone resource id: %s", inputConfig.DnsZoneresourceIDs[0])
+		}
+
+		firstZoneResourceType = firstZone.ResourceType
+		firstZoneSub = firstZone.SubscriptionID
+		firstZoneRg = firstZone.ResourceGroup
+
+		for _, zone := range inputConfig.DnsZoneresourceIDs[1:] {
+			parsedZone, err := azure.ParseResourceID(zone)
+			if err != nil {
+				return nil, fmt.Errorf("invalid dns zone resource id: %s", zone)
+			}
+
+			if !strings.EqualFold(parsedZone.ResourceType, firstZoneResourceType) {
+				return nil, fmt.Errorf("all DNS zones must be of the same type, found zones with resourcetypes %s and %s", firstZoneResourceType, parsedZone.ResourceType)
+			}
+
+			if err := config.ValidateProviderSubAndRg(parsedZone, firstZoneSub, firstZoneRg); err != nil {
+				return nil, err
+			}
+		}
+
+		switch strings.ToLower(firstZoneResourceType) {
+		case config.PrivateZoneType:
+			provider = PrivateProvider
+		case config.PublicZoneType:
+			provider = PublicProvider
+		default:
+			return nil, fmt.Errorf("invalid resource type %s", firstZoneResourceType)
+		}
+	} else {
+		// if no zones provided, this must be coming from the original externalDNS reconciler, in which case, read config from input to determine resources to clean
+		if inputConfig.Provider == nil {
+			return nil, errors.New("provider must be specified via inputconfig if no DNS zones are provided")
+		}
+		provider = *inputConfig.Provider
 	}
 
 	var resourceName string
@@ -166,8 +175,10 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		switch provider {
 		case PrivateProvider:
 			resourceName = externalDnsResourceName + "-private"
-		default:
+		case PublicProvider:
 			resourceName = externalDnsResourceName
+		default:
+			return nil, errors.New("unable to determine provider: this is likely because no DNS zones were specified")
 		}
 	default:
 		resourceName = inputConfig.InputResourceName + "-" + externalDnsResourceName

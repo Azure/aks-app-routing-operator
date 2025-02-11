@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,6 +65,41 @@ var (
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
 		resourceName:       "test-dns-config-external-dns",
+	}
+
+	publicGwConfigNoZones = &ExternalDnsConfig{
+		tenantId:           "test-tenant-id",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      ResourceTypes{Gateway: true},
+		provider:           PublicProvider,
+		serviceAccountName: "test-service-account",
+		resourceName:       "test-dns-config-external-dns",
+	}
+
+	publicConfigNoZones = &ExternalDnsConfig{
+		resourceName:       "external-dns",
+		tenantId:           "test-tenant-id",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeMSI,
+		resourceTypes:      ResourceTypes{Ingress: true},
+		serviceAccountName: "external-dns",
+		dnsZoneResourceIDs: []string{},
+		provider:           PublicProvider,
+	}
+
+	privateConfigNoZones = &ExternalDnsConfig{
+		resourceName:       "external-dns-private",
+		tenantId:           "test-tenant-id",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeMSI,
+		resourceTypes:      ResourceTypes{Ingress: true},
+		serviceAccountName: "external-dns-private",
+		dnsZoneResourceIDs: []string{},
+		provider:           PrivateProvider,
 	}
 
 	publicGwConfigCapitalized = &ExternalDnsConfig{
@@ -328,21 +364,6 @@ func TestExternalDNSConfig(t *testing.T) {
 			expectedError: errors.New("workload identity requires a service account name"),
 		},
 		{
-			name: "no dns zones",
-			conf: noOsmConf,
-			inputExternalDNSConfig: InputExternalDNSConfig{
-				TenantId:            "test-tenant-id",
-				ClientId:            "test-client-id",
-				InputServiceAccount: "",
-				Namespace:           "test-namespace",
-				InputResourceName:   "test-resource",
-				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       ResourceTypes{Ingress: true},
-				DnsZoneresourceIDs:  []string{},
-			},
-			expectedError: errors.New("no DNS Zones were provided"),
-		},
-		{
 			name: "different resource types",
 			conf: noOsmConf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
@@ -373,6 +394,81 @@ func TestExternalDNSConfig(t *testing.T) {
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
 			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfigCapitalized}),
+		},
+		{
+			name: "clean case for public zones",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:           "test-tenant-id",
+				ClientId:           "test-client-id",
+				Namespace:          "test-namespace",
+				IdentityType:       IdentityTypeMSI,
+				ResourceTypes:      ResourceTypes{Ingress: true},
+				Provider:           to.Ptr(PublicProvider),
+				DnsZoneresourceIDs: []string{},
+			},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicConfigNoZones}),
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "external-dns"},
+		},
+		{
+			name: "clean case for private zones",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:           "test-tenant-id",
+				ClientId:           "test-client-id",
+				Namespace:          "test-namespace",
+				IdentityType:       IdentityTypeMSI,
+				ResourceTypes:      ResourceTypes{Ingress: true},
+				Provider:           to.Ptr(PrivateProvider),
+				DnsZoneresourceIDs: []string{},
+			},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{privateConfigNoZones}),
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "external-dns-private"},
+		},
+		{
+			name: "zero zones gateway",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       ResourceTypes{Gateway: true},
+				DnsZoneresourceIDs:  []string{},
+			},
+			expectedError: errors.New("provider must be specified via inputconfig if no DNS zones are provided"),
+		},
+		{
+			name: "zero zones gateway but provider specified",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				Provider:            to.Ptr(PublicProvider),
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       ResourceTypes{Gateway: true},
+				DnsZoneresourceIDs:  []string{},
+			},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfigNoZones}),
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+		},
+		{
+			name: "no zones without provider",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:           "test-tenant-id",
+				ClientId:           "test-client-id",
+				Namespace:          "test-namespace",
+				IdentityType:       IdentityTypeMSI,
+				ResourceTypes:      ResourceTypes{Ingress: true},
+				DnsZoneresourceIDs: []string{},
+			},
+			expectedError: errors.New("provider must be specified via inputconfig if no DNS zones are provided"),
 		},
 	}
 	for _, tc := range testCases {

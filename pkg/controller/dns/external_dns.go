@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -113,6 +114,7 @@ func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, 
 			IdentityType:       manifests.IdentityTypeMSI,
 			ResourceTypes:      manifests.ResourceTypes{Ingress: true},
 			DnsZoneresourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
+			Provider:           to.Ptr(manifests.PublicProvider),
 		})
 
 	if err != nil {
@@ -131,6 +133,7 @@ func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig,
 			IdentityType:       manifests.IdentityTypeMSI,
 			ResourceTypes:      manifests.ResourceTypes{Ingress: true},
 			DnsZoneresourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
+			Provider:           to.Ptr(manifests.PrivateProvider),
 		},
 	)
 
