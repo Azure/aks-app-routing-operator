@@ -177,13 +177,6 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite missing Namespace field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
-				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
-				testNIC.Spec.HTTPDisabled = true
-				lgr.Info("creating NginxIngressController with HTTPDisabled set to true")
-				if err := c.Create(ctx, testNIC); err != nil {
-					return fmt.Errorf("unable to create NginxIngressController with HTTPDisabled set to true'%s'", testNIC.Spec.ControllerNamePrefix)
-				}
-
 				// scaling profile
 				rejectTests := []struct {
 					name string
@@ -325,6 +318,81 @@ func nicTests(in infra.Provisioned) []test {
 				if _, ok := serviceCopy.ObjectMeta.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"]; !ok {
 					lgr.Error("private nginx annotations not found")
 					return errors.New("private nginx annotations not found")
+				}
+
+				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
+					return nil
+				}, to.Ptr(service.Name)); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
+		},
+		{
+			name: "private ingress with http disabled",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
+
+				c, err := client.New(config, client.Options{
+					Scheme: scheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
+				}
+
+				privateNic := manifests.NewNginxIngressController("private", "private.ingress.class")
+				privateNic.Spec.HTTPDisabled = true
+				if err := upsert(ctx, c, privateNic); err != nil {
+					return fmt.Errorf("ensuring private NIC: %w", err)
+				}
+
+				var service v1alpha1.ManagedObjectReference
+				lgr.Info("waiting for service associated with private NIC to be ready")
+				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if private NIC service is ready")
+					var nic v1alpha1.NginxIngressController
+					if err := c.Get(ctx, client.ObjectKeyFromObject(privateNic), &nic); err != nil {
+						return false, fmt.Errorf("get private nic: %w", err)
+					}
+
+					if nic.Status.ManagedResourceRefs == nil {
+						return false, nil
+					}
+
+					for _, ref := range nic.Status.ManagedResourceRefs {
+						if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
+							lgr.Info("found service")
+							service = ref
+							return true, nil
+						}
+					}
+
+					lgr.Info("service not found")
+					return false, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for private NIC to be ready: %w", err)
+				}
+
+				lgr.Info("validating service contains private annotations")
+				var serviceCopy corev1.Service
+				if err := c.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, &serviceCopy); err != nil {
+					return fmt.Errorf("getting service: %w", err)
+				}
+
+				for _, port := range serviceCopy.Spec.Ports {
+					if port.Name == "http" {
+						lgr.Error("http port found despite HTTPDisabled")
+						return errors.New("http port found despite HTTPDisabled")
+					}
 				}
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
