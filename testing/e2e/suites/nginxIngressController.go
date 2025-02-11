@@ -177,6 +177,13 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("able to create NginxIngressController despite missing Namespace field in DefaultBackendService'%s'", testNIC.Spec.ControllerNamePrefix)
 				}
 
+				testNIC = manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.HTTPDisabled = true
+				lgr.Info("creating NginxIngressController with HTTPDisabled set to true")
+				if err := c.Create(ctx, testNIC); err != nil {
+					return fmt.Errorf("unable to create NginxIngressController with HTTPDisabled set to true'%s'", testNIC.Spec.ControllerNamePrefix)
+				}
+
 				// scaling profile
 				rejectTests := []struct {
 					name string
