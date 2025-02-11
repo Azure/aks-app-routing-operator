@@ -123,7 +123,7 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 	}
 
 	if len(inputConfig.DnsZoneresourceIDs) == 0 {
-		return nil, errors.New("no DNSZones were provided")
+		return nil, errors.New("no DNS Zones were provided")
 	}
 
 	firstZone, err := azure.ParseResourceID(inputConfig.DnsZoneresourceIDs[0])

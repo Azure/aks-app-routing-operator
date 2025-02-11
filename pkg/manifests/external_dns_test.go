@@ -15,12 +15,12 @@ import (
 )
 
 var (
-	publicZoneOne = strings.ToLower("/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-one.com")
-	publicZoneTwo = strings.ToLower("/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/dnszones/test-two.com")
+	publicZoneOne = strings.ToLower("/subscriptions/test-subscription-id/resourceGroups/test-resource-group-public/providers/Microsoft.Network/dnszones/test-one.com")
+	publicZoneTwo = strings.ToLower("/subscriptions/test-subscription-id/resourceGroups/test-resource-group-public/providers/Microsoft.Network/dnszones/test-two.com")
 	publicZones   = []string{publicZoneOne, publicZoneTwo}
 
-	privateZoneOne = strings.ToLower("/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-three.com")
-	privateZoneTwo = strings.ToLower("/subscriptions/test-subscription/resourceGroups/test-rg-private/providers/Microsoft.Network/privatednszones/test-four.com")
+	privateZoneOne = strings.ToLower("/subscriptions/test-subscription-id/resourceGroups/test-resource-group-private/providers/Microsoft.Network/privatednszones/test-three.com")
+	privateZoneTwo = strings.ToLower("/subscriptions/test-subscription-id/resourceGroups/test-resource-group-private/providers/Microsoft.Network/privatednszones/test-four.com")
 	privateZones   = []string{privateZoneOne, privateZoneTwo}
 
 	clusterUid = "test-cluster-uid"
@@ -61,6 +61,20 @@ var (
 		identityType:       IdentityTypeWorkloadIdentity,
 		resourceTypes:      ResourceTypes{Gateway: true},
 		dnsZoneResourceIDs: publicZones,
+		provider:           PublicProvider,
+		serviceAccountName: "test-service-account",
+		resourceName:       "test-dns-config-external-dns",
+	}
+
+	publicGwConfigCapitalized = &ExternalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-public",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      ResourceTypes{Gateway: true},
+		dnsZoneResourceIDs: []string{publicZoneOne, strings.ToUpper(publicZoneTwo)},
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
 		resourceName:       "test-dns-config-external-dns",
@@ -326,7 +340,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				ResourceTypes:       ResourceTypes{Ingress: true},
 				DnsZoneresourceIDs:  []string{},
 			},
-			expectedError: errors.New("no dns zones were provided"),
+			expectedError: errors.New("no DNS Zones were provided"),
 		},
 		{
 			name: "different resource types",
@@ -341,21 +355,24 @@ func TestExternalDNSConfig(t *testing.T) {
 				ResourceTypes:       ResourceTypes{Ingress: true},
 				DnsZoneresourceIDs:  []string{privateZoneOne, publicZoneOne},
 			},
-			expectedError: errors.New("all DNS zones must be of the same type, found zones with resourcetypes privatednszone and dnszone"),
+			expectedError: errors.New("all DNS zones must be of the same type, found zones with resourcetypes privatednszones and dnszones"),
 		},
 		{
 			name: "case-insensitive for resource types",
-			conf: noOsmConf,
+			conf: conf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
 				TenantId:            "test-tenant-id",
 				ClientId:            "test-client-id",
-				InputServiceAccount: "",
+				InputServiceAccount: "test-service-account",
 				Namespace:           "test-namespace",
-				InputResourceName:   "test-resource",
+				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       ResourceTypes{Ingress: true},
-				DnsZoneresourceIDs:  []string{strings.ToUpper(publicZoneTwo), publicZoneOne},
+				ResourceTypes:       ResourceTypes{Gateway: true},
+				DnsZoneresourceIDs:  []string{publicZoneOne, strings.ToUpper(publicZoneTwo)},
 			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfigCapitalized}),
 		},
 	}
 	for _, tc := range testCases {
