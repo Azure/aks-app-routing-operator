@@ -221,12 +221,10 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 	switch inputConfig.InputResourceName {
 	case "":
 		switch provider {
-		case PublicProvider:
-			resourceName = externalDnsResourceName
 		case PrivateProvider:
 			resourceName = externalDnsResourceName + "-private"
 		default:
-			return nil, errors.New("unable to determine provider: this is likely because no DNS zones were specified")
+			resourceName = externalDnsResourceName
 		}
 	default:
 		resourceName = inputConfig.InputResourceName + "-" + externalDnsResourceName
