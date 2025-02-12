@@ -349,40 +349,27 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
-				testNic := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
-				testNic.Spec.HTTPDisabled = true
-				if err := upsert(ctx, c, testNic); err != nil {
-					return fmt.Errorf("ensuring private NIC: %w", err)
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC.Spec.HTTPDisabled = true
+				if err := upsert(ctx, c, testNIC); err != nil {
+					return fmt.Errorf("upserting NIC: %w", err)
 				}
 
-				var service v1alpha1.ManagedObjectReference
-				lgr.Info("waiting for service associated with private NIC to be ready")
-				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-					lgr.Info("checking if private NIC service is ready")
-					var nic v1alpha1.NginxIngressController
-					if err := c.Get(ctx, client.ObjectKeyFromObject(testNic), &nic); err != nil {
-						return false, fmt.Errorf("get private nic: %w", err)
-					}
-
-					if nic.Status.ManagedResourceRefs == nil {
-						return false, nil
-					}
-
-					for _, ref := range nic.Status.ManagedResourceRefs {
-						if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
-							lgr.Info("found service")
-							service = ref
-							return true, nil
-						}
-					}
-
-					lgr.Info("service not found")
-					return false, nil
-				}); err != nil {
-					return fmt.Errorf("waiting for private NIC to be ready: %w", err)
+				nic, err := waitForNICAvailable(ctx, c, testNIC)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to become available: %w", err)
 				}
 
-				lgr.Info("validating service contains private annotations")
+				if nic.Status.ManagedResourceRefs == nil {
+					return errors.New("no managed resource refs")
+				}
+
+				service, err := getNginxLbServiceRef(nic)
+				if err != nil {
+					return fmt.Errorf("finding nginx lb service: %w", err)
+				}
+
+				lgr.Info("validating service contains does not contain http port")
 				var serviceCopy corev1.Service
 				if err := c.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, &serviceCopy); err != nil {
 					return fmt.Errorf("getting service: %w", err)
@@ -396,7 +383,7 @@ func nicTests(in infra.Provisioned) []test {
 				}
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
-					ingress.Spec.IngressClassName = to.Ptr(testNic.Spec.IngressClassName)
+					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {
 					return err
