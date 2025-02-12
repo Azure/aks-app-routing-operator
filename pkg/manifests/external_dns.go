@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -435,12 +436,14 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		"--txt-wildcard-replacement=" + txtWildcardReplacement,
 	}
 
+	resourceTypeArgs := make([]string, 0, 3)
 	for deploymentArg := range externalDnsConfig.resourceTypes {
 		if externalDnsConfig.resourceTypes[deploymentArg] {
-			deploymentArgs = append(deploymentArgs, deploymentArg.GenerateResourceDeploymentArgs()...)
+			resourceTypeArgs = append(resourceTypeArgs, deploymentArg.GenerateResourceDeploymentArgs()...)
 		}
 	}
-
+	sort.Slice(resourceTypeArgs, func(i, j int) bool { return resourceTypeArgs[i] < resourceTypeArgs[j] })
+	deploymentArgs = append(deploymentArgs, resourceTypeArgs...)
 	deploymentArgs = append(deploymentArgs, domainFilters...)
 
 	return &appsv1.Deployment{
