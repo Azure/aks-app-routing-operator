@@ -360,16 +360,12 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("waiting for NIC to become available: %w", err)
 				}
 
-				if nic.Status.ManagedResourceRefs == nil {
-					return errors.New("no managed resource refs")
-				}
-
 				service, err := getNginxLbServiceRef(nic)
 				if err != nil {
 					return fmt.Errorf("finding nginx lb service: %w", err)
 				}
 
-				lgr.Info("validating service contains does not contain http port")
+				lgr.Info("validating service does not contain http port")
 				var serviceCopy corev1.Service
 				if err := c.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, &serviceCopy); err != nil {
 					return fmt.Errorf("getting service: %w", err)
