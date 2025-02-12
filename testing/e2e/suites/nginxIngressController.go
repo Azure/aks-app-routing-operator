@@ -332,7 +332,7 @@ func nicTests(in infra.Provisioned) []test {
 			},
 		},
 		{
-			name: "private ingress with http disabled",
+			name: "ingress with http disabled",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
@@ -349,9 +349,9 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
-				privateNic := manifests.NewNginxIngressController("private", "private.ingress.class")
-				privateNic.Spec.HTTPDisabled = true
-				if err := upsert(ctx, c, privateNic); err != nil {
+				testNic := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNic.Spec.HTTPDisabled = true
+				if err := upsert(ctx, c, testNic); err != nil {
 					return fmt.Errorf("ensuring private NIC: %w", err)
 				}
 
@@ -360,7 +360,7 @@ func nicTests(in infra.Provisioned) []test {
 				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
 					lgr.Info("checking if private NIC service is ready")
 					var nic v1alpha1.NginxIngressController
-					if err := c.Get(ctx, client.ObjectKeyFromObject(privateNic), &nic); err != nil {
+					if err := c.Get(ctx, client.ObjectKeyFromObject(testNic), &nic); err != nil {
 						return false, fmt.Errorf("get private nic: %w", err)
 					}
 
@@ -396,7 +396,7 @@ func nicTests(in infra.Provisioned) []test {
 				}
 
 				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
-					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
+					ingress.Spec.IngressClassName = to.Ptr(testNic.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {
 					return err
