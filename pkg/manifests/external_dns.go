@@ -437,9 +437,9 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	}
 
 	resourceTypeArgs := make([]string, 0, 3)
-	for deploymentArg := range externalDnsConfig.resourceTypes {
-		if externalDnsConfig.resourceTypes[deploymentArg] {
-			resourceTypeArgs = append(resourceTypeArgs, deploymentArg.GenerateResourceDeploymentArgs()...)
+	for resourceType := range externalDnsConfig.resourceTypes {
+		if externalDnsConfig.resourceTypes[resourceType] {
+			resourceTypeArgs = append(resourceTypeArgs, resourceType.GenerateResourceDeploymentArgs()...)
 		}
 	}
 	sort.Slice(resourceTypeArgs, func(i, j int) bool { return resourceTypeArgs[i] < resourceTypeArgs[j] })
