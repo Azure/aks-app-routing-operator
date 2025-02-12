@@ -130,7 +130,7 @@ type InputExternalDNSConfig struct {
 	TenantId, ClientId, InputServiceAccount, Namespace, InputResourceName string
 	Provider                                                              *Provider
 	IdentityType                                                          IdentityType
-	ResourceTypes                                                         map[ResourceType]bool
+	ResourceTypes                                                         map[ResourceType]struct{}
 	DnsZoneresourceIDs                                                    []string
 }
 
@@ -141,7 +141,7 @@ type ExternalDnsConfig struct {
 	clientId, serviceAccountName, namespace,
 	resourceName string
 	identityType  IdentityType
-	resourceTypes map[ResourceType]bool
+	resourceTypes map[ResourceType]struct{}
 	provider      Provider
 
 	// externally exposed
@@ -168,7 +168,8 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		return nil, fmt.Errorf("invalid identity type: %v", inputConfig.IdentityType)
 	}
 
-	if inputConfig.ResourceTypes[ResourceTypeGateway] && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
+	_, containsGateway := inputConfig.ResourceTypes[ResourceTypeGateway]
+	if containsGateway && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
 		return nil, errors.New("gateway resource type can only be used with workload identity")
 	}
 
@@ -344,9 +345,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 		},
 	}
 	for resourceType := range externalDnsConfig.resourceTypes {
-		if externalDnsConfig.resourceTypes[resourceType] {
-			role.Rules = append(role.Rules, resourceType.GenerateRBACRules()...)
-		}
+		role.Rules = append(role.Rules, resourceType.GenerateRBACRules()...)
 	}
 
 	return role
@@ -438,10 +437,9 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	resourceTypeArgs := make([]string, 0, 3)
 	for resourceType := range externalDnsConfig.resourceTypes {
-		if externalDnsConfig.resourceTypes[resourceType] {
-			resourceTypeArgs = append(resourceTypeArgs, resourceType.GenerateResourceDeploymentArgs()...)
-		}
+		resourceTypeArgs = append(resourceTypeArgs, resourceType.GenerateResourceDeploymentArgs()...)
 	}
+	
 	sort.Slice(resourceTypeArgs, func(i, j int) bool { return resourceTypeArgs[i] < resourceTypeArgs[j] })
 	deploymentArgs = append(deploymentArgs, resourceTypeArgs...)
 	deploymentArgs = append(deploymentArgs, domainFilters...)
