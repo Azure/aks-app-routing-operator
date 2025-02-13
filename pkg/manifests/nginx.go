@@ -444,6 +444,13 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+ingressConfig.Version.tag),
 						Args:  deploymentArgs,
+						Lifecycle: &corev1.Lifecycle{
+							PreStop: &corev1.LifecycleHandler{
+								Exec: &corev1.ExecAction{
+									Command: []string{"/wait-shutdown"},
+								},
+							},
+						},
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: util.ToPtr(false),
 							Capabilities: &corev1.Capabilities{

@@ -369,6 +369,11 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         image: test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.2
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /wait-shutdown
         livenessProbe:
           failureThreshold: 6
           httpGet:
