@@ -53,7 +53,7 @@ type ExternalDNSSpec struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
 	// +kubebuilder:validation:Required
-	ResourceName string `json:"resourceName,omitempty"`
+	ResourceName string `json:"resourceName"`
 
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required

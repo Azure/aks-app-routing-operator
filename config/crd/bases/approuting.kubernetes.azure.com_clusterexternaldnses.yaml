@@ -133,6 +133,7 @@ spec:
             required:
             - dnsZoneResourceIDs
             - identity
+            - resourceName
             - resourceNamespace
             - resourceTypes
             - tenantID

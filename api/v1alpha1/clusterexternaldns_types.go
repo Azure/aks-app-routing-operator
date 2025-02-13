@@ -38,11 +38,11 @@ func (c *ClusterExternalDNS) SetCondition(condition metav1.Condition) {
 // ClusterExternalDNSSpec allows users to specify desired the state of a cluster-scoped ExternalDNS deployment.
 type ClusterExternalDNSSpec struct {
 	// ResourceName is the name that will be used for the ExternalDNS deployment and related resources. Will default to the name of the ClusterExternalDNS resource if not specified.
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	// +kubebuilder:validation:Required
-	ResourceName string `json:"resourceName,omitempty"`
+	ResourceName string `json:"resourceName"`
 
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
 	// +kubebuilder:validation:Required
