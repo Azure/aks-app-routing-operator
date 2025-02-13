@@ -344,7 +344,14 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			},
 		},
 	}
+
+	// sort for fixture tests
+	sortedRts := make([]ResourceType, 0, len(externalDnsConfig.resourceTypes))
 	for resourceType := range externalDnsConfig.resourceTypes {
+		sortedRts = append(sortedRts, resourceType)
+	}
+	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
+	for _, resourceType := range sortedRts {
 		role.Rules = append(role.Rules, resourceType.GenerateRBACRules()...)
 	}
 
@@ -439,7 +446,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	for resourceType := range externalDnsConfig.resourceTypes {
 		resourceTypeArgs = append(resourceTypeArgs, resourceType.GenerateResourceDeploymentArgs()...)
 	}
-	
+
 	sort.Slice(resourceTypeArgs, func(i, j int) bool { return resourceTypeArgs[i] < resourceTypeArgs[j] })
 	deploymentArgs = append(deploymentArgs, resourceTypeArgs...)
 	deploymentArgs = append(deploymentArgs, domainFilters...)
