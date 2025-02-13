@@ -442,7 +442,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		"--txt-wildcard-replacement=" + txtWildcardReplacement,
 	}
 
-	resourceTypeArgs := make([]string, 0, 3)
+	resourceTypeArgs := make([]string, 0)
 	for resourceType := range externalDnsConfig.resourceTypes {
 		resourceTypeArgs = append(resourceTypeArgs, resourceType.GenerateResourceDeploymentArgs()...)
 	}
