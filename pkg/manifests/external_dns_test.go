@@ -39,6 +39,19 @@ var (
 		provider:           PublicProvider,
 		serviceAccountName: "external-dns",
 	}
+	publicDnsConfigSingleZone = &ExternalDnsConfig{
+		resourceName:       "external-dns",
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-public",
+		namespace:          "test-namespace",
+		clientId:           "test-client-id",
+		identityType:       IdentityTypeMSI,
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		dnsZoneResourceIDs: []string{publicZoneOne},
+		provider:           PublicProvider,
+		serviceAccountName: "external-dns",
+	}
 	privateDnsConfig = &ExternalDnsConfig{
 		resourceName:       "external-dns-private",
 		serviceAccountName: "external-dns-private",
@@ -273,6 +286,23 @@ func TestExternalDNSConfig(t *testing.T) {
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "external-dns"},
 			expectedObjects: externalDnsResources(noOsmConf, []*ExternalDnsConfig{publicDnsConfig}),
+		},
+		{
+			name: "public ingress no osm single zone",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-sa",
+				Namespace:           "test-namespace",
+				InputResourceName:   "",
+				IdentityType:        IdentityTypeMSI,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				DnsZoneresourceIDs:  []string{publicZoneOne},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "external-dns"},
+			expectedObjects: externalDnsResources(noOsmConf, []*ExternalDnsConfig{publicDnsConfigSingleZone}),
 		},
 		{
 			name: "private ingress",

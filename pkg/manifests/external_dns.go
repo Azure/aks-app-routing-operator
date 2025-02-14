@@ -64,7 +64,7 @@ func (rt ResourceType) String() string {
 	}
 }
 
-func (rt ResourceType) GenerateResourceDeploymentArgs() []string {
+func (rt ResourceType) generateResourceDeploymentArgs() []string {
 	switch rt {
 	case ResourceTypeGateway:
 		return []string{
@@ -77,7 +77,7 @@ func (rt ResourceType) GenerateResourceDeploymentArgs() []string {
 
 }
 
-func (rt ResourceType) GenerateRBACRules() []rbacv1.PolicyRule {
+func (rt ResourceType) generateRBACRules() []rbacv1.PolicyRule {
 	switch rt {
 	case ResourceTypeGateway:
 		return []rbacv1.PolicyRule{
@@ -352,7 +352,7 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 	}
 	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
 	for _, resourceType := range sortedRts {
-		role.Rules = append(role.Rules, resourceType.GenerateRBACRules()...)
+		role.Rules = append(role.Rules, resourceType.generateRBACRules()...)
 	}
 
 	return role
@@ -444,7 +444,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	resourceTypeArgs := make([]string, 0)
 	for resourceType := range externalDnsConfig.resourceTypes {
-		resourceTypeArgs = append(resourceTypeArgs, resourceType.GenerateResourceDeploymentArgs()...)
+		resourceTypeArgs = append(resourceTypeArgs, resourceType.generateResourceDeploymentArgs()...)
 	}
 
 	sort.Slice(resourceTypeArgs, func(i, j int) bool { return resourceTypeArgs[i] < resourceTypeArgs[j] })
