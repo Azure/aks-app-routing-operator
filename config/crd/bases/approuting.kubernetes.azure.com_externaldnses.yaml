@@ -126,6 +126,7 @@ spec:
             required:
             - dnsZoneResourceIDs
             - identity
+            - resourceName
             - resourceTypes
             - tenantID
             type: object
