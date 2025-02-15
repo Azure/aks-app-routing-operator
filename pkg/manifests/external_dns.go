@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -297,11 +298,12 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 	jsMap := map[string]interface{}{
-		"tenantId":       externalDnsConfig.tenantId,
-		"subscriptionId": externalDnsConfig.subscription,
-		"resourceGroup":  externalDnsConfig.resourceGroup,
-		"cloud":          conf.Cloud,
-		"location":       conf.Location,
+		"tenantId":                     externalDnsConfig.tenantId,
+		"subscriptionId":               externalDnsConfig.subscription,
+		"resourceGroup":                externalDnsConfig.resourceGroup,
+		"cloud":                        conf.Cloud,
+		"location":                     conf.Location,
+		"activeDirectoryAuthorityHost": conf.ActiveDirectoryAuthorityHost,
 	}
 	jsMap[externalDnsConfig.identityType.externalDNSIdentityConfiguration()] = true
 
@@ -332,7 +334,6 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 
 func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDnsConfig, configMapHash string) *appsv1.Deployment {
 	domainFilters := []string{}
-
 	for _, zoneId := range externalDnsConfig.dnsZoneResourceIDs {
 		parsedZone, err := azure.ParseResourceID(zoneId)
 		if err != nil {
@@ -347,7 +348,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	serviceAccount := externalDnsConfig.serviceAccountName
 
-	return &appsv1.Deployment{
+	ret := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
 			APIVersion: "apps/v1",
@@ -371,16 +372,24 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 						Name:  "controller",
 						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
 						Args: append([]string{
+							"--azure-config-file=/etc/azureconfig/azure.json",
 							"--provider=" + externalDnsConfig.provider.string(),
 							"--interval=" + conf.DnsSyncInterval.String(),
 							"--txt-owner-id=" + conf.ClusterUid,
 							"--txt-wildcard-replacement=" + txtWildcardReplacement,
 						}, append(generateResourceDeploymentArgs(externalDnsConfig.resourceTypes...), domainFilters...)...),
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "azure-config",
-							MountPath: "/etc/kubernetes",
-							ReadOnly:  true,
-						}},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "azure-config",
+								MountPath: "/etc/azureconfig",
+								ReadOnly:  true,
+							},
+							{
+								Name:      "azure-cred",
+								MountPath: "/etc/kubernetes",
+								ReadOnly:  true,
+							},
+						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -403,20 +412,46 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 							},
 						},
 					}))},
-					Volumes: []corev1.Volume{{
-						Name: "azure-config",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: externalDnsConfig.resourceName,
+					Volumes: []corev1.Volume{
+						{
+							Name: "azure-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: externalDnsConfig.resourceName,
+									},
 								},
 							},
 						},
-					}},
+						{
+							Name: "azure-cred",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/etc/kubernetes/",
+									Type: (*corev1.HostPathType)(to.StringPtr("DirectoryOrCreate")),
+								},
+							},
+						},
+					},
 				}),
 			},
 		},
 	}
+
+	if strings.EqualFold(conf.Cloud, "AZURESTACKCLOUD") {
+		if ret.Spec.Template.Spec.Containers[0].Env == nil {
+			ret.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{}
+		}
+
+		ret.Spec.Template.Spec.Containers[0].Env = append(ret.Spec.Template.Spec.Containers[0].Env,
+			corev1.EnvVar{
+				Name:  "AZURE_ENVIRONMENT_FILEPATH",
+				Value: "/etc/kubernetes/akscustom.json",
+			},
+		)
+	}
+
+	return ret
 }
 
 func generateResourceDeploymentArgs(rts ...ResourceType) []string {

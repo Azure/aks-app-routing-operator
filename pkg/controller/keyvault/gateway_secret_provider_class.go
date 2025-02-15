@@ -124,6 +124,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				TenantId:        g.config.TenantID,
 				KeyvaultCertUri: certUri,
 				Name:            generateGwListenerCertName(gwObj.Name, listener.Name),
+				Cloud:           g.config.Cloud,
 			}
 			err = buildSPC(spc, spcConf)
 			if err != nil {
