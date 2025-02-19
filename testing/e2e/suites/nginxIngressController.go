@@ -358,7 +358,7 @@ func nicTests(in infra.Provisioned) []test {
 				}
 
 				// create nic and upsert
-				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller-11", "nginxingressclass")
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller-10", "nginxingressclass")
 				testNIC.Spec.DefaultSSLCertificate = &defaultSSLCert
 				if err := upsert(ctx, c, testNIC); err != nil {
 					return fmt.Errorf("upserting NIC: %w", err)
