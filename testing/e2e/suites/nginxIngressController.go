@@ -185,7 +185,7 @@ func nicTests(in infra.Provisioned) []test {
 					{
 						name: "0 min replicas",
 						nic: func() *v1alpha1.NginxIngressController {
-							nic := manifests.NewNginxIngressController("name-1", "ingressclass")
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								MinReplicas: util.Int32Ptr(0),
 							}
@@ -195,7 +195,7 @@ func nicTests(in infra.Provisioned) []test {
 					{
 						name: "negative min replicas",
 						nic: func() *v1alpha1.NginxIngressController {
-							nic := manifests.NewNginxIngressController("name-2", "ingressclass")
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								MinReplicas: util.Int32Ptr(-5),
 							}
@@ -205,7 +205,7 @@ func nicTests(in infra.Provisioned) []test {
 					{
 						name: "0 max replicas",
 						nic: func() *v1alpha1.NginxIngressController {
-							nic := manifests.NewNginxIngressController("name-3", "ingressclass")
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								MaxReplicas: util.Int32Ptr(0),
 							}
@@ -215,7 +215,7 @@ func nicTests(in infra.Provisioned) []test {
 					{
 						name: "negative max replicas",
 						nic: func() *v1alpha1.NginxIngressController {
-							nic := manifests.NewNginxIngressController("name-4", "ingressclass")
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								MaxReplicas: util.Int32Ptr(-100),
 							}
@@ -225,7 +225,7 @@ func nicTests(in infra.Provisioned) []test {
 					{
 						name: "higher min than max replicas",
 						nic: func() *v1alpha1.NginxIngressController {
-							nic := manifests.NewNginxIngressController("name-5", "ingressclass")
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								MaxReplicas: util.Int32Ptr(10),
 								MinReplicas: util.Int32Ptr(20),
@@ -236,7 +236,7 @@ func nicTests(in infra.Provisioned) []test {
 					{
 						name: "unknown threshold",
 						nic: func() *v1alpha1.NginxIngressController {
-							nic := manifests.NewNginxIngressController("name-6", "ingressclass")
+							nic := manifests.NewNginxIngressController("name", "ingressclass")
 							nic.Spec.Scaling = &v1alpha1.Scaling{
 								Threshold: util.ToPtr(v1alpha1.Threshold("invalid")),
 							}
