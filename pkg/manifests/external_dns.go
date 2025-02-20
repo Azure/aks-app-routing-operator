@@ -126,12 +126,17 @@ func (p Provider) string() string {
 	}
 }
 
+// InputExternalDNSConfig is the input configuration to generate ExternalDNSConfigs from the CRD or MC-level configuration
 type InputExternalDNSConfig struct {
 	TenantId, ClientId, InputServiceAccount, Namespace, InputResourceName string
-	Provider                                                              *Provider
-	IdentityType                                                          IdentityType
-	ResourceTypes                                                         map[ResourceType]struct{}
-	DnsZoneresourceIDs                                                    []string
+	// Provider is specified when an InputConfig is coming from the MC External DNS Reconciler, since no zones may be provided for the clean case
+	Provider *Provider
+	// IdentityType can either be MSI or WorkloadIdentity
+	IdentityType IdentityType
+	// ResourceTypes refer to the resource types that ExternalDNS should look for to configure DNS. These can include Gateway and/or Ingress
+	ResourceTypes map[ResourceType]struct{}
+	// DnsZoneresourceIDs contains the DNS zones that ExternalDNS will use to configure DNS
+	DnsZoneresourceIDs []string
 }
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
