@@ -70,7 +70,7 @@ func nicTests(in infra.Provisioned) []test {
 				}
 
 				// validate that crd rejected with invalid fields
-				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller-reject", "Invalid+Characters")
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "Invalid+Characters")
 				lgr.Info("creating NginxIngressController with invalid ingressClassName")
 				if err := c.Create(ctx, testNIC); err == nil {
 					return fmt.Errorf("able to create NginxIngressController with invalid ingressClassName '%s'", testNIC.Spec.IngressClassName)
