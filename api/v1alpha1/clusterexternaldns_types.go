@@ -6,6 +6,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&ClusterExternalDNS{}, &ClusterExternalDNSList{})
+}
+
 // ClusterExternalDNS allows users to specify desired the state of a cluster-scoped ExternalDNS deployment and includes information about the state of their resources in the form of Kubernetes events.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -102,6 +106,25 @@ type ClusterExternalDNSList struct {
 	Items           []ClusterExternalDNS `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&ClusterExternalDNS{}, &ClusterExternalDNSList{})
+// interfaces for controller abstractions
+func (c *ClusterExternalDNS) GetTenantId() string {
+	return c.Spec.TenantID
+}
+func (c *ClusterExternalDNS) GetInputServiceAccount() string {
+	return c.Spec.Identity.ServiceAccount
+}
+func (c *ClusterExternalDNS) GetResourceNamespace() string {
+	return c.Spec.ResourceNamespace
+}
+func (c *ClusterExternalDNS) GetInputResourceName() string {
+	return c.Spec.ResourceName
+}
+func (c *ClusterExternalDNS) GetResourceTypes() []string {
+	return c.Spec.ResourceTypes
+}
+func (c *ClusterExternalDNS) GetDnsZoneresourceIDs() []string {
+	return c.Spec.DNSZoneResourceIDs
+}
+func (c *ClusterExternalDNS) GetFilters() ExternalDNSFilters {
+	return c.Spec.Filters
 }
