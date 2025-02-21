@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -137,6 +138,8 @@ type InputExternalDNSConfig struct {
 	ResourceTypes map[ResourceType]struct{}
 	// DnsZoneresourceIDs contains the DNS zones that ExternalDNS will use to configure DNS
 	DnsZoneresourceIDs []string
+	// Filters contains various filters that ExternalDNS will use to filter resources it scans for DNS configuration
+	Filters v1alpha1.ExternalDNSFilters
 }
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
@@ -148,6 +151,10 @@ type ExternalDnsConfig struct {
 	identityType  IdentityType
 	resourceTypes map[ResourceType]struct{}
 	provider      Provider
+
+	// controller-specific fields
+	filters v1alpha1.ExternalDNSFilters
+	// TODO: USE THIS
 
 	// externally exposed
 	resources          []client.Object
@@ -193,18 +200,21 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		firstZoneSub = firstZone.SubscriptionID
 		firstZoneRg = firstZone.ResourceGroup
 
-		for _, zone := range inputConfig.DnsZoneresourceIDs[1:] {
-			parsedZone, err := azure.ParseResourceID(zone)
-			if err != nil {
-				return nil, fmt.Errorf("invalid dns zone resource id: %s", zone)
-			}
+		// for some reason this passes tests without the if condition when arr has len 0 or 1, but I still feel weird about not having it
+		if len(inputConfig.DnsZoneresourceIDs) > 1 {
+			for _, zone := range inputConfig.DnsZoneresourceIDs[1:] {
+				parsedZone, err := azure.ParseResourceID(zone)
+				if err != nil {
+					return nil, fmt.Errorf("invalid dns zone resource id: %s", zone)
+				}
 
-			if !strings.EqualFold(parsedZone.ResourceType, firstZoneResourceType) {
-				return nil, fmt.Errorf("all DNS zones must be of the same type, found zones with resourcetypes %s and %s", firstZoneResourceType, parsedZone.ResourceType)
-			}
+				if !strings.EqualFold(parsedZone.ResourceType, firstZoneResourceType) {
+					return nil, fmt.Errorf("all DNS zones must be of the same type, found zones with resourcetypes %s and %s", firstZoneResourceType, parsedZone.ResourceType)
+				}
 
-			if err := config.ValidateProviderSubAndRg(parsedZone, firstZoneSub, firstZoneRg); err != nil {
-				return nil, err
+				if err := config.ValidateProviderSubAndRg(parsedZone, firstZoneSub, firstZoneRg); err != nil {
+					return nil, err
+				}
 			}
 		}
 
