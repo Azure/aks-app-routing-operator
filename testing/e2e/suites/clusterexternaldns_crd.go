@@ -386,6 +386,91 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						},
 						expectedError: errors.New("serviceAccount in body should be at least 1 chars long"),
 					},
+					{
+						name: "valid filters",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector:         "test=test",
+									RouteAndIngressLabelSelector: "test=test",
+								},
+							},
+						},
+					},
+					{
+						name: "invalid filters - multiple equals",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: "test=tes==t",
+								},
+							},
+						},
+					},
+					{
+						name: "invalid filters - ends with equals",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: "test=",
+								},
+							},
+						},
+					},
 				}
 
 				c, err := client.New(config, client.Options{

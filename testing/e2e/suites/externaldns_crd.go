@@ -363,6 +363,64 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 						},
 						expectedError: errors.New("serviceAccount in body should be at least 1 chars long"),
 					},
+					{
+						name: "valid filters",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "test",
+								Namespace: "default",
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector:         "test=test",
+									RouteAndIngressLabelSelector: "testRoute=testRoute",
+								},
+							},
+						},
+					},
+					{
+						name: "invalid filters",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "test",
+								Namespace: "default",
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: "bad==filter==",
+								},
+							},
+						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
+					},
 				}
 
 				c, err := client.New(config, client.Options{
