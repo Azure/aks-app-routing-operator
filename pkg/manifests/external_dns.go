@@ -271,6 +271,7 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		resourceTypes:      inputConfig.ResourceTypes,
 		provider:           provider,
 		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
+		filters:            inputConfig.Filters,
 	}
 
 	ret.resources = externalDnsResources(conf, []*ExternalDnsConfig{ret})
