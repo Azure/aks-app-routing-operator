@@ -1,8 +1,18 @@
+variable az_sub_id{
+  type = string
+  description = "The Azure Subscription ID in which resources will be created."
+}
+
+variable az_tenant_id{
+  type = string
+  description = "The Azure Subscription ID in which resources will be created."
+}
+
 terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "= 3.43.0"
+      version = "= 4.16.0"
     }
 
     random = {
@@ -18,6 +28,8 @@ provider "azurerm" {
       purge_soft_delete_on_destroy = true
     }
   }
+  subscription_id = var.az_sub_id
+  tenant_id = var.az_tenant_id
 }
 
 // randomly choose location to be less to resource limits on our subscription (they are at the location level)
