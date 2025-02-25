@@ -470,6 +470,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
 				}
 
