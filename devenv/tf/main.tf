@@ -34,7 +34,7 @@ provider "azurerm" {
 
 // randomly choose location to be less to resource limits on our subscription (they are at the location level)
 resource "random_shuffle" "locations" {
-  input = ["North Central US", "South Central US", "East US", "East US 2", "West US", "West US 2", "West US 3"]
+  input = ["North Central US", "South Central US", "East US 2", "West US", "West US 2", "West US 3"]
   result_count = 1
 }
 

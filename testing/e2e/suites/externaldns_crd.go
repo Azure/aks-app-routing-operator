@@ -22,7 +22,7 @@ func validExternalDNS() *v1alpha1.ExternalDNS {
 			Kind:       "ExternalDNS",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
+			Name:      "test-no-filters",
 			Namespace: "default",
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
@@ -393,6 +393,87 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 						},
 					},
 					{
+						name: "null filters object",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "test",
+								Namespace: "default",
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{},
+							},
+						},
+					},
+					{
+						name: "empty filters object with null filters",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "test",
+								Namespace: "default",
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{},
+							},
+						},
+					},
+					{
+						name: "empty string filters",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "test",
+								Namespace: "default",
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: "",
+								},
+							},
+						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
+					},
+					{
 						name: "invalid filters",
 						ed: &v1alpha1.ExternalDNS{
 							TypeMeta: metav1.TypeMeta{
@@ -434,15 +515,15 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 					err := upsert(context.Background(), c, tc.ed)
 					if tc.expectedError != nil {
 						if err == nil {
-							return fmt.Errorf("expected error: %s", tc.expectedError.Error())
+							return fmt.Errorf("for case %s expected error: %s", tc.name, tc.expectedError.Error())
 						}
 						if !strings.Contains(err.Error(), tc.expectedError.Error()) {
-							return fmt.Errorf("expected error: %s, got: %s", tc.expectedError.Error(), err.Error())
+							return fmt.Errorf("for case %s expected error: %s, got: %s", tc.name, tc.expectedError.Error(), err.Error())
 						}
 
 					} else {
 						if err != nil {
-							return fmt.Errorf("unexpected error: %s", err.Error())
+							return fmt.Errorf("for case %s unexpected error: %s", tc.name, err.Error())
 						}
 					}
 				}
