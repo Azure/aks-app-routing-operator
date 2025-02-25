@@ -66,17 +66,20 @@ spec:
               filters:
                 description: Filters contains optional filters that the ExternalDNS
                   controller should use to determine which resources to manage.
+                nullable: true
                 properties:
                   gatewayLabels:
                     description: GatewayLabelSelector is the label selector that the
                       ExternalDNS controller will use to filter the Gateways that
                       it manages.
+                    nullable: true
                     pattern: ^[^=]+=[^=]+$
                     type: string
                   routeAndIngressLabels:
                     description: RouteAndIngressLabelSelector is the label selector
                       that the ExternalDNS controller will use to filter the HTTPRoutes
                       and Ingresses that it manages.
+                    nullable: true
                     pattern: ^[^=]+=[^=]+$
                     type: string
                 type: object
