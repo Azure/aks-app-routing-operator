@@ -40,7 +40,7 @@ CLUSTER_TYPE="public"
 
 dev: clean ## Deploys a development environment useful for testing the operator inside a cluster
 	terraform --version
-	cd devenv && mkdir -p state && cd tf &&  terraform init && TF_VAR_az_sub_id=$(SUB_ID) TF_VAR_az_tenant_id=$(TENANT_ID) terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
+	cd devenv && mkdir -p state && cd tf && terraform init && TF_VAR_az_sub_id=$(SUB_ID) TF_VAR_az_tenant_id=$(TENANT_ID) terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
 	./devenv/scripts/deploy_operator.sh
 
 push: ## Pushes the current operator code to the current development environment
