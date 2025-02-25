@@ -442,6 +442,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
 					{
 						name: "invalid filters - ends with equals",
