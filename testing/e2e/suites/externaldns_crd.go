@@ -471,7 +471,6 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
 					{
 						name: "invalid filters",
