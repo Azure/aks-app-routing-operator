@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -385,15 +386,15 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector:         "test=test",
-									RouteAndIngressLabelSelector: "testRoute=testRoute",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector:         to.Ptr("test=test"),
+									RouteAndIngressLabelSelector: to.Ptr("testRoute=testRoute"),
 								},
 							},
 						},
 					},
 					{
-						name: "null filters object",
+						name: "nil filters object",
 						ed: &v1alpha1.ExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
@@ -414,12 +415,11 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{},
 							},
 						},
 					},
 					{
-						name: "empty filters object with null filters",
+						name: "empty filters object with nil filters",
 						ed: &v1alpha1.ExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
@@ -440,7 +440,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{},
+								Filters: &v1alpha1.ExternalDNSFilters{},
 							},
 						},
 					},
@@ -466,11 +466,12 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector: "",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr(""),
 								},
 							},
 						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
 					{
 						name: "invalid filters",
@@ -494,8 +495,8 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector: "bad==filter==",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr("bad==filter=="),
 								},
 							},
 						},

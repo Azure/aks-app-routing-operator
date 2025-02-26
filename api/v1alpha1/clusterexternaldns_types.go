@@ -85,8 +85,7 @@ type ClusterExternalDNSSpec struct {
 
 	// Filters contains optional filters that the ExternalDNS controller should use to determine which resources to manage.
 	// +optional
-	// +nullable
-	Filters ExternalDNSFilters `json:"filters,omitempty"`
+	Filters *ExternalDNSFilters `json:"filters,omitempty"`
 }
 
 // ClusterExternalDNSStatus contains information about the state of the managed ExternalDNS resources.

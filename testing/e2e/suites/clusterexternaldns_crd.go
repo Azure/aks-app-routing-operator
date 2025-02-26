@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -408,9 +409,9 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector:         "test=test",
-									RouteAndIngressLabelSelector: "test=test",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector:         to.Ptr("test=test"),
+									RouteAndIngressLabelSelector: to.Ptr("test=test"),
 								},
 							},
 						},
@@ -437,8 +438,8 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector: "test=tes==t",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr("test=tes==t"),
 								},
 							},
 						},
@@ -466,15 +467,15 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector: "test=",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr("test="),
 								},
 							},
 						},
 						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
 					{
-						name: "null filters object",
+						name: "nil filters object",
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
@@ -499,7 +500,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						},
 					},
 					{
-						name: "empty filters object with null filters",
+						name: "empty filters object with nil filters",
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
@@ -520,7 +521,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{},
+								Filters: &v1alpha1.ExternalDNSFilters{},
 							},
 						},
 					},
@@ -546,11 +547,12 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Identity: v1alpha1.ExternalDNSIdentity{
 									ServiceAccount: "test-sa",
 								},
-								Filters: v1alpha1.ExternalDNSFilters{
-									GatewayLabelSelector: "",
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr(""),
 								},
 							},
 						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
 				}
 
