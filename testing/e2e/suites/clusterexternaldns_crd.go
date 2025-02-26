@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -386,6 +387,173 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						},
 						expectedError: errors.New("serviceAccount in body should be at least 1 chars long"),
 					},
+					{
+						name: "valid filters",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector:         to.Ptr("test=test"),
+									RouteAndIngressLabelSelector: to.Ptr("test=test"),
+								},
+							},
+						},
+					},
+					{
+						name: "invalid filters - multiple equals",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr("test=tes==t"),
+								},
+							},
+						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
+					},
+					{
+						name: "invalid filters - ends with equals",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr("test="),
+								},
+							},
+						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
+					},
+					{
+						name: "nil filters object",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+							},
+						},
+					},
+					{
+						name: "empty filters object with nil filters",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: &v1alpha1.ExternalDNSFilters{},
+							},
+						},
+					},
+					{
+						name: "empty string filters",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+								Filters: &v1alpha1.ExternalDNSFilters{
+									GatewayLabelSelector: to.Ptr(""),
+								},
+							},
+						},
+						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
+					},
 				}
 
 				c, err := client.New(config, client.Options{
@@ -399,16 +567,16 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 					err := upsert(context.Background(), c, tc.ced)
 					if tc.expectedError != nil {
 						if err == nil {
-							return fmt.Errorf("expected error: %s", tc.expectedError.Error())
+							return fmt.Errorf("for case %s expected error: %s", tc.name, tc.expectedError.Error())
 						}
 						if !strings.Contains(err.Error(), tc.expectedError.Error()) {
-							return fmt.Errorf("expected error: %s, got: %s", tc.expectedError.Error(), err.Error())
+							return fmt.Errorf("for case %s expected error: %s, got: %s", tc.name, tc.expectedError.Error(), err.Error())
 						}
 
 					} else {
 						// ignore already exists since same cluster is used for multiple tests
 						if client.IgnoreAlreadyExists(err) != nil {
-							return fmt.Errorf("unexpected error: %s", err.Error())
+							return fmt.Errorf("for case %s unexpected error: %s", tc.name, err.Error())
 						}
 					}
 				}

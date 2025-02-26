@@ -89,7 +89,7 @@ type ExternalDNSSpec struct {
 
 	// Filters contains optional filters that the ExternalDNS controller should use to determine which resources to manage.
 	// +optional
-	Filters ExternalDNSFilters `json:"filters,omitempty"`
+	Filters *ExternalDNSFilters `json:"filters,omitempty"`
 }
 
 // ExternalDNSIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
@@ -103,13 +103,15 @@ type ExternalDNSIdentity struct {
 }
 
 type ExternalDNSFilters struct {
-	// GatewayLabels contains key-value pairs that the ExternalDNS controller will use to filter the Gateways that it manages.
+	// GatewayLabelSelector is the label selector that the ExternalDNS controller will use to filter the Gateways that it manages.
 	// +optional
-	GatewayLabels map[string]string `json:"gatewayLabels,omitempty"`
+	// +kubebuilder:validation:Pattern=`^[^=]+=[^=]+$`
+	GatewayLabelSelector *string `json:"gatewayLabels,omitempty"`
 
-	// RouteAndIngressLabels contains key-value pairs that the ExternalDNS controller will use to filter the HTTPRoutes and Ingresses that it manages.
+	// RouteAndIngressLabelSelector is the label selector that the ExternalDNS controller will use to filter the HTTPRoutes and Ingresses that it manages.
 	// +optional
-	RouteAndIngressLabels map[string]string `json:"routeAndIngressLabels,omitempty"`
+	// +kubebuilder:validation:Pattern=`^[^=]+=[^=]+$`
+	RouteAndIngressLabelSelector *string `json:"routeAndIngressLabels,omitempty"`
 }
 
 // ExternalDNSStatus defines the observed state of ExternalDNS.
