@@ -139,7 +139,7 @@ type InputExternalDNSConfig struct {
 	// DnsZoneresourceIDs contains the DNS zones that ExternalDNS will use to configure DNS
 	DnsZoneresourceIDs []string
 	// Filters contains various filters that ExternalDNS will use to filter resources it scans for DNS configuration
-	Filters v1alpha1.ExternalDNSFilters
+	Filters *v1alpha1.ExternalDNSFilters
 }
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
@@ -152,8 +152,9 @@ type ExternalDnsConfig struct {
 	resourceTypes map[ResourceType]struct{}
 	provider      Provider
 
-	// controller-specific fields
-	filters v1alpha1.ExternalDNSFilters
+	// crd-specific specific fields
+	routeAndIngressLabelSelector string
+	gatewayLabelSelector         string
 	// TODO: USE THIS
 
 	// externally exposed
@@ -271,13 +272,41 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		resourceTypes:      inputConfig.ResourceTypes,
 		provider:           provider,
 		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
-		filters:            inputConfig.Filters,
 	}
 
 	ret.resources = externalDnsResources(conf, []*ExternalDnsConfig{ret})
 	ret.labels = externalDNSLabels(ret)
 
+	if inputConfig.Filters != nil {
+		gatewayLabel, err := parseLabel(inputConfig.Filters.GatewayLabelSelector)
+		if err != nil {
+			return nil, fmt.Errorf("parsing gateway label selector: %w", err)
+		}
+
+		routeAndIngressLabel, err := parseLabel(inputConfig.Filters.RouteAndIngressLabelSelector)
+		if err != nil {
+			return nil, fmt.Errorf("parsing route and ingress label selector: %w", err)
+		}
+
+		ret.gatewayLabelSelector = gatewayLabel
+		ret.routeAndIngressLabelSelector = routeAndIngressLabel
+	}
+
 	return ret, nil
+}
+
+func parseLabel(filterString *string) (string, error) {
+	if filterString == nil || *filterString == "" {
+		return "", nil
+	}
+
+	parts := strings.Split(*filterString, "=")
+
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid label selector format: %s", *filterString)
+	}
+
+	return parts[0] + "==" + parts[1], nil
 }
 
 func externalDNSLabels(e *ExternalDnsConfig) map[string]string {
@@ -458,6 +487,8 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 		"--txt-wildcard-replacement=" + txtWildcardReplacement,
 	}
 
+	deploymentArgs = append(deploymentArgs, labelSelectorDeploymentArgs(externalDnsConfig)...)
+
 	resourceTypeArgs := make([]string, 0)
 	for resourceType := range externalDnsConfig.resourceTypes {
 		resourceTypeArgs = append(resourceTypeArgs, resourceType.generateResourceDeploymentArgs()...)
@@ -532,4 +563,17 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			},
 		},
 	}
+}
+
+func labelSelectorDeploymentArgs(e *ExternalDnsConfig) []string {
+	ret := make([]string, 0)
+
+	if e.gatewayLabelSelector != "" {
+		ret = append(ret, "--gateway-label-filter="+e.gatewayLabelSelector)
+	}
+	if e.routeAndIngressLabelSelector != "" {
+		ret = append(ret, "--label-filter="+e.routeAndIngressLabelSelector)
+	}
+
+	return ret
 }

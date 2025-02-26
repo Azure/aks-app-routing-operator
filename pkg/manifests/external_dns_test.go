@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/stretchr/testify/require"
@@ -78,6 +79,21 @@ var (
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
 		resourceName:       "test-dns-config-external-dns",
+	}
+
+	publicGwConfigWithFilters = &ExternalDnsConfig{
+		tenantId:                     "test-tenant-id",
+		subscription:                 "test-subscription-id",
+		resourceGroup:                "test-resource-group-public",
+		namespace:                    "test-namespace",
+		identityType:                 IdentityTypeWorkloadIdentity,
+		resourceTypes:                map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		dnsZoneResourceIDs:           publicZones,
+		provider:                     PublicProvider,
+		serviceAccountName:           "test-service-account",
+		resourceName:                 "crd-test",
+		routeAndIngressLabelSelector: "app==test",
+		gatewayLabelSelector:         "app==test",
 	}
 
 	publicGwConfigNoZones = &ExternalDnsConfig{
@@ -173,6 +189,17 @@ var (
 				},
 			},
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
+		},
+		{
+			Name: "for-gateway",
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "crd-test",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{publicGwConfigWithFilters},
 		},
 		{
 			Name:       "no-ownership",
@@ -337,6 +364,86 @@ func TestExternalDNSConfig(t *testing.T) {
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
 			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfig}),
+		},
+		{
+			name: "public gateway with valid filters",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+				Filters: &v1alpha1.ExternalDNSFilters{
+					GatewayLabelSelector:         to.Ptr("app=test"),
+					RouteAndIngressLabelSelector: to.Ptr("app=test"),
+				},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfigWithFilters}),
+		},
+		{
+			name: "public gateway with empty string filters",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+				Filters: &v1alpha1.ExternalDNSFilters{
+					GatewayLabelSelector:         to.Ptr(""),
+					RouteAndIngressLabelSelector: to.Ptr(""),
+				},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfig}),
+		},
+		{
+			name: "public gateway with invalid gateway filters",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+				Filters: &v1alpha1.ExternalDNSFilters{
+					GatewayLabelSelector:         to.Ptr("app=tes==t"),
+					RouteAndIngressLabelSelector: to.Ptr("app=test"),
+				},
+			},
+
+			expectedError: errors.New("parsing gateway label selector: invalid label selector format: app=tes==t"),
+		},
+		{
+			name: "public gateway with invalid route filters",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+				Filters: &v1alpha1.ExternalDNSFilters{
+					RouteAndIngressLabelSelector: to.Ptr("app=tes==t"),
+				},
+			},
+
+			expectedError: errors.New("parsing route and ingress label selector: invalid label selector format: app=tes==t"),
 		},
 		{
 			name: "private gateway no osm",

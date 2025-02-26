@@ -166,19 +166,6 @@ func (e *ExternalDNS) GetResourceTypes() []string {
 func (e *ExternalDNS) GetDnsZoneresourceIDs() []string {
 	return e.Spec.DNSZoneResourceIDs
 }
-func (e *ExternalDNS) GetFilters() ExternalDNSFilters {
+func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
 	return e.Spec.Filters
-}
-
-func (f *ExternalDNSFilters) GetDeploymentArgs() []string {
-	if f == nil {
-		return []string{}
-	}
-
-	ret := make([]string, 0, 0)
-	if f.RouteAndIngressLabels != nil {
-		for k, v := range f.RouteAndIngressLabels {
-			ret == append(ret, --label-filter)
-		}
-	}
 }

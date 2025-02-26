@@ -125,6 +125,6 @@ func (c *ClusterExternalDNS) GetResourceTypes() []string {
 func (c *ClusterExternalDNS) GetDnsZoneresourceIDs() []string {
 	return c.Spec.DNSZoneResourceIDs
 }
-func (c *ClusterExternalDNS) GetFilters() ExternalDNSFilters {
+func (c *ClusterExternalDNS) GetFilters() *ExternalDNSFilters {
 	return c.Spec.Filters
 }
