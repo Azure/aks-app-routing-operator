@@ -169,3 +169,4 @@ func (e *ExternalDNS) GetDnsZoneresourceIDs() []string {
 func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
 	return e.Spec.Filters
 }
+func (e *ExternalDNS) GetNamespaced() bool { return true }

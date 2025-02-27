@@ -15,6 +15,7 @@ type ExternalDNSCRDConfiguration interface {
 	GetResourceTypes() []string
 	GetDnsZoneresourceIDs() []string
 	GetFilters() *v1alpha1.ExternalDNSFilters
+	GetNamespaced() bool
 }
 
 func buildInputDNSConfig(e ExternalDNSCRDConfiguration) manifests.InputExternalDNSConfig {
@@ -27,6 +28,7 @@ func buildInputDNSConfig(e ExternalDNSCRDConfiguration) manifests.InputExternalD
 		ResourceTypes:       extractResourceTypes(e.GetResourceTypes()),
 		DnsZoneresourceIDs:  e.GetDnsZoneresourceIDs(),
 		Filters:             e.GetFilters(),
+		IsNamespaced:        e.GetNamespaced(),
 	}
 }
 

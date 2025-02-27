@@ -128,3 +128,4 @@ func (c *ClusterExternalDNS) GetDnsZoneresourceIDs() []string {
 func (c *ClusterExternalDNS) GetFilters() *ExternalDNSFilters {
 	return c.Spec.Filters
 }
+func (e *ClusterExternalDNS) GetNamespaced() bool { return false }
