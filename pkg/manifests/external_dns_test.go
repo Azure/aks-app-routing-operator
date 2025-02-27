@@ -91,7 +91,7 @@ var (
 		dnsZoneResourceIDs:           publicZones,
 		provider:                     PublicProvider,
 		serviceAccountName:           "test-service-account",
-		resourceName:                 "crd-test",
+		resourceName:                 "crd-test-external-dns",
 		routeAndIngressLabelSelector: "app==test",
 		gatewayLabelSelector:         "app==test",
 	}
@@ -99,7 +99,6 @@ var (
 	publicGwConfigNoZones = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		namespace:          "test-namespace",
-		clientId:           "test-client-id",
 		identityType:       IdentityTypeWorkloadIdentity,
 		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
 		provider:           PublicProvider,
@@ -136,7 +135,6 @@ var (
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-public",
 		namespace:          "test-namespace",
-		clientId:           "test-client-id",
 		identityType:       IdentityTypeWorkloadIdentity,
 		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
 		dnsZoneResourceIDs: []string{publicZoneOne, strings.ToUpper(publicZoneTwo)},
@@ -150,7 +148,6 @@ var (
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-private",
 		namespace:          "test-namespace",
-		clientId:           "test-client-id",
 		identityType:       IdentityTypeWorkloadIdentity,
 		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
 		dnsZoneResourceIDs: privateZones,
@@ -164,13 +161,25 @@ var (
 		subscription:       "test-subscription-id",
 		resourceGroup:      "test-resource-group-private",
 		namespace:          "test-namespace",
-		clientId:           "test-client-id",
 		identityType:       IdentityTypeWorkloadIdentity,
 		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}, ResourceTypeIngress: struct{}{}},
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
 		resourceName:       "test-dns-config-private-external-dns",
+	}
+
+	privateIngressCRDConfig = &ExternalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-private",
+		namespace:          "test-namespace",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		dnsZoneResourceIDs: privateZones,
+		provider:           PrivateProvider,
+		serviceAccountName: "test-private-service-account",
+		resourceName:       "crd-test-external-dns",
 	}
 
 	testCases = []struct {
@@ -191,15 +200,37 @@ var (
 			DnsConfigs: []*ExternalDnsConfig{publicDnsConfig, privateDnsConfig},
 		},
 		{
-			Name: "for-gateway",
+			Name: "gateway-crd",
 			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "crd-test",
+					Name: "crd-test-external-dns",
 					UID:  "test-operator-deploy-uid",
 				},
 			},
 			DnsConfigs: []*ExternalDnsConfig{publicGwConfigWithFilters},
+		},
+		{
+			Name: "gateway-and-ingress-crd",
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-dns-config-private-external-dns",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{privateGwIngressConfig},
+		},
+		{
+			Name: "ingress-crd",
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "crd-test-external-dns",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{privateIngressCRDConfig},
 		},
 		{
 			Name:       "no-ownership",
@@ -372,7 +403,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				TenantId:            "test-tenant-id",
 				InputServiceAccount: "test-service-account",
 				Namespace:           "test-namespace",
-				InputResourceName:   "test-dns-config",
+				InputResourceName:   "crd-test",
 				IdentityType:        IdentityTypeWorkloadIdentity,
 				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
@@ -382,7 +413,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				},
 			},
 
-			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-external-dns"},
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "crd-test-external-dns"},
 			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfigWithFilters}),
 		},
 		{

@@ -140,6 +140,8 @@ type InputExternalDNSConfig struct {
 	DnsZoneresourceIDs []string
 	// Filters contains various filters that ExternalDNS will use to filter resources it scans for DNS configuration
 	Filters *v1alpha1.ExternalDNSFilters
+	// IsNamespaced is true if the ExternalDNS deployment should only scan for resources in the resource namespace, and false if it should scan all namespaces
+	IsNamespaced bool
 }
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
@@ -151,6 +153,7 @@ type ExternalDnsConfig struct {
 	identityType  IdentityType
 	resourceTypes map[ResourceType]struct{}
 	provider      Provider
+	isNamespaced  bool
 
 	// crd-specific specific fields
 	routeAndIngressLabelSelector string
@@ -272,10 +275,8 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		resourceTypes:      inputConfig.ResourceTypes,
 		provider:           provider,
 		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
+		isNamespaced:       inputConfig.IsNamespaced,
 	}
-
-	ret.resources = externalDnsResources(conf, []*ExternalDnsConfig{ret})
-	ret.labels = externalDNSLabels(ret)
 
 	if inputConfig.Filters != nil {
 		gatewayLabel, err := parseLabel(inputConfig.Filters.GatewayLabelSelector)
@@ -291,6 +292,9 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		ret.gatewayLabelSelector = gatewayLabel
 		ret.routeAndIngressLabelSelector = routeAndIngressLabel
 	}
+
+	ret.resources = externalDnsResources(conf, []*ExternalDnsConfig{ret})
+	ret.labels = externalDNSLabels(ret)
 
 	return ret, nil
 }
@@ -335,10 +339,16 @@ func externalDnsResources(conf *config.Config, externalDnsConfigs []*ExternalDns
 func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *ExternalDnsConfig) []client.Object {
 	var objs []client.Object
 	if externalDnsConfig.identityType == IdentityTypeMSI {
-		objs = append(objs, newExternalDNSServiceAccount(conf, externalDnsConfig))
+		objs = append(objs, newExternalDNSServiceAccount(externalDnsConfig))
 	}
-	objs = append(objs, newExternalDNSClusterRole(conf, externalDnsConfig))
-	objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
+
+	if externalDnsConfig.isNamespaced {
+		objs = append(objs, newExternalDNSRole(externalDnsConfig))
+		objs = append(objs, newExternalDNSRoleBinding(conf, externalDnsConfig))
+	} else {
+		objs = append(objs, newExternalDNSClusterRole(externalDnsConfig))
+		objs = append(objs, newExternalDNSClusterRoleBinding(conf, externalDnsConfig))
+	}
 
 	dnsCm, dnsCmHash := newExternalDNSConfigMap(conf, externalDnsConfig)
 	objs = append(objs, dnsCm)
@@ -352,7 +362,7 @@ func externalDnsResourcesFromConfig(conf *config.Config, externalDnsConfig *Exte
 	return objs
 }
 
-func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
+func newExternalDNSServiceAccount(externalDnsConfig *ExternalDnsConfig) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -366,10 +376,47 @@ func newExternalDNSServiceAccount(conf *config.Config, externalDnsConfig *Extern
 	}
 }
 
-func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
+func newExternalDNSClusterRole(externalDnsConfig *ExternalDnsConfig) *rbacv1.ClusterRole {
 	role := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   externalDnsConfig.resourceName,
+			Labels: GetTopLevelLabels(),
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"endpoints", "pods", "services", "configmaps"},
+				Verbs:     []string{"get", "watch", "list"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"nodes"},
+				Verbs:     []string{"get", "watch", "list"},
+			},
+		},
+	}
+
+	// sort for fixture tests
+	sortedRts := make([]ResourceType, 0, len(externalDnsConfig.resourceTypes))
+	for resourceType := range externalDnsConfig.resourceTypes {
+		sortedRts = append(sortedRts, resourceType)
+	}
+	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
+	for _, resourceType := range sortedRts {
+		role.Rules = append(role.Rules, resourceType.generateRBACRules()...)
+	}
+
+	return role
+}
+
+func newExternalDNSRole(externalDnsConfig *ExternalDnsConfig) *rbacv1.Role {
+	role := &rbacv1.Role{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Role",
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{

@@ -1,0 +1,204 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: null
+  labels:
+    openservicemesh.io/monitored-by: osm
+  name: test-namespace
+spec: {}
+status: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: crd-test-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: crd-test-external-dns
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - pods
+  - services
+  - configmaps
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  - httproutes
+  - grpcroutes
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: crd-test-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: crd-test-external-dns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crd-test-external-dns
+subjects:
+- kind: ServiceAccount
+  name: test-service-account
+  namespace: test-namespace
+---
+apiVersion: v1
+data:
+  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: crd-test-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: crd-test-external-dns
+  namespace: test-namespace
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: crd-test-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: crd-test-external-dns
+  namespace: test-namespace
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: crd-test-external-dns
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: crd-test-external-dns
+        app.kubernetes.io/managed-by: aks-app-routing-operator
+        checksum/configmap: e363a30964578be3
+        kubernetes.azure.com/managedby: aks
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: kubernetes.azure.com/mode
+                operator: In
+                values:
+                - system
+            weight: 100
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - args:
+        - --provider=azure
+        - --interval=3m0s
+        - --txt-owner-id=test-cluster-uid
+        - --txt-wildcard-replacement=approutingwildcard
+        - --gateway-label-filter=app==test
+        - --label-filter=app==test
+        - --source=gateway-grpcroute
+        - --source=gateway-httproute
+        - --domain-filter=test-one.com
+        - --domain-filter=test-two.com
+        image: /oss/v2/kubernetes/external-dns:v0.15.0
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 7979
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: controller
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 7979
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 250Mi
+          requests:
+            cpu: 100m
+            memory: 250Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
+        volumeMounts:
+        - mountPath: /etc/kubernetes
+          name: azure-config
+          readOnly: true
+      priorityClassName: system-cluster-critical
+      serviceAccountName: test-service-account
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      volumes:
+      - configMap:
+          name: crd-test-external-dns
+        name: azure-config
+status: {}
+---
