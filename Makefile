@@ -24,6 +24,10 @@ LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
+## Environment variables for Terraform
+SUB_ID=$(shell az account show -o json | jq -r '.id')
+TENANT_ID=$(shell az account show -o json | jq -r '.tenantId')
+
 help: ## Display this help.
 	# prints all targets with comments next to them, extracted from this file
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -36,7 +40,7 @@ CLUSTER_TYPE="public"
 
 dev: clean ## Deploys a development environment useful for testing the operator inside a cluster
 	terraform --version
-	cd devenv && mkdir -p state && cd tf && terraform init && terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
+	cd devenv && mkdir -p state && cd tf && terraform init && TF_VAR_az_sub_id=$(SUB_ID) TF_VAR_az_tenant_id=$(TENANT_ID) terraform apply -auto-approve -var="clustertype=$(CLUSTER_TYPE)"
 	./devenv/scripts/deploy_operator.sh
 
 push: ## Pushes the current operator code to the current development environment

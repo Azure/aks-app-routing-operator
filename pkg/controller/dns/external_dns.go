@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -108,14 +109,12 @@ func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, 
 		conf,
 		manifests.InputExternalDNSConfig{
 			TenantId:           conf.TenantID,
-			Subscription:       conf.PublicZoneConfig.Subscription,
-			ResourceGroup:      conf.PublicZoneConfig.ResourceGroup,
 			ClientId:           conf.MSIClientID,
 			Namespace:          conf.NS,
 			IdentityType:       manifests.IdentityTypeMSI,
-			ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
-			Provider:           manifests.PublicProvider,
+			ResourceTypes:      map[manifests.ResourceType]struct{}{manifests.ResourceTypeIngress: struct{}{}},
 			DnsZoneresourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
+			Provider:           to.Ptr(manifests.PublicProvider),
 		})
 
 	if err != nil {
@@ -129,14 +128,12 @@ func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig,
 		conf,
 		manifests.InputExternalDNSConfig{
 			TenantId:           conf.TenantID,
-			Subscription:       conf.PrivateZoneConfig.Subscription,
-			ResourceGroup:      conf.PrivateZoneConfig.ResourceGroup,
 			ClientId:           conf.MSIClientID,
 			Namespace:          conf.NS,
 			IdentityType:       manifests.IdentityTypeMSI,
-			ResourceTypes:      []manifests.ResourceType{manifests.ResourceTypeIngress},
-			Provider:           manifests.PrivateProvider,
+			ResourceTypes:      map[manifests.ResourceType]struct{}{manifests.ResourceTypeIngress: struct{}{}},
 			DnsZoneresourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
+			Provider:           to.Ptr(manifests.PrivateProvider),
 		},
 	)
 
