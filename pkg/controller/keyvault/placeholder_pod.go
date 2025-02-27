@@ -293,7 +293,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.9-hotfix-20230808"),
+					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.10"),
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
