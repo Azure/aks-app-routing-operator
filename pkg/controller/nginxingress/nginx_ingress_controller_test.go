@@ -1423,6 +1423,33 @@ func TestToNginxIngressConfig(t *testing.T) {
 				TargetCPUUtilizationPercentage: balancedTargetCPUUtilization,
 			},
 		},
+		{
+			name: "default controller class with HTTPDisabled set to true",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					HTTPDisabled:         true,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				HTTPDisabled:                   true,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
 	}
 
 	for _, c := range cases {
