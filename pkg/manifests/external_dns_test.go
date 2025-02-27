@@ -96,6 +96,22 @@ var (
 		gatewayLabelSelector:         "app==test",
 	}
 
+	publicGwAndIngressConfigWithFiltersNamespaceScoped = &ExternalDnsConfig{
+		tenantId:                     "test-tenant-id",
+		subscription:                 "test-subscription-id",
+		resourceGroup:                "test-resource-group-public",
+		namespace:                    "test-namespace",
+		identityType:                 IdentityTypeWorkloadIdentity,
+		resourceTypes:                map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}, ResourceTypeIngress: struct{}{}},
+		dnsZoneResourceIDs:           publicZones,
+		provider:                     PublicProvider,
+		serviceAccountName:           "test-service-account",
+		resourceName:                 "crd-test-external-dns",
+		routeAndIngressLabelSelector: "app==test",
+		gatewayLabelSelector:         "app==test",
+		isNamespaced:                 true,
+	}
+
 	publicGwConfigNoZones = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		namespace:          "test-namespace",
@@ -156,6 +172,20 @@ var (
 		resourceName:       "test-dns-config-private-external-dns",
 	}
 
+	privateGwConfigNamespaceScoped = &ExternalDnsConfig{
+		tenantId:           "test-tenant-id",
+		subscription:       "test-subscription-id",
+		resourceGroup:      "test-resource-group-private",
+		namespace:          "test-namespace",
+		identityType:       IdentityTypeWorkloadIdentity,
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		dnsZoneResourceIDs: privateZones,
+		provider:           PrivateProvider,
+		serviceAccountName: "test-private-service-account",
+		resourceName:       "test-dns-config-private-external-dns",
+		isNamespaced:       true,
+	}
+
 	privateGwIngressConfig = &ExternalDnsConfig{
 		tenantId:           "test-tenant-id",
 		subscription:       "test-subscription-id",
@@ -211,6 +241,17 @@ var (
 			DnsConfigs: []*ExternalDnsConfig{publicGwConfigWithFilters},
 		},
 		{
+			Name: "gateway-namespace-scoped-crd",
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-dns-config-private-external-dns",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{privateGwConfigNamespaceScoped},
+		},
+		{
 			Name: "gateway-and-ingress-crd",
 			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
 			Deploy: &appsv1.Deployment{
@@ -220,6 +261,17 @@ var (
 				},
 			},
 			DnsConfigs: []*ExternalDnsConfig{privateGwIngressConfig},
+		},
+		{
+			Name: "gateway-and-ingress-namespace-scoped-crd",
+			Conf: &config.Config{ClusterUid: clusterUid, DnsSyncInterval: time.Minute * 3},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "crd-test-external-dns",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			DnsConfigs: []*ExternalDnsConfig{publicGwAndIngressConfigWithFiltersNamespaceScoped},
 		},
 		{
 			Name: "ingress-crd",
@@ -397,6 +449,26 @@ func TestExternalDNSConfig(t *testing.T) {
 			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfig}),
 		},
 		{
+			name: "public gateway and ingress with valid filters and namespace scope",
+			conf: conf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				InputServiceAccount: "test-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "crd-test",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
+				Filters: &v1alpha1.ExternalDNSFilters{
+					GatewayLabelSelector:         to.Ptr("app=test"),
+					RouteAndIngressLabelSelector: to.Ptr("app=test"),
+				},
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "crd-test-external-dns"},
+			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwAndIngressConfigWithFiltersNamespaceScoped}),
+		},
+		{
 			name: "public gateway with valid filters",
 			conf: conf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
@@ -492,6 +564,24 @@ func TestExternalDNSConfig(t *testing.T) {
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
 			expectedObjects: externalDnsResources(noOsmConf, []*ExternalDnsConfig{privateGwConfig}),
+		},
+		{
+			name: "private gateway no osm for namespace-scoped resources",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "test-private-service-account",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-dns-config-private",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
+				IsNamespaced:        true,
+			},
+
+			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
+			expectedObjects: externalDnsResources(noOsmConf, []*ExternalDnsConfig{privateGwConfigNamespaceScoped}),
 		},
 		{
 			name: "invalid identity type",

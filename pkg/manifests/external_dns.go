@@ -475,6 +475,31 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 	return ret
 }
 
+func newExternalDNSRoleBinding(conf *config.Config, externalDnsConfig *ExternalDnsConfig) *rbacv1.RoleBinding {
+	ret := &rbacv1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "RoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   externalDnsConfig.resourceName,
+			Labels: GetTopLevelLabels(),
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     externalDnsConfig.resourceName,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      externalDnsConfig.serviceAccountName,
+			Namespace: externalDnsConfig.namespace,
+		}},
+	}
+
+	return ret
+}
+
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
 	jsMap := map[string]interface{}{
 		"tenantId":       externalDnsConfig.tenantId,
