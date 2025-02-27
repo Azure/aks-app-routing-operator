@@ -349,7 +349,7 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
-				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller", "nginxingressclass")
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller-with-http-disabled", "nginxingressclass")
 				testNIC.Spec.HTTPDisabled = true
 				if err := upsert(ctx, c, testNIC); err != nil {
 					return fmt.Errorf("upserting NIC: %w", err)
