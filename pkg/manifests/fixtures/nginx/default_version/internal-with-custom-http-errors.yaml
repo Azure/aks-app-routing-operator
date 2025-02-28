@@ -362,6 +362,7 @@ spec:
         - --publish-service=$(POD_NAMESPACE)/nginx
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
+        - --shutdown-grace-period=15
         env:
         - name: POD_NAME
           valueFrom:
@@ -372,6 +373,11 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         image: test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.2
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /wait-shutdown
         livenessProbe:
           failureThreshold: 6
           httpGet:
