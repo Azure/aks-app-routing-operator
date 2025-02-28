@@ -402,6 +402,10 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--enable-annotation-validation=true",
+		// https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#custom-load-balancer-health-probe
+		// load balancer health probe checks in 5 second intervals. It requires 2 failing probes to fail so we need at least 10s of grace period.
+		// we set it to 15s to be safe. Without this Nginx process exits but the LoadBalancer continues routing to the Pod until two health checks fail.
+		"--shutdown-grace-period=15",
 	}
 
 	if ingressConfig.DefaultSSLCertificate != "" {
@@ -447,6 +451,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						Lifecycle: &corev1.Lifecycle{
 							PreStop: &corev1.LifecycleHandler{
 								Exec: &corev1.ExecAction{
+									// if pod is being deleted, wait for the shutdown grace period before terminating
 									Command: []string{"/wait-shutdown"},
 								},
 							},

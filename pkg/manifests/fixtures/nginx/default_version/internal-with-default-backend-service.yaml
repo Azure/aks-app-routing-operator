@@ -362,6 +362,7 @@ spec:
         - --publish-service=$(POD_NAMESPACE)/nginx
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
+        - --shutdown-grace-period=15
         - --default-backend-service=fakenamespace/fakename
         env:
         - name: POD_NAME
