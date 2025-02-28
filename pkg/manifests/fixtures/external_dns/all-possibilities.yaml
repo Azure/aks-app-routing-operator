@@ -528,8 +528,8 @@ spec:
         - --interval=10s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
-        - --source=gateway-httproute
         - --source=gateway-grpcroute
+        - --source=gateway-httproute
         - --domain-filter=test-one.com
         - --domain-filter=test-two.com
         image: /oss/v2/kubernetes/external-dns:v0.15.0
@@ -720,8 +720,8 @@ spec:
         - --interval=10s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
-        - --source=gateway-httproute
         - --source=gateway-grpcroute
+        - --source=gateway-httproute
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
         image: /oss/v2/kubernetes/external-dns:v0.15.0

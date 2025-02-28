@@ -38,6 +38,15 @@ rules:
   - watch
   - list
 - apiGroups:
+  - extensions
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
   - ""
   resources:
   - namespaces
@@ -51,15 +60,6 @@ rules:
   - gateways
   - httproutes
   - grpcroutes
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
-  - extensions
-  - networking.k8s.io
-  resources:
-  - ingresses
   verbs:
   - get
   - watch
@@ -151,8 +151,8 @@ spec:
         - --interval=10s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
-        - --source=gateway-httproute
         - --source=gateway-grpcroute
+        - --source=gateway-httproute
         - --source=ingress
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com

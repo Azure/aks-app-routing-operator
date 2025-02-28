@@ -169,7 +169,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -309,7 +309,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -444,7 +444,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(true),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -671,7 +671,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",

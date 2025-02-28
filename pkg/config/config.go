@@ -115,15 +115,10 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 		if err != nil {
 			return fmt.Errorf("while parsing dns zone resource ID %s: %s", zoneId, err)
 		}
-
-		if !strings.EqualFold(parsedZone.Provider, "Microsoft.Network") {
-			return fmt.Errorf("invalid resource provider %s from zone %s: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network", parsedZone.Provider, zoneId)
-		}
-
 		switch strings.ToLower(parsedZone.ResourceType) {
 		case PrivateZoneType:
 			// it's a private zone
-			if err := validateSubAndRg(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
+			if err := ValidateProviderSubAndRg(parsedZone, c.PrivateZoneConfig.Subscription, c.PrivateZoneConfig.ResourceGroup); err != nil {
 				return err
 			}
 
@@ -136,7 +131,7 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 			c.PrivateZoneConfig.ZoneIds[strings.ToLower(zoneId)] = struct{}{} // azure resource names are case insensitive
 		case PublicZoneType:
 			// it's a public zone
-			if err := validateSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PublicZoneConfig.ResourceGroup); err != nil {
+			if err := ValidateProviderSubAndRg(parsedZone, c.PublicZoneConfig.Subscription, c.PublicZoneConfig.ResourceGroup); err != nil {
 				return err
 			}
 
@@ -155,7 +150,11 @@ func (c *Config) ParseAndValidateZoneIDs(zonesString string) error {
 	return nil
 }
 
-func validateSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
+func ValidateProviderSubAndRg(parsedZone azure.Resource, subscription, resourceGroup string) error {
+	if !strings.EqualFold(parsedZone.Provider, "Microsoft.Network") {
+		return fmt.Errorf("invalid resource provider %s from zone %s: resource ID must be a public or private DNS Zone resource ID from provider Microsoft.Network", parsedZone.Provider, parsedZone.String())
+	}
+
 	if subscription != "" && !strings.EqualFold(parsedZone.SubscriptionID, subscription) {
 		return fmt.Errorf("while parsing resource IDs for %s: detected multiple subscriptions %s and %s", parsedZone.ResourceType, parsedZone.SubscriptionID, subscription)
 	}

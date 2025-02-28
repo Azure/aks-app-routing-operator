@@ -68,18 +68,17 @@ spec:
                   controller should use to determine which resources to manage.
                 properties:
                   gatewayLabels:
-                    additionalProperties:
-                      type: string
-                    description: GatewayLabels contains key-value pairs that the ExternalDNS
-                      controller will use to filter the Gateways that it manages.
-                    type: object
+                    description: GatewayLabelSelector is the label selector that the
+                      ExternalDNS controller will use to filter the Gateways that
+                      it manages.
+                    pattern: ^[^=]+=[^=]+$
+                    type: string
                   routeAndIngressLabels:
-                    additionalProperties:
-                      type: string
-                    description: RouteAndIngressLabels contains key-value pairs that
-                      the ExternalDNS controller will use to filter the HTTPRoutes
+                    description: RouteAndIngressLabelSelector is the label selector
+                      that the ExternalDNS controller will use to filter the HTTPRoutes
                       and Ingresses that it manages.
-                    type: object
+                    pattern: ^[^=]+=[^=]+$
+                    type: string
                 type: object
               identity:
                 description: Identity contains information about the identity that
@@ -133,6 +132,7 @@ spec:
             required:
             - dnsZoneResourceIDs
             - identity
+            - resourceName
             - resourceNamespace
             - resourceTypes
             - tenantID
