@@ -441,6 +441,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							TopologyKey:       "kubernetes.io/hostname", // spread across nodes
 							WhenUnsatisfiable: corev1.ScheduleAnyway,
 							LabelSelector:     selector,
+							MatchLabelKeys: []string{
+								// https://kubernetes.io/blog/2024/08/16/matchlabelkeys-podaffinity/
+								// evaluate only pods of the same version (mostly applicable to rollouts)
+								"pod-template-hash",
+							},
 						},
 					},
 					ServiceAccountName: ingressConfig.ResourceName,

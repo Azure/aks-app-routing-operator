@@ -431,6 +431,8 @@ spec:
       - labelSelector:
           matchLabels:
             app: nginx
+        matchLabelKeys:
+        - pod-template-hash
         maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
