@@ -127,23 +127,23 @@ func certSecretName(ingressName string) string {
 	return fmt.Sprintf("keyvault-%s", ingressName)
 }
 
-type userError struct {
+type UserError struct {
 	err         error
 	userMessage string
 }
 
 // for internal use
-func (b userError) Error() string {
+func (b UserError) Error() string {
 	return b.err.Error()
 }
 
 // for user facing messages
-func (b userError) UserError() string {
+func (b UserError) UserError() string {
 	return b.userMessage
 }
 
-func newUserError(err error, msg string) userError {
-	return userError{err, msg}
+func newUserError(err error, msg string) UserError {
+	return UserError{err, msg}
 }
 
 func shouldReconcileGateway(gwObj *gatewayv1.Gateway) bool {
@@ -165,7 +165,7 @@ func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient c
 	}
 	// check for required annotations
 	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
-		return "", newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
+		return "", newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified but does not include necessary annotation for workload identity", saName))
 	}
 
 	return saObj.Annotations[wiSaClientIdAnnotation], nil

@@ -2,11 +2,13 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -58,6 +60,20 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	inputDNSConf := buildInputDNSConfig(obj)
+
+	// verify serviceaccount
+	if _, err = keyvault.GetServiceAccountAndVerifyWorkloadIdentity(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
+
+		var userErr keyvault.UserError
+		if errors.As(err, &userErr) {
+			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())
+			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed serviceaccount verification: %s", userErr.UserError())
+			return ctrl.Result{}, nil
+		}
+		logger.Error(err, "failed to verify service account")
+		return ctrl.Result{}, err
+	}
+
 	manifestsConf, err := manifests.NewExternalDNSConfig(e.config, inputDNSConf)
 	if err != nil {
 		logger.Error(err, "failed to generate ExternalDNS resources from ExternalDNS CR")

@@ -265,7 +265,7 @@ func TestBuildSPCWithWrongObject(t *testing.T) {
 func TestUserErrors(t *testing.T) {
 	testMsg := "test error message"
 	testError := newUserError(errors.New("test"), testMsg)
-	var userErr userError
+	var userErr UserError
 
 	assert.True(t, testError.UserError() == testMsg)
 	assert.True(t, errors.As(testError, &userErr))

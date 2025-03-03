@@ -574,7 +574,7 @@ func TestVerifyServiceAccount(t *testing.T) {
 					},
 				},
 			},
-			expectedError: newUserError(errors.New("user-specified service account does not contain WI annotation"), "serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity"),
+			expectedError: newUserError(errors.New("user-specified service account does not contain WI annotation"), "serviceAccount test-sa was specified but does not include necessary annotation for workload identity"),
 		},
 		{
 			name: "incorrect object type",

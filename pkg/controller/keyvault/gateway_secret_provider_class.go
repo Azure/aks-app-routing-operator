@@ -105,7 +105,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			var clientId string
 			clientId, err = retrieveClientIdForListener(ctx, g.client, req.Namespace, listener.TLS.Options)
 			if err != nil {
-				var userErr userError
+				var userErr UserError
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to fetch clientId for SPC for listener %s due to user error: %s, sending warning event", listener.Name, userErr.userMessage))
 					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)
@@ -127,7 +127,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			}
 			err = buildSPC(spc, spcConf)
 			if err != nil {
-				var userErr userError
+				var userErr UserError
 				if errors.As(err, &userErr) {
 					logger.Info("failed to build SecretProviderClass from user error: %s, sending warning event", userErr.userMessage)
 					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.userMessage)

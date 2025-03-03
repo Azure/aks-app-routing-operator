@@ -175,7 +175,7 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	// Verify ServiceAccount exists (if Gateway)
 	serviceAccount, err = p.verifyServiceAccount(ctx, spc, obj, logger)
 	if err != nil {
-		var userErr userError
+		var userErr UserError
 		if errors.As(err, &userErr) {
 			logger.Info("user error while verifying if service account exists: %s", userErr.err)
 			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.userMessage)
