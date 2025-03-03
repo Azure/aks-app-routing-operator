@@ -457,12 +457,13 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "crd-test",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}, ResourceTypeIngress: struct{}{}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 				Filters: &v1alpha1.ExternalDNSFilters{
 					GatewayLabelSelector:         to.Ptr("app=test"),
 					RouteAndIngressLabelSelector: to.Ptr("app=test"),
 				},
+				IsNamespaced: true,
 			},
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "crd-test-external-dns"},
