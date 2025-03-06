@@ -17,6 +17,7 @@ metadata:
     app.kubernetes.io/name: crd-test-external-dns
     kubernetes.azure.com/managedby: aks
   name: crd-test-external-dns
+  namespace: test-namespace
 rules:
 - apiGroups:
   - ""
@@ -74,6 +75,7 @@ metadata:
     app.kubernetes.io/name: crd-test-external-dns
     kubernetes.azure.com/managedby: aks
   name: crd-test-external-dns
+  namespace: test-namespace
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

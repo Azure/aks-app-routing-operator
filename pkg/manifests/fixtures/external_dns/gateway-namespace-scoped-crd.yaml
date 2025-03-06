@@ -17,6 +17,7 @@ metadata:
     app.kubernetes.io/name: test-dns-config-private-external-dns
     kubernetes.azure.com/managedby: aks
   name: test-dns-config-private-external-dns
+  namespace: test-namespace
 rules:
 - apiGroups:
   - ""
@@ -65,6 +66,7 @@ metadata:
     app.kubernetes.io/name: test-dns-config-private-external-dns
     kubernetes.azure.com/managedby: aks
   name: test-dns-config-private-external-dns
+  namespace: test-namespace
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
