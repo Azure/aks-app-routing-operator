@@ -316,7 +316,7 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 		}
 	}
 
-	return &corev1.Service{
+	ret := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
 			APIVersion: "v1",
@@ -334,11 +334,6 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			Selector:                 ingressConfig.PodLabels(),
 			Ports: []corev1.ServicePort{
 				{
-					Name:       "http",
-					Port:       80,
-					TargetPort: intstr.FromString("http"),
-				},
-				{
 					Name:       "https",
 					Port:       443,
 					TargetPort: intstr.FromString("https"),
@@ -346,6 +341,18 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			},
 		},
 	}
+
+	if !ingressConfig.HTTPDisabled {
+		ret.Spec.Ports = append([]corev1.ServicePort{
+			{
+				Name:       "http",
+				Port:       80,
+				TargetPort: intstr.FromString("http"),
+			},
+		}, ret.Spec.Ports...)
+	}
+
+	return ret
 }
 
 func newNginxIngressControllerPromService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
@@ -402,6 +409,10 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--enable-annotation-validation=true",
+		// https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#custom-load-balancer-health-probe
+		// load balancer health probe checks in 5 second intervals. It requires 2 failing probes to fail so we need at least 10s of grace period.
+		// we set it to 15s to be safe. Without this Nginx process exits but the LoadBalancer continues routing to the Pod until two health checks fail.
+		"--shutdown-grace-period=15",
 	}
 
 	if ingressConfig.DefaultSSLCertificate != "" {
@@ -412,7 +423,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
 	}
 
-	return &appsv1.Deployment{
+	ret := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
 			APIVersion: "apps/v1",
@@ -437,6 +448,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							TopologyKey:       "kubernetes.io/hostname", // spread across nodes
 							WhenUnsatisfiable: corev1.ScheduleAnyway,
 							LabelSelector:     selector,
+							MatchLabelKeys: []string{
+								// https://kubernetes.io/blog/2024/08/16/matchlabelkeys-podaffinity/
+								// evaluate only pods of the same version (mostly applicable to rollouts)
+								"pod-template-hash",
+							},
 						},
 					},
 					ServiceAccountName: ingressConfig.ResourceName,
@@ -458,10 +474,6 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						},
 						Ports: []corev1.ContainerPort{
 							{
-								Name:          "http",
-								ContainerPort: 80,
-							},
-							{
 								Name:          "https",
 								ContainerPort: 443,
 							},
@@ -478,6 +490,17 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 			},
 		},
 	}
+
+	if !ingressConfig.HTTPDisabled {
+		ret.Spec.Template.Spec.Containers[0].Ports = append([]corev1.ContainerPort{
+			{
+				Name:          "http",
+				ContainerPort: 80,
+			},
+		}, ret.Spec.Template.Spec.Containers[0].Ports...)
+	}
+
+	return ret
 }
 
 func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.ConfigMap {

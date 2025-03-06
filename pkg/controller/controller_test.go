@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	controllerruntimefake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func TestLogger(t *testing.T) {
@@ -74,4 +77,39 @@ func TestGetSelfDeploy(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, self)
 	})
+}
+
+func minimalTestConfig() *config.Config {
+	return &config.Config{
+		DefaultController:        config.Standard,
+		NS:                       "test-namespace",
+		Registry:                 "test-registry",
+		MSIClientID:              "test-msi-client-id",
+		TenantID:                 "test-tenant-id",
+		Cloud:                    "test-cloud",
+		Location:                 "test-location",
+		ConcurrencyWatchdogThres: 101,
+		ConcurrencyWatchdogVotes: 2,
+		ClusterUid:               "test-cluster-uid",
+		OperatorDeployment:       "app-routing-operator",
+		CrdPath:                  validCrdPath,
+	}
+}
+
+func TestSetup(t *testing.T) {
+	testConfig := minimalTestConfig()
+	testenv := testutils.NewTestEnvironment()
+
+	testRestConfig, err := testenv.Start()
+	require.NoError(t, err)
+
+	s := testutils.NewTestScheme()
+
+	mgr, err := manager.New(testRestConfig, manager.Options{
+		Scheme: s,
+	})
+	require.NoError(t, err)
+	require.NoError(t, setupIndexers(mgr, logr.Discard(), testConfig))
+	require.NoError(t, setupControllers(mgr, testConfig, logr.Discard(), controllerruntimefake.NewFakeClient()))
+	require.NoError(t, setupProbes(testConfig, mgr, logr.Discard()))
 }

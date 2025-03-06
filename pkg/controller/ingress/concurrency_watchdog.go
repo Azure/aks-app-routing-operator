@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	corev1 "k8s.io/api/core/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -210,7 +211,7 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 		nReadyPods := 0
 		var totalConnectionCount float64
 		for i, pod := range list.Items {
-			lgr := lgr.WithValues("pod", pod.Name)
+			lgr := lgr.WithValues("pod", pod.Name, "namespace", pod.Namespace)
 			if !podIsReady(&pod) {
 				lgr.Info("pod is not ready", "name", pod.Name)
 				continue
@@ -219,7 +220,16 @@ func (c *ConcurrencyWatchdog) tick(ctx context.Context) error {
 			ctx := logr.NewContext(ctx, lgr)
 			count, err := target.ScrapeFn(ctx, c.restClient, &pod)
 			if err != nil {
-				lgr.Error(err, "scraping pod", "name", pod.Name)
+
+				// check if pod is still ready. Pod might have become unready after checking it (this solves a race condition).
+				// we ignore an error on the podIsActive call, we want the retErr to be the error from scrapping not from checking if
+				// the pod is active.
+				if active, err := podIsActive(ctx, lgr, c.client, client.ObjectKeyFromObject(&pod)); err == nil && !active {
+					lgr.Info("pod isn't active anymore")
+					continue
+				}
+
+				lgr.Error(err, "scraping pod")
 				retErr = multierror.Append(retErr, fmt.Errorf("scraping pod %q: %w", pod.Name, err))
 				continue
 			}
@@ -335,4 +345,25 @@ func podIsReady(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+// podIsActive checks if a Pod is Ready and exists and is able to serve connections
+func podIsActive(ctx context.Context, lgr logr.Logger, cl client.Client, pod client.ObjectKey) (bool, error) {
+	var obj corev1.Pod
+	err := cl.Get(ctx, pod, &obj)
+	if apierrors.IsNotFound(err) {
+		lgr.Info("pod doesn't exist anymore")
+		return false, nil
+	}
+	if err != nil {
+		lgr.Error(err, "failed to get pod")
+		return false, fmt.Errorf("getting pod: %w", err)
+	}
+
+	if !podIsReady(&obj) {
+		lgr.Info("pod isn't ready anymore")
+		return false, nil
+	}
+
+	return true, nil
 }

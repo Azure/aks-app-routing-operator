@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"sort"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -53,12 +55,51 @@ const (
 	ResourceTypeGateway
 )
 
-func (r ResourceType) string() string {
-	switch r {
+func (rt ResourceType) String() string {
+	switch rt {
 	case ResourceTypeGateway:
 		return "Gateway"
 	default:
 		return "Ingress"
+	}
+}
+
+func (rt ResourceType) generateResourceDeploymentArgs() []string {
+	switch rt {
+	case ResourceTypeGateway:
+		return []string{
+			"--source=gateway-httproute",
+			"--source=gateway-grpcroute",
+		}
+	default:
+		return []string{"--source=ingress"}
+	}
+
+}
+
+func (rt ResourceType) generateRBACRules() []rbacv1.PolicyRule {
+	switch rt {
+	case ResourceTypeGateway:
+		return []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get", "watch", "list"},
+			},
+			{
+				APIGroups: []string{"gateway.networking.k8s.io"},
+				Resources: []string{"gateways", "httproutes", "grpcroutes"},
+				Verbs:     []string{"get", "watch", "list"},
+			},
+		}
+	default:
+		return []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"extensions", "networking.k8s.io"},
+				Resources: []string{"ingresses"},
+				Verbs:     []string{"get", "watch", "list"},
+			},
+		}
 	}
 }
 
@@ -86,21 +127,21 @@ func (p Provider) string() string {
 }
 
 type InputExternalDNSConfig struct {
-	TenantId, Subscription, ResourceGroup, ClientId, InputServiceAccount, Namespace, InputResourceName string
-	IdentityType                                                                                       IdentityType
-	ResourceTypes                                                                                      []ResourceType
-	Provider                                                                                           Provider
-	DnsZoneresourceIDs                                                                                 []string
+	TenantId, ClientId, InputServiceAccount, Namespace, InputResourceName string
+	Provider                                                              *Provider
+	IdentityType                                                          IdentityType
+	ResourceTypes                                                         map[ResourceType]struct{}
+	DnsZoneresourceIDs                                                    []string
 }
 
 // ExternalDnsConfig contains externaldns resources based on input configuration
 type ExternalDnsConfig struct {
-	//internally exposed
+	// internally exposed
 	tenantId, subscription, resourceGroup,
 	clientId, serviceAccountName, namespace,
 	resourceName string
 	identityType  IdentityType
-	resourceTypes []ResourceType
+	resourceTypes map[ResourceType]struct{}
 	provider      Provider
 
 	// externally exposed
@@ -127,28 +168,65 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		return nil, fmt.Errorf("invalid identity type: %v", inputConfig.IdentityType)
 	}
 
-	containsGateway := false
-	for _, rt := range inputConfig.ResourceTypes {
-		if rt != ResourceTypeIngress && rt != ResourceTypeGateway {
-			return nil, fmt.Errorf("invalid resource type: %v", rt)
-		}
-		if rt == ResourceTypeGateway {
-			containsGateway = true
-		}
-	}
-
+	_, containsGateway := inputConfig.ResourceTypes[ResourceTypeGateway]
 	if containsGateway && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
 		return nil, errors.New("gateway resource type can only be used with workload identity")
+	}
+
+	var firstZoneResourceType string
+	var firstZoneSub string
+	var firstZoneRg string
+	var provider Provider
+
+	if len(inputConfig.DnsZoneresourceIDs) > 0 {
+		firstZone, err := azure.ParseResourceID(inputConfig.DnsZoneresourceIDs[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid dns zone resource id: %s", inputConfig.DnsZoneresourceIDs[0])
+		}
+
+		firstZoneResourceType = firstZone.ResourceType
+		firstZoneSub = firstZone.SubscriptionID
+		firstZoneRg = firstZone.ResourceGroup
+
+		for _, zone := range inputConfig.DnsZoneresourceIDs[1:] {
+			parsedZone, err := azure.ParseResourceID(zone)
+			if err != nil {
+				return nil, fmt.Errorf("invalid dns zone resource id: %s", zone)
+			}
+
+			if !strings.EqualFold(parsedZone.ResourceType, firstZoneResourceType) {
+				return nil, fmt.Errorf("all DNS zones must be of the same type, found zones with resourcetypes %s and %s", firstZoneResourceType, parsedZone.ResourceType)
+			}
+
+			if err := config.ValidateProviderSubAndRg(parsedZone, firstZoneSub, firstZoneRg); err != nil {
+				return nil, err
+			}
+		}
+
+		switch strings.ToLower(firstZoneResourceType) {
+		case config.PrivateZoneType:
+			provider = PrivateProvider
+		case config.PublicZoneType:
+			provider = PublicProvider
+		default:
+			return nil, fmt.Errorf("invalid resource type %s", firstZoneResourceType)
+		}
+	} else {
+		// if no zones provided, this must be coming from the original externalDNS reconciler, in which case, read config from input to determine resources to clean
+		if inputConfig.Provider == nil {
+			return nil, errors.New("provider must be specified via inputconfig if no DNS zones are provided")
+		}
+		provider = *inputConfig.Provider
 	}
 
 	var resourceName string
 	switch inputConfig.InputResourceName {
 	case "":
-		switch inputConfig.Provider {
-		case PublicProvider:
-			resourceName = externalDnsResourceName
+		switch provider {
 		case PrivateProvider:
 			resourceName = externalDnsResourceName + "-private"
+		default:
+			resourceName = externalDnsResourceName
 		}
 	default:
 		resourceName = inputConfig.InputResourceName + "-" + externalDnsResourceName
@@ -169,14 +247,14 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 	ret := &ExternalDnsConfig{
 		resourceName:       resourceName,
 		tenantId:           inputConfig.TenantId,
-		subscription:       inputConfig.Subscription,
-		resourceGroup:      inputConfig.ResourceGroup,
+		subscription:       firstZoneSub,
+		resourceGroup:      firstZoneRg,
 		clientId:           inputConfig.ClientId,
 		serviceAccountName: serviceAccount,
 		namespace:          inputConfig.Namespace,
 		identityType:       inputConfig.IdentityType,
 		resourceTypes:      inputConfig.ResourceTypes,
-		provider:           inputConfig.Provider,
+		provider:           provider,
 		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
 	}
 
@@ -184,7 +262,6 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 	ret.labels = externalDNSLabels(ret)
 
 	return ret, nil
-
 }
 
 func externalDNSLabels(e *ExternalDnsConfig) map[string]string {
@@ -267,7 +344,17 @@ func newExternalDNSClusterRole(conf *config.Config, externalDnsConfig *ExternalD
 			},
 		},
 	}
-	addResourceSpecificRules(role, externalDnsConfig.resourceTypes...)
+
+	// sort for fixture tests
+	sortedRts := make([]ResourceType, 0, len(externalDnsConfig.resourceTypes))
+	for resourceType := range externalDnsConfig.resourceTypes {
+		sortedRts = append(sortedRts, resourceType)
+	}
+	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
+	for _, resourceType := range sortedRts {
+		role.Rules = append(role.Rules, resourceType.generateRBACRules()...)
+	}
+
 	return role
 }
 
@@ -297,7 +384,6 @@ func newExternalDNSClusterRoleBinding(conf *config.Config, externalDnsConfig *Ex
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
-
 	jsMap := map[string]interface{}{
 		"tenantId":       externalDnsConfig.tenantId,
 		"subscriptionId": externalDnsConfig.subscription,
@@ -349,6 +435,22 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	serviceAccount := externalDnsConfig.serviceAccountName
 
+	deploymentArgs := []string{
+		"--provider=" + externalDnsConfig.provider.string(),
+		"--interval=" + conf.DnsSyncInterval.String(),
+		"--txt-owner-id=" + conf.ClusterUid,
+		"--txt-wildcard-replacement=" + txtWildcardReplacement,
+	}
+
+	resourceTypeArgs := make([]string, 0)
+	for resourceType := range externalDnsConfig.resourceTypes {
+		resourceTypeArgs = append(resourceTypeArgs, resourceType.generateResourceDeploymentArgs()...)
+	}
+
+	sort.Slice(resourceTypeArgs, func(i, j int) bool { return resourceTypeArgs[i] < resourceTypeArgs[j] })
+	deploymentArgs = append(deploymentArgs, resourceTypeArgs...)
+	deploymentArgs = append(deploymentArgs, domainFilters...)
+
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -371,13 +473,8 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/external-dns:v0.14.2"),
-						Args: append([]string{
-							"--provider=" + externalDnsConfig.provider.string(),
-							"--interval=" + conf.DnsSyncInterval.String(),
-							"--txt-owner-id=" + conf.ClusterUid,
-							"--txt-wildcard-replacement=" + txtWildcardReplacement,
-						}, append(generateResourceDeploymentArgs(externalDnsConfig.resourceTypes...), domainFilters...)...),
+						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
+						Args:  deploymentArgs,
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
 							MountPath: "/etc/kubernetes",
@@ -418,51 +515,5 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 				}),
 			},
 		},
-	}
-}
-
-func generateResourceDeploymentArgs(rts ...ResourceType) []string {
-	var ret []string
-	for _, rt := range rts {
-		switch rt {
-		case ResourceTypeGateway:
-			ret = append(ret, []string{
-				"--source=gateway-httproute",
-				"--source=gateway-grpcroute",
-			}...)
-		case ResourceTypeIngress:
-			ret = append(ret, "--source=ingress")
-		}
-	}
-
-	return ret
-}
-
-func addResourceSpecificRules(role *rbacv1.ClusterRole, resourceTypes ...ResourceType) {
-	for _, rt := range resourceTypes {
-		switch rt {
-		case ResourceTypeGateway:
-			role.Rules = append(role.Rules,
-				[]rbacv1.PolicyRule{
-					{
-						APIGroups: []string{""},
-						Resources: []string{"namespaces"},
-						Verbs:     []string{"get", "watch", "list"},
-					},
-					{
-						APIGroups: []string{"gateway.networking.k8s.io"},
-						Resources: []string{"gateways", "httproutes", "grpcroutes"},
-						Verbs:     []string{"get", "watch", "list"},
-					},
-				}...,
-			)
-		default:
-			role.Rules = append(role.Rules,
-				rbacv1.PolicyRule{
-					APIGroups: []string{"extensions", "networking.k8s.io"},
-					Resources: []string{"ingresses"},
-					Verbs:     []string{"get", "watch", "list"},
-				})
-		}
 	}
 }

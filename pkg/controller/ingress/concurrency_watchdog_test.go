@@ -218,7 +218,6 @@ func TestConcurrencyWatchdogPodNotReady(t *testing.T) {
 
 	require.Equal(t, testutils.GetErrMetricCount(t, concurrencyWatchdogControllerName), beforeErrCount)
 	require.Greater(t, testutils.GetReconcileMetricCount(t, concurrencyWatchdogControllerName, metrics.LabelSuccess), beforeReconcileCount)
-
 }
 
 func TestConcurrencyWatchdogProcessVotesNegative(t *testing.T) {
@@ -434,5 +433,50 @@ func newTestConcurrencyWatchdog() *ConcurrencyWatchdog {
 		minVotesBeforeEviction:      2,
 		minPercentOverAvgBeforeVote: 200,
 		votes:                       ring.New(20),
+	}
+}
+
+func TestPodIsActive(t *testing.T) {
+	ctx := context.Background()
+	pods := buildTestPods(3)
+	pods.Items[1].Status.Conditions = []corev1.PodCondition{{
+		Type:   corev1.PodReady,
+		Status: corev1.ConditionFalse,
+	}}
+	nonReadyPod := pods.Items[1]
+	cl := fake.NewClientBuilder().WithLists(pods).Build()
+	deletedPod := pods.Items[0]
+	require.NoError(t, cl.Delete(ctx, &deletedPod), "deleting pod")
+	readyPod := pods.Items[2]
+
+	tests := []struct {
+		name     string
+		pod      corev1.Pod
+		isActive bool
+		err      error
+	}{
+		{
+			name:     "deleted pod",
+			pod:      deletedPod,
+			isActive: false,
+		},
+		{
+			name:     "non-ready pod",
+			pod:      nonReadyPod,
+			isActive: false,
+		},
+		{
+			name:     "ready pod",
+			pod:      readyPod,
+			isActive: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isActive, err := podIsActive(ctx, logr.Discard(), cl, client.ObjectKeyFromObject(&test.pod))
+			require.Equal(t, test.isActive, isActive)
+			require.Equal(t, test.err, err)
+		})
 	}
 }

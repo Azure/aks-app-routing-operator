@@ -5,6 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: webapprouting.kubernetes.azure.com
 spec:
   controller: webapprouting.kubernetes.azure.com/nginx
@@ -17,6 +18,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 ---
@@ -28,6 +30,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
 rules:
 - apiGroups:
@@ -109,6 +112,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 rules:
@@ -204,6 +208,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -222,6 +227,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 roleRef:
@@ -243,6 +249,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 spec:
@@ -271,6 +278,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx-metrics
   namespace: kube-system
 spec:
@@ -292,6 +300,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 spec:
@@ -311,6 +320,7 @@ spec:
         app: nginx
         app.kubernetes.io/component: ingress-controller
         app.kubernetes.io/managed-by: aks-app-routing-operator
+        kubernetes.azure.com/managedby: aks
     spec:
       affinity:
         nodeAffinity:
@@ -344,6 +354,7 @@ spec:
         - --publish-service=$(POD_NAMESPACE)/nginx
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
+        - --shutdown-grace-period=15
         env:
         - name: POD_NAME
           valueFrom:
@@ -406,6 +417,8 @@ spec:
       - labelSelector:
           matchLabels:
             app: nginx
+        matchLabelKeys:
+        - pod-template-hash
         maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
@@ -422,6 +435,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 ---
@@ -433,6 +447,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 spec:
@@ -455,6 +470,7 @@ metadata:
     app.kubernetes.io/component: ingress-controller
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
   name: nginx
   namespace: kube-system
 spec:

@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
-          go-version: '~1.22'
+          go-version: '~1.23'
           cache-dependency-path: "**/*.sum"
 
       - name: Azure login
@@ -32,13 +32,13 @@ jobs:
 
       - name: Provision Infrastructure
         shell: bash
-        run: (cd testing/e2e && go run ./main.go infra --subscription="${{ secrets.AZURE_SUBSCRIPTION_ID }}" --tenant="${{ secrets.AZURE_TENANT_ID }}" --names="${{ inputs.name }}" --infra-file="./infra-${{ inputs.name }}.json")
+        run: go run ./cmd/e2e/main.go infra --subscription="${{ secrets.AZURE_SUBSCRIPTION_ID }}" --tenant="${{ secrets.AZURE_TENANT_ID }}" --names="${{ inputs.name }}" --infra-file="./infra-${{ inputs.name }}.json"
 
       - name: Upload infra file
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: infra-${{ inputs.name }}
-          path: testing/e2e/infra-${{ inputs.name }}.json
+          path: infra-${{ inputs.name }}.json
   test:
     needs: provision
     runs-on: ubuntu-latest
@@ -49,7 +49,7 @@ jobs:
 
       - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
-          go-version: '~1.22'
+          go-version: '~1.23'
           cache-dependency-path: "**/*.sum"
 
       - name: Azure login
@@ -62,14 +62,13 @@ jobs:
       - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: infra-${{ inputs.name }}
-          path: testing/e2e/
 
       - name: Test
         shell: bash
         id: test
-        run: (cd testing/e2e && go run ./main.go deploy --infra-file="./infra-${{ inputs.name }}.json")
+        run: go run ./cmd/e2e/main.go deploy --infra-file="./infra-${{ inputs.name }}.json"
 
       - name: Print test logs
         shell: bash
-        run: echo "printing first 100 lines and last 200 lines of e2e logs..." && head -n 100 testing/e2e/job-app-routing-operator-e2e.log && tail -n 200 testing/e2e/job-app-routing-operator-e2e.log
+        run: echo "printing first 100 lines and last 200 lines of e2e logs..." && head -n 100 job-app-routing-operator-e2e.log && tail -n 200 job-app-routing-operator-e2e.log
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'success')

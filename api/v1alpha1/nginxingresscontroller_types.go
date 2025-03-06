@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/aks-app-routing-operator/api"
 	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -251,21 +252,20 @@ type NginxIngressController struct {
 	Status NginxIngressControllerStatus `json:"status,omitempty"`
 }
 
+func (n *NginxIngressController) GetGeneration() int64 {
+	return n.Generation
+}
+
+func (n *NginxIngressController) GetConditions() *[]metav1.Condition {
+	return &n.Status.Conditions
+}
+
 func (n *NginxIngressController) GetCondition(t string) *metav1.Condition {
 	return meta.FindStatusCondition(n.Status.Conditions, t)
 }
 
 func (n *NginxIngressController) SetCondition(c metav1.Condition) {
-	current := n.GetCondition(c.Type)
-
-	if current != nil && current.Status == c.Status && current.Message == c.Message && current.Reason == c.Reason {
-		current.ObservedGeneration = n.Generation
-		return
-	}
-
-	c.ObservedGeneration = n.Generation
-	c.LastTransitionTime = metav1.Now()
-	meta.SetStatusCondition(&n.Status.Conditions, c)
+	api.VerifyAndSetCondition(n, c)
 }
 
 // Collides returns whether the fields in this NginxIngressController would collide with an existing resources making it

@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -81,7 +82,7 @@ func (i *ingressTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	if _, ok := ing.Annotations[tlsCertKvUriAnnotation]; !ok {
 		logger.Info("ingress does not have keyvault annotation")
-		i.events.Eventf(ing, "Warning", "KeyvaultUriAnnotationMissing", "Ingress has %[1]s annotation but is missing %[2]s annotation. %[2]s annotation is needed to manage Ingress TLS.", tlsCertManagedAnnotation, tlsCertKvUriAnnotation)
+		i.events.Eventf(ing, corev1.EventTypeWarning, "KeyvaultUriAnnotationMissing", "Ingress has %[1]s annotation but is missing %[2]s annotation. %[2]s annotation is needed to manage Ingress TLS.", tlsCertManagedAnnotation, tlsCertKvUriAnnotation)
 		return ctrl.Result{}, nil
 	}
 

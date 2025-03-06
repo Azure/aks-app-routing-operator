@@ -13,10 +13,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:embed embedded/client.go
+//go:embed embedded/client.golang
 var clientContents string
 
-//go:embed embedded/server.go
+//go:embed embedded/server.golang
 var serverContents string
 
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
@@ -84,30 +84,29 @@ func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost str
 	serviceName := name + "-service"
 	ingressName := name + "-ingress"
 
-	service :=
-		&corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Service",
-				APIVersion: "v1",
+	service := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				ManagedByKey: ManagedByVal,
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      serviceName,
-				Namespace: namespace,
-				Annotations: map[string]string{
-					ManagedByKey: ManagedByVal,
-				},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.FromInt(8080),
+			}},
+			Selector: map[string]string{
+				"app": serverName,
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:       "http",
-					Port:       8080,
-					TargetPort: intstr.FromInt(8080),
-				}},
-				Selector: map[string]string{
-					"app": serverName,
-				},
-			},
-		}
+		},
+	}
 	ingress := &netv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Ingress",
