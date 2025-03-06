@@ -79,5 +79,6 @@ type NginxIngressVersion struct {
 
 // ServiceConfig defines configuration options for required resources for a Service that goes with an Ingress
 type ServiceConfig struct {
-	Annotations map[string]string
+	Annotations              map[string]string
+	LoadBalancerSourceRanges []string
 }

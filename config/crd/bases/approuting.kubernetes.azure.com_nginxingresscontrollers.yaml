@@ -148,6 +148,12 @@ spec:
                   LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations
                   will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
+              loadBalancerSourceRanges:
+                description: LoadBalancerSourceRanges is a slice of IP ranges that
+                  are allowed to access the NGINX Ingress Controller's Service.
+                items:
+                  type: string
+                type: array
               scaling:
                 description: Scaling defines configuration options for how the Ingress
                   Controller scales
