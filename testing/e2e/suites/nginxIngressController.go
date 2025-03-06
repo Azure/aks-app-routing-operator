@@ -332,6 +332,64 @@ func nicTests(in infra.Provisioned) []test {
 			},
 		},
 		{
+			name: "ingress with http disabled",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
+
+				c, err := client.New(config, client.Options{
+					Scheme: scheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
+				}
+
+				testNIC := manifests.NewNginxIngressController("nginx-ingress-controller-with-http-disabled", "nginxingressclass-http-disabled")
+				testNIC.Spec.HTTPDisabled = true
+				if err := upsert(ctx, c, testNIC); err != nil {
+					return fmt.Errorf("upserting NIC: %w", err)
+				}
+
+				nic, err := waitForNICAvailable(ctx, c, testNIC)
+				if err != nil {
+					return fmt.Errorf("waiting for NIC to become available: %w", err)
+				}
+
+				service, err := getNginxLbServiceRef(nic)
+				if err != nil {
+					return fmt.Errorf("finding nginx lb service: %w", err)
+				}
+
+				lgr.Info("validating service does not contain http port")
+				var serviceCopy corev1.Service
+				if err := c.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, &serviceCopy); err != nil {
+					return fmt.Errorf("getting service: %w", err)
+				}
+
+				for _, port := range serviceCopy.Spec.Ports {
+					if port.Name == "http" {
+						lgr.Error("http port found despite HTTPDisabled")
+						return errors.New("http port found despite HTTPDisabled")
+					}
+				}
+
+				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
+					return nil
+				}, to.Ptr(service.Name)); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
+		},
+		{
 			name: "testing DefaultSSLCertificate validity",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
