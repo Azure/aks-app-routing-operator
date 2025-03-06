@@ -420,8 +420,9 @@ func newExternalDNSRole(externalDnsConfig *ExternalDnsConfig) *rbacv1.Role {
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   externalDnsConfig.resourceName,
-			Labels: GetTopLevelLabels(),
+			Name:      externalDnsConfig.resourceName,
+			Namespace: externalDnsConfig.namespace,
+			Labels:    GetTopLevelLabels(),
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -482,8 +483,9 @@ func newExternalDNSRoleBinding(conf *config.Config, externalDnsConfig *ExternalD
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   externalDnsConfig.resourceName,
-			Labels: GetTopLevelLabels(),
+			Name:      externalDnsConfig.resourceName,
+			Namespace: externalDnsConfig.namespace,
+			Labels:    GetTopLevelLabels(),
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",

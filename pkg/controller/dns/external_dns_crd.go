@@ -82,6 +82,8 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	resources := manifestsConf.Resources()
+
+	multiError := &multierror.Error{}
 	for _, resource := range resources {
 		resource.SetOwnerReferences([]metav1.OwnerReference{{
 			APIVersion: obj.APIVersion,
@@ -96,13 +98,13 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 			logger.Error(currentResourceErr, "failed to upsert externaldns resources")
 			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", currentResourceErr)
 		}
-		err = multierror.Append(err, currentResourceErr)
+		multiError = multierror.Append(err, currentResourceErr)
 	}
 
-	if err != nil {
+	if multiError.ErrorOrNil() != nil {
 		logger.Error(err, "failed to upsert externaldns resources")
 		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", err.Error())
-		return ctrl.Result{}, err
+		return ctrl.Result{}, multiError
 	}
 
 	return ctrl.Result{}, nil
