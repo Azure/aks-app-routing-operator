@@ -146,3 +146,27 @@ type ExternalDNSList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ExternalDNS `json:"items"`
 }
+
+// interface methods for controller abstractions
+func (e *ExternalDNS) GetTenantId() string {
+	return e.Spec.TenantID
+}
+func (e *ExternalDNS) GetInputServiceAccount() string {
+	return e.Spec.Identity.ServiceAccount
+}
+func (e *ExternalDNS) GetResourceNamespace() string {
+	return e.Namespace
+}
+func (e *ExternalDNS) GetInputResourceName() string {
+	return e.Spec.ResourceName
+}
+func (e *ExternalDNS) GetResourceTypes() []string {
+	return e.Spec.ResourceTypes
+}
+func (e *ExternalDNS) GetDnsZoneresourceIDs() []string {
+	return e.Spec.DNSZoneResourceIDs
+}
+func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
+	return e.Spec.Filters
+}
+func (e *ExternalDNS) GetNamespaced() bool { return true }

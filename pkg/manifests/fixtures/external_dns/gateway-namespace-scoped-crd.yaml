@@ -9,7 +9,7 @@ spec: {}
 status: {}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   creationTimestamp: null
   labels:
@@ -17,6 +17,7 @@ metadata:
     app.kubernetes.io/name: test-dns-config-private-external-dns
     kubernetes.azure.com/managedby: aks
   name: test-dns-config-private-external-dns
+  namespace: test-namespace
 rules:
 - apiGroups:
   - ""
@@ -47,17 +48,9 @@ rules:
   - get
   - watch
   - list
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - get
-  - watch
-  - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   creationTimestamp: null
   labels:
@@ -65,9 +58,10 @@ metadata:
     app.kubernetes.io/name: test-dns-config-private-external-dns
     kubernetes.azure.com/managedby: aks
   name: test-dns-config-private-external-dns
+  namespace: test-namespace
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: test-dns-config-private-external-dns
 subjects:
 - kind: ServiceAccount
@@ -139,7 +133,7 @@ spec:
       containers:
       - args:
         - --provider=azure-private-dns
-        - --interval=10s
+        - --interval=3m0s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
         - --source=gateway-grpcroute

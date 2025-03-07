@@ -14,9 +14,9 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: test-dns-config-private-external-dns
+    app.kubernetes.io/name: crd-test-external-dns
     kubernetes.azure.com/managedby: aks
-  name: test-dns-config-private-external-dns
+  name: crd-test-external-dns
 rules:
 - apiGroups:
   - ""
@@ -38,19 +38,10 @@ rules:
   - watch
   - list
 - apiGroups:
-  - gateway.networking.k8s.io
+  - extensions
+  - networking.k8s.io
   resources:
-  - gateways
-  - httproutes
-  - grpcroutes
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
+  - ingresses
   verbs:
   - get
   - watch
@@ -62,13 +53,13 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: test-dns-config-private-external-dns
+    app.kubernetes.io/name: crd-test-external-dns
     kubernetes.azure.com/managedby: aks
-  name: test-dns-config-private-external-dns
+  name: crd-test-external-dns
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: test-dns-config-private-external-dns
+  name: crd-test-external-dns
 subjects:
 - kind: ServiceAccount
   name: test-private-service-account
@@ -82,9 +73,9 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: test-dns-config-private-external-dns
+    app.kubernetes.io/name: crd-test-external-dns
     kubernetes.azure.com/managedby: aks
-  name: test-dns-config-private-external-dns
+  name: crd-test-external-dns
   namespace: test-namespace
 ---
 apiVersion: apps/v1
@@ -93,22 +84,22 @@ metadata:
   creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: aks-app-routing-operator
-    app.kubernetes.io/name: test-dns-config-private-external-dns
+    app.kubernetes.io/name: crd-test-external-dns
     kubernetes.azure.com/managedby: aks
-  name: test-dns-config-private-external-dns
+  name: crd-test-external-dns
   namespace: test-namespace
 spec:
   replicas: 1
   revisionHistoryLimit: 2
   selector:
     matchLabels:
-      app: test-dns-config-private-external-dns
+      app: crd-test-external-dns
   strategy: {}
   template:
     metadata:
       creationTimestamp: null
       labels:
-        app: test-dns-config-private-external-dns
+        app: crd-test-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
         checksum/configmap: 10d3362c74fab97c
         kubernetes.azure.com/managedby: aks
@@ -139,11 +130,10 @@ spec:
       containers:
       - args:
         - --provider=azure-private-dns
-        - --interval=10s
+        - --interval=3m0s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
-        - --source=gateway-grpcroute
-        - --source=gateway-httproute
+        - --source=ingress
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
         image: /oss/v2/kubernetes/external-dns:v0.15.0
@@ -196,7 +186,7 @@ spec:
         operator: Exists
       volumes:
       - configMap:
-          name: test-dns-config-private-external-dns
+          name: crd-test-external-dns
         name: azure-config
 status: {}
 ---
