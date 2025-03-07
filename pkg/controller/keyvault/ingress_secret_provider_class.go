@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllererrors"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllerutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -120,7 +120,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Cloud:           i.config.Cloud,
 			}
 			if err = buildSPC(spc, spcConf); err != nil {
-				var userErr controllererrors.UserError
+				var userErr controllerutils.UserError
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
 					i.events.Eventf(ing, corev1.EventTypeWarning, "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
