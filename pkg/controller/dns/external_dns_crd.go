@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllererrors"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
@@ -63,8 +64,7 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// verify serviceaccount
 	if _, err = keyvault.GetServiceAccountAndVerifyWorkloadIdentity(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
-
-		var userErr keyvault.UserError
+		var userErr controllererrors.UserError
 		if errors.As(err, &userErr) {
 			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())
 			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed serviceaccount verification: %s", userErr.UserError())

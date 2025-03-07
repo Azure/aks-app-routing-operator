@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllererrors"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -169,7 +170,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -309,7 +310,7 @@ func TestPlaceholderPodControllerIntegrationWithNic(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -444,7 +445,7 @@ func TestPlaceholderPodControllerIntegrationWithGw(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(true),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -535,7 +536,7 @@ func TestVerifyServiceAccount(t *testing.T) {
 			spc:             serviceAccountTwoSpc,
 			obj:             modifyGateway(gatewayWithTwoServiceAccounts, func(gw *gatewayv1.Gateway) { gw.Spec.Listeners[1].Name = "test-listener-3" }),
 			existingObjects: []client.Object{gatewayWithTwoServiceAccounts, annotatedServiceAccount},
-			expectedError:   newUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
+			expectedError:   controllererrors.NewUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "listener matches but doesn't contain service account option",
@@ -544,7 +545,7 @@ func TestVerifyServiceAccount(t *testing.T) {
 				gw.Spec.Listeners[1].TLS.Options = map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{"not-service-account": "test-value"}
 			}),
 			existingObjects: []client.Object{gatewayWithTwoServiceAccounts, serviceAccountTwoSpc, annotatedServiceAccount},
-			expectedError:   newUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
+			expectedError:   controllererrors.NewUserError(errors.New("failed to locate listener for SPC kv-gw-cert-test-gw-test-listener-2 on user's gateway resource"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "nonexistent service account referenced",
@@ -553,7 +554,7 @@ func TestVerifyServiceAccount(t *testing.T) {
 				gw.Spec.Listeners[1].TLS.Options = map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{"kubernetes.azure.com/tls-cert-service-account": "fake-sa"}
 			}),
 			existingObjects: []client.Object{serviceAccountTwoSpc, gatewayWithTwoServiceAccounts, annotatedServiceAccount},
-			expectedError:   newUserError(errors.New("serviceaccounts \"fake-sa\" not found"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
+			expectedError:   controllererrors.NewUserError(errors.New("serviceaccounts \"fake-sa\" not found"), "gateway listener for spc %s doesn't exist or doesn't contain required TLS options"),
 		},
 		{
 			name: "service account without required annotation referenced",
@@ -574,7 +575,7 @@ func TestVerifyServiceAccount(t *testing.T) {
 					},
 				},
 			},
-			expectedError: newUserError(errors.New("user-specified service account does not contain WI annotation"), "serviceAccount test-sa was specified but does not include necessary annotation for workload identity"),
+			expectedError: controllererrors.NewUserError(errors.New("user-specified service account does not contain WI annotation"), "serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity"),
 		},
 		{
 			name: "incorrect object type",
@@ -671,7 +672,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: "test-registry/oss/kubernetes/pause:3.9-hotfix-20230808",
+					Image: "test-registry/oss/kubernetes/pause:3.10",
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",

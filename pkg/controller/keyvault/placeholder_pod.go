@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllererrors"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -175,10 +176,10 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	// Verify ServiceAccount exists (if Gateway)
 	serviceAccount, err = p.verifyServiceAccount(ctx, spc, obj, logger)
 	if err != nil {
-		var userErr UserError
+		var userErr controllererrors.UserError
 		if errors.As(err, &userErr) {
-			logger.Info("user error while verifying if service account exists: %s", userErr.err)
-			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.userMessage)
+			logger.Info("user error while verifying if service account exists: %s", userErr.Err)
+			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.UserMessage)
 			return result, nil
 		}
 
@@ -293,7 +294,7 @@ func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *app
 				AutomountServiceAccountToken: util.ToPtr(false),
 				Containers: []corev1.Container{{
 					Name:  "placeholder",
-					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.9-hotfix-20230808"),
+					Image: path.Join(p.config.Registry, "/oss/kubernetes/pause:3.10"),
 					VolumeMounts: []corev1.VolumeMount{{
 						Name:      "secrets",
 						MountPath: "/mnt/secrets",
@@ -355,7 +356,7 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 
 		if serviceAccount == "" {
 			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
-			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
+			return "", controllererrors.NewUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
 		_, err := GetServiceAccountAndVerifyWorkloadIdentity(ctx, p.client, serviceAccount, spc.Namespace)
