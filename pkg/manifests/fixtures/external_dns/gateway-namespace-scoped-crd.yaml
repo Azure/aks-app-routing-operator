@@ -39,14 +39,6 @@ rules:
   - watch
   - list
 - apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gateways

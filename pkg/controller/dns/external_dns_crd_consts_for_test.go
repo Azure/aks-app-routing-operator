@@ -153,11 +153,6 @@ var happyPathPublicRole = &rbacv1.Role{
 			Verbs:     []string{"get", "watch", "list"},
 		},
 		{
-			APIGroups: []string{""},
-			Resources: []string{"namespaces"},
-			Verbs:     []string{"get", "watch", "list"},
-		},
-		{
 			APIGroups: []string{"gateway.networking.k8s.io"},
 			Resources: []string{"gateways", "httproutes", "grpcroutes"},
 			Verbs:     []string{"get", "watch", "list"},

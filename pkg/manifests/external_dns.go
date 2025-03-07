@@ -78,21 +78,25 @@ func (rt ResourceType) generateResourceDeploymentArgs() []string {
 
 }
 
-func (rt ResourceType) generateRBACRules() []rbacv1.PolicyRule {
+func (rt ResourceType) generateRBACRules(dnsconfig *ExternalDnsConfig) []rbacv1.PolicyRule {
 	switch rt {
 	case ResourceTypeGateway:
-		return []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{""},
-				Resources: []string{"namespaces"},
-				Verbs:     []string{"get", "watch", "list"},
-			},
+		ret := []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{"gateway.networking.k8s.io"},
 				Resources: []string{"gateways", "httproutes", "grpcroutes"},
 				Verbs:     []string{"get", "watch", "list"},
 			},
 		}
+		if !dnsconfig.isNamespaced {
+			ret = append(ret, rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get", "watch", "list"},
+			})
+		}
+
+		return ret
 	default:
 		return []rbacv1.PolicyRule{
 			{
@@ -406,7 +410,7 @@ func newExternalDNSClusterRole(externalDnsConfig *ExternalDnsConfig) *rbacv1.Clu
 	}
 	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
 	for _, resourceType := range sortedRts {
-		role.Rules = append(role.Rules, resourceType.generateRBACRules()...)
+		role.Rules = append(role.Rules, resourceType.generateRBACRules(externalDnsConfig)...)
 	}
 
 	return role
@@ -444,7 +448,7 @@ func newExternalDNSRole(externalDnsConfig *ExternalDnsConfig) *rbacv1.Role {
 	}
 	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
 	for _, resourceType := range sortedRts {
-		role.Rules = append(role.Rules, resourceType.generateRBACRules()...)
+		role.Rules = append(role.Rules, resourceType.generateRBACRules(externalDnsConfig)...)
 	}
 
 	return role
