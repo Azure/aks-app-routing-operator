@@ -147,7 +147,7 @@ type ExternalDNSList struct {
 	Items           []ExternalDNS `json:"items"`
 }
 
-// interfaces for controller abstractions
+// interface methods for controller abstractions
 func (e *ExternalDNS) GetTenantId() string {
 	return e.Spec.TenantID
 }

@@ -106,7 +106,7 @@ type ClusterExternalDNSList struct {
 	Items           []ClusterExternalDNS `json:"items"`
 }
 
-// interfaces for controller abstractions
+// interface methods for controller abstractions
 func (c *ClusterExternalDNS) GetTenantId() string {
 	return c.Spec.TenantID
 }
