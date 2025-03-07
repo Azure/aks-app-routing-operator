@@ -4,12 +4,19 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"path"
+	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/to"
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -314,4 +321,10 @@ func ownerReferencesFromCRD(obj *v1alpha1.ExternalDNS) []metav1.OwnerReference {
 		UID:        obj.UID,
 	},
 	}
+}
+
+func generateDefaultClientBuilder(t *testing.T, existingResources []client.Object) *fake.ClientBuilder {
+	return testutils.RegisterSchemes(t, fake.NewClientBuilder(), secv1.AddToScheme, gatewayv1.Install, clientgoscheme.AddToScheme, v1alpha1.AddToScheme).WithObjects(
+		existingResources...,
+	)
 }

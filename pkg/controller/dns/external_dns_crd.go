@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -56,10 +57,9 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	obj := &v1alpha1.ExternalDNS{}
 	if err = e.client.Get(ctx, req.NamespacedName, obj); err != nil {
+		logger.Error(client.IgnoreNotFound(err), "failed to get externaldns object, will ignore not found error")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	inputDNSConf := buildInputDNSConfig(obj)
 
 	// verify serviceaccount
 	if _, err = keyvault.GetServiceAccountAndVerifyWorkloadIdentity(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
@@ -74,6 +74,7 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
+	inputDNSConf := buildInputDNSConfig(obj)
 	manifestsConf, err := manifests.NewExternalDNSConfig(e.config, inputDNSConf)
 	if err != nil {
 		logger.Error(err, "failed to generate ExternalDNS resources from ExternalDNS CR")
@@ -83,7 +84,14 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	resources := manifestsConf.Resources()
 
-	multiError := &multierror.Error{}
+	multiError := &multierror.Error{ErrorFormat: func(errs []error) string {
+		errStrings := make([]string, 0, len(errs))
+		for err := range errs {
+			errStrings = append(errStrings, errs[err].Error())
+		}
+		return strings.Join(errStrings, ", ")
+	}}
+
 	for _, resource := range resources {
 		resource.SetOwnerReferences([]metav1.OwnerReference{{
 			APIVersion: obj.APIVersion,
@@ -96,15 +104,14 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 		currentResourceErr := util.Upsert(ctx, e.client, resource)
 		if currentResourceErr != nil {
 			logger.Error(currentResourceErr, "failed to upsert externaldns resources")
-			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", currentResourceErr)
 		}
-		multiError = multierror.Append(err, currentResourceErr)
+		multiError = multierror.Append(multiError, currentResourceErr)
 	}
 
 	if multiError.ErrorOrNil() != nil {
 		logger.Error(err, "failed to upsert externaldns resources")
-		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", err.Error())
-		return ctrl.Result{}, multiError
+		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", multiError.Error())
+		return ctrl.Result{}, errors.New(multiError.Error())
 	}
 
 	return ctrl.Result{}, nil
