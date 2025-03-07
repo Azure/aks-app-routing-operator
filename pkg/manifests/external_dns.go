@@ -158,7 +158,6 @@ type ExternalDnsConfig struct {
 	// crd-specific specific fields
 	routeAndIngressLabelSelector string
 	gatewayLabelSelector         string
-	// TODO: USE THIS
 
 	// externally exposed
 	resources          []client.Object
