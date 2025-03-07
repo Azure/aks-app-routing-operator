@@ -7,7 +7,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllerutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -106,7 +105,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			var clientId string
 			clientId, err = retrieveClientIdForListener(ctx, g.client, req.Namespace, listener.TLS.Options)
 			if err != nil {
-				var userErr controllerutils.UserError
+				var userErr util.UserError
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to fetch clientId for SPC for listener %s due to user error: %s, sending warning event", listener.Name, userErr.UserMessage))
 					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.UserMessage)
@@ -128,7 +127,7 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 			}
 			err = buildSPC(spc, spcConf)
 			if err != nil {
-				var userErr controllerutils.UserError
+				var userErr util.UserError
 				if errors.As(err, &userErr) {
 					logger.Info("failed to build SecretProviderClass from user error: %s, sending warning event", userErr.UserMessage)
 					g.events.Eventf(gwObj, corev1.EventTypeWarning, "InvalidInput", "invalid TLS configuration: %s", userErr.UserMessage)
@@ -211,19 +210,19 @@ func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, n
 
 	// validate user input
 	if certUri != "" && saName == "" {
-		return "", controllerutils.NewUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account")
+		return "", util.NewUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account")
 	}
 	if certUri == "" && saName != "" {
-		return "", controllerutils.NewUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not. Please provide a TLS Cert URI via the TLS option kubernetes.azure.com/tls-cert-keyvault-uri")
+		return "", util.NewUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not. Please provide a TLS Cert URI via the TLS option kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
 	// this should never happen since we check for this prior to this function call but just to be safe
 	if certUri == "" && saName == "" {
-		return "", controllerutils.NewUserError(errors.New("none of the required TLS options were specified"), "KeyVault Cert URI and ServiceAccount must both be specified to use TLS functionality in App Routing")
+		return "", util.NewUserError(errors.New("none of the required TLS options were specified"), "KeyVault Cert URI and ServiceAccount must both be specified to use TLS functionality in App Routing")
 	}
 
 	// pull service account
-	wiSaClientId, err := controllerutils.GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
+	wiSaClientId, err := util.GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
 	if err != nil {
 		return "", err
 	}
