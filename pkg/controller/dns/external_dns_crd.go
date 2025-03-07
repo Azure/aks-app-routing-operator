@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -83,13 +82,7 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	resources := manifestsConf.Resources()
 
-	multiError := &multierror.Error{ErrorFormat: func(errs []error) string {
-		errStrings := make([]string, 0, len(errs))
-		for err := range errs {
-			errStrings = append(errStrings, errs[err].Error())
-		}
-		return strings.Join(errStrings, ", ")
-	}}
+	multiError := &multierror.Error{}
 
 	for _, resource := range resources {
 		resource.SetOwnerReferences([]metav1.OwnerReference{{
