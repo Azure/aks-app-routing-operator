@@ -211,15 +211,15 @@ func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, n
 
 	// validate user input
 	if certUri != "" && saName == "" {
-		return "", NewUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account")
+		return "", controllererrors.NewUserError(errors.New("user specified cert URI but no ServiceAccount in a listener"), "KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account")
 	}
 	if certUri == "" && saName != "" {
-		return "", NewUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not. Please provide a TLS Cert URI via the TLS option kubernetes.azure.com/tls-cert-keyvault-uri")
+		return "", controllererrors.NewUserError(errors.New("user specified ServiceAccount but no cert URI in a listener"), "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not. Please provide a TLS Cert URI via the TLS option kubernetes.azure.com/tls-cert-keyvault-uri")
 	}
 
 	// this should never happen since we check for this prior to this function call but just to be safe
 	if certUri == "" && saName == "" {
-		return "", NewUserError(errors.New("none of the required TLS options were specified"), "KeyVault Cert URI and ServiceAccount must both be specified to use TLS functionality in App Routing")
+		return "", controllererrors.NewUserError(errors.New("none of the required TLS options were specified"), "KeyVault Cert URI and ServiceAccount must both be specified to use TLS functionality in App Routing")
 	}
 
 	// pull service account

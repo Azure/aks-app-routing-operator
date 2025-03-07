@@ -1,13 +1,11 @@
 package keyvault
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllererrors"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	"github.com/stretchr/testify/assert"
@@ -261,15 +259,6 @@ func TestBuildSPCWithWrongObject(t *testing.T) {
 
 	ok := shouldDeploySpc(obj)
 	assert.False(t, ok)
-}
-
-func TestUserErrors(t *testing.T) {
-	testMsg := "test error message"
-	testError := NewUserError(errors.New("test"), testMsg)
-	var userErr controllererrors.UserError
-
-	assert.True(t, testError.UserError() == testMsg)
-	assert.True(t, errors.As(testError, &userErr))
 }
 
 func TestShouldReconcileGateway(t *testing.T) {

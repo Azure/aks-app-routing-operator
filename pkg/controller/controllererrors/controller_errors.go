@@ -14,3 +14,7 @@ func (b UserError) Error() string {
 func (b UserError) UserError() string {
 	return b.UserMessage
 }
+
+func NewUserError(err error, msg string) UserError {
+	return UserError{err, msg}
+}

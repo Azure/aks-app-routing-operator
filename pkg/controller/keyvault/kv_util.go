@@ -52,13 +52,13 @@ func buildSPC(spc *secv1.SecretProviderClass, spcConfig spcConfig) error {
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return NewUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
+		return controllererrors.NewUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 
 	if len(chunks) < 3 {
-		return NewUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
+		return controllererrors.NewUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -128,10 +128,6 @@ func certSecretName(ingressName string) string {
 	return fmt.Sprintf("keyvault-%s", ingressName)
 }
 
-func NewUserError(err error, msg string) controllererrors.UserError {
-	return controllererrors.UserError{err, msg}
-}
-
 func shouldReconcileGateway(gwObj *gatewayv1.Gateway) bool {
 	return gwObj.Spec.GatewayClassName == istioGatewayClassName
 }
@@ -147,11 +143,11 @@ func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient c
 
 	// SA wasn't found, return appropriate error
 	if err != nil {
-		return "", NewUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
+		return "", controllererrors.NewUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
 	}
 	// check for required annotations
 	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
-		return "", NewUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
+		return "", controllererrors.NewUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
 	}
 
 	return saObj.Annotations[wiSaClientIdAnnotation], nil
