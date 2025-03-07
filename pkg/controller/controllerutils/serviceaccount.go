@@ -27,7 +27,7 @@ func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient c
 	}
 	// check for required annotations
 	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
-		return "", NewUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
+		return "", NewUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified but does not include necessary annotation for workload identity", saName))
 	}
 
 	return saObj.Annotations[wiSaClientIdAnnotation], nil

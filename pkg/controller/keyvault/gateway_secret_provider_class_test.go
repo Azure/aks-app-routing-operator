@@ -232,7 +232,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			},
 			expectedSpcs:    nil,
 			expectedError:   nil,
-			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa was specified in Gateway but does not include necessary annotation for workload identity",
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa was specified but does not include necessary annotation for workload identity",
 		},
 		{
 			name:  "cert URI with sa with correct annotation",
