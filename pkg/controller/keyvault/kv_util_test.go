@@ -1,7 +1,6 @@
 package keyvault
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"testing"
@@ -260,15 +259,6 @@ func TestBuildSPCWithWrongObject(t *testing.T) {
 
 	ok := shouldDeploySpc(obj)
 	assert.False(t, ok)
-}
-
-func TestUserErrors(t *testing.T) {
-	testMsg := "test error message"
-	testError := newUserError(errors.New("test"), testMsg)
-	var userErr userError
-
-	assert.True(t, testError.UserError() == testMsg)
-	assert.True(t, errors.As(testError, &userErr))
 }
 
 func TestShouldReconcileGateway(t *testing.T) {

@@ -119,7 +119,7 @@ func (i *IngressSecretProviderClassReconciler) Reconcile(ctx context.Context, re
 				Cloud:           i.config.Cloud,
 			}
 			if err = buildSPC(spc, spcConf); err != nil {
-				var userErr userError
+				var userErr util.UserError
 				if errors.As(err, &userErr) {
 					logger.Info(fmt.Sprintf("failed to build secret provider class for ingress with error: %s. sending warning event", userErr.Error()))
 					i.events.Eventf(ing, corev1.EventTypeWarning, "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
