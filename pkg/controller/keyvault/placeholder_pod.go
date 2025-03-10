@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,7 +30,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 var placeholderPodControllerName = controllername.New("keyvault", "placeholder", "pod")
@@ -175,10 +175,10 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 	// Verify ServiceAccount exists (if Gateway)
 	serviceAccount, err = p.verifyServiceAccount(ctx, spc, obj, logger)
 	if err != nil {
-		var userErr userError
+		var userErr util.UserError
 		if errors.As(err, &userErr) {
-			logger.Info("user error while verifying if service account exists: %s", userErr.err)
-			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.userMessage)
+			logger.Info("user error while verifying if service account exists: %s", userErr.Err)
+			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.UserMessage)
 			return result, nil
 		}
 
@@ -355,10 +355,10 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 
 		if serviceAccount == "" {
 			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
-			return "", newUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
+			return "", util.NewUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
-		_, err := GetServiceAccountAndVerifyWorkloadIdentity(ctx, p.client, serviceAccount, spc.Namespace)
+		_, err := util.GetServiceAccountAndVerifyWorkloadIdentity(ctx, p.client, serviceAccount, spc.Namespace)
 		if err != nil {
 			return "", err
 		}

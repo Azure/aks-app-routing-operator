@@ -1,18 +1,15 @@
 package keyvault
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -51,13 +48,13 @@ func buildSPC(spc *secv1.SecretProviderClass, spcConfig spcConfig) error {
 
 	uri, err := url.Parse(certURI)
 	if err != nil {
-		return newUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
+		return util.NewUserError(err, fmt.Sprintf("unable to parse certificate uri: %s", certURI))
 	}
 	vaultName := strings.Split(uri.Host, ".")[0]
 	chunks := strings.Split(uri.Path, "/")
 
 	if len(chunks) < 3 {
-		return newUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
+		return util.NewUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 	p := map[string]interface{}{
@@ -127,46 +124,6 @@ func certSecretName(ingressName string) string {
 	return fmt.Sprintf("keyvault-%s", ingressName)
 }
 
-type userError struct {
-	err         error
-	userMessage string
-}
-
-// for internal use
-func (b userError) Error() string {
-	return b.err.Error()
-}
-
-// for user facing messages
-func (b userError) UserError() string {
-	return b.userMessage
-}
-
-func newUserError(err error, msg string) userError {
-	return userError{err, msg}
-}
-
 func shouldReconcileGateway(gwObj *gatewayv1.Gateway) bool {
 	return gwObj.Spec.GatewayClassName == istioGatewayClassName
-}
-
-func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient client.Client, saName, saNamespace string) (string, error) {
-	// ensure referenced serviceaccount exists
-	saObj := &corev1.ServiceAccount{}
-	err := k8sclient.Get(ctx, types.NamespacedName{Name: saName, Namespace: saNamespace}, saObj)
-
-	if client.IgnoreNotFound(err) != nil {
-		return "", fmt.Errorf("failed to fetch serviceaccount to verify workload identity configuration: %s", err)
-	}
-
-	// SA wasn't found, return appropriate error
-	if err != nil {
-		return "", newUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
-	}
-	// check for required annotations
-	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {
-		return "", newUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified in Gateway but does not include necessary annotation for workload identity", saName))
-	}
-
-	return saObj.Annotations[wiSaClientIdAnnotation], nil
 }

@@ -8,6 +8,4 @@ const (
 
 	certUriTLSOption        = "kubernetes.azure.com/tls-cert-keyvault-uri"
 	serviceAccountTLSOption = "kubernetes.azure.com/tls-cert-service-account"
-
-	wiSaClientIdAnnotation = "azure.workload.identity/client-id"
 )
