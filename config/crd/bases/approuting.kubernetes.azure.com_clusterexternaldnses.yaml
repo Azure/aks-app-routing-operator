@@ -51,8 +51,6 @@ spec:
                   or private). The number of zones is currently capped at 7 but may
                   be expanded in the future.
                 items:
-                  maxLength: 172
-                  minLength: 103
                   type: string
                 maxItems: 7
                 minItems: 1
