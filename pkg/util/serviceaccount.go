@@ -18,7 +18,7 @@ func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient c
 	err := k8sclient.Get(ctx, types.NamespacedName{Name: saName, Namespace: saNamespace}, saObj)
 
 	if client.IgnoreNotFound(err) != nil {
-		return "", fmt.Errorf("failed to fetch serviceaccount to verify workload identity configuration: %s", err)
+		return "", fmt.Errorf("failed to fetch serviceaccount to verify workload identity configuration: %w", err)
 	}
 
 	// SA wasn't found, return appropriate error
