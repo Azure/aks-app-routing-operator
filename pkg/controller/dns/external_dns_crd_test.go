@@ -162,7 +162,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 				})
 			},
 			existingResources: []client.Object{testServiceAccount},
-			expectedError:     errors.New("failed to create configmap, failed to create deployment"),
+			expectedError:     errors.New("\n\t* failed to create configmap\n\t* failed to create deployment\n\n"),
 		},
 		{
 			name: "failure to get externaldns crd",
