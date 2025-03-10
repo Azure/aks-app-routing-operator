@@ -1,4 +1,4 @@
-package controllerutils
+package util
 
 type UserError struct {
 	Err         error

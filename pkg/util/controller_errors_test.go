@@ -1,4 +1,4 @@
-package controllerutils
+package util
 
 import (
 	"errors"
