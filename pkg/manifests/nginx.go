@@ -402,6 +402,10 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		"--publish-service=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--configmap=$(POD_NAMESPACE)/" + ingressConfig.ResourceName,
 		"--enable-annotation-validation=true",
+		// https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#custom-load-balancer-health-probe
+		// load balancer health probe checks in 5 second intervals. It requires 2 failing probes to fail so we need at least 10s of grace period.
+		// we set it to 15s to be safe. Without this Nginx process exits but the LoadBalancer continues routing to the Pod until two health checks fail.
+		"--shutdown-grace-period=15",
 	}
 
 	if ingressConfig.DefaultSSLCertificate != "" {
@@ -437,6 +441,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							TopologyKey:       "kubernetes.io/hostname", // spread across nodes
 							WhenUnsatisfiable: corev1.ScheduleAnyway,
 							LabelSelector:     selector,
+							MatchLabelKeys: []string{
+								// https://kubernetes.io/blog/2024/08/16/matchlabelkeys-podaffinity/
+								// evaluate only pods of the same version (mostly applicable to rollouts)
+								"pod-template-hash",
+							},
 						},
 					},
 					ServiceAccountName: ingressConfig.ResourceName,

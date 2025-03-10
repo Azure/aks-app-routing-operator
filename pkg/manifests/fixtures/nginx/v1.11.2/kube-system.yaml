@@ -354,6 +354,7 @@ spec:
         - --publish-service=$(POD_NAMESPACE)/nginx
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
+        - --shutdown-grace-period=15
         env:
         - name: POD_NAME
           valueFrom:
@@ -416,6 +417,8 @@ spec:
       - labelSelector:
           matchLabels:
             app: nginx
+        matchLabelKeys:
+        - pod-template-hash
         maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
