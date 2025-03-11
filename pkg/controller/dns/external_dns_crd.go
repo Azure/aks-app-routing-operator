@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,8 +56,12 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	obj := &v1alpha1.ExternalDNS{}
 	if err = e.client.Get(ctx, req.NamespacedName, obj); err != nil {
-		logger.Error(client.IgnoreNotFound(err), "failed to get externaldns object, will ignore not found error")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if k8serrors.IsNotFound(err) {
+			logger.Info("externaldns crd object not found, will ignore not found error")
+			return ctrl.Result{}, nil
+		}
+		logger.Error(err, "failed to get externaldns object")
+		return ctrl.Result{}, err
 	}
 
 	// verify serviceaccount
