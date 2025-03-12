@@ -424,19 +424,19 @@ rules:
   - watch
   - list
 - apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gateways
   - httproutes
   - grpcroutes
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
   verbs:
   - get
   - watch
@@ -616,19 +616,19 @@ rules:
   - watch
   - list
 - apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gateways
   - httproutes
   - grpcroutes
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
   verbs:
   - get
   - watch

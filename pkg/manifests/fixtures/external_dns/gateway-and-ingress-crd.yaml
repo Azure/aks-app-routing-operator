@@ -38,6 +38,15 @@ rules:
   - watch
   - list
 - apiGroups:
+  - extensions
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - gateways
@@ -139,11 +148,12 @@ spec:
       containers:
       - args:
         - --provider=azure-private-dns
-        - --interval=10s
+        - --interval=3m0s
         - --txt-owner-id=test-cluster-uid
         - --txt-wildcard-replacement=approutingwildcard
         - --source=gateway-grpcroute
         - --source=gateway-httproute
+        - --source=ingress
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
         image: /oss/v2/kubernetes/external-dns:v0.15.0
