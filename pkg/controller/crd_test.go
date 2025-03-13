@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -14,12 +16,23 @@ import (
 )
 
 const (
+	nginxCrdName              = "nginxingresscontrollers.approuting.kubernetes.azure.com"
+	clusterExternalDnsCrdName = "clusterexternaldnses.approuting.kubernetes.azure.com"
+	externalDnsCrdName        = "externaldnses.approuting.kubernetes.azure.com"
+
 	validCrdPath        = "../../config/crd/bases/"
-	validCrdName        = "nginxingresscontrollers.approuting.kubernetes.azure.com"
+	validCrdName        = nginxCrdName
 	validCrdPathWithDir = "../../config/crd/"
 
 	nonCrdManifestsPath = "../manifests/fixtures/nginx/default_version"
 	nonExistentFilePath = "./this/does/not/exist"
+)
+
+var allCrdNames = []string{nginxCrdName, clusterExternalDnsCrdName, externalDnsCrdName}
+
+var (
+	gatewayEnabled  = &config.Config{EnableGateway: true, CrdPath: validCrdPath}
+	gatewayDisabled = &config.Config{EnableGateway: false, CrdPath: validCrdPath}
 )
 
 func TestLoadCRDs(t *testing.T) {
@@ -57,4 +70,71 @@ func TestLoadCRDs(t *testing.T) {
 		require.Error(t, err, "expected error loading nil config")
 		require.True(t, strings.Contains(err.Error(), "config cannot be nil"), "expected error to be about nil config")
 	})
+
+	// prove it doesn't load unwanted crds
+	cases := []struct {
+		name             string
+		cfg              *config.Config
+		expectedCRDNames []string
+	}{
+		{name: "gateway enabled", cfg: gatewayEnabled, expectedCRDNames: allCrdNames},
+		{name: "gateway disabled", cfg: gatewayDisabled, expectedCRDNames: []string{nginxCrdName}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cl := fake.NewClientBuilder().WithScheme(scheme).Build()
+			require.NoError(t, loadCRDs(cl, tc.cfg, logr.Discard()), "expected no error loading crds")
+
+			crds := &apiextensionsv1.CustomResourceDefinitionList{}
+			require.NoError(t, cl.List(context.Background(), crds), "expected no error listing crds")
+
+			seen := map[string]struct{}{}
+			for _, crd := range crds.Items {
+				seen[crd.Name] = struct{}{}
+			}
+
+			require.True(t, len(seen) == len(tc.expectedCRDNames), "expected correct number of crds")
+			for _, expected := range tc.expectedCRDNames {
+				_, ok := seen[expected]
+				require.True(t, ok, fmt.Sprintf("expected crd %s to be loaded", expected))
+			}
+		})
+	}
+}
+
+func TestShouldLoadCRD(t *testing.T) {
+	// prove that crd filenames are correct
+	crdFiles, err := os.ReadDir(validCrdPath)
+	require.NoError(t, err, "expected no error reading crd directory")
+	seen := map[string]bool{
+		externalDnsCrdFilename:        false,
+		clusterExternalDnsCrdFilename: false,
+	}
+	for _, file := range crdFiles {
+		seen[file.Name()] = true
+	}
+	for filename, expected := range seen {
+		require.True(t, expected, fmt.Sprintf("expected crd with filename %s to exist in %s", filename, validCrdPath))
+	}
+
+	cases := []struct {
+		name     string
+		cfg      *config.Config
+		filename string
+		expected bool
+	}{
+		{name: "external dns crd with gateway enabled", cfg: gatewayEnabled, filename: externalDnsCrdFilename, expected: true},
+		{name: "external dns crd with gateway disabled", cfg: gatewayDisabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "cluster external dns crd with gateway enabled", cfg: gatewayEnabled, filename: clusterExternalDnsCrdFilename, expected: true},
+		{name: "cluster external dns crd with gateway disabled", cfg: gatewayDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
+		{name: "other crd with gateway enabled", cfg: gatewayEnabled, filename: "other.crd.yaml", expected: true},
+		{name: "other crd with gateway disabled", cfg: gatewayDisabled, filename: "other.crd.yaml", expected: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, shouldLoadCRD(tc.cfg, tc.filename), "expected correct crd loading behavior")
+		})
+	}
 }
