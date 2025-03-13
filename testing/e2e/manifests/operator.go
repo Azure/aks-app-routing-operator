@@ -127,6 +127,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version == OperatorVersionLatest {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
+		ret = append(ret, "--enable-gateway")
 	}
 
 	var zones []string
