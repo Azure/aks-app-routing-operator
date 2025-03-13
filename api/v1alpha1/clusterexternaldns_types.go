@@ -59,8 +59,6 @@ type ClusterExternalDNSSpec struct {
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=7
 	// +kubebuilder:validation:items:UniqueItems:=true
-	// +kubebuilder:validation:items:MaxLength:=172
-	// +kubebuilder:validation:items:MinLength:=103
 	// +kubebuilder:validation:items:MaxProperties:=1
 	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[2] == self[0].split('/')[2])",message="all items must have the same subscription ID"
 	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[4] == self[0].split('/')[4])",message="all items must have the same resource group"
