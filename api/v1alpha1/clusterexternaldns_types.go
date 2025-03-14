@@ -58,8 +58,6 @@ type ClusterExternalDNSSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
 	// +kubebuilder:validation:MaxItems:=7
-	// +kubebuilder:validation:items:UniqueItems:=true
-	// +kubebuilder:validation:items:MaxProperties:=1
 	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[2] == self[0].split('/')[2])",message="all items must have the same subscription ID"
 	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[4] == self[0].split('/')[4])",message="all items must have the same resource group"
 	// +kubebuilder:validation:XValidation:rule="self.all(item, item.split('/')[7] == self[0].split('/')[7])",message="all items must be of the same resource type"
@@ -108,21 +106,27 @@ type ClusterExternalDNSList struct {
 func (c *ClusterExternalDNS) GetTenantId() string {
 	return c.Spec.TenantID
 }
+
 func (c *ClusterExternalDNS) GetInputServiceAccount() string {
 	return c.Spec.Identity.ServiceAccount
 }
+
 func (c *ClusterExternalDNS) GetResourceNamespace() string {
 	return c.Spec.ResourceNamespace
 }
+
 func (c *ClusterExternalDNS) GetInputResourceName() string {
 	return c.Spec.ResourceName
 }
+
 func (c *ClusterExternalDNS) GetResourceTypes() []string {
 	return c.Spec.ResourceTypes
 }
+
 func (c *ClusterExternalDNS) GetDnsZoneresourceIDs() []string {
 	return c.Spec.DNSZoneResourceIDs
 }
+
 func (c *ClusterExternalDNS) GetFilters() *ExternalDNSFilters {
 	return c.Spec.Filters
 }
