@@ -9,17 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockDnsConfig struct {
-	tenantId            string
-	inputServiceAccount string
-	resourceNamespace   string
-	inputResourceName   string
-	resourceTypes       []string
-	dnsZoneresourceIDs  []string
-	filters             *v1alpha1.ExternalDNSFilters
-	namespaced          bool
-}
-
 var sampleMockDnsConfig = mockDnsConfig{
 	tenantId:            "mock-tenant-id",
 	inputServiceAccount: "mock-service-account",
@@ -32,38 +21,6 @@ var sampleMockDnsConfig = mockDnsConfig{
 		RouteAndIngressLabelSelector: to.Ptr("test=othertest"),
 	},
 	namespaced: true,
-}
-
-func (m mockDnsConfig) GetTenantId() string {
-	return m.tenantId
-}
-
-func (m mockDnsConfig) GetInputServiceAccount() string {
-	return m.inputServiceAccount
-}
-
-func (m mockDnsConfig) GetResourceNamespace() string {
-	return m.resourceNamespace
-}
-
-func (m mockDnsConfig) GetInputResourceName() string {
-	return m.inputResourceName
-}
-
-func (m mockDnsConfig) GetResourceTypes() []string {
-	return m.resourceTypes
-}
-
-func (m mockDnsConfig) GetDnsZoneresourceIDs() []string {
-	return m.dnsZoneresourceIDs
-}
-
-func (m mockDnsConfig) GetFilters() *v1alpha1.ExternalDNSFilters {
-	return m.filters
-}
-
-func (m mockDnsConfig) GetNamespaced() bool {
-	return m.namespaced
 }
 
 func Test_buildInputDNSConfig(t *testing.T) {
