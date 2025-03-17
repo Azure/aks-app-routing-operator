@@ -53,9 +53,33 @@ type ManagedCertificateDnsZone struct {
 
 // ManagedCertificateStatus defines the observed state of ManagedCertificate.
 type ManagedCertificateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ExpireTime is the time when the Certificate will expire. The Certificate will be automatically renewed before this time.
+	ExpireTime metav1.Time `json:"expireTime,omitempty"`
+	// LastRotationTime is the time when the Certificate was last rotated.
+	LastRotationTime metav1.Time `json:"lastRotationTime,omitempty"`
+	// DnsVerificationStart is the time when the DNS verification process started.
+	DnsVerificationStart metav1.Time `json:"dnsVerificationStart,omitempty"`
+
+	// Conditions represent the latest available observations of the ManagedCertificate's current state.
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:Optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+const (
+	// ConditionTypeIssuing indicates the status of the Certificate issuing process.
+	// This includes rotations and will reflect failures to rotate.
+	// - "True" - The Certificate is going through the issuing process.
+	// - "False" - The Certificate is not going through the issuing process.
+	// - "Unknown" - The issuing process for the Certificate cannot be determined.
+	ConditionTypeIssuing = "Issuing"
+	// ConditionTypeReady indicates the readiness of the ManagedCertificate target.
+	// If rotations fail but the previous Certificate is still valid, the target is still considered ready.
+	// - "True" - The Certificate target is ready.
+	// - "False" - The Certificate target is not ready.
+	ConditionTypeReady = "Ready"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
