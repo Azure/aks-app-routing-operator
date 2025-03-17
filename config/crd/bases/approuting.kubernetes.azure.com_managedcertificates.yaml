@@ -1,0 +1,98 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
+  name: managedcertificates.approuting.kubernetes.azure.com
+spec:
+  group: approuting.kubernetes.azure.com
+  names:
+    kind: ManagedCertificate
+    listKind: ManagedCertificateList
+    plural: managedcertificates
+    singular: managedcertificate
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ManagedCertificate is the Schema for the managedcertificates
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ManagedCertificateSpec defines the desired state of ManagedCertificate.
+            properties:
+              dnsZone:
+                description: DnsZone defines the DNS Zone that the ManagedCertificate
+                  will be applied to.
+                properties:
+                  activeDirectoryAuthorityHost:
+                    description: ActiveDirectoryApplicationId is the base URL of the
+                      cloud's Azure Active Directory.
+                    type: string
+                  resourceId:
+                    description: ResourceId is the Azure Resource ID of the DNS Zone.
+                      Can be retrieved with `az network dns zone show -g <resource-group>
+                      -n <zone-name> --query id -o tsv`.
+                    type: string
+                  tenantId:
+                    description: TenantId is the Azure Tenant ID of the DNS Zone.
+                    type: string
+                type: object
+              domainNames:
+                description: DomainNames is a list of domain names that the Certificate
+                  will be issued for.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: set
+              serviceAccount:
+                description: ServiceAccount is the name of the ServiceAccount that
+                  will be used to connect to the Azure DNS Zone.
+                type: string
+              target:
+                description: Target defines the targets that the Certificate will
+                  be bound to.
+                maxProperties: 1
+                minProperties: 1
+                properties:
+                  secret:
+                    description: Secret is the name of the Secret that will contain
+                      the Certificate.
+                    type: string
+                type: object
+            required:
+            - dnsZone
+            - domainNames
+            - serviceAccount
+            - target
+            type: object
+          status:
+            description: ManagedCertificateStatus defines the observed state of ManagedCertificate.
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
