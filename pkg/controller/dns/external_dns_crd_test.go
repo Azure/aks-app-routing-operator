@@ -131,6 +131,17 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 			expectedUserError: "serviceAccount test-service-account was specified but does not include necessary annotation for workload identity",
 		},
 		{
+			name: "invalid dns zone resource id",
+			crd: func() ExternalDNSCRDConfiguration {
+				ret := happyPathPublic.DeepCopy()
+				ret.ResourceVersion = ""
+				ret.Spec.DNSZoneResourceIDs = []string{"invalid-dns-zone-id"}
+				return ret
+			},
+			existingResources: []client.Object{testServiceAccount},
+			expectedUserError: "failed to generate ExternalDNS resources: invalid dns zone resource id: invalid-dns-zone-id",
+		},
+		{
 			name: "multierror failure to create deployment and configmap",
 			crd: func() ExternalDNSCRDConfiguration {
 				ret := happyPathPublic.DeepCopy()

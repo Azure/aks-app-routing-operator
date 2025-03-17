@@ -57,7 +57,7 @@ func generateManifestsConf(config *config.Config, obj ExternalDNSCRDConfiguratio
 	inputDNSConf := buildInputDNSConfig(obj)
 	manifestsConf, err := manifests.NewExternalDNSConfig(config, inputDNSConf)
 	if err != nil {
-		return nil, util.NewUserError(err, "failed to generate ExternalDNS resources")
+		return nil, util.NewUserError(err, "failed to generate ExternalDNS resources: "+err.Error())
 	}
 
 	return manifestsConf, nil

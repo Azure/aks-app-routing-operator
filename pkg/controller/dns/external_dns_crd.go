@@ -79,7 +79,7 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 		var userErr util.UserError
 		if errors.As(err, &userErr) {
 			logger.Info("failed to generate manifests config due to user error, sending warning event: " + userErr.UserError())
-			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to generate manifests config: %s", userErr.UserError())
+			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", userErr.UserError())
 			return ctrl.Result{}, nil
 		}
 	}

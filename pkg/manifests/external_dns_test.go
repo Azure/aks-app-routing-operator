@@ -623,6 +623,21 @@ func TestExternalDNSConfig(t *testing.T) {
 			expectedError: errors.New("workload identity requires a service account name"),
 		},
 		{
+			name: "invalid zone",
+			conf: noOsmConf,
+			inputExternalDNSConfig: InputExternalDNSConfig{
+				TenantId:            "test-tenant-id",
+				ClientId:            "test-client-id",
+				InputServiceAccount: "",
+				Namespace:           "test-namespace",
+				InputResourceName:   "test-resource",
+				IdentityType:        IdentityTypeWorkloadIdentity,
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				DnsZoneresourceIDs:  []string{privateZoneOne, "test-resource-id"},
+			},
+			expectedError: errors.New("invalid dns zone resource id: test-resource-id"),
+		},
+		{
 			name: "different resource types",
 			conf: noOsmConf,
 			inputExternalDNSConfig: InputExternalDNSConfig{
