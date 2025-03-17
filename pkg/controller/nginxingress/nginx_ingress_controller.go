@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/record"
@@ -141,7 +142,7 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		n.updateStatus(&nginxIngressController, controllerDeployment, ingressClass, managedRes, collisionCountErr)
 		if statusErr := n.client.Status().Update(ctx, &nginxIngressController); statusErr != nil {
 			lgr.Error(statusErr, "unable to update NginxIngressController status")
-			if err == nil {
+			if err == nil && !k8serrors.IsConflict(statusErr) {
 				err = statusErr
 			}
 		}
