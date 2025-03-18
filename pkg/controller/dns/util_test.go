@@ -1,32 +1,28 @@
 package dns
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
-type mockDnsConfig struct {
-	tenantId            string
-	inputServiceAccount string
-	resourceNamespace   string
-	inputResourceName   string
-	resourceTypes       []string
-	dnsZoneresourceIDs  []string
-	filters             *v1alpha1.ExternalDNSFilters
-	namespaced          bool
-}
-
-var sampleMockDnsConfig = mockDnsConfig{
-	tenantId:            "mock-tenant-id",
+var mockConfig = mockDnsConfig{
+	tenantId:            "12345678-1234-1234-1234-123456789012",
 	inputServiceAccount: "mock-service-account",
 	resourceNamespace:   "mock-namespace",
 	inputResourceName:   "mock-resource-name",
 	resourceTypes:       []string{"ingress", "gateway"},
-	dnsZoneresourceIDs:  []string{"mock-dns-zone-id"},
+	dnsZoneresourceIDs:  []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
 	filters: &v1alpha1.ExternalDNSFilters{
 		GatewayLabelSelector:         to.Ptr("test=test"),
 		RouteAndIngressLabelSelector: to.Ptr("test=othertest"),
@@ -34,52 +30,26 @@ var sampleMockDnsConfig = mockDnsConfig{
 	namespaced: true,
 }
 
-func (m mockDnsConfig) GetTenantId() string {
-	return m.tenantId
-}
-
-func (m mockDnsConfig) GetInputServiceAccount() string {
-	return m.inputServiceAccount
-}
-
-func (m mockDnsConfig) GetResourceNamespace() string {
-	return m.resourceNamespace
-}
-
-func (m mockDnsConfig) GetInputResourceName() string {
-	return m.inputResourceName
-}
-
-func (m mockDnsConfig) GetResourceTypes() []string {
-	return m.resourceTypes
-}
-
-func (m mockDnsConfig) GetDnsZoneresourceIDs() []string {
-	return m.dnsZoneresourceIDs
-}
-
-func (m mockDnsConfig) GetFilters() *v1alpha1.ExternalDNSFilters {
-	return m.filters
-}
-
-func (m mockDnsConfig) GetNamespaced() bool {
-	return m.namespaced
+var conf = &config.Config{
+	Registry:        testRegistry,
+	ClusterUid:      "test-cluster-uid",
+	DnsSyncInterval: 3 * time.Minute,
 }
 
 func Test_buildInputDNSConfig(t *testing.T) {
-	config := buildInputDNSConfig(sampleMockDnsConfig)
+	config := buildInputDNSConfig(mockConfig)
 
-	require.Equal(t, config.TenantId, sampleMockDnsConfig.tenantId)
-	require.Equal(t, config.InputServiceAccount, sampleMockDnsConfig.inputServiceAccount)
-	require.Equal(t, config.Namespace, sampleMockDnsConfig.resourceNamespace)
-	require.Equal(t, config.InputResourceName, sampleMockDnsConfig.inputResourceName)
+	require.Equal(t, config.TenantId, mockConfig.tenantId)
+	require.Equal(t, config.InputServiceAccount, mockConfig.inputServiceAccount)
+	require.Equal(t, config.Namespace, mockConfig.resourceNamespace)
+	require.Equal(t, config.InputResourceName, mockConfig.inputResourceName)
 	require.Equal(t, config.ResourceTypes, map[manifests.ResourceType]struct{}{
 		manifests.ResourceTypeIngress: {},
 		manifests.ResourceTypeGateway: {},
 	})
-	require.Equal(t, config.DnsZoneresourceIDs, sampleMockDnsConfig.dnsZoneresourceIDs)
-	require.Equal(t, config.Filters, sampleMockDnsConfig.filters)
-	require.Equal(t, config.IsNamespaced, sampleMockDnsConfig.namespaced)
+	require.Equal(t, config.DnsZoneresourceIDs, mockConfig.dnsZoneresourceIDs)
+	require.Equal(t, config.Filters, mockConfig.filters)
+	require.Equal(t, config.IsNamespaced, mockConfig.namespaced)
 }
 
 func Test_extractResourceTypes(t *testing.T) {
@@ -110,5 +80,60 @@ func Test_extractResourceTypes(t *testing.T) {
 		result := extractResourceTypes(tc.rt)
 		require.Equal(t, tc.expected, result)
 	}
+}
 
+func Test_generateManifestsConf(t *testing.T) {
+
+	manifestsConf, err := generateManifestsConf(conf, mockConfig)
+	require.NoError(t, err)
+	require.NotNil(t, manifestsConf)
+	require.Equal(t, map[string]string{
+		"app.kubernetes.io/name": "mock-resource-name-external-dns",
+	}, manifestsConf.Labels())
+	require.Equal(t, manifestsConf.DnsZoneResourceIds(), []string{
+		"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com",
+		"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com",
+	})
+
+	for _, res := range manifestsConf.Resources() {
+		switch casted := res.(type) {
+		case *appsv1.Deployment:
+			require.Equal(t, casted.Spec.Template.Spec.ServiceAccountName, mockConfig.inputServiceAccount)
+			require.Equal(t, casted.Spec.Template.Spec.Containers[0].Args, []string{
+				"--provider=azure",
+				"--interval=3m0s",
+				"--txt-owner-id=test-cluster-uid",
+				"--txt-wildcard-replacement=approutingwildcard",
+				"--gateway-label-filter=test==test",
+				"--label-filter=test==othertest",
+				"--source=gateway-grpcroute",
+				"--source=gateway-httproute",
+				"--source=ingress",
+				"--domain-filter=test.com",
+				"--domain-filter=test2.com",
+			})
+		}
+	}
+}
+
+func Test_deployExternalDNSResources(t *testing.T) {
+	k8sClient := generateDefaultClientBuilder(t, nil).Build()
+	manifestsConf, err := generateManifestsConf(conf, mockConfig)
+	require.NoError(t, err)
+
+	ownerRef := metav1.OwnerReference{
+		APIVersion: "v1alpha1",
+		Controller: util.ToPtr(true),
+		Kind:       "ClusterExternalDNS",
+		Name:       "mock-resource-name",
+		UID:        "12345678-1234-1234-1234-123456789012",
+	}
+
+	err = deployExternalDNSResources(context.Background(), k8sClient, manifestsConf, []metav1.OwnerReference{ownerRef})
+	require.NoError(t, err)
+
+	deployment := &appsv1.Deployment{}
+	err = k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "mock-namespace", Name: "mock-resource-name-external-dns"}, deployment)
+	require.NoError(t, err)
+	require.Equal(t, deployment.OwnerReferences[0].Name, ownerRef.Name)
 }

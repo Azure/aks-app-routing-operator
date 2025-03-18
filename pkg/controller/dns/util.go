@@ -1,13 +1,20 @@
 package dns
 
 import (
+	"context"
 	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/hashicorp/go-multierror"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type ExternalDNSCRDConfiguration interface {
+	client.Object
 	GetTenantId() string
 	GetInputServiceAccount() string
 	GetResourceNamespace() string
@@ -44,4 +51,28 @@ func extractResourceTypes(resourceTypes []string) map[manifests.ResourceType]str
 	}
 
 	return ret
+}
+
+func generateManifestsConf(config *config.Config, obj ExternalDNSCRDConfiguration) (*manifests.ExternalDnsConfig, error) {
+	inputDNSConf := buildInputDNSConfig(obj)
+	manifestsConf, err := manifests.NewExternalDNSConfig(config, inputDNSConf)
+	if err != nil {
+		return nil, util.NewUserError(err, "failed to generate ExternalDNS resources: "+err.Error())
+	}
+
+	return manifestsConf, nil
+}
+
+func deployExternalDNSResources(ctx context.Context, client client.Client, manifestsConf *manifests.ExternalDnsConfig, owners []metav1.OwnerReference) error {
+	// create the ExternalDNS resources
+	multiError := &multierror.Error{}
+
+	for _, resource := range manifestsConf.Resources() {
+		resource.SetOwnerReferences(owners)
+
+		currentResourceErr := util.Upsert(ctx, client, resource)
+		multiError = multierror.Append(multiError, currentResourceErr)
+	}
+
+	return multiError.ErrorOrNil()
 }

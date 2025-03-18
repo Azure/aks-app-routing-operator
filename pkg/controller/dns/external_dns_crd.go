@@ -9,10 +9,8 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
-	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
-	"github.com/hashicorp/go-multierror"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -76,38 +74,28 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	inputDNSConf := buildInputDNSConfig(obj)
-	manifestsConf, err := manifests.NewExternalDNSConfig(e.config, inputDNSConf)
+	manifestsConf, err := generateManifestsConf(e.config, obj)
 	if err != nil {
-		logger.Error(err, "failed to generate ExternalDNS resources from ExternalDNS CR")
-		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to generate external DNS resources: %s", err)
-		return ctrl.Result{}, err
-	}
-
-	resources := manifestsConf.Resources()
-
-	multiError := &multierror.Error{}
-
-	for _, resource := range resources {
-		resource.SetOwnerReferences([]metav1.OwnerReference{{
-			APIVersion: obj.APIVersion,
-			Controller: util.ToPtr(true),
-			Kind:       obj.Kind,
-			Name:       obj.Name,
-			UID:        obj.UID,
-		}})
-
-		currentResourceErr := util.Upsert(ctx, e.client, resource)
-		if currentResourceErr != nil {
-			logger.Error(currentResourceErr, "failed to upsert externaldns resources")
+		var userErr util.UserError
+		if errors.As(err, &userErr) {
+			logger.Info("failed to generate manifests config due to user error, sending warning event: " + userErr.UserError())
+			e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", userErr.UserError())
+			return ctrl.Result{}, nil
 		}
-		multiError = multierror.Append(multiError, currentResourceErr)
 	}
 
-	if multiError.ErrorOrNil() != nil {
+	err = deployExternalDNSResources(ctx, e.client, manifestsConf, []metav1.OwnerReference{{
+		APIVersion: obj.APIVersion,
+		Controller: util.ToPtr(true),
+		Kind:       obj.Kind,
+		Name:       obj.Name,
+		UID:        obj.UID,
+	}})
+
+	if err != nil {
 		logger.Error(err, "failed to upsert externaldns resources")
-		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", multiError.Error())
-		return ctrl.Result{}, errors.New(multiError.Error())
+		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", err.Error())
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
