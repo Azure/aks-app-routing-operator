@@ -33,7 +33,6 @@ type ManagedCertificateSpec struct {
 // +kubebuilder:validation:MaxProperties=1
 type ManagedCertificateTarget struct {
 	// Secret is the name of the Secret that will contain the Certificate.
-	// +kubebuilder:validation:Required
 	Secret string `json:"secret,omitempty"`
 }
 

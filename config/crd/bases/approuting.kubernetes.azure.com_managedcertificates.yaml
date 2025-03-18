@@ -79,8 +79,6 @@ spec:
                     description: Secret is the name of the Secret that will contain
                       the Certificate.
                     type: string
-                required:
-                - secret
                 type: object
             required:
             - dnsZone
