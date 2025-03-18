@@ -16,10 +16,12 @@ import (
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
 	ubzap "go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -27,6 +29,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -84,6 +87,25 @@ func NewRestConfig(conf *config.Config) *rest.Config {
 }
 
 func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager, error) {
+	// client creates ListWatch cache for all resources that are
+	// GET or LISTed. this uses too much memory on large clusters.
+	var clientOpts *client.CacheOptions
+	cacheOpts := cache.Options{}
+	if conf.DisableExpensiveCache {
+		clientOpts = &client.CacheOptions{
+			// we only interact with a small subset of pods
+			// but there's no good filter to only cache the pods we care about
+			// so we disable caching them for now.
+			DisableFor: []client.Object{&corev1.Pod{}},
+		}
+
+		cacheOpts.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Event{}: {
+				Field: fields.Selector{},
+			},
+		}
+	}
+
 	m, err := ctrl.NewManager(rc, ctrl.Options{
 		Metrics:                metricsserver.Options{BindAddress: conf.MetricsAddr},
 		HealthProbeBindAddress: conf.ProbeAddr,
@@ -93,6 +115,9 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		LeaderElection:          true,
 		LeaderElectionNamespace: "kube-system",
 		LeaderElectionID:        "aks-app-routing-operator-leader",
+
+		Client: client.Options{Cache: clientOpts},
+		Cache:  cacheOpts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating manager: %w", err)
