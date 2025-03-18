@@ -28,7 +28,7 @@ func validClusterExternalDNS() *v1alpha1.ClusterExternalDNS {
 		Spec: v1alpha1.ClusterExternalDNSSpec{
 			ResourceName:      "test",
 			ResourceNamespace: "default",
-			TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+			TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 			DNSZoneResourceIDs: []string{
 				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -75,7 +75,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Name: "no-resourcens",
 							},
 							Spec: v1alpha1.ClusterExternalDNSSpec{
-								TenantID: "123e4567-e89b-12d3-a456-426614174000",
+								TenantID: to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -101,7 +101,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "test",
+								TenantID:          to.Ptr("test"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174001/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 								},
@@ -124,6 +124,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Name: "no-tenant",
 							},
 							Spec: v1alpha1.ClusterExternalDNSSpec{
+								TenantID:          to.Ptr(""),
 								ResourceName:      "test",
 								ResourceNamespace: "default",
 								DNSZoneResourceIDs: []string{
@@ -138,6 +139,29 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						expectedError: errors.New("spec.tenantID in body should match '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"),
 					},
 					{
+						name: "nil tenant ID",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "nil-tenant",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174001/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+							},
+						},
+					},
+					{
 						name: "different subs",
 						ced: &v1alpha1.ClusterExternalDNS{
 							TypeMeta: metav1.TypeMeta{
@@ -148,7 +172,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Name: "diff-sub",
 							},
 							Spec: v1alpha1.ClusterExternalDNSSpec{
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								ResourceName:      "test",
 								ResourceNamespace: "default",
 								DNSZoneResourceIDs: []string{
@@ -176,7 +200,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/privatednszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
@@ -202,7 +226,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
@@ -228,7 +252,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test2/providers/Microsoft.network/dnszones/test2",
@@ -253,7 +277,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceNamespace:  "default",
-								TenantID:           "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:           to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{},
 								ResourceTypes:      []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
@@ -276,7 +300,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -301,7 +325,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -327,7 +351,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -353,7 +377,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -374,7 +398,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Name: "no-sa",
 							},
 							Spec: v1alpha1.ClusterExternalDNSSpec{
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								ResourceName:      "test",
 								ResourceNamespace: "default",
 								DNSZoneResourceIDs: []string{
@@ -400,7 +424,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -429,7 +453,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -458,7 +482,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -487,7 +511,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -512,7 +536,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
@@ -538,7 +562,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							Spec: v1alpha1.ClusterExternalDNSSpec{
 								ResourceName:      "test",
 								ResourceNamespace: "default",
-								TenantID:          "123e4567-e89b-12d3-a456-426614174000",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
