@@ -15,7 +15,7 @@ import (
 
 type ExternalDNSCRDConfiguration interface {
 	client.Object
-	GetTenantId() string
+	GetTenantId() *string
 	GetInputServiceAccount() string
 	GetResourceNamespace() string
 	GetInputResourceName() string
@@ -25,10 +25,9 @@ type ExternalDNSCRDConfiguration interface {
 	GetNamespaced() bool
 }
 
-func buildInputDNSConfig(e ExternalDNSCRDConfiguration) manifests.InputExternalDNSConfig {
-	return manifests.InputExternalDNSConfig{
+func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) manifests.InputExternalDNSConfig {
+	ret := manifests.InputExternalDNSConfig{
 		IdentityType:        manifests.IdentityTypeWorkloadIdentity,
-		TenantId:            e.GetTenantId(),
 		InputServiceAccount: e.GetInputServiceAccount(),
 		Namespace:           e.GetResourceNamespace(),
 		InputResourceName:   e.GetInputResourceName(),
@@ -37,6 +36,15 @@ func buildInputDNSConfig(e ExternalDNSCRDConfiguration) manifests.InputExternalD
 		Filters:             e.GetFilters(),
 		IsNamespaced:        e.GetNamespaced(),
 	}
+
+	switch e.GetTenantId() {
+	case nil:
+		ret.TenantId = config.TenantID
+	default:
+		ret.TenantId = *e.GetTenantId()
+	}
+
+	return ret
 }
 
 func extractResourceTypes(resourceTypes []string) map[manifests.ResourceType]struct{} {
@@ -54,7 +62,7 @@ func extractResourceTypes(resourceTypes []string) map[manifests.ResourceType]str
 }
 
 func generateManifestsConf(config *config.Config, obj ExternalDNSCRDConfiguration) (*manifests.ExternalDnsConfig, error) {
-	inputDNSConf := buildInputDNSConfig(obj)
+	inputDNSConf := buildInputDNSConfig(obj, config)
 	manifestsConf, err := manifests.NewExternalDNSConfig(config, inputDNSConf)
 	if err != nil {
 		return nil, util.NewUserError(err, "failed to generate ExternalDNS resources: "+err.Error())

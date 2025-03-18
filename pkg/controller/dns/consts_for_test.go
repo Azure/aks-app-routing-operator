@@ -46,7 +46,7 @@ var happyPathPublic = &v1alpha1.ExternalDNS{
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-public",
-		TenantID:           "12345678-1234-1234-1234-123456789012",
+		TenantID:           to.StringPtr("12345678-1234-1234-1234-123456789012"),
 		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
 		ResourceTypes:      []string{"ingress", "gateway"},
 		Identity: v1alpha1.ExternalDNSIdentity{
@@ -62,7 +62,7 @@ var clusterHappyPathPublic = &v1alpha1.ClusterExternalDNS{
 	Spec: v1alpha1.ClusterExternalDNSSpec{
 		ResourceName:       "cluster-happy-path-public",
 		ResourceNamespace:  "test-resource-ns",
-		TenantID:           "12345678-1234-1234-1234-123456789012",
+		TenantID:           to.StringPtr("12345678-1234-1234-1234-123456789012"),
 		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
 		ResourceTypes:      []string{"ingress", "gateway"},
 		Identity: v1alpha1.ExternalDNSIdentity{
@@ -73,6 +73,8 @@ var clusterHappyPathPublic = &v1alpha1.ClusterExternalDNS{
 
 var happyPathPublicJSON = `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-123456789012","useWorkloadIdentityExtension":true}`
 var happyPathPublicJSONHash = sha256.Sum256([]byte(happyPathPublicJSON))
+var happyPathPublicNoTenantIDJSON = `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-012987654321","useWorkloadIdentityExtension":true}`
+var happyPathPublicNoTenantIDJSONHash = sha256.Sum256([]byte(happyPathPublicNoTenantIDJSON))
 var happyPathPublicConfigmap = &corev1.ConfigMap{
 	TypeMeta: metav1.TypeMeta{
 		Kind:       "ConfigMap",
@@ -226,7 +228,26 @@ var happyPathPublicFilters = &v1alpha1.ExternalDNS{
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-public-filters",
-		TenantID:           "12345678-1234-1234-1234-123456789012",
+		TenantID:           to.StringPtr("12345678-1234-1234-1234-123456789012"),
+		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
+		ResourceTypes:      []string{"ingress", "gateway"},
+		Identity: v1alpha1.ExternalDNSIdentity{
+			ServiceAccount: "test-service-account",
+		},
+		Filters: &v1alpha1.ExternalDNSFilters{
+			GatewayLabelSelector:         to.StringPtr("app=testapp"),
+			RouteAndIngressLabelSelector: to.StringPtr("app=testapp"),
+		},
+	},
+}
+
+var happyPathPublicNoTenantIDAndFilters = &v1alpha1.ExternalDNS{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "happy-path-public-no-tenant-id",
+		Namespace: "test-ns",
+	},
+	Spec: v1alpha1.ExternalDNSSpec{
+		ResourceName:       "happy-path-public-no-tenant-id",
 		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
 		ResourceTypes:      []string{"ingress", "gateway"},
 		Identity: v1alpha1.ExternalDNSIdentity{
@@ -246,7 +267,7 @@ var happyPathPrivate = &v1alpha1.ExternalDNS{
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-private",
-		TenantID:           "12345678-1234-1234-1234-123456789012",
+		TenantID:           to.StringPtr("12345678-1234-1234-1234-123456789012"),
 		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/privateDnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/privateDnsZones/test2.com"},
 		ResourceTypes:      []string{"ingress", "gateway"},
 		Identity: v1alpha1.ExternalDNSIdentity{
@@ -468,7 +489,7 @@ var clusterHappyPathPublicFilters = &v1alpha1.ClusterExternalDNS{
 	Spec: v1alpha1.ClusterExternalDNSSpec{
 		ResourceName:       "cluster-happy-path-public-filters",
 		ResourceNamespace:  "test-resource-ns",
-		TenantID:           "12345678-1234-1234-1234-123456789012",
+		TenantID:           to.StringPtr("12345678-1234-1234-1234-123456789012"),
 		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
 		ResourceTypes:      []string{"ingress", "gateway"},
 		Identity: v1alpha1.ExternalDNSIdentity{
@@ -481,6 +502,21 @@ var clusterHappyPathPublicFilters = &v1alpha1.ClusterExternalDNS{
 	},
 }
 
+var clusterHappyPathPublicNoTenantID = &v1alpha1.ClusterExternalDNS{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "cluster-happy-path-public-no-tenant-id",
+	},
+	Spec: v1alpha1.ClusterExternalDNSSpec{
+		ResourceName:       "cluster-happy-path-public-no-tenant-id",
+		ResourceNamespace:  "test-resource-ns",
+		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/test2.com"},
+		ResourceTypes:      []string{"ingress", "gateway"},
+		Identity: v1alpha1.ExternalDNSIdentity{
+			ServiceAccount: "test-service-account",
+		},
+	},
+}
+
 var clusterHappyPathPrivate = &v1alpha1.ClusterExternalDNS{
 	ObjectMeta: metav1.ObjectMeta{
 		Name: "cluster-happy-path-private",
@@ -488,7 +524,7 @@ var clusterHappyPathPrivate = &v1alpha1.ClusterExternalDNS{
 	Spec: v1alpha1.ClusterExternalDNSSpec{
 		ResourceName:       "cluster-happy-path-private",
 		ResourceNamespace:  "test-resource-ns",
-		TenantID:           "12345678-1234-1234-1234-123456789012",
+		TenantID:           to.StringPtr("12345678-1234-1234-1234-123456789012"),
 		DNSZoneResourceIDs: []string{"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/privateDnsZones/test.com", "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/privateDnsZones/test2.com"},
 		ResourceTypes:      []string{"ingress", "gateway"},
 		Identity: v1alpha1.ExternalDNSIdentity{
