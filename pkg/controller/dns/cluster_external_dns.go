@@ -37,7 +37,6 @@ func NewClusterExternalDNSController(mgr ctrl.Manager, config *config.Config) er
 
 }
 
-// ClusterExternalDNSController manages the ExternalDNS CRD for the cluster
 type ClusterExternalDNSController struct {
 	config *config.Config
 	client client.Client
