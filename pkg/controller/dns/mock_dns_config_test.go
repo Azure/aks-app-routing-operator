@@ -17,6 +17,8 @@ type mockDnsConfig struct {
 	dnsZoneresourceIDs  []string
 	filters             *v1alpha1.ExternalDNSFilters
 	namespaced          bool
+	name                string
+	namespace           string
 }
 
 func (m mockDnsConfig) GetTenantId() string {
@@ -51,11 +53,11 @@ func (m mockDnsConfig) GetNamespaced() bool {
 	return m.namespaced
 }
 
-func (m mockDnsConfig) GetNamespace() string { return "" }
+func (m mockDnsConfig) GetNamespace() string { return m.namespace }
 
 func (m mockDnsConfig) SetNamespace(namespace string) {}
 
-func (m mockDnsConfig) GetName() string { return "" }
+func (m mockDnsConfig) GetName() string { return m.name }
 
 func (m mockDnsConfig) SetName(name string) {}
 
