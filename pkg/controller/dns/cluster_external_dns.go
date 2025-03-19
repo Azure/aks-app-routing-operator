@@ -86,6 +86,8 @@ func (c *ClusterExternalDNSController) Reconcile(ctx context.Context, req ctrl.R
 			c.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", userErr.UserError())
 			return ctrl.Result{}, nil
 		}
+		logger.Error(err, "failed to generate manifests config")
+		return ctrl.Result{}, err
 	}
 
 	err = deployExternalDNSResources(ctx, c.client, manifestsConf, []metav1.OwnerReference{{
