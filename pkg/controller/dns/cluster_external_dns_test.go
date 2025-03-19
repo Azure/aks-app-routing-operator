@@ -217,10 +217,17 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 			}
 			k8sclient := k8sClientBuilder.Build()
 
-			// check client errors
 			crdObj := tc.crd()
-			err = k8sclient.Create(ctx, crdObj)
-			require.NoError(t, err)
+			var castedObj *v1alpha1.ClusterExternalDNS
+			switch temp := crdObj.(type) {
+			case *v1alpha1.ClusterExternalDNS:
+				castedObj = temp
+				castedObj.ObjectMeta.ResourceVersion = ""
+				err = k8sclient.Create(ctx, castedObj)
+				require.NoError(t, err)
+			default:
+				t.Fatalf("unexpected type %T", castedObj)
+			}
 
 			recorder := record.NewFakeRecorder(1)
 			c := &ClusterExternalDNSController{
@@ -230,10 +237,11 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 					Registry:        testRegistry,
 					ClusterUid:      "test-cluster-uid",
 					DnsSyncInterval: 3 * time.Minute,
+					TenantID:        "12345678-1234-1234-1234-012987654321",
 				},
 			}
 
-			req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: crdObj.GetNamespace(), Name: crdObj.GetName()}}
+			req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: castedObj.GetNamespace(), Name: castedObj.GetName()}}
 			beforeErrCount := testutils.GetErrMetricCount(t, ClusterExternalDNSControllerName)
 			beforeRequestCount := testutils.GetReconcileMetricCount(t, ClusterExternalDNSControllerName, metrics.LabelSuccess)
 
