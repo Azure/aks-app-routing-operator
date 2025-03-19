@@ -26,8 +26,7 @@ func NewClusterExternalDNSController(mgr ctrl.Manager, config *config.Config) er
 	return ClusterExternalDNSControllerName.AddToController(
 		ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.ClusterExternalDNS{}).
-			Owns(&appsv1.Deployment{}).
-			Owns(&corev1.ConfigMap{}), mgr.GetLogger()).Complete(
+			Owns(&appsv1.Deployment{}), mgr.GetLogger()).Complete(
 		&ClusterExternalDNSController{
 			config: config,
 			client: mgr.GetClient(),

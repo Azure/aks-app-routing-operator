@@ -31,8 +31,7 @@ type ExternalDNSCRDController struct {
 func NewExternalDNSCRDController(manager ctrl.Manager, config config.Config) error {
 	return ExternalDNSCRDControllerName.AddToController(ctrl.NewControllerManagedBy(manager).
 		For(&v1alpha1.ExternalDNS{}).
-		Owns(&appsv1.Deployment{}).
-		Owns(&corev1.ConfigMap{}), manager.GetLogger()).
+		Owns(&appsv1.Deployment{}), manager.GetLogger()).
 		Complete(&ExternalDNSCRDController{
 			config: &config,
 			client: manager.GetClient(),
