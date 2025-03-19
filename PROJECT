@@ -10,7 +10,6 @@ repo: github.com/Azure/aks-app-routing-operator
 resources:
 - api:
     crdVersion: v1
-    namespaced: false
   controller: true
   domain: kubernetes.azure.com
   group: approuting
@@ -19,7 +18,6 @@ resources:
   version: v1alpha1
 - api:
     crdVersion: v1
-    namespaced: false
   domain: kubernetes.azure.com
   group: approuting
   kind: ClusterExternalDNS
@@ -31,6 +29,14 @@ resources:
   domain: kubernetes.azure.com
   group: approuting
   kind: ExternalDNS
+  path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: kubernetes.azure.com
+  group: approuting
+  kind: ManagedCertificate
   path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
   version: v1alpha1
 version: "3"
