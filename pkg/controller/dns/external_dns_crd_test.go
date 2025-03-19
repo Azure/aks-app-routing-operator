@@ -263,10 +263,17 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 			}
 			k8sclient := k8sClientBuilder.Build()
 
-			// check client errors
 			crdObj := tc.crd()
-			err = k8sclient.Create(ctx, crdObj)
-			require.NoError(t, err)
+			var castedObj *v1alpha1.ExternalDNS
+			switch temp := crdObj.(type) {
+			case *v1alpha1.ExternalDNS:
+				castedObj = temp
+				castedObj.ObjectMeta.ResourceVersion = ""
+				err = k8sclient.Create(ctx, castedObj)
+				require.NoError(t, err)
+			default:
+				t.Fatalf("unexpected type %T", castedObj)
+			}
 
 			recorder := record.NewFakeRecorder(1)
 			r := &ExternalDNSCRDController{
@@ -280,7 +287,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 				},
 			}
 
-			req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: crdObj.GetNamespace(), Name: crdObj.GetName()}}
+			req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: castedObj.GetNamespace(), Name: castedObj.GetName()}}
 			beforeErrCount := testutils.GetErrMetricCount(t, ExternalDNSCRDControllerName)
 			beforeRequestCount := testutils.GetReconcileMetricCount(t, ExternalDNSCRDControllerName, metrics.LabelSuccess)
 
