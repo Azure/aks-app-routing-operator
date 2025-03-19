@@ -15,6 +15,13 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+var (
+	// should match the names in root config/crd/bases directory
+	externalDnsCrdFilename        = "approuting.kubernetes.azure.com_externaldnses.yaml"
+	clusterExternalDnsCrdFilename = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
+	managedCertificateCrdFilename = "approuting.kubernetes.azure.com_managedcertificates.yaml"
+)
+
 // loadCRDs loads the CRDs from the specified path into the cluster
 func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 	if cfg == nil {
@@ -34,7 +41,12 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 			continue
 		}
 
-		path := filepath.Join(cfg.CrdPath, file.Name())
+		filename := file.Name()
+		if !shouldLoadCRD(cfg, filename) {
+			continue
+		}
+
+		path := filepath.Join(cfg.CrdPath, filename)
 		log := log.WithValues("path", path)
 		log.Info("reading crd file")
 		var content []byte
@@ -57,4 +69,18 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 
 	log.Info("crds loaded")
 	return nil
+}
+
+func shouldLoadCRD(cfg *config.Config, filename string) bool {
+	switch filename {
+	case externalDnsCrdFilename:
+		return cfg.EnableGateway
+	case clusterExternalDnsCrdFilename:
+		return cfg.EnableGateway
+	case managedCertificateCrdFilename: // temporary, implementation of managed certificates is in progress
+		return false
+
+	default:
+		return true
+	}
 }

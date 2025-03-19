@@ -26,7 +26,7 @@ var (
 	}
 
 	// AllUsedOperatorVersions is a list of all the operator versions used today
-	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_3_Patch_2, OperatorVersionLatest}
+	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_3_Patch_5, OperatorVersionLatest}
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
 	AllDnsZoneCounts     = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
@@ -39,8 +39,8 @@ var (
 type OperatorVersion uint
 
 const (
-	OperatorVersion0_2_1_Patch_4 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
-	OperatorVersion0_2_3_Patch_2
+	OperatorVersion0_2_1_Patch_7 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
+	OperatorVersion0_2_3_Patch_5
 
 	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
@@ -48,10 +48,10 @@ const (
 
 func (o OperatorVersion) String() string {
 	switch o {
-	case OperatorVersion0_2_1_Patch_4:
-		return "0.2.1-patch-4"
-	case OperatorVersion0_2_3_Patch_2:
-		return "0.2.3-patch-2"
+	case OperatorVersion0_2_1_Patch_7:
+		return "0.2.1-patch-7"
+	case OperatorVersion0_2_3_Patch_5:
+		return "0.2.3-patch-5"
 	case OperatorVersionLatest:
 		return "latest"
 	default:
@@ -100,10 +100,10 @@ type OperatorConfig struct {
 
 func (o *OperatorConfig) image(latestImage string) string {
 	switch o.Version {
-	case OperatorVersion0_2_1_Patch_4:
-		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.1-patch-4"
-	case OperatorVersion0_2_3_Patch_2:
-		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.3-patch-2"
+	case OperatorVersion0_2_1_Patch_7:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.1-patch-7"
+	case OperatorVersion0_2_3_Patch_5:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.3-patch-5"
 	case OperatorVersionLatest:
 		return latestImage
 	default:
@@ -127,6 +127,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version == OperatorVersionLatest {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
+		ret = append(ret, "--enable-gateway")
 	}
 
 	var zones []string
