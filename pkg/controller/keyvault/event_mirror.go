@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,8 +25,19 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
-var (
-	eventMirrorControllerName = controllername.New("keyvault", "event", "mirror")
+var eventMirrorControllerName = controllername.New("keyvault", "event", "mirror")
+
+const (
+	involvedObjectKindField = "involvedObject.kind"
+	eventReasonFailedMount  = "FailedMount"
+	reasonField             = "reason"
+	eventKindPod            = "Pod"
+)
+
+// EventMirrorSelector is a selector for Events that are relevant to the EventMirror controller
+var EventMirrorSelector = fields.AndSelectors(
+	fields.ParseSelectorOrDie(fmt.Sprintf("%s=%s", involvedObjectKindField, eventKindPod)),
+	fields.ParseSelectorOrDie(fmt.Sprintf("%s=%s", reasonField, eventReasonFailedMount)),
 )
 
 // EventMirror copies events published to pod resources by the Keyvault CSI driver into ingress events.
@@ -58,10 +70,10 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 
 	// do metrics
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(controllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(eventMirrorControllerName, result, err)
 	}()
 
@@ -80,10 +92,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	logger = logger.WithValues("generation", event.Generation)
 
 	// Filter to include only keyvault mounting errors
-	if event.InvolvedObject.Kind != "Pod" ||
-		event.Reason != "FailedMount" ||
-		!strings.HasPrefix(event.InvolvedObject.Name, "keyvault-") ||
-		!strings.Contains(event.Message, "keyvault") {
+	if !isKeyVaultMountingError(event) {
 		logger.Info("ignoring event, not keyvault mounting error")
 		return result, nil
 	}
@@ -158,4 +167,15 @@ func (e *EventMirror) newPredicates() predicate.Predicate {
 			return false
 		},
 	}
+}
+
+func isKeyVaultMountingError(event *corev1.Event) bool {
+	if event == nil {
+		return false
+	}
+
+	return event.InvolvedObject.Kind == eventKindPod &&
+		event.Reason == eventReasonFailedMount &&
+		strings.HasPrefix(event.InvolvedObject.Name, "keyvault-") &&
+		strings.Contains(event.Message, "keyvault")
 }
