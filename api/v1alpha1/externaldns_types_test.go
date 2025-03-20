@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -14,7 +15,7 @@ func validExternalDNS() *ExternalDNS {
 			Namespace: "default",
 		},
 		Spec: ExternalDNSSpec{
-			TenantID: "123e4567-e89b-12d3-a456-426614174000",
+			TenantID: to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 			DNSZoneResourceIDs: []string{
 				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",

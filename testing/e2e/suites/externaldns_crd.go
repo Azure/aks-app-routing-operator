@@ -112,7 +112,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("should match '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"),
+						expectedError: errors.New("spec.tenantId in body should match '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"),
 					},
 					{
 						name: "nil tenant ID",

@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -14,7 +15,7 @@ func validClusterExternalDNS() *ClusterExternalDNS {
 			Namespace: "default",
 		},
 		Spec: ClusterExternalDNSSpec{
-			TenantID:           "tenant-id",
+			TenantID:           to.Ptr("tenant-id"),
 			DNSZoneResourceIDs: []string{"dnszone-id", "dnszone-id2"},
 			ResourceTypes:      []string{"ingress", "gateway"},
 			Identity: ExternalDNSIdentity{
