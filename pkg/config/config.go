@@ -22,8 +22,10 @@ const (
 	defaultDnsSyncInterval = 3 * time.Minute
 )
 
-var Flags = &Config{}
-var dnsZonesString string
+var (
+	Flags          = &Config{}
+	dnsZonesString string
+)
 
 func init() {
 	flag.Var(&Flags.DefaultController, "default-controller", "kind of default controller to use. should be one of 'standard', 'public', 'private', or 'off'.")
@@ -46,6 +48,7 @@ func init() {
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
 	flag.BoolVar(&Flags.EnableGateway, "enable-gateway", false, "whether or not to support and create controllers for Gateway API resources")
+	flag.BoolVar(&Flags.DisableExpensiveCache, "disable-expensive-cache", false, "disable the cache for expensive resources that aren't core to App Routing like Pods and Events")
 }
 
 func (c *Config) Validate() error {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -28,6 +29,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
+)
+
+var (
+	keyVaultMountingErrorEvent = &corev1.Event{
+		InvolvedObject: corev1.ObjectReference{
+			Name: "keyvault-test",
+			Kind: "Pod",
+		},
+		Reason:  "FailedMount",
+		Message: "test keyvault event",
+	}
+	nonKeyVaultMountingErrorEventInvolvedObjectKind = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.InvolvedObject.Kind = "Service"
+		return e
+	}()
+	nonKeyVaultMountingErrorEventInvolvedObjectName = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.InvolvedObject.Name = "test"
+		return e
+	}()
+	nonKeyVaultMountingErrorEventReason = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.Reason = "FailedCreate"
+		return e
+	}()
+	nonKeyVaultMountingErrorEventMessage = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.Message = "another vault message"
+		return e
+	}()
 )
 
 var (
@@ -280,4 +312,99 @@ func TestNewPredicates(t *testing.T) {
 	require.False(t, predicates.Update(event.UpdateEvent{}))
 	require.False(t, predicates.Delete(event.DeleteEvent{}))
 	require.False(t, predicates.Generic(event.GenericEvent{}))
+}
+
+func TestIsKeyVaultMountingError(t *testing.T) {
+	cases := []struct {
+		name     string
+		event    *corev1.Event
+		expected bool
+	}{
+		{
+			name:     "keyvault mounting error",
+			event:    keyVaultMountingErrorEvent,
+			expected: true,
+		},
+		{
+			name:     "non-keyvault mounting error involved object kind",
+			event:    nonKeyVaultMountingErrorEventInvolvedObjectKind,
+			expected: false,
+		},
+		{
+			name:     "non-keyvault mounting error involved object name",
+			event:    nonKeyVaultMountingErrorEventInvolvedObjectName,
+			expected: false,
+		},
+		{
+			name:     "non-keyvault mounting error reason",
+			event:    nonKeyVaultMountingErrorEventReason,
+			expected: false,
+		},
+		{
+			name:     "non-keyvault mounting error message",
+			event:    nonKeyVaultMountingErrorEventMessage,
+			expected: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isKeyVaultMountingError(tc.event))
+		})
+	}
+}
+
+func TestEventMirrorSelector(t *testing.T) {
+	cases := []struct {
+		name    string
+		event   *corev1.Event
+		matches bool
+	}{
+		{
+			name:    "keyvault mounting error",
+			event:   keyVaultMountingErrorEvent,
+			matches: true,
+		},
+		{
+			name:    "non-keyvault mounting error involved object kind",
+			event:   nonKeyVaultMountingErrorEventInvolvedObjectKind,
+			matches: false,
+		},
+		{
+			name:    "non-keyvault mounting error involved object name",
+			event:   nonKeyVaultMountingErrorEventInvolvedObjectName,
+			matches: true, // selector can't check prefix so this will match
+		},
+		{
+			name:    "non-keyvault mounting error reason",
+			event:   nonKeyVaultMountingErrorEventReason,
+			matches: false,
+		},
+		{
+			name:    "non-keyvault mounting error message",
+			event:   nonKeyVaultMountingErrorEventMessage,
+			matches: true, // selector can't check contain so this will match selector
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cl := fake.NewClientBuilder().
+				WithObjects(tc.event).
+				WithIndex(&corev1.Event{}, involvedObjectKindField, func(o client.Object) []string {
+					return []string{o.(*corev1.Event).InvolvedObject.Kind}
+				}).
+				WithIndex(&corev1.Event{}, reasonField, func(o client.Object) []string {
+					return []string{o.(*corev1.Event).Reason}
+				}).
+				Build()
+			events := &corev1.EventList{}
+			require.NoError(t, cl.List(context.Background(), events, client.MatchingFieldsSelector{Selector: EventMirrorSelector}), "listing with fields selector")
+			if tc.matches {
+				require.Len(t, events.Items, 1, "expected to find event")
+			} else {
+				require.Len(t, events.Items, 0, "expected not to find")
+			}
+		})
+	}
 }
