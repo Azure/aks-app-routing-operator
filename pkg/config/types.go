@@ -77,4 +77,5 @@ type Config struct {
 	DnsSyncInterval                     time.Duration
 	CrdPath                             string
 	EnableGateway                       bool
+	DisableExpensiveCache               bool
 }

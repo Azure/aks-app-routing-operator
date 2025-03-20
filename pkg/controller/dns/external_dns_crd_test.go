@@ -29,22 +29,11 @@ import (
 // tcs - go through various CRD inputs, each error method, evaluate err vs expected resources
 
 func TestExternalDNSCRDController_Reconcile(t *testing.T) {
-	tcs := []struct {
-		name                string
-		existingResources   []client.Object
-		crd                 func() *v1alpha1.ExternalDNS
-		expectedUserError   string
-		expectedError       error
-		expectedDeployment  func() *appsv1.Deployment
-		expectedConfigmap   func() *corev1.ConfigMap
-		expectedRole        func() *rbacv1.Role
-		expectedRoleBinding func() *rbacv1.RoleBinding
-		transformClient     func(defaultBuilder *fake.ClientBuilder) *fake.ClientBuilder
-	}{
+	tcs := []dnsTestCase{
 		{
 			name:                "happypath public zones",
 			existingResources:   []client.Object{testServiceAccount},
-			crd:                 func() *v1alpha1.ExternalDNS { return happyPathPublic },
+			crd:                 func() ExternalDNSCRDConfiguration { return happyPathPublic },
 			expectedDeployment:  func() *appsv1.Deployment { return happyPathPublicDeployment },
 			expectedConfigmap:   func() *corev1.ConfigMap { return happyPathPublicConfigmap },
 			expectedRole:        func() *rbacv1.Role { return happyPathPublicRole },
@@ -53,7 +42,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 		{
 			name:               "happypath private zones",
 			existingResources:  []client.Object{testServiceAccount},
-			crd:                func() *v1alpha1.ExternalDNS { return happyPathPrivate },
+			crd:                func() ExternalDNSCRDConfiguration { return happyPathPrivate },
 			expectedDeployment: func() *appsv1.Deployment { return happyPathPrivateDeployment },
 			expectedConfigmap: func() *corev1.ConfigMap {
 				ret := happyPathPublicConfigmap.DeepCopy()
@@ -81,7 +70,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 		{
 			name:              "happypath public with filters",
 			existingResources: []client.Object{testServiceAccount},
-			crd:               func() *v1alpha1.ExternalDNS { return happyPathPublicFilters },
+			crd:               func() ExternalDNSCRDConfiguration { return happyPathPublicFilters },
 			expectedDeployment: func() *appsv1.Deployment {
 				ret := happyPathPublicDeployment.DeepCopy()
 				ret.ObjectMeta.Name = "happy-path-public-filters-external-dns"
@@ -122,7 +111,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 		},
 		{
 			name: "nonexistent serviceaccount",
-			crd: func() *v1alpha1.ExternalDNS {
+			crd: func() ExternalDNSCRDConfiguration {
 				ret := happyPathPublic.DeepCopy()
 				ret.ResourceVersion = ""
 				ret.Spec.Identity.ServiceAccount = "fake-service-account"
@@ -133,7 +122,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 		},
 		{
 			name: "serviceaccount without identity specified",
-			crd: func() *v1alpha1.ExternalDNS {
+			crd: func() ExternalDNSCRDConfiguration {
 				ret := happyPathPublic.DeepCopy()
 				ret.ResourceVersion = ""
 				return ret
@@ -142,8 +131,19 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 			expectedUserError: "serviceAccount test-service-account was specified but does not include necessary annotation for workload identity",
 		},
 		{
+			name: "invalid dns zone resource id",
+			crd: func() ExternalDNSCRDConfiguration {
+				ret := happyPathPublic.DeepCopy()
+				ret.ResourceVersion = ""
+				ret.Spec.DNSZoneResourceIDs = []string{"invalid-dns-zone-id"}
+				return ret
+			},
+			existingResources: []client.Object{testServiceAccount},
+			expectedUserError: "failed to generate ExternalDNS resources: invalid dns zone resource id: invalid-dns-zone-id",
+		},
+		{
 			name: "multierror failure to create deployment and configmap",
-			crd: func() *v1alpha1.ExternalDNS {
+			crd: func() ExternalDNSCRDConfiguration {
 				ret := happyPathPublic.DeepCopy()
 				ret.ResourceVersion = ""
 				return ret
@@ -166,7 +166,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 		},
 		{
 			name: "failure to get externaldns crd",
-			crd: func() *v1alpha1.ExternalDNS {
+			crd: func() ExternalDNSCRDConfiguration {
 				ret := happyPathPublic.DeepCopy()
 				ret.ResourceVersion = ""
 				return ret
@@ -187,7 +187,7 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 		},
 		{
 			name: "externaldns crd not found",
-			crd: func() *v1alpha1.ExternalDNS {
+			crd: func() ExternalDNSCRDConfiguration {
 				ret := happyPathPublic.DeepCopy()
 				ret.ResourceVersion = ""
 				return ret
@@ -207,108 +207,143 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 			expectedError:     nil,
 		},
 	}
-
 	for _, tc := range tcs {
-		t.Logf("starting test %s", tc.name)
-		ctx := logr.NewContext(context.Background(), logr.Discard())
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("starting test %s", tc.name)
+			ctx := logr.NewContext(context.Background(), logr.Discard())
 
-		k8sClientBuilder := generateDefaultClientBuilder(t, tc.existingResources)
-		if tc.transformClient != nil {
-			k8sClientBuilder = tc.transformClient(k8sClientBuilder)
-		}
-		k8sclient := k8sClientBuilder.Build()
+			k8sClientBuilder := generateDefaultClientBuilder(t, tc.existingResources)
+			if tc.transformClient != nil {
+				k8sClientBuilder = tc.transformClient(k8sClientBuilder)
+			}
+			k8sclient := k8sClientBuilder.Build()
 
-		// check client errors
-		crdObj := tc.crd()
-		err = k8sclient.Create(ctx, crdObj)
+			crdObj := tc.crd()
+			var castedObj *v1alpha1.ExternalDNS
+			switch temp := crdObj.(type) {
+			case *v1alpha1.ExternalDNS:
+				castedObj = temp
+				castedObj.ObjectMeta.ResourceVersion = ""
+				err = k8sclient.Create(ctx, castedObj)
+				require.NoError(t, err)
+			default:
+				t.Fatalf("unexpected type %T", castedObj)
+			}
+
+			recorder := record.NewFakeRecorder(1)
+			r := &ExternalDNSCRDController{
+				client: k8sclient,
+				events: recorder,
+				config: &config.Config{
+					Registry:        testRegistry,
+					ClusterUid:      "test-cluster-uid",
+					DnsSyncInterval: 3 * time.Minute,
+					TenantID:        "12345678-1234-1234-1234-012987654321",
+				},
+			}
+
+			req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: castedObj.GetNamespace(), Name: castedObj.GetName()}}
+			beforeErrCount := testutils.GetErrMetricCount(t, ExternalDNSCRDControllerName)
+			beforeRequestCount := testutils.GetReconcileMetricCount(t, ExternalDNSCRDControllerName, metrics.LabelSuccess)
+
+			_, err = r.Reconcile(ctx, req)
+
+			afterErrCount := testutils.GetErrMetricCount(t, ExternalDNSCRDControllerName)
+			afterRequestCount := testutils.GetReconcileMetricCount(t, ExternalDNSCRDControllerName, metrics.LabelSuccess)
+
+			if tc.expectedError != nil {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError.Error())
+				require.Greater(t, afterErrCount, beforeErrCount)
+				require.Equal(t, afterRequestCount, beforeRequestCount)
+				return
+			}
+
+			require.Nil(t, err)
+			require.NoError(t, err)
+			require.Equal(t, afterErrCount, beforeErrCount)
+			require.Greater(t, afterRequestCount, beforeRequestCount)
+
+			checkUserErrors(tc, recorder, t)
+			checkTestResources(tc, k8sclient, t)
+		})
+	}
+}
+
+func checkUserErrors(tc dnsTestCase, recorder *record.FakeRecorder, t *testing.T) {
+	// check user errors
+	if tc.expectedUserError != "" {
+		require.Greater(t, len(recorder.Events), 0)
+		require.Contains(t, <-recorder.Events, tc.expectedUserError)
+		return
+	}
+
+	if len(recorder.Events) > 0 {
+		t.Errorf("expected no events, got %s", <-recorder.Events)
+	}
+
+}
+
+func checkTestResources(tc dnsTestCase, k8sclient client.Client, t *testing.T) {
+	// check deployment
+	if tc.expectedDeployment != nil {
+		actualDeployment := &appsv1.Deployment{}
+		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedDeployment().Name, Namespace: tc.expectedDeployment().Namespace}, actualDeployment)
 		require.NoError(t, err)
+		require.Equal(t, tc.expectedDeployment().ObjectMeta, actualDeployment.ObjectMeta)
+		require.Equal(t, tc.expectedDeployment().Spec.Selector, actualDeployment.Spec.Selector)
+		require.Equal(t, tc.expectedDeployment().Spec.Template.ObjectMeta, actualDeployment.Spec.Template.ObjectMeta)
+		require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.ServiceAccountName, actualDeployment.Spec.Template.Spec.ServiceAccountName)
+		require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Containers[0].Image, actualDeployment.Spec.Template.Spec.Containers[0].Image)
+		require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Containers[0].Args, actualDeployment.Spec.Template.Spec.Containers[0].Args)
+		require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Containers[0].VolumeMounts, actualDeployment.Spec.Template.Spec.Containers[0].VolumeMounts)
+		require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Volumes, actualDeployment.Spec.Template.Spec.Volumes)
+	}
 
-		recorder := record.NewFakeRecorder(1)
-		r := &ExternalDNSCRDController{
-			client: k8sclient,
-			events: recorder,
-			config: &config.Config{
-				Registry:        testRegistry,
-				ClusterUid:      "test-cluster-uid",
-				DnsSyncInterval: 3 * time.Minute,
-			},
-		}
-
-		req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: crdObj.Namespace, Name: crdObj.Name}}
-		beforeErrCount := testutils.GetErrMetricCount(t, ExternalDNSCRDControllerName)
-		beforeRequestCount := testutils.GetReconcileMetricCount(t, ExternalDNSCRDControllerName, metrics.LabelSuccess)
-
-		_, err = r.Reconcile(ctx, req)
-
-		afterErrCount := testutils.GetErrMetricCount(t, ExternalDNSCRDControllerName)
-		afterRequestCount := testutils.GetReconcileMetricCount(t, ExternalDNSCRDControllerName, metrics.LabelSuccess)
-
-		if tc.expectedError != nil {
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tc.expectedError.Error())
-			require.Greater(t, afterErrCount, beforeErrCount)
-			require.Equal(t, afterRequestCount, beforeRequestCount)
-			continue
-		}
-
-		require.Nil(t, err)
+	// check configmap
+	if tc.expectedConfigmap != nil {
+		actualConfigmap := &corev1.ConfigMap{}
+		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedConfigmap().Name, Namespace: tc.expectedConfigmap().Namespace}, actualConfigmap)
 		require.NoError(t, err)
-		require.Equal(t, afterErrCount, beforeErrCount)
-		require.Greater(t, afterRequestCount, beforeRequestCount)
+		require.Equal(t, tc.expectedConfigmap().ObjectMeta, actualConfigmap.ObjectMeta)
+		require.Equal(t, tc.expectedConfigmap().Data, actualConfigmap.Data)
+	}
 
-		// check user errors
-		if tc.expectedUserError != "" {
-			require.Greater(t, len(recorder.Events), 0)
-			require.Contains(t, <-recorder.Events, tc.expectedUserError)
-			continue
-		}
+	// check role
+	if tc.expectedRole != nil {
+		actualRole := &rbacv1.Role{}
+		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedRole().Name, Namespace: tc.expectedRole().Namespace}, actualRole)
+		require.NoError(t, err)
+		require.Equal(t, tc.expectedRole().ObjectMeta, actualRole.ObjectMeta)
+		require.Equal(t, tc.expectedRole().Rules, actualRole.Rules)
+	}
 
-		if len(recorder.Events) > 0 {
-			t.Errorf("expected no events, got %s", <-recorder.Events)
-		}
+	// check rolebinding
+	if tc.expectedRoleBinding != nil {
+		actualRoleBinding := &rbacv1.RoleBinding{}
+		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedRoleBinding().Name, Namespace: tc.expectedRoleBinding().Namespace}, actualRoleBinding)
+		require.NoError(t, err)
+		require.Equal(t, tc.expectedRoleBinding().ObjectMeta, actualRoleBinding.ObjectMeta)
+		require.Equal(t, tc.expectedRoleBinding().RoleRef, actualRoleBinding.RoleRef)
+		require.Equal(t, tc.expectedRoleBinding().Subjects, actualRoleBinding.Subjects)
+	}
 
-		// check externaldns resources
-		// check deployment
-		if tc.expectedDeployment != nil {
-			actualDeployment := &appsv1.Deployment{}
-			err = k8sclient.Get(ctx, types.NamespacedName{Name: tc.expectedDeployment().Name, Namespace: tc.expectedDeployment().Namespace}, actualDeployment)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedDeployment().ObjectMeta, actualDeployment.ObjectMeta)
-			require.Equal(t, tc.expectedDeployment().Spec.Selector, actualDeployment.Spec.Selector)
-			require.Equal(t, tc.expectedDeployment().Spec.Template.ObjectMeta, actualDeployment.Spec.Template.ObjectMeta)
-			require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.ServiceAccountName, actualDeployment.Spec.Template.Spec.ServiceAccountName)
-			require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Containers[0].Image, actualDeployment.Spec.Template.Spec.Containers[0].Image)
-			require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Containers[0].Args, actualDeployment.Spec.Template.Spec.Containers[0].Args)
-			require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Containers[0].VolumeMounts, actualDeployment.Spec.Template.Spec.Containers[0].VolumeMounts)
-			require.Equal(t, tc.expectedDeployment().Spec.Template.Spec.Volumes, actualDeployment.Spec.Template.Spec.Volumes)
-		}
+	// check clusterrole
+	if tc.expectedClusterRole != nil {
+		actualClusterRole := &rbacv1.ClusterRole{}
+		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedClusterRole().Name}, actualClusterRole)
+		require.NoError(t, err)
+		require.Equal(t, tc.expectedClusterRole().ObjectMeta, actualClusterRole.ObjectMeta)
+		require.Equal(t, tc.expectedClusterRole().Rules, actualClusterRole.Rules)
+	}
 
-		// check configmap
-		if tc.expectedConfigmap != nil {
-			actualConfigmap := &corev1.ConfigMap{}
-			err = k8sclient.Get(ctx, types.NamespacedName{Name: tc.expectedConfigmap().Name, Namespace: tc.expectedConfigmap().Namespace}, actualConfigmap)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedConfigmap().ObjectMeta, actualConfigmap.ObjectMeta)
-			require.Equal(t, tc.expectedConfigmap().Data, actualConfigmap.Data)
-		}
-
-		// check role
-		if tc.expectedRole != nil {
-			actualRole := &rbacv1.Role{}
-			err = k8sclient.Get(ctx, types.NamespacedName{Name: tc.expectedRole().Name, Namespace: tc.expectedRole().Namespace}, actualRole)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedRole().ObjectMeta, actualRole.ObjectMeta)
-			require.Equal(t, tc.expectedRole().Rules, actualRole.Rules)
-		}
-
-		// check rolebinding
-		if tc.expectedRoleBinding != nil {
-			actualRoleBinding := &rbacv1.RoleBinding{}
-			err = k8sclient.Get(ctx, types.NamespacedName{Name: tc.expectedRoleBinding().Name, Namespace: tc.expectedRoleBinding().Namespace}, actualRoleBinding)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedRoleBinding().ObjectMeta, actualRoleBinding.ObjectMeta)
-			require.Equal(t, tc.expectedRoleBinding().RoleRef, actualRoleBinding.RoleRef)
-			require.Equal(t, tc.expectedRoleBinding().Subjects, actualRoleBinding.Subjects)
-		}
+	// check clusterrolebinding
+	if tc.expectedClusterRoleBinding != nil {
+		actualClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedClusterRoleBinding().Name}, actualClusterRoleBinding)
+		require.NoError(t, err)
+		require.Equal(t, tc.expectedClusterRoleBinding().ObjectMeta, actualClusterRoleBinding.ObjectMeta)
+		require.Equal(t, tc.expectedClusterRoleBinding().RoleRef, actualClusterRoleBinding.RoleRef)
+		require.Equal(t, tc.expectedClusterRoleBinding().Subjects, actualClusterRoleBinding.Subjects)
 	}
 }
