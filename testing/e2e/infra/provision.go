@@ -265,3 +265,14 @@ func (is infras) Provision(tenantId, subscriptionId, applicationObjectId string)
 
 	return provisioned, nil
 }
+
+func (p Provisioned) Cleanup(ctx context.Context) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("cleaning up provisioned infrastructure")
+
+	if err := p.ResourceGroup.Cleanup(ctx); err != nil {
+		return fmt.Errorf("cleaning up resource group: %w", err)
+	}
+
+	return nil
+}

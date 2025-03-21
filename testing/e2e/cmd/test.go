@@ -49,10 +49,17 @@ var testCmd = &cobra.Command{
 		if len(provisioned) != 1 {
 			return fmt.Errorf("expected 1 provisioned infrastructure, got %d", len(provisioned))
 		}
+		provisionedInfra := provisioned[0]
 
-		tests := suites.All(provisioned[0])
-		if err := tests.Run(context.Background(), provisioned[0]); err != nil {
+		tests := suites.All(provisionedInfra)
+		if err := tests.Run(context.Background(), provisionedInfra); err != nil {
 			return logger.Error(lgr, fmt.Errorf("test failed: %w", err))
+		}
+
+		if err := provisionedInfra.Cleanup(ctx); err != nil {
+			lgr.Error(fmt.Sprintf("cleaning up provisioned infrastructure: %s", err.Error()))
+			// we purposefully don't return an error here, not worth marking the test as failed if cleanup fails.
+			// garbage collection in the subscription will take care of the resources
 		}
 
 		return nil
