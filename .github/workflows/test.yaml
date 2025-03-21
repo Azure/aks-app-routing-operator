@@ -56,3 +56,13 @@ jobs:
     with:
       checkout_ref: ${{ needs.get_ref.outputs.checkout_ref }}
       status_ref: ${{ needs.get_ref.outputs.status_ref }}
+  gen:
+    needs: [get_ref]
+    uses: ./.github/workflows/gen.yaml
+    permissions: 
+      contents: read
+      statuses: write
+    secrets: inherit
+    with:
+      checkout_ref: ${{ needs.get_ref.outputs.checkout_ref }}
+      status_ref: ${{ needs.get_ref.outputs.status_ref }}
