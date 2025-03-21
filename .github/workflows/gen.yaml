@@ -26,18 +26,14 @@ jobs:
         name: ${{ env.status-name }}
         ref: ${{ inputs.status_ref }}
         
-    - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
-      with:
-        go-version: '~1.23'
-        cache-dependency-path: "**/*.sum"
-
     - name: Generate CustomResourceDefinition files 
       run: make crd
     
     - name: Ensure no CustomResourceDefinition changes
       run: |
-        if [[ ! -n $(git status --porcelain) ]]; then
+        if [[ -n $(git status --porcelain) ]]; then
          echo "CustomResourceDefinition files need to be regenerated. Run `make crd` locally and commit the changes."; 
+         exit 1;
         fi
     
     - name: Generate proto files
@@ -45,6 +41,7 @@ jobs:
 
     - name: Ensure no proto changes
       run: |
-        if [[ ! -n $(git status --porcelain) ]]; then
+        if [[ -n $(git status --porcelain) ]]; then
          echo "Proto files need to be regenerated. Run `make proto` locally and commit the changes."; 
+         exit 1;
         fi
