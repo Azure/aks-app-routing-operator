@@ -28,7 +28,8 @@ type Example struct {
 	sizeCache	protoimpl.SizeCache
 	unknownFields	protoimpl.UnknownFields
 
-	Name	string	`protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// @gotags: redact:"nonsecret"
+	Name	string	`protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" redact:"nonsecret"`
 	Id	int32	`protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
 }
 
@@ -42,32 +43,32 @@ func (x *Example) Reset() {
 }
 func (x *Example) String() string {
 	i := interface{}(x)
-	v := reflect.ValueOf(i)
-	if v.
-		Kind() == reflect.Pointer &&
-		v.IsNil() {
+	v :=
+		reflect.ValueOf(i)
+	if v.Kind() == reflect.Pointer && v.IsNil() {
 		return "{}"
+
 	}
 	switch x := i.(type) {
-	case protoreflect.Enum:
+	case protoreflect.
+		Enum:
 		return protoimpl.
 			X.EnumStringOf(x.Descriptor(), x.Number())
-	case protoreflect.
-		ProtoMessage:
-		clone :=
-
-			proto.Clone(x)
-		if err := redact.Redact(clone); err != nil {
-			return ""
-
-		}
-		bytes, err := json.Marshal(clone,
-		)
-		if err != nil {
+	case
+		protoreflect.ProtoMessage:
+		clone := proto.Clone(x)
+		if err := redact.Redact(clone,
+		); err !=
+			nil {
 			return ""
 		}
-		return string(bytes,
-		)
+		bytes,
+			err := json.Marshal(clone)
+		if err !=
+			nil {
+			return ""
+		}
+		return string(bytes)
 	default:
 		return ""
 	}
