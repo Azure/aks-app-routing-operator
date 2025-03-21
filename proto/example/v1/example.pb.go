@@ -7,6 +7,9 @@
 package v1
 
 import (
+	"encoding/json"
+	"github.com/Azure/redact"
+	"google.golang.org/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -15,18 +18,18 @@ import (
 
 const (
 	// Verify that this generated code is sufficiently up-to-date.
-	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
+	_	= protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
-	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+	_	= protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
 type Example struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
+	state		protoimpl.MessageState
+	sizeCache	protoimpl.SizeCache
+	unknownFields	protoimpl.UnknownFields
 
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Id   int32  `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	Name	string	`protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Id	int32	`protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
 }
 
 func (x *Example) Reset() {
@@ -37,12 +40,39 @@ func (x *Example) Reset() {
 		ms.StoreMessageInfo(mi)
 	}
 }
-
 func (x *Example) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
+	i := interface{}(x)
+	v := reflect.ValueOf(i)
+	if v.
+		Kind() == reflect.Pointer &&
+		v.IsNil() {
+		return "{}"
+	}
+	switch x := i.(type) {
+	case protoreflect.Enum:
+		return protoimpl.
+			X.EnumStringOf(x.Descriptor(), x.Number())
+	case protoreflect.
+		ProtoMessage:
+		clone :=
 
-func (*Example) ProtoMessage() {}
+			proto.Clone(x)
+		if err := redact.Redact(clone); err != nil {
+			return ""
+
+		}
+		bytes, err := json.Marshal(clone,
+		)
+		if err != nil {
+			return ""
+		}
+		return string(bytes,
+		)
+	default:
+		return ""
+	}
+}
+func (*Example) ProtoMessage()	{}
 
 func (x *Example) ProtoReflect() protoreflect.Message {
 	mi := &file_example_v1_example_proto_msgTypes[0]
@@ -91,8 +121,8 @@ var file_example_v1_example_proto_rawDesc = []byte{
 }
 
 var (
-	file_example_v1_example_proto_rawDescOnce sync.Once
-	file_example_v1_example_proto_rawDescData = file_example_v1_example_proto_rawDesc
+	file_example_v1_example_proto_rawDescOnce	sync.Once
+	file_example_v1_example_proto_rawDescData	= file_example_v1_example_proto_rawDesc
 )
 
 func file_example_v1_example_proto_rawDescGZIP() []byte {
@@ -104,17 +134,17 @@ func file_example_v1_example_proto_rawDescGZIP() []byte {
 
 var file_example_v1_example_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_example_v1_example_proto_goTypes = []interface{}{
-	(*Example)(nil), // 0: example.v1.Example
+	(*Example)(nil),	// 0: example.v1.Example
 }
 var file_example_v1_example_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,	// [0:0] is the sub-list for method output_type
+	0,	// [0:0] is the sub-list for method input_type
+	0,	// [0:0] is the sub-list for extension type_name
+	0,	// [0:0] is the sub-list for extension extendee
+	0,	// [0:0] is the sub-list for field type_name
 }
 
-func init() { file_example_v1_example_proto_init() }
+func init()	{ file_example_v1_example_proto_init() }
 func file_example_v1_example_proto_init() {
 	if File_example_v1_example_proto != nil {
 		return
@@ -136,16 +166,16 @@ func file_example_v1_example_proto_init() {
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
-			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_example_v1_example_proto_rawDesc,
-			NumEnums:      0,
-			NumMessages:   1,
-			NumExtensions: 0,
-			NumServices:   0,
+			GoPackagePath:	reflect.TypeOf(x{}).PkgPath(),
+			RawDescriptor:	file_example_v1_example_proto_rawDesc,
+			NumEnums:	0,
+			NumMessages:	1,
+			NumExtensions:	0,
+			NumServices:	0,
 		},
-		GoTypes:           file_example_v1_example_proto_goTypes,
-		DependencyIndexes: file_example_v1_example_proto_depIdxs,
-		MessageInfos:      file_example_v1_example_proto_msgTypes,
+		GoTypes:		file_example_v1_example_proto_goTypes,
+		DependencyIndexes:	file_example_v1_example_proto_depIdxs,
+		MessageInfos:		file_example_v1_example_proto_msgTypes,
 	}.Build()
 	File_example_v1_example_proto = out.File
 	file_example_v1_example_proto_rawDesc = nil
