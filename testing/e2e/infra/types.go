@@ -73,6 +73,7 @@ type PrivateZone interface {
 
 type resourceGroup interface {
 	GetName() string
+	Cleanup(ctx context.Context) error
 	Identifier
 }
 
