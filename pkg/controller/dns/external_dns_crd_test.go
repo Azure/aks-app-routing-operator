@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
@@ -64,6 +65,50 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-private-external-dns"
 				ret.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPrivate)
 				ret.RoleRef.Name = "happy-path-private-external-dns"
+				return ret
+			},
+		},
+		{
+			name:              "happypath public with no tenant ID and filters",
+			existingResources: []client.Object{testServiceAccount},
+			crd:               func() ExternalDNSCRDConfiguration { return happyPathPublicNoTenantIDAndFilters },
+			expectedDeployment: func() *appsv1.Deployment {
+				ret := happyPathPublicDeployment.DeepCopy()
+				ret.ObjectMeta.Name = "happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicNoTenantIDAndFilters)
+				ret.Spec.Template.ObjectMeta.Labels["checksum/configmap"] = hex.EncodeToString(happyPathPublicNoTenantIDJSONHash[:])[:16]
+				ret.Spec.Selector.MatchLabels["app"] = "happy-path-public-no-tenant-id-external-dns"
+				ret.Spec.Template.ObjectMeta.Labels["app"] = "happy-path-public-no-tenant-id-external-dns"
+				ret.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.LocalObjectReference.Name = "happy-path-public-no-tenant-id-external-dns"
+				newArgs := []string{
+					"--gateway-label-filter=app==testapp",
+					"--label-filter=app==testapp",
+				}
+				ret.Spec.Template.Spec.Containers[0].Args = slices.Insert(ret.Spec.Template.Spec.Containers[0].Args, 4, newArgs...)
+				return ret
+			},
+			expectedConfigmap: func() *corev1.ConfigMap {
+				ret := happyPathPublicConfigmap.DeepCopy()
+				ret.Data["azure.json"] = happyPathPublicNoTenantIDJSON
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicNoTenantIDAndFilters)
+				ret.ObjectMeta.Name = "happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-no-tenant-id-external-dns"
+				return ret
+			},
+			expectedRole: func() *rbacv1.Role {
+				ret := happyPathPublicRole.DeepCopy()
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicNoTenantIDAndFilters)
+				ret.ObjectMeta.Name = "happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-no-tenant-id-external-dns"
+				return ret
+			},
+			expectedRoleBinding: func() *rbacv1.RoleBinding {
+				ret := happyPathPublicRoleBinding.DeepCopy()
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicNoTenantIDAndFilters)
+				ret.ObjectMeta.Name = "happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-no-tenant-id-external-dns"
+				ret.RoleRef.Name = "happy-path-public-no-tenant-id-external-dns"
 				return ret
 			},
 		},

@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"slices"
 	"testing"
@@ -62,6 +63,45 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
 				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
 				ret.RoleRef.Name = "cluster-happy-path-private-external-dns"
+				return ret
+			},
+		},
+		{
+			name:              "happypath public zones no tenant ID",
+			existingResources: []client.Object{testServiceAccountInResourceNs},
+			crd:               func() ExternalDNSCRDConfiguration { return clusterHappyPathPublicNoTenantID },
+			expectedDeployment: func() *appsv1.Deployment {
+				ret := clusterHappyPathPublicDeployment.DeepCopy()
+				ret.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				ret.Spec.Selector.MatchLabels["app"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.Spec.Template.ObjectMeta.Labels["app"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.Spec.Template.ObjectMeta.Labels["checksum/configmap"] = hex.EncodeToString(happyPathPublicNoTenantIDJSONHash[:])[:16]
+				ret.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.LocalObjectReference.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				return ret
+			},
+			expectedConfigmap: func() *corev1.ConfigMap {
+				ret := clusterHappyPathPublicConfigmap.DeepCopy()
+				ret.Data["azure.json"] = happyPathPublicNoTenantIDJSON
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				ret.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				return ret
+			},
+			expectedClusterRole: func() *rbacv1.ClusterRole {
+				ret := happyPathClusterRole.DeepCopy()
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				ret.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				return ret
+			},
+			expectedClusterRoleBinding: func() *rbacv1.ClusterRoleBinding {
+				ret := happyPathClusterRoleBinding.DeepCopy()
+				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				ret.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				ret.RoleRef.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
 				return ret
 			},
 		},

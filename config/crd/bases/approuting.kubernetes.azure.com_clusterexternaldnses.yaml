@@ -123,7 +123,7 @@ spec:
                 x-kubernetes-validations:
                 - message: all items must be either 'gateway' or 'ingress'
                   rule: self.all(item, item.matches('(?i)(gateway|ingress)'))
-              tenantID:
+              tenantId:
                 description: TenantID is the ID of the Azure tenant where the DNS
                   zones are located.
                 format: uuid
@@ -135,7 +135,6 @@ spec:
             - resourceName
             - resourceNamespace
             - resourceTypes
-            - tenantID
             type: object
           status:
             description: ClusterExternalDNSStatus contains information about the state

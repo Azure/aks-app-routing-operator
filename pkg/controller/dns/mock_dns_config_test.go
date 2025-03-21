@@ -9,7 +9,7 @@ import (
 )
 
 type mockDnsConfig struct {
-	tenantId            string
+	tenantId            *string
 	inputServiceAccount string
 	resourceNamespace   string
 	inputResourceName   string
@@ -21,7 +21,7 @@ type mockDnsConfig struct {
 	namespace           string
 }
 
-func (m mockDnsConfig) GetTenantId() string {
+func (m mockDnsConfig) GetTenantId() *string {
 	return m.tenantId
 }
 
