@@ -5,6 +5,7 @@ package example.v1;
 option go_package = "github.com/Azure/aks-app-routing-operator/proto/example/v1";
 
 message Example {
+    // @gotags: redact:"nonsecret"
     string name = 1;
     int32 id = 2;
 }
