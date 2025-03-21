@@ -32,7 +32,7 @@ jobs:
     - name: Ensure no CustomResourceDefinition changes
       run: |
         if [[ -n $(git status --porcelain) ]]; then
-         echo "CustomResourceDefinition files need to be regenerated. Run `make crd` locally and commit the changes."; 
+         echo "CustomResourceDefinition files need to be regenerated. Run \`make crd\` locally and commit the changes."; 
          exit 1;
         fi
     
@@ -42,6 +42,6 @@ jobs:
     - name: Ensure no proto changes
       run: |
         if [[ -n $(git status --porcelain) ]]; then
-         echo "Proto files need to be regenerated. Run `make proto` locally and commit the changes."; 
+         echo "Proto files need to be regenerated. Run \`make proto\` locally and commit the changes."; 
          exit 1;
         fi
