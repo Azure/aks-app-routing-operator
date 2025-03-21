@@ -49,10 +49,10 @@ type ClusterExternalDNSSpec struct {
 	ResourceName string `json:"resourceName"`
 
 	// TenantID is the ID of the Azure tenant where the DNS zones are located.
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Format:=uuid
 	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
-	TenantID string `json:"tenantID"`
+	TenantID *string `json:"tenantId,omitempty"`
 
 	// DNSZoneResourceIDs is a list of Azure Resource IDs of the DNS zones that the ExternalDNS controller should manage. These must be in the same resource group and be of the same type (public or private). The number of zones is currently capped at 7 but may be expanded in the future.
 	// +kubebuilder:validation:Required
@@ -103,7 +103,7 @@ type ClusterExternalDNSList struct {
 }
 
 // interface methods for controller abstractions
-func (c *ClusterExternalDNS) GetTenantId() string {
+func (c *ClusterExternalDNS) GetTenantId() *string {
 	return c.Spec.TenantID
 }
 

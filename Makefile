@@ -1,6 +1,6 @@
 # Run `make help` for usage information on commands in this file.
 
-.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen
+.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen proto docker-build-proto buf-lint buf-update buf-generate
 
 -include .env
 
@@ -74,3 +74,24 @@ controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessar
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+
+
+# protobuf
+PROTO_DOCKERFILE := ./docker/proto.Dockerfile
+PROTO_IMAGE_NAME := app-routing-proto
+PROTO_IMAGE_TAG := $(shell shasum -a '1' "$(PROTO_DOCKERFILE)" | awk '{print $$1}')
+PROTO_RUN_CMD := docker run --rm --volume "$(shell pwd):/app-routing-operator" --workdir "/app-routing-operator/proto" $(PROTO_IMAGE_NAME):$(PROTO_IMAGE_TAG)
+
+proto: buf-lint buf-update buf-generate ## Generate protobuf code
+
+docker-build-proto: ## Build the protobuf docker image
+	docker build -t ${PROTO_IMAGE_NAME}:$(PROTO_IMAGE_TAG) -f $(PROTO_DOCKERFILE) .
+
+buf-lint: docker-build-proto ## Lint the protobuf files
+	$(PROTO_RUN_CMD) buf lint
+
+buf-update: docker-build-proto ## Update the buf.lock file
+	$(PROTO_RUN_CMD) buf mod update 
+
+buf-generate: docker-build-proto ## Generate the protobuf code
+	$(PROTO_RUN_CMD) buf generate

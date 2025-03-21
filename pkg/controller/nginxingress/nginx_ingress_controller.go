@@ -140,8 +140,14 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 		lgr.Info("updating status")
 		n.updateStatus(&nginxIngressController, controllerDeployment, ingressClass, managedRes, collisionCountErr)
 		if statusErr := n.client.Status().Update(ctx, &nginxIngressController); statusErr != nil {
-			lgr.Error(statusErr, "unable to update NginxIngressController status")
+			if apierrors.IsConflict(statusErr) {
+				lgr.Info("conflict updating status, requeuing")
+				res = ctrl.Result{Requeue: true}
+				err = nil
+				return
+			}
 			if err == nil {
+				lgr.Error(statusErr, "unable to update NginxIngressController status")
 				err = statusErr
 			}
 		}
