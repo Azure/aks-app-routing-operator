@@ -45,3 +45,9 @@ jobs:
          echo "Proto files need to be regenerated. Run \`make proto\` locally and commit the changes."; 
          exit 1;
         fi
+    
+    - if: always()
+      uses: ./.github/actions/end-status
+      with:
+        name: ${{ env.status-name }}
+        ref: ${{ inputs.status_ref }}
