@@ -1,6 +1,6 @@
 # Run `make help` for usage information on commands in this file.
 
-.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen proto docker-build-proto buf-lint buf-update buf-generate buf-inject-tags buf-redact
+.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen proto docker-build-proto buf-lint buf-breaking buf-update buf-generate buf-inject-tags buf-redact
 
 -include .env
 
@@ -82,7 +82,7 @@ PROTO_IMAGE_NAME := app-routing-proto
 PROTO_IMAGE_TAG := $(shell shasum -a '1' "$(PROTO_DOCKERFILE)" | awk '{print $$1}')
 PROTO_RUN_CMD := docker run --rm --volume "$(shell pwd):/app-routing-operator" --workdir "/app-routing-operator/proto" $(PROTO_IMAGE_NAME):$(PROTO_IMAGE_TAG)
 
-proto: buf-lint buf-update buf-generate buf-inject-tags buf-redact ## Generate protobuf code
+proto: buf-lint buf-breaking buf-update buf-generate buf-inject-tags buf-redact ## Generate protobuf code
 
 docker-build-proto: ## Build the protobuf docker image
 	docker build -t ${PROTO_IMAGE_NAME}:$(PROTO_IMAGE_TAG) -f $(PROTO_DOCKERFILE) .
@@ -90,14 +90,17 @@ docker-build-proto: ## Build the protobuf docker image
 buf-lint: docker-build-proto ## Lint the protobuf files
 	$(PROTO_RUN_CMD) buf lint
 
+buf-breaking: docker-build-proto ## Ensure there's no breaking changes in the proto files
+	$(PROTO_RUN_CMD) buf breaking --against 'https://github.com/Azure/aks-app-routing-operator.git#branch=main,subdir=proto'
+
 buf-update: docker-build-proto ## Update the buf.lock file
 	$(PROTO_RUN_CMD) buf mod update 
 
 buf-generate: docker-build-proto ## Generate the protobuf code
 	$(PROTO_RUN_CMD) buf generate
 
-buf-inject-tags: buf-generate
+buf-inject-tags: buf-generate ## Inject tags into the protobuf files
 	$(PROTO_RUN_CMD) ./scripts/inject_tag.sh
 
-buf-redact: buf-inject-tags
+buf-redact: buf-inject-tags ## Update generated protobuf files to redact sensitive information 
 	$(PROTO_RUN_CMD) grpc-go-redact -dir=./
