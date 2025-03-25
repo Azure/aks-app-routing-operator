@@ -46,7 +46,9 @@ jobs:
         uses: docker/setup-buildx-action@16c0bc4a6e6ada2cfd8afd41d22d95379cf7c32a # v2.8.0
 
       - name: Build image locally
-        run: docker buildx build --tag "${TAG}" --load --file ./docker/operator.Dockerfile .
+        # temporarily reverting this for the final patch version for old filestructures
+        # run: docker buildx build --tag "${TAG}" --load --file ./docker/operator.Dockerfile .
+        run: docker buildx build --tag "${TAG}" --load .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
@@ -109,6 +111,10 @@ jobs:
       - name: Build and push image
         env:
           VERSION: ${{ inputs.version }}
+        # temporarily reverting this for the final patch version for old filestructures
+        # run: |
+        # TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:$VERSION"
+        # docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry --file ./docker/operator.Dockerfile .
         run: |
           TAG="${{ secrets.AZURE_REGISTRY_SERVER }}/public/aks/aks-app-routing-operator:$VERSION"
-          docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry --file ./docker/operator.Dockerfile .
+          docker buildx build --platform "amd64,arm64" --tag "${TAG}" --output type=registry .
