@@ -48,7 +48,7 @@ jobs:
       - name: Build image locally
         # temporarily reverting this for the final patch version for old filestructures
         # run: docker buildx build --tag "${TAG}" --load --file ./docker/operator.Dockerfile .
-        run: docker buildx build --tag"${TAG}" --load .
+        run: docker buildx build --tag "${TAG}" --load .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
