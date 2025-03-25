@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	controllerImageTag             = "v1.11.2"
+	controllerImageTag             = "v1.11.5"
 	prom                           = "prometheus"
 	IngressControllerComponentName = "ingress-controller"
 )
