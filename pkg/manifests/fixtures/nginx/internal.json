@@ -484,7 +484,7 @@
             "containers": [
               {
                 "name": "controller",
-                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.2",
+                "image": "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.5",
                 "args": [
                   "/nginx-ingress-controller",
                   "--ingress-class=nginx-private",
