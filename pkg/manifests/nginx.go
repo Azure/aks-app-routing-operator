@@ -21,11 +21,11 @@ import (
 )
 
 var (
-	nginx1_11_2 = NginxIngressVersion{
-		name: "v1.11.2",
-		tag:  "v1.11.2",
+	nginx1_11_5 = NginxIngressVersion{
+		name: "v1.11.5",
+		tag:  "v1.11.5",
 	}
-	nginxVersionsAscending = []NginxIngressVersion{nginx1_11_2}
+	nginxVersionsAscending = []NginxIngressVersion{nginx1_11_5}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
 )
 
