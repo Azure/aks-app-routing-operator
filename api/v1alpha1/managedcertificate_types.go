@@ -15,11 +15,15 @@ type ManagedCertificateSpec struct {
 
 	// DnsZone defines the DNS Zone that the ManagedCertificate will be applied to.
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="The dnsZone field is immutable"
 	DnsZone ManagedCertificateDnsZone `json:"dnsZone,omitempty"`
 
 	// DomainNames is a list of domain names that the Certificate will be issued for.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
+	// +comment: this is an arbitrary max but we can't have people requesting too many or the payload size becomes too much. This is a reasonable number for now that we can tweak later
+	// +kubebuilder:validation:MaxItems=10
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="The domainNames field is immutable"
 	// +listType=set
 	DomainNames []string `json:"domainNames,omitempty"`
 
@@ -39,12 +43,14 @@ type ManagedCertificateTarget struct {
 // ManagedCertificateDnsZone defines the DNS Zone that a ManagedCertificate will be applied to.
 type ManagedCertificateDnsZone struct {
 	// ResourceId is the Azure Resource ID of the DNS Zone. Can be retrieved with `az network dns zone show -g <resource-group> -n <zone-name> --query id -o tsv`.
+	// +kubebuilder:validation:Pattern=`"^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft.Network/dnszones/[^/]+$"`
 	ResourceId string `json:"resourceId,omitempty"`
 
 	// below fields are needed for cross-tenant scenarios
 
 	// TenantId is the Azure Tenant ID of the DNS Zone.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 	TenantId string `json:"tenantId,omitempty"`
 	// ActiveDirectoryApplicationId is the base URL of the cloud's Azure Active Directory.
 	// +kubebuilder:validation:Optional

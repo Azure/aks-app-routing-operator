@@ -52,19 +52,28 @@ spec:
                     description: ResourceId is the Azure Resource ID of the DNS Zone.
                       Can be retrieved with `az network dns zone show -g <resource-group>
                       -n <zone-name> --query id -o tsv`.
+                    pattern: '"^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft.Network/dnszones/[^/]+$"'
                     type: string
                   tenantId:
                     description: TenantId is the Azure Tenant ID of the DNS Zone.
+                    pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
                     type: string
                 type: object
+                x-kubernetes-validations:
+                - message: The dnsZone field is immutable
+                  rule: self == oldSelf
               domainNames:
                 description: DomainNames is a list of domain names that the Certificate
                   will be issued for.
                 items:
                   type: string
+                maxItems: 10
                 minItems: 1
                 type: array
                 x-kubernetes-list-type: set
+                x-kubernetes-validations:
+                - message: The domainNames field is immutable
+                  rule: self == oldSelf
               serviceAccount:
                 description: ServiceAccount is the name of the ServiceAccount that
                   will be used to connect to the Azure DNS Zone.
