@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ const (
 	nginxCrdName              = "nginxingresscontrollers.approuting.kubernetes.azure.com"
 	clusterExternalDnsCrdName = "clusterexternaldnses.approuting.kubernetes.azure.com"
 	externalDnsCrdName        = "externaldnses.approuting.kubernetes.azure.com"
+	managedCertificateCrdName = "managedcertificates.approuting.kubernetes.azure.com"
 
 	validCrdPath        = "../../config/crd/bases/"
 	validCrdName        = nginxCrdName
@@ -28,11 +30,17 @@ const (
 	nonExistentFilePath = "./this/does/not/exist"
 )
 
-var allCrdNames = []string{nginxCrdName, clusterExternalDnsCrdName, externalDnsCrdName}
+var (
+	nginxCrds              = []string{nginxCrdName}
+	externalDnsCrds        = []string{externalDnsCrdName, clusterExternalDnsCrdName}
+	managedCertificateCrds = []string{managedCertificateCrdName}
+)
 
 var (
-	gatewayEnabled  = &config.Config{EnableGateway: true, CrdPath: validCrdPath}
-	gatewayDisabled = &config.Config{EnableGateway: false, CrdPath: validCrdPath}
+	gatewayEnabledManagedCertificateDisabled  = &config.Config{EnableGateway: true, CrdPath: validCrdPath}
+	gatewayDisabledManagedCertificateDisabled = &config.Config{EnableGateway: false, CrdPath: validCrdPath}
+	gatewayEnabledManagedCertificateEnabled   = &config.Config{EnableGateway: true, EnableManagedCertificates: true, CrdPath: validCrdPath}
+	gatewayDisabledManagedCertificateEnabled  = &config.Config{EnableGateway: false, EnableManagedCertificates: true, CrdPath: validCrdPath}
 )
 
 func TestLoadCRDs(t *testing.T) {
@@ -77,8 +85,10 @@ func TestLoadCRDs(t *testing.T) {
 		cfg              *config.Config
 		expectedCRDNames []string
 	}{
-		{name: "gateway enabled", cfg: gatewayEnabled, expectedCRDNames: allCrdNames},
-		{name: "gateway disabled", cfg: gatewayDisabled, expectedCRDNames: []string{nginxCrdName}},
+		{name: "gateway enabled, managed certificate disabled", cfg: gatewayEnabledManagedCertificateDisabled, expectedCRDNames: slices.Concat(nginxCrds, externalDnsCrds)},
+		{name: "gateway disabled, managed certificate disabled", cfg: gatewayDisabledManagedCertificateDisabled, expectedCRDNames: nginxCrds},
+		{name: "gateway enabled, managed certificate enabled", cfg: gatewayEnabledManagedCertificateEnabled, expectedCRDNames: slices.Concat(nginxCrds, externalDnsCrds, managedCertificateCrds)},
+		{name: "gateway disabled, managed certificate enabled", cfg: gatewayDisabledManagedCertificateEnabled, expectedCRDNames: slices.Concat(nginxCrds, managedCertificateCrds)},
 	}
 
 	for _, tc := range cases {
@@ -124,12 +134,14 @@ func TestShouldLoadCRD(t *testing.T) {
 		filename string
 		expected bool
 	}{
-		{name: "external dns crd with gateway enabled", cfg: gatewayEnabled, filename: externalDnsCrdFilename, expected: true},
-		{name: "external dns crd with gateway disabled", cfg: gatewayDisabled, filename: externalDnsCrdFilename, expected: false},
-		{name: "cluster external dns crd with gateway enabled", cfg: gatewayEnabled, filename: clusterExternalDnsCrdFilename, expected: true},
-		{name: "cluster external dns crd with gateway disabled", cfg: gatewayDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
-		{name: "other crd with gateway enabled", cfg: gatewayEnabled, filename: "other.crd.yaml", expected: true},
-		{name: "other crd with gateway disabled", cfg: gatewayDisabled, filename: "other.crd.yaml", expected: true},
+		{name: "external dns crd with gateway enabled", cfg: gatewayEnabledManagedCertificateDisabled, filename: externalDnsCrdFilename, expected: true},
+		{name: "external dns crd with gateway disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "cluster external dns crd with gateway enabled", cfg: gatewayEnabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: true},
+		{name: "cluster external dns crd with gateway disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
+		{name: "other crd with gateway enabled", cfg: gatewayEnabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
+		{name: "other crd with gateway disabled", cfg: gatewayDisabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
+		{name: "managed certificate crd with managed certificates enabled", cfg: gatewayEnabledManagedCertificateEnabled, filename: managedCertificateCrdFilename, expected: true},
+		{name: "managed certificate crd with managed certificates disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: managedCertificateCrdFilename, expected: false},
 	}
 
 	for _, tc := range cases {

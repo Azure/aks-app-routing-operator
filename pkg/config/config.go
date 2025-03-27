@@ -49,6 +49,7 @@ func init() {
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
 	flag.BoolVar(&Flags.EnableGateway, "enable-gateway", false, "whether or not to support and create controllers for Gateway API resources")
 	flag.BoolVar(&Flags.DisableExpensiveCache, "disable-expensive-cache", false, "disable the cache for expensive resources that aren't core to App Routing like Pods and Events")
+	flag.BoolVar(&Flags.EnableManagedCertificates, "enable-managed-certificates", false, "enable the managed certificates feature")
 }
 
 func (c *Config) Validate() error {

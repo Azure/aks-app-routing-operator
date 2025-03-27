@@ -78,4 +78,5 @@ type Config struct {
 	CrdPath                             string
 	EnableGateway                       bool
 	DisableExpensiveCache               bool
+	EnableManagedCertificates           bool
 }

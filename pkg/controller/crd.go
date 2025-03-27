@@ -77,8 +77,8 @@ func shouldLoadCRD(cfg *config.Config, filename string) bool {
 		return cfg.EnableGateway
 	case clusterExternalDnsCrdFilename:
 		return cfg.EnableGateway
-	case managedCertificateCrdFilename: // temporary, implementation of managed certificates is in progress
-		return false
+	case managedCertificateCrdFilename:
+		return cfg.EnableManagedCertificates
 
 	default:
 		return true
