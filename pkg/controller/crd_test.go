@@ -140,6 +140,8 @@ func TestShouldLoadCRD(t *testing.T) {
 		{name: "cluster external dns crd with gateway disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
 		{name: "other crd with gateway enabled", cfg: gatewayEnabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
 		{name: "other crd with gateway disabled", cfg: gatewayDisabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
+		{name: "managed certificate crd with managed certificates enabled", cfg: gatewayEnabledManagedCertificateEnabled, filename: managedCertificateCrdFilename, expected: true},
+		{name: "managed certificate crd with managed certificates disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: managedCertificateCrdFilename, expected: false},
 	}
 
 	for _, tc := range cases {
