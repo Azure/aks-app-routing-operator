@@ -129,6 +129,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 15).String())
 		ret = append(ret, "--enable-gateway")
 		ret = append(ret, "--disable-expensive-cache")
+		ret = append(ret, "--enable-managed-certificates")
 	}
 
 	var zones []string
