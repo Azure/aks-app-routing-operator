@@ -56,7 +56,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		return fmt.Errorf("getting in-cluster config: %w", err)
 	}
 
-	runTestFn := func(t test, ctx context.Context, operator manifests.OperatorConfig) *logger.LoggedError {
+	runTestFn := func(t test, ctx context.Context, operator manifests.OperatorConfig) (err *logger.LoggedError) {
 		lgr := logger.FromContext(ctx).With("test", t.GetName())
 		ctx = logger.WithContext(ctx, lgr)
 		lgr.Info("starting to run test")
@@ -66,7 +66,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 
 		defer func() {
 			if r := recover(); r != nil {
-				lgr.Error(fmt.Sprintf("panic occurred:\n %s", r))
+				err = logger.Error(lgr, fmt.Errorf("panic occurred:\n %s", r))
 			}
 		}()
 		if err := t.Run(ctx, config, operator); err != nil {
