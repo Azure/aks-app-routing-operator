@@ -138,9 +138,9 @@ func managedCertCelTests(in infra.Provisioned) []test {
 			managedCert: func() *approutingv1alpha1.ManagedCertificate {
 				mc := newValidManagedCert()
 				maxDomains := 10
-				domains := make([]string, maxDomains+1)
-				for i := 0; i < maxDomains+1; i++ {
-					domains[i] = fmt.Sprintf("%d.zone.com", i)
+				domains := []string{}
+				for i := range maxDomains + 1 {
+					domains = append(domains, fmt.Sprintf("%d.zone.com", i))
 				}
 				mc.Spec.DomainNames = domains
 				return mc

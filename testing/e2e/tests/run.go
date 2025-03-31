@@ -60,12 +60,19 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		lgr := logger.FromContext(ctx).With("test", t.GetName())
 		ctx = logger.WithContext(ctx, lgr)
 		lgr.Info("starting to run test")
+		defer func() {
+			lgr.Info("finished running test")
+		}()
 
+		defer func() {
+			if r := recover(); r != nil {
+				lgr.Error(fmt.Sprintf("panic occurred:\n %s", r))
+			}
+		}()
 		if err := t.Run(ctx, config, operator); err != nil {
 			return logger.Error(lgr, err)
 		}
 
-		lgr.Info("finished running test")
 		return nil
 	}
 
