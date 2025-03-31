@@ -6,7 +6,6 @@ import (
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +20,8 @@ func managedCertCelTests(in infra.Provisioned) []test {
 		withVersions(manifests.OperatorVersionLatest).
 		withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 		build()
+	sch := runtime.NewScheme()
+	approutingv1alpha1.AddToScheme(sch)
 
 	ret := []test{}
 	createTests := []struct {
@@ -161,13 +162,6 @@ func managedCertCelTests(in infra.Provisioned) []test {
 			name: tt.name,
 			cfgs: cfgs,
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				lgr := logger.FromContext(ctx)
-				lgr.Info("starting test")
-
-				sch := runtime.NewScheme()
-				if err := approutingv1alpha1.AddToScheme(sch); err != nil {
-					return fmt.Errorf("adding approutingv1alpha1 to scheme: %w", err)
-				}
 				cl, err := client.New(config, client.Options{
 					Scheme: sch,
 				})
@@ -193,8 +187,6 @@ func managedCertCelTests(in infra.Provisioned) []test {
 			},
 		})
 	}
-
-	// confirm immutable fields
 
 	return ret
 }
