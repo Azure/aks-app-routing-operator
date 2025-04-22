@@ -16,7 +16,7 @@ func NewNginxIngressController(name, ingressClassName string) *v1alpha1.NginxIng
 		},
 		Spec: v1alpha1.NginxIngressControllerSpec{
 			IngressClassName:     ingressClassName,
-			ControllerNamePrefix: "nginx",
+			ControllerNamePrefix: name,
 		},
 		Status: v1alpha1.NginxIngressControllerStatus{},
 	}
