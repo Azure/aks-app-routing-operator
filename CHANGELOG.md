@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2025-04-22
+
+### Added
+- log ingresses using managed controllers - [link](https://github.com/Azure/aks-app-routing-operator/pull/206)
+- default-backend-service to crd - [link](https://github.com/Azure/aks-app-routing-operator/pull/174)
+- structured logging to setup logs - [link](https://github.com/Azure/aks-app-routing-operator/pull/258)
+- custom-http-errors field to crd - [link](https://github.com/Azure/aks-app-routing-operator/pull/201)
+- aks-managed-by label to top level labels - [link](https://github.com/Azure/aks-app-routing-operator/pull/335)
+- Gateway API TLS functionality with Gateway API via workload identity - [link](https://github.com/Azure/aks-app-routing-operator/pull/306)
+- CRD for ExternalDNS - [link](https://github.com/Azure/aks-app-routing-operator/pull/320)
+- HTTP disabled flag for NginxIngressController CRD - [link](https://github.com/Azure/aks-app-routing-operator/pull/358),[link2](https://github.com/Azure/aks-app-routing-operator/pull/362)
+- bump pause image to 3.10 - [link](https://github.com/Azure/aks-app-routing-operator/pull/373)
+- respect rollouts in topology spread - [link](https://github.com/Azure/aks-app-routing-operator/pull/374)
+- add delay to ingress-nginx controller shutdown - [link](https://github.com/Azure/aks-app-routing-operator/pull/365)
+- only installs needed CRDs - [link](https://github.com/Azure/aks-app-routing-operator/pull/383)
+- add disable expensive cache - [link](https://github.com/Azure/aks-app-routing-operator/pull/391)
+
+### Changed
+- switches containers to use MCR Go - [link](https://github.com/Azure/aks-app-routing-operator/pull/254)
+- bump nginx to 1.11.5 - [link](https://github.com/Azure/aks-app-routing-operator/pull/270), [link2](https://github.com/Azure/aks-app-routing-operator/pull/402)
+- move prom port to new cluster ip service - [link](https://github.com/Azure/aks-app-routing-operator/pull/295)
+- ignore conflict errors for NginxIngressController status updates - [link](https://github.com/Azure/aks-app-routing-operator/pull/388)
+
+### Fixed
+- add is active check to watchdog before erroring - [link](https://github.com/Azure/aks-app-routing-operator/pull/357)
+
 ## [0.2.3-patch-6] - 2025-03-25
 
 ### Changed
