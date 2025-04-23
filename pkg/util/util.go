@@ -31,13 +31,6 @@ func Upsert(ctx context.Context, c client.Client, res client.Object) error {
 	return err
 }
 
-// UseServerSideApply allows tests to require the server side apply patch strategy.
-// Useful in cases where a real client that supports it is used.
-// The default is to use Merge because SSA isn't supported by the fake client.
-func UseServerSideApply() {
-	patchType = client.Apply
-}
-
 func Int32Ptr(i int32) *int32 { return &i }
 func Int64Ptr(i int64) *int64 { return &i }
 func ToPtr[T any](t T) *T     { return &t }
