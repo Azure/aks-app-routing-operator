@@ -129,9 +129,9 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	newCollisionCount, collisionCountErr := n.GetCollisionCount(ctx, &nginxIngressController)
 	if collisionCountErr == nil && newCollisionCount != startingCollisionCount {
 		nginxIngressController.Status.CollisionCount = newCollisionCount
-		if err := n.client.Status().Update(ctx, &nginxIngressController); err != nil {
-			lgr.Error(err, "unable to update collision count status")
-			return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
+		if err := util.PatchStatus(ctx, n.client, &nginxIngressController); err != nil {
+			lgr.Error(err, "unable to patch collision count status")
+			return ctrl.Result{}, fmt.Errorf("patching collision count status: %w", err)
 		}
 
 		return ctrl.Result{Requeue: true}, nil
@@ -139,16 +139,10 @@ func (n *nginxIngressControllerReconciler) Reconcile(ctx context.Context, req ct
 	defer func() { // defer is before checking err so that we can update status even if there is an error
 		lgr.Info("updating status")
 		n.updateStatus(&nginxIngressController, controllerDeployment, ingressClass, managedRes, collisionCountErr)
-		if statusErr := n.client.Status().Update(ctx, &nginxIngressController); statusErr != nil {
-			if apierrors.IsConflict(statusErr) {
-				lgr.Info("conflict updating status, requeuing")
-				res = ctrl.Result{Requeue: true}
-				err = nil
-				return
-			}
+		if statusErr := util.PatchStatus(ctx, n.client, &nginxIngressController); statusErr != nil {
 			if err == nil {
 				lgr.Error(statusErr, "unable to update NginxIngressController status")
-				err = statusErr
+				err = fmt.Errorf("updating status: %w", statusErr)
 			}
 		}
 	}()

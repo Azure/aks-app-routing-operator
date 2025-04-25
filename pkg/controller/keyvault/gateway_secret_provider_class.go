@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -22,9 +23,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-var (
-	gatewaySecretProviderControllerName = controllername.New("gateway", "keyvault", "secret", "provider")
-)
+var gatewaySecretProviderControllerName = controllername.New("gateway", "keyvault", "secret", "provider")
 
 // GatewaySecretProviderClassReconciler manages a SecretProviderClass for Gateway resource that specifies a ServiceAccount
 // and Keyvault URI in its TLS options field. The SPC is used to mirror the Keyvault values into
@@ -181,7 +180,14 @@ func (g *GatewaySecretProviderClassReconciler) Reconcile(ctx context.Context, re
 	}
 
 	logger.Info("reconciling Gateway resource with new secret refs for each TLS-enabled listener")
+	// we purposefully use update vs patch here. Gateway object is not owned by us. We avoid race condition
+	// of user updating the object while we are patching it then us overwriting their changes by using update
 	if err = g.client.Update(ctx, gwObj); client.IgnoreNotFound(err) != nil {
+		if apierrors.IsConflict(err) {
+			logger.Info("Gateway resource was updated by another process, retrying")
+			return ctrl.Result{Requeue: true}, nil
+		}
+
 		fullErr := fmt.Errorf("failed to reconcile Gateway resource %s: %w", req.Name, err)
 		logger.Error(err, fullErr.Error())
 		g.events.Event(gwObj, corev1.EventTypeWarning, "FailedUpdateOrCreateGateway", fullErr.Error())
@@ -227,5 +233,4 @@ func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, n
 		return "", err
 	}
 	return wiSaClientId, nil
-
 }

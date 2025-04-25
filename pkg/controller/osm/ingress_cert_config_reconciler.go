@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,9 +26,7 @@ const (
 	osmClientCertName     = "osm-ingress-client-cert"
 )
 
-var (
-	ingressCertConfigControllerName = controllername.New("osm", "ingress", "cert", "config")
-)
+var ingressCertConfigControllerName = controllername.New("osm", "ingress", "cert", "config")
 
 // IngressCertConfigReconciler updates the Open Service Mesh configuration to generate a client cert
 // to be used by the ingress controller when contacting upstreams.
@@ -53,10 +52,10 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// do metrics
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
+		// placing this call inside a closure allows for result and err to be bound after Reconcile executes
+		// this makes sure they have the proper value
+		// just calling defer metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err) would bind
+		// the values of result and err to their zero values, since they were just instantiated
 		metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err)
 	}()
 
@@ -110,6 +109,9 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	logger.Info("updating OSM ingress mesh config")
-	err = i.client.Update(ctx, conf)
+	if err := util.Upsert(ctx, i.client, conf); err != nil {
+		return result, fmt.Errorf("updating mesh config: %w", err)
+	}
+
 	return result, err
 }

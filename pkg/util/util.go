@@ -6,6 +6,7 @@ package util
 import (
 	"context"
 	"flag"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -15,7 +16,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var patchType = client.Merge
+var (
+	patchType  = client.Merge
+	fieldOwner = client.FieldOwner("aks-app-routing-operator")
+)
 
 func Upsert(ctx context.Context, c client.Client, res client.Object) error {
 	// Use server-side apply to update resources and fall back to merge patch when
@@ -24,11 +28,30 @@ func Upsert(ctx context.Context, c client.Client, res client.Object) error {
 		patchType = client.Apply
 	}
 
-	err := c.Patch(ctx, res, patchType, client.FieldOwner("aks-app-routing-operator"), client.ForceOwnership)
+	err := c.Patch(ctx, res, patchType, fieldOwner, client.ForceOwnership)
 	if errors.IsNotFound(err) {
 		err = c.Create(ctx, res)
 	}
 	return err
+}
+
+// PatchStatus patches the status of a resource using server-side apply
+func PatchStatus(ctx context.Context, c client.Client, res client.Object) error {
+	// Use server-side apply to update resources and fall back to merge patch when
+	// using fake clients in unit tests since they don't support SSA
+	if flag.Lookup("test.v") == nil {
+		patchType = client.Apply
+	}
+
+	if err := c.Status().Patch(ctx, res, patchType, fieldOwner, client.ForceOwnership); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
+		return fmt.Errorf("updating status: %w", err)
+	}
+
+	return nil
 }
 
 func Int32Ptr(i int32) *int32 { return &i }
