@@ -23,12 +23,12 @@ func TestToPtr(t *testing.T) {
 }
 
 func TestToInt32Ptr(t *testing.T) {
-	var int32Var = int32(2)
+	int32Var := int32(2)
 	require.Equal(t, &int32Var, Int32Ptr(int32Var))
 }
 
 func TestToInt64Ptr(t *testing.T) {
-	var int64Var = int64(2)
+	int64Var := int64(2)
 	require.Equal(t, &int64Var, Int64Ptr(int64Var))
 }
 
@@ -59,6 +59,47 @@ func TestUpsert(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "testvalue", got.Data["testkey"])
 	require.Equal(t, "newvalue", got.Data["newkey"])
+}
+
+func TestPatchStatus(t *testing.T) {
+	oldContainerImage := "old-image"
+	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "container",
+					Image: oldContainerImage,
+				},
+			},
+		},
+	}
+
+	// ensure no changes to object spec
+	fakeClient := fake.NewClientBuilder().WithObjects(pod).Build()
+	pod.Spec.Containers[0].Image = "new-image"
+	err := PatchStatus(context.Background(), fakeClient, pod)
+	require.NoError(t, err)
+	got := &corev1.Pod{}
+	err = fakeClient.Get(context.Background(), client.ObjectKeyFromObject(pod), got)
+	require.NoError(t, err)
+	require.Equal(t, oldContainerImage, got.Spec.Containers[0].Image)
+
+	// ensure status is updated
+	newIp := "111.111.1.1"
+	pod.Status.PodIP = newIp
+	err = PatchStatus(context.Background(), fakeClient, pod)
+	require.NoError(t, err)
+	got = &corev1.Pod{}
+	err = fakeClient.Get(context.Background(), client.ObjectKeyFromObject(pod), got)
+	require.NoError(t, err)
+	require.Equal(t, newIp, got.Status.PodIP)
 }
 
 func TestFindOwnerKind(t *testing.T) {
