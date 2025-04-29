@@ -1,6 +1,6 @@
 # Run `make help` for usage information on commands in this file.
 
-.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen proto docker-build-proto buf-lint buf-breaking buf-update buf-generate buf-inject-tags buf-redact
+.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen proto docker-build-proto buf-lint buf-breaking buf-update buf-generate buf-inject-tags buf-redact docker-build-dev unit-vis
 
 -include .env
 
@@ -57,9 +57,20 @@ e2e: ## Runs end-to-end tests
 e2e-deploy: ## runs only deploy
 	go run ./cmd/e2e/main.go deploy
 
-unit: ## Runs unit tests
-	docker build ./devenv/ -t app-routing-dev:latest
-	docker run --rm -v "$(shell pwd)":/usr/src/project -w /usr/src/project app-routing-dev:latest go test -race ./...
+DEV_DOCKERFILE := ./docker/dev.Dockerfile
+DEV_IMAGE_NAME := app-routing-dev
+DEV_IMAGE_TAG := $(shell shasum -a '1' "$(DEV_DOCKERFILE)" | awk '{print $$1}')
+DEV_RUN_CMD := docker run --rm --volume "$(shell pwd):/app-routing-operator" --workdir "/app-routing-operator" $(DEV_IMAGE_NAME):$(DEV_IMAGE_TAG)
+
+docker-build-dev: ## Builds the development docker image
+	docker build -t ${DEV_IMAGE_NAME}:$(DEV_IMAGE_TAG) -f $(DEV_DOCKERFILE) .
+
+unit: docker-build-dev ## Runs unit tests
+	$(DEV_RUN_CMD) go test -race ./...
+
+unit-vis: docker-build-dev ## Runs unit tests creates visualization
+	$(DEV_RUN_CMD) go test -json ./... > unit-vis.json
+	cat unit-vis.json | go run github.com/roblaszczak/vgt@v1.0.0
 
 crd: generate manifests ## Generates all associated files from CRD
 
@@ -69,12 +80,10 @@ manifests: controller-gen ## Generate CRD manifest
 generate: $(CONTROLLER_GEN) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object paths="./api/..."
 
-
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
-
 
 # protobuf
 PROTO_DOCKERFILE := ./docker/proto.Dockerfile
