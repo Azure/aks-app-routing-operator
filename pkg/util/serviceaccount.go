@@ -23,7 +23,7 @@ func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient c
 
 	// SA wasn't found, return appropriate error
 	if err != nil {
-		return "", NewUserError(err, fmt.Sprintf("serviceAccount %s does not exist", saName))
+		return "", NewUserError(err, fmt.Sprintf("serviceAccount %s does not exist in namespace %s", saName, saNamespace))
 	}
 	// check for required annotations
 	if saObj.Annotations == nil || saObj.Annotations[wiSaClientIdAnnotation] == "" {

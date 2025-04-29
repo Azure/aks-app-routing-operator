@@ -156,7 +156,7 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 				return ret
 			},
 			existingResources: []client.Object{testServiceAccountInResourceNs},
-			expectedUserError: "serviceAccount fake-service-account does not exist",
+			expectedUserError: "serviceAccount fake-service-account does not exist in namespace test-resource-ns",
 		},
 		{
 			name: "serviceaccount without identity specified",

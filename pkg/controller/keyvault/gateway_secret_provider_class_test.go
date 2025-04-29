@@ -211,7 +211,7 @@ func Test_GatewaySecretClassProviderReconciler(t *testing.T) {
 			},
 			expectedSpcs:    nil,
 			expectedError:   nil,
-			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa does not exist",
+			expectedUserErr: "Warning InvalidInput invalid TLS configuration: serviceAccount test-sa does not exist in namespace test-ns",
 		},
 		{
 			name:  "cert URI with sa with no annotation",
