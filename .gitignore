@@ -6,6 +6,7 @@ coverage.out
 
 .env
 bin/*
+unit-vis.json
 
 # e2e files
 infra-config.json
