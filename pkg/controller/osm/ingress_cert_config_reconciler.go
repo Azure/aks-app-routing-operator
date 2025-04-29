@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -25,9 +26,7 @@ const (
 	osmClientCertName     = "osm-ingress-client-cert"
 )
 
-var (
-	ingressCertConfigControllerName = controllername.New("osm", "ingress", "cert", "config")
-)
+var ingressCertConfigControllerName = controllername.New("osm", "ingress", "cert", "config")
 
 // IngressCertConfigReconciler updates the Open Service Mesh configuration to generate a client cert
 // to be used by the ingress controller when contacting upstreams.
@@ -47,35 +46,27 @@ func NewIngressCertConfigReconciler(manager ctrl.Manager, conf *config.Config) e
 	).Complete(&IngressCertConfigReconciler{client: manager.GetClient()})
 }
 
-func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var err error
-	result := ctrl.Result{}
-
-	// do metrics
+func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
 	defer func() {
-		//placing this call inside a closure allows for result and err to be bound after Reconcile executes
-		//this makes sure they have the proper value
-		//just calling defer metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err) would bind
-		//the values of result and err to their zero values, since they were just instantiated
-		metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, result, err)
+		metrics.HandleControllerReconcileMetrics(ingressCertConfigControllerName, res, retErr)
 	}()
 
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return result, err
+		return ctrl.Result{}, err
 	}
 	logger = ingressCertConfigControllerName.AddToLogger(logger).WithValues("namespace", req.Namespace, "name", req.Name)
 
 	if req.Name != osmMeshConfigName || req.Namespace != osmNamespace {
 		logger.Info(fmt.Sprintf("ignoring mesh config, we only reconcile mesh config %s/%s", osmNamespace, osmMeshConfigName))
-		return result, nil
+		return ctrl.Result{}, nil
 	}
 
 	logger.Info("getting OSM ingress mesh config")
 	conf := &cfgv1alpha2.MeshConfig{}
 	err = i.client.Get(ctx, req.NamespacedName, conf)
 	if err != nil {
-		return result, client.IgnoreNotFound(err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("generation", conf.Generation)
 
@@ -106,10 +97,19 @@ func (i *IngressCertConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	if !dirty {
 		logger.Info("no changes required for OSM ingress client cert configuration")
-		return result, nil
+		return ctrl.Result{}, nil
 	}
 
 	logger.Info("updating OSM ingress mesh config")
-	err = i.client.Update(ctx, conf)
-	return result, err
+	if err = i.client.Update(ctx, conf); client.IgnoreNotFound(err) != nil {
+		if apierrors.IsConflict(err) {
+			logger.Info("OSM ingress mesh config was updated by another process, retrying")
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		logger.Error(err, "failed to update OSM ingress mesh config")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
 }
