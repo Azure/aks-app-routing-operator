@@ -35,7 +35,7 @@ var (
 		namespace:          "test-namespace",
 		clientId:           "test-client-id",
 		identityType:       IdentityTypeMSI,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 		dnsZoneResourceIDs: publicZones,
 		provider:           PublicProvider,
 		serviceAccountName: "external-dns",
@@ -48,7 +48,7 @@ var (
 		namespace:          "test-namespace",
 		clientId:           "test-client-id",
 		identityType:       IdentityTypeMSI,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 		dnsZoneResourceIDs: []string{publicZoneOne},
 		provider:           PublicProvider,
 		serviceAccountName: "external-dns",
@@ -62,7 +62,7 @@ var (
 		namespace:          "test-namespace",
 		clientId:           "test-client-id",
 		identityType:       IdentityTypeMSI,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 	}
@@ -74,7 +74,7 @@ var (
 		namespace:          "test-namespace",
 		clientId:           "test-client-id",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: {}},
 		dnsZoneResourceIDs: publicZones,
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
@@ -87,7 +87,7 @@ var (
 		resourceGroup:                "test-resource-group-public",
 		namespace:                    "test-namespace",
 		identityType:                 IdentityTypeWorkloadIdentity,
-		resourceTypes:                map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		resourceTypes:                map[ResourceType]struct{}{ResourceTypeGateway: {}},
 		dnsZoneResourceIDs:           publicZones,
 		provider:                     PublicProvider,
 		serviceAccountName:           "test-service-account",
@@ -102,7 +102,7 @@ var (
 		resourceGroup:                "test-resource-group-public",
 		namespace:                    "test-namespace",
 		identityType:                 IdentityTypeWorkloadIdentity,
-		resourceTypes:                map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}, ResourceTypeIngress: struct{}{}},
+		resourceTypes:                map[ResourceType]struct{}{ResourceTypeGateway: {}, ResourceTypeIngress: {}},
 		dnsZoneResourceIDs:           publicZones,
 		provider:                     PublicProvider,
 		serviceAccountName:           "test-service-account",
@@ -116,7 +116,7 @@ var (
 		tenantId:           "test-tenant-id",
 		namespace:          "test-namespace",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: {}},
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
 		resourceName:       "test-dns-config-external-dns",
@@ -128,7 +128,7 @@ var (
 		namespace:          "test-namespace",
 		clientId:           "test-client-id",
 		identityType:       IdentityTypeMSI,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 		serviceAccountName: "external-dns",
 		dnsZoneResourceIDs: []string{},
 		provider:           PublicProvider,
@@ -140,7 +140,7 @@ var (
 		namespace:          "test-namespace",
 		clientId:           "test-client-id",
 		identityType:       IdentityTypeMSI,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 		serviceAccountName: "external-dns-private",
 		dnsZoneResourceIDs: []string{},
 		provider:           PrivateProvider,
@@ -152,7 +152,7 @@ var (
 		resourceGroup:      "test-resource-group-public",
 		namespace:          "test-namespace",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: {}},
 		dnsZoneResourceIDs: []string{publicZoneOne, strings.ToUpper(publicZoneTwo)},
 		provider:           PublicProvider,
 		serviceAccountName: "test-service-account",
@@ -165,7 +165,7 @@ var (
 		resourceGroup:      "test-resource-group-private",
 		namespace:          "test-namespace",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: {}},
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
@@ -178,7 +178,7 @@ var (
 		resourceGroup:      "test-resource-group-private",
 		namespace:          "test-namespace",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: {}},
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
@@ -192,7 +192,7 @@ var (
 		resourceGroup:      "test-resource-group-private",
 		namespace:          "test-namespace",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}, ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeGateway: {}, ResourceTypeIngress: {}},
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
@@ -205,7 +205,7 @@ var (
 		resourceGroup:      "test-resource-group-private",
 		namespace:          "test-namespace",
 		identityType:       IdentityTypeWorkloadIdentity,
-		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+		resourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 		dnsZoneResourceIDs: privateZones,
 		provider:           PrivateProvider,
 		serviceAccountName: "test-private-service-account",
@@ -348,17 +348,23 @@ var (
 )
 
 func TestExternalDnsResources(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
 
-		objs := externalDnsResources(tc.Conf, tc.DnsConfigs)
-
-		fixture := path.Join("fixtures", "external_dns", tc.Name) + ".yaml"
-		AssertFixture(t, fixture, objs)
-		GatekeeperTest(t, fixture)
+			objs := externalDnsResources(tc.Conf, tc.DnsConfigs)
+			fixture := path.Join("fixtures", "external_dns", tc.Name) + ".yaml"
+			AssertFixture(t, fixture, objs)
+			GatekeeperTest(t, fixture)
+		})
 	}
 }
 
 func TestExternalDNSConfig(t *testing.T) {
+	t.Parallel()
+
 	conf := &config.Config{
 		ClusterUid:      clusterUid,
 		DnsSyncInterval: time.Minute * 3,
@@ -390,7 +396,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "",
 				IdentityType:        IdentityTypeMSI,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 			},
 
@@ -407,7 +413,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "",
 				IdentityType:        IdentityTypeMSI,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne},
 			},
 
@@ -424,7 +430,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "",
 				IdentityType:        IdentityTypeMSI,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 			},
 
@@ -441,7 +447,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 			},
 
@@ -457,7 +463,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "crd-test",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}, ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}, ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 				Filters: &v1alpha1.ExternalDNSFilters{
 					GatewayLabelSelector:         to.Ptr("app=test"),
@@ -478,7 +484,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "crd-test",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 				Filters: &v1alpha1.ExternalDNSFilters{
 					GatewayLabelSelector:         to.Ptr("app=test"),
@@ -499,7 +505,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 				Filters: &v1alpha1.ExternalDNSFilters{
 					GatewayLabelSelector:         to.Ptr(""),
@@ -520,7 +526,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 				Filters: &v1alpha1.ExternalDNSFilters{
 					GatewayLabelSelector:         to.Ptr("app=tes==t"),
@@ -540,7 +546,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, publicZoneTwo},
 				Filters: &v1alpha1.ExternalDNSFilters{
 					RouteAndIngressLabelSelector: to.Ptr("app=tes==t"),
@@ -559,7 +565,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config-private",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 			},
 
@@ -576,7 +582,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config-private",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 				IsNamespaced:        true,
 			},
@@ -602,7 +608,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-resource",
 				IdentityType:        IdentityTypeMSI,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 			},
 			expectedError: errors.New("gateway resource type can only be used with workload identity"),
@@ -617,7 +623,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-resource",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 			},
 			expectedError: errors.New("workload identity requires a service account name"),
@@ -632,7 +638,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-resource",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, "test-resource-id"},
 			},
 			expectedError: errors.New("invalid dns zone resource id: test-resource-id"),
@@ -647,7 +653,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-resource",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, publicZoneOne},
 			},
 			expectedError: errors.New("all DNS zones must be of the same type, found zones with resourcetypes privatednszones and dnszones"),
@@ -662,7 +668,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{publicZoneOne, strings.ToUpper(publicZoneTwo)},
 			},
 
@@ -677,7 +683,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				ClientId:           "test-client-id",
 				Namespace:          "test-namespace",
 				IdentityType:       IdentityTypeMSI,
-				ResourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				Provider:           to.Ptr(PublicProvider),
 				DnsZoneresourceIDs: []string{},
 			},
@@ -692,7 +698,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				ClientId:           "test-client-id",
 				Namespace:          "test-namespace",
 				IdentityType:       IdentityTypeMSI,
-				ResourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				Provider:           to.Ptr(PrivateProvider),
 				DnsZoneresourceIDs: []string{},
 			},
@@ -709,7 +715,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				Namespace:           "test-namespace",
 				InputResourceName:   "test-dns-config",
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{},
 			},
 			expectedError: errors.New("provider must be specified via inputconfig if no DNS zones are provided"),
@@ -725,7 +731,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				InputResourceName:   "test-dns-config",
 				Provider:            to.Ptr(PublicProvider),
 				IdentityType:        IdentityTypeWorkloadIdentity,
-				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: struct{}{}},
+				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{},
 			},
 			expectedObjects: externalDnsResources(conf, []*ExternalDnsConfig{publicGwConfigNoZones}),
@@ -739,22 +745,27 @@ func TestExternalDNSConfig(t *testing.T) {
 				ClientId:           "test-client-id",
 				Namespace:          "test-namespace",
 				IdentityType:       IdentityTypeMSI,
-				ResourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: struct{}{}},
+				ResourceTypes:      map[ResourceType]struct{}{ResourceTypeIngress: {}},
 				DnsZoneresourceIDs: []string{},
 			},
 			expectedError: errors.New("provider must be specified via inputconfig if no DNS zones are provided"),
 		},
 	}
+
 	for _, tc := range testCases {
-		ret, err := NewExternalDNSConfig(tc.conf, tc.inputExternalDNSConfig)
-		if tc.expectedError != nil {
-			require.Equal(t, tc.expectedError.Error(), err.Error(), "error does not match for case %s", tc.name)
-		} else {
-			require.NoError(t, err, "unexpected error for case %s", tc.name)
-			actualObjs := ret.Resources()
-			actualLabels := ret.Labels()
-			require.Equal(t, tc.expectedObjects, actualObjs, "objects do not match for case %s", tc.name)
-			require.Equal(t, tc.expectedLabels, actualLabels, "labels do not match for case %s", tc.name)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ret, err := NewExternalDNSConfig(tc.conf, tc.inputExternalDNSConfig)
+			if tc.expectedError != nil {
+				require.Equal(t, tc.expectedError.Error(), err.Error(), "error does not match for case %s", tc.name)
+			} else {
+				require.NoError(t, err, "unexpected error for case %s", tc.name)
+				actualObjs := ret.Resources()
+				actualLabels := ret.Labels()
+				require.Equal(t, tc.expectedObjects, actualObjs, "objects do not match for case %s", tc.name)
+				require.Equal(t, tc.expectedLabels, actualLabels, "labels do not match for case %s", tc.name)
+			}
+		})
 	}
 }

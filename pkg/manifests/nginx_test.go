@@ -445,6 +445,8 @@ var (
 )
 
 func TestIngressControllerResources(t *testing.T) {
+	t.Parallel()
+
 	var unspecifiedNginxVersion *NginxIngressVersion = nil
 	nginxVersions := []*NginxIngressVersion{unspecifiedNginxVersion}
 	for _, version := range nginxVersionsAscending {
@@ -454,21 +456,34 @@ func TestIngressControllerResources(t *testing.T) {
 
 	for _, tc := range controllerTestCases {
 		for _, version := range nginxVersions {
-			tc.IngConfig.Version = version
-			objs := GetNginxResources(tc.Conf, tc.IngConfig)
+			t.Run(
+				func() string {
+					if version == nil {
+						return tc.Name + "-unspecified"
+					}
+					return tc.Name + version.name
+				}(),
+				func(t *testing.T) {
+					t.Parallel()
 
-			versionName := "default_version"
-			if version != nil {
-				versionName = version.name
-			}
-			fixture := path.Join("fixtures", "nginx", versionName, tc.Name) + ".yaml"
-			AssertFixture(t, fixture, objs.Objects())
-			GatekeeperTest(t, fixture, nginxExceptions...)
+					tc.IngConfig.Version = version
+					objs := GetNginxResources(tc.Conf, tc.IngConfig)
+
+					versionName := "default_version"
+					if version != nil {
+						versionName = version.name
+					}
+					fixture := path.Join("fixtures", "nginx", versionName, tc.Name) + ".yaml"
+					AssertFixture(t, fixture, objs.Objects())
+					GatekeeperTest(t, fixture, nginxExceptions...)
+				})
 		}
 	}
 }
 
 func TestMapAdditions(t *testing.T) {
+	t.Parallel()
+
 	testMap := map[string]string{"testkey1": "testval1"}
 	withAdditions := AddComponentLabel(testMap, "ingress-controller")
 

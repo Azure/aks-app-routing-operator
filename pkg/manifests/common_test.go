@@ -41,14 +41,22 @@ var namespaceTestCases = []struct {
 }
 
 func TestNamespaceResources(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range namespaceTestCases {
-		objs := Namespace(tc.Config, tc.NamespaceName)
-		fixture := path.Join("fixtures", "common", tc.Name) + ".yaml"
-		AssertFixture(t, fixture, []client.Object{objs})
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			objs := Namespace(tc.Config, tc.NamespaceName)
+			fixture := path.Join("fixtures", "common", tc.Name) + ".yaml"
+			AssertFixture(t, fixture, []client.Object{objs})
+		})
 	}
 }
 
 func TestHasTopLevelLabels(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		Labels    map[string]string
 		ReqLabels []map[string]string
@@ -67,6 +75,8 @@ func TestHasTopLevelLabels(t *testing.T) {
 }
 
 func TestWithLivenessProbeMatchingReadinessNewFailureThresh(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name           string
 		inputContainer *corev1.Container
@@ -152,6 +162,8 @@ func TestWithLivenessProbeMatchingReadinessNewFailureThresh(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := withLivenessProbeMatchingReadinessNewFailureThresh(c.inputContainer, c.failureThresh)
 			require.Equal(t, c.expected, *got)
 		})
@@ -159,6 +171,8 @@ func TestWithLivenessProbeMatchingReadinessNewFailureThresh(t *testing.T) {
 }
 
 func TestGetOwnerRefs(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		Name       string
 		Owner      client.Object
@@ -215,6 +229,8 @@ func TestGetOwnerRefs(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
 			ret := GetOwnerRefs(c.Owner, c.Controller)
 
 			require.Equal(t, len(c.Outcome), len(ret))
