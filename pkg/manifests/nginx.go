@@ -478,8 +478,8 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("500m"),
-								corev1.ResourceMemory: resource.MustParse("127Mi"),
+								corev1.ResourceCPU:    resource.MustParse(ingressConfig.CPURequest),
+								corev1.ResourceMemory: resource.MustParse(ingressConfig.MemoryRequest),
 							},
 						},
 					}), 6))},

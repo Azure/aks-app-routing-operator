@@ -73,6 +73,19 @@ type NginxIngressControllerSpec struct {
 	// HTTPDisabled is a flag that disables HTTP traffic to the NginxIngressController
 	// +optional
 	HTTPDisabled bool `json:"httpDisabled,omitempty"`
+
+	// CPURequest is the CPU request for the NGINX Ingress Controller. This is used to set the CPU request for the NGINX Ingress Controller deployment.
+	// +kubebuilder:validation:Pattern=`^[0-9]+(m|M|[a-zA-Z]{1})$`
+	// +kubebuilder:default:=500m
+	// +kubebuilder:validation:Required
+	CPURequest string `json:"cpuRequest,omitempty"`
+
+	// MemoryRequest is the memory request for the NGINX Ingress Controller. This is used to set the memory request for the NGINX Ingress Controller deployment.
+	// +kubebuilder:validation:Pattern=`^[0-9]+(Mi|Gi|[a-zA-Z]{1})$`
+	// +kubebuilder:default:=127Mi
+	// +kubebuilder:validation:Required
+
+	MemoryRequest string `json:"memoryRequest,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri

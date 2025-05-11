@@ -570,6 +570,8 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		MinReplicas:                    minReplicas,
 		MaxReplicas:                    maxReplicas,
 		TargetCPUUtilizationPercentage: getTargetCPUUtilizationPercentage(nic),
+		CPURequest: 				    nic.Spec.CPURequest,
+		MemoryRequest: 				    nic.Spec.MemoryRequest,
 	}
 
 	if cert := nic.Spec.DefaultSSLCertificate; cert != nil {
