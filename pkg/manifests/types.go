@@ -65,6 +65,8 @@ type NginxIngressConfig struct {
 	CustomHTTPErrors      string         // error codes passed to the configmap to configure nginx to send traffic with the specified headers to its defaultbackend service in case of error
 	MinReplicas           int32
 	MaxReplicas           int32
+	CPURequest             string         // CPU request for the Ingress Controller
+	MemoryRequest          string         // Memory request for the Ingress Controller
 	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
 	TargetCPUUtilizationPercentage int32
 }
