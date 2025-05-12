@@ -455,17 +455,11 @@ func TestIngressControllerResources(t *testing.T) {
 	}
 
 	for _, tc := range controllerTestCases {
-		for _, version := range nginxVersions {
-			t.Run(
-				func() string {
-					if version == nil {
-						return tc.Name + "-unspecified"
-					}
-					return tc.Name + version.name
-				}(),
-				func(t *testing.T) {
-					t.Parallel()
-
+		tc := tc
+		t.Run(
+			tc.Name,
+			func(t *testing.T) {
+				for _, version := range nginxVersions {
 					tc.IngConfig.Version = version
 					objs := GetNginxResources(tc.Conf, tc.IngConfig)
 
@@ -476,8 +470,8 @@ func TestIngressControllerResources(t *testing.T) {
 					fixture := path.Join("fixtures", "nginx", versionName, tc.Name) + ".yaml"
 					AssertFixture(t, fixture, objs.Objects())
 					GatekeeperTest(t, fixture, nginxExceptions...)
-				})
-		}
+				}
+			})
 	}
 }
 

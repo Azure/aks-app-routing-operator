@@ -71,30 +71,32 @@ var clusterHappyPathPublic = &v1alpha1.ClusterExternalDNS{
 	},
 }
 
-var happyPathPublicJSON = `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-123456789012","useWorkloadIdentityExtension":true}`
-var happyPathPublicJSONHash = sha256.Sum256([]byte(happyPathPublicJSON))
-var happyPathPublicNoTenantIDJSON = `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-012987654321","useWorkloadIdentityExtension":true}`
-var happyPathPublicNoTenantIDJSONHash = sha256.Sum256([]byte(happyPathPublicNoTenantIDJSON))
-var happyPathPublicConfigmap = &corev1.ConfigMap{
-	TypeMeta: metav1.TypeMeta{
-		Kind:       "ConfigMap",
-		APIVersion: "v1",
-	},
-	ObjectMeta: metav1.ObjectMeta{
-		ResourceVersion: "1",
-		Name:            "happy-path-public-external-dns",
-		Namespace:       "test-ns",
-		Labels: map[string]string{
-			"app.kubernetes.io/managed-by":   "aks-app-routing-operator",
-			"app.kubernetes.io/name":         "happy-path-public-external-dns",
-			"kubernetes.azure.com/managedby": "aks",
+var (
+	happyPathPublicJSON               = `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-123456789012","useWorkloadIdentityExtension":true}`
+	happyPathPublicJSONHash           = sha256.Sum256([]byte(happyPathPublicJSON))
+	happyPathPublicNoTenantIDJSON     = `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-012987654321","useWorkloadIdentityExtension":true}`
+	happyPathPublicNoTenantIDJSONHash = sha256.Sum256([]byte(happyPathPublicNoTenantIDJSON))
+	happyPathPublicConfigmap          = &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
 		},
-		OwnerReferences: ownerReferencesFromCRD(happyPathPublic),
-	},
-	Data: map[string]string{
-		"azure.json": happyPathPublicJSON,
-	},
-}
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "1",
+			Name:            "happy-path-public-external-dns",
+			Namespace:       "test-ns",
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by":   "aks-app-routing-operator",
+				"app.kubernetes.io/name":         "happy-path-public-external-dns",
+				"kubernetes.azure.com/managedby": "aks",
+			},
+			OwnerReferences: ownerReferencesFromCRD(happyPathPublic),
+		},
+		Data: map[string]string{
+			"azure.json": happyPathPublicJSON,
+		},
+	}
+)
 
 var happyPathPublicDeployment = &appsv1.Deployment{
 	TypeMeta: metav1.TypeMeta{
@@ -112,7 +114,8 @@ var happyPathPublicDeployment = &appsv1.Deployment{
 		Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "happy-path-public-external-dns"}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "happy-path-public-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Labels:      map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "happy-path-public-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Annotations: map[string]string{"kubernetes.azure.com/set-kube-service-host-fqdn": "true"},
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: testServiceAccount.Name,
@@ -292,7 +295,8 @@ var happyPathPrivateDeployment = &appsv1.Deployment{
 		Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "happy-path-private-external-dns"}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "happy-path-private-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Labels:      map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "happy-path-private-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Annotations: map[string]string{"kubernetes.azure.com/set-kube-service-host-fqdn": "true"},
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: testServiceAccount.Name,
@@ -370,7 +374,8 @@ var clusterHappyPathPublicDeployment = &appsv1.Deployment{
 		Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "cluster-happy-path-public-external-dns"}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "cluster-happy-path-public-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Labels:      map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "cluster-happy-path-public-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Annotations: map[string]string{"kubernetes.azure.com/set-kube-service-host-fqdn": "true"},
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: testBadServiceAccountInResourceNs.Name,
@@ -549,7 +554,8 @@ var clusterHappyPathPrivateDeployment = &appsv1.Deployment{
 		Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "cluster-happy-path-private-external-dns"}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "cluster-happy-path-private-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Labels:      map[string]string{"app.kubernetes.io/managed-by": "aks-app-routing-operator", "kubernetes.azure.com/managedby": "aks", "app": "cluster-happy-path-private-external-dns", "checksum/configmap": hex.EncodeToString(happyPathPublicJSONHash[:])[:16]},
+				Annotations: map[string]string{"kubernetes.azure.com/set-kube-service-host-fqdn": "true"},
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: testServiceAccountInResourceNs.Name,
@@ -643,24 +649,26 @@ var testBadServiceAccountInResourceNs = &corev1.ServiceAccount{
 }
 
 func ownerReferencesFromCRD(obj *v1alpha1.ExternalDNS) []metav1.OwnerReference {
-	return []metav1.OwnerReference{{
-		APIVersion: obj.APIVersion,
-		Controller: util.ToPtr(true),
-		Kind:       obj.Kind,
-		Name:       obj.Name,
-		UID:        obj.UID,
-	},
+	return []metav1.OwnerReference{
+		{
+			APIVersion: obj.APIVersion,
+			Controller: util.ToPtr(true),
+			Kind:       obj.Kind,
+			Name:       obj.Name,
+			UID:        obj.UID,
+		},
 	}
 }
 
 func ownerReferencesFromClusterCRD(obj *v1alpha1.ClusterExternalDNS) []metav1.OwnerReference {
-	return []metav1.OwnerReference{{
-		APIVersion: obj.APIVersion,
-		Controller: util.ToPtr(true),
-		Kind:       obj.Kind,
-		Name:       obj.Name,
-		UID:        obj.UID,
-	},
+	return []metav1.OwnerReference{
+		{
+			APIVersion: obj.APIVersion,
+			Controller: util.ToPtr(true),
+			Kind:       obj.Kind,
+			Name:       obj.Name,
+			UID:        obj.UID,
+		},
 	}
 }
 
