@@ -55,7 +55,7 @@ func nicTests(in infra.Provisioned) []test {
 			name: "nic validations",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -260,7 +260,7 @@ func nicTests(in infra.Provisioned) []test {
 			name: "private ingress",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -335,7 +335,7 @@ func nicTests(in infra.Provisioned) []test {
 			name: "ingress with http disabled",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -393,7 +393,7 @@ func nicTests(in infra.Provisioned) []test {
 			name: "testing DefaultSSLCertificate validity",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
