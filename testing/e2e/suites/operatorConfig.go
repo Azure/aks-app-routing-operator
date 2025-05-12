@@ -63,7 +63,7 @@ type cfgBuilderWithVersions struct {
 
 func (c cfgBuilderWithOsm) withVersions(versions ...manifests.OperatorVersion) cfgBuilderWithVersions {
 	if len(versions) == 0 {
-		versions = []manifests.OperatorVersion{manifests.OperatorVersionLatest}
+		versions = manifests.AllUsedOperatorVersions
 	}
 
 	return cfgBuilderWithVersions{

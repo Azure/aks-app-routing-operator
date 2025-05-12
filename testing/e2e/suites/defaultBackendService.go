@@ -50,7 +50,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 			name: "testing default backend service validity",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -109,7 +109,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 			name: "testing custom http error validity",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {

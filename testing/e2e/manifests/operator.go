@@ -26,7 +26,7 @@ var (
 	}
 
 	// AllUsedOperatorVersions is a list of all the operator versions used today
-	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_3_Patch_5, OperatorVersionLatest}
+	AllUsedOperatorVersions = []OperatorVersion{OperatorVersion0_2_5, OperatorVersionLatest}
 
 	// AllDnsZoneCounts is a list of all the dns zone counts
 	AllDnsZoneCounts     = []DnsZoneCount{DnsZoneCountNone, DnsZoneCountOne, DnsZoneCountMultiple}
@@ -41,6 +41,7 @@ type OperatorVersion uint
 const (
 	OperatorVersion0_2_1_Patch_7 OperatorVersion = iota // use iota to number with earlier versions being lower numbers
 	OperatorVersion0_2_3_Patch_5
+	OperatorVersion0_2_5
 
 	// OperatorVersionLatest represents the latest version of the operator which is essentially whatever code changes this test is running against
 	OperatorVersionLatest = math.MaxUint // this must always be the last/largest value in the enum because we order by value
@@ -52,6 +53,8 @@ func (o OperatorVersion) String() string {
 		return "0.2.1-patch-7"
 	case OperatorVersion0_2_3_Patch_5:
 		return "0.2.3-patch-5"
+	case OperatorVersion0_2_5:
+		return "0.2.5"
 	case OperatorVersionLatest:
 		return "latest"
 	default:
@@ -104,6 +107,8 @@ func (o *OperatorConfig) image(latestImage string) string {
 		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.1-patch-7"
 	case OperatorVersion0_2_3_Patch_5:
 		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.3-patch-5"
+	case OperatorVersion0_2_5:
+		return "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.5"
 	case OperatorVersionLatest:
 		return latestImage
 	default:
@@ -125,7 +130,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		"--cluster-uid", "test-cluster-uid",
 	}
 
-	if o.Version == OperatorVersionLatest {
+	if o.Version >= OperatorVersion0_2_5 {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 3).String())
 		ret = append(ret, "--enable-gateway")
 		ret = append(ret, "--disable-expensive-cache")
