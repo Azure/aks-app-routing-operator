@@ -383,7 +383,11 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		ingressControllerPodLabels[k] = v
 	}
 
-	podAnnotations := map[string]string{}
+	podAnnotations := map[string]string{
+		// https://learn.microsoft.com/en-us/azure/aks/outbound-rules-control-egress#required-outbound-network-rules-and-fqdns-for-aks-clusters
+		// helps with firewalls blocking communication to api server
+		"kubernetes.azure.com/set-kube-service-host-fqdn": "true",
+	}
 	if !conf.DisableOSM {
 		podAnnotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	}
