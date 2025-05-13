@@ -75,7 +75,6 @@ func (rt ResourceType) generateResourceDeploymentArgs() []string {
 	default:
 		return []string{"--source=ingress"}
 	}
-
 }
 
 func (rt ResourceType) generateRBACRules(dnsconfig *ExternalDnsConfig) []rbacv1.PolicyRule {
@@ -591,6 +590,11 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 			Selector:             &metav1.LabelSelector{MatchLabels: map[string]string{"app": externalDnsConfig.resourceName}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						// https://learn.microsoft.com/en-us/azure/aks/outbound-rules-control-egress#required-outbound-network-rules-and-fqdns-for-aks-clusters
+						// helps with firewalls blocking communication to api server
+						"kubernetes.azure.com/set-kube-service-host-fqdn": "true",
+					},
 					Labels: podLabels,
 				},
 				Spec: *WithPreferSystemNodes(&corev1.PodSpec{
