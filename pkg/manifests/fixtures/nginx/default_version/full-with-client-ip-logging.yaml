@@ -439,16 +439,15 @@ apiVersion: v1
 data:
   allow-snippet-annotations: "true"
   annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'
-  log-format-upstream: "{\n\t\t\t\t\"remote_addr\": \"$remote_addr\",\n\t\t\t\t\"remote_user\":
-    \"$remote_user\",\n\t\t\t\t\"time_local\": \"$time_local\",\n\t\t\t\t\"body_bytes_sent\":
-    \"$body_bytes_sent\",\n\t\t\t\t\"http_referer\": \"$http_referer\",\n\t\t\t\t\"http_user_agent\":
-    \"$http_user_agent\",\n\t\t\t\t\"request_length\": \"$request_length\",\n\t\t\t\t\"request_time\":
-    \"$request_time\",\n\t\t\t\t\"proxy_upstream_name\": \"$proxy_upstream_name\",\n\t\t\t\t\"proxy_alternative_upstream_name\":
-    \"$proxy_alternative_upstream_name\",\n\t\t\t\t\"upstream_addr\": \"$upstream_addr\",\n\t\t\t\t\"upstream_response_length\":
-    \"$upstream_response_length\",\n\t\t\t\t\"upstream_response_time\": \"$upstream_response_time\",\n\t\t\t\t\"upstream_status\":
-    \"$upstream_status\",\n\t\t\t\t\"req_id\": \"$req_id\",\n\t\t\t\t\"x_forwarded_for\":
-    \"$http_x_forwarded_for\",\n\t\t\t\t\"x_real_ip\": \"$http_x_real_ip\",\n\t\t\t\t\"request\":
-    \"$request\",\n\t\t\t\t\"status\": \"$status\"\n\t\t\t}"
+  log-format-upstream: "{\n\t\"remote_addr\": \"$remote_addr\",\n\t\"remote_user\":
+    \"$remote_user\",\n\t\"time_local\": \"$time_local\",\n\t\"body_bytes_sent\":
+    \"$body_bytes_sent\",\n\t\"http_referer\": \"$http_referer\",\n\t\"http_user_agent\":
+    \"$http_user_agent\",\n\t\"request_length\": \"$request_length\",\n\t\"request_time\":
+    \"$request_time\",\n\t\"proxy_upstream_name\": \"$proxy_upstream_name\",\n\t\"proxy_alternative_upstream_name\":
+    \"$proxy_alternative_upstream_name\",\n\t\"upstream_addr\": \"$upstream_addr\",\n\t\"upstream_response_length\":
+    \"$upstream_response_length\",\n\t\"upstream_response_time\": \"$upstream_response_time\",\n\t\"upstream_status\":
+    \"$upstream_status\",\n\t\"req_id\": \"$req_id\",\n\t\"x_forwarded_for\": \"$http_x_forwarded_for\",\n\t\"x_real_ip\":
+    \"$http_x_real_ip\",\n\t\"request\": \"$request\",\n\t\"status\": \"$status\"\n}"
   use-forwarded-headers: "true"
 kind: ConfigMap
 metadata:

@@ -531,26 +531,26 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 	if conf.EnableClientIpLogging {
 		confMap.Data["use-forwarded-headers"] = "true"
 		confMap.Data["log-format-upstream"] = `{
-				"remote_addr": "$remote_addr",
-				"remote_user": "$remote_user",
-				"time_local": "$time_local",
-				"body_bytes_sent": "$body_bytes_sent",
-				"http_referer": "$http_referer",
-				"http_user_agent": "$http_user_agent",
-				"request_length": "$request_length",
-				"request_time": "$request_time",
-				"proxy_upstream_name": "$proxy_upstream_name",
-				"proxy_alternative_upstream_name": "$proxy_alternative_upstream_name",
-				"upstream_addr": "$upstream_addr",
-				"upstream_response_length": "$upstream_response_length",
-				"upstream_response_time": "$upstream_response_time",
-				"upstream_status": "$upstream_status",
-				"req_id": "$req_id",
-				"x_forwarded_for": "$http_x_forwarded_for",
-				"x_real_ip": "$http_x_real_ip",
-				"request": "$request",
-				"status": "$status"
-			}`
+	"remote_addr": "$remote_addr",
+	"remote_user": "$remote_user",
+	"time_local": "$time_local",
+	"body_bytes_sent": "$body_bytes_sent",
+	"http_referer": "$http_referer",
+	"http_user_agent": "$http_user_agent",
+	"request_length": "$request_length",
+	"request_time": "$request_time",
+	"proxy_upstream_name": "$proxy_upstream_name",
+	"proxy_alternative_upstream_name": "$proxy_alternative_upstream_name",
+	"upstream_addr": "$upstream_addr",
+	"upstream_response_length": "$upstream_response_length",
+	"upstream_response_time": "$upstream_response_time",
+	"upstream_status": "$upstream_status",
+	"req_id": "$req_id",
+	"x_forwarded_for": "$http_x_forwarded_for",
+	"x_real_ip": "$http_x_real_ip",
+	"request": "$request",
+	"status": "$status"
+}`
 	}
 
 	return confMap
