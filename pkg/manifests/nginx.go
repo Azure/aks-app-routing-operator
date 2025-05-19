@@ -549,7 +549,7 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 				"x_forwarded_for": "$http_x_forwarded_for",
 				"x_real_ip": "$http_x_real_ip",
 				"request": "$request",
-				"status": "$status",
+				"status": "$status"
 			}`
 	}
 
