@@ -4,10 +4,12 @@
 package manifests
 
 import (
+	"encoding/json"
 	"path"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -512,4 +514,11 @@ func TestMapAdditions(t *testing.T) {
 	if ok {
 		t.Errorf("original map was written to")
 	}
+}
+
+func TestClientIpLoggingJsonFmt(t *testing.T) {
+	t.Parallel()
+
+	// proves that the client ip logging format is valid json
+	require.True(t, json.Valid([]byte(clientIpLoggingJsonFmt)), "client ip logging format is not valid json")
 }
