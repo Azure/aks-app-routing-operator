@@ -455,6 +455,7 @@ var (
 			},
 			IngConfig: func() *NginxIngressConfig {
 				copy := *ingConfig
+				copy.ServiceConfig = *&copy.ServiceConfig
 				copy.ServiceConfig.LoadBalancerSourceRanges = []string{"100.00.000.0/22"}
 				return &copy
 			}(),
