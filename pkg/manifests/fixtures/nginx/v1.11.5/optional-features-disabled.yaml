@@ -262,8 +262,6 @@ metadata:
   namespace: test-namespace
 spec:
   externalTrafficPolicy: Local
-  loadBalancerSourceRanges:
-  - 100.00.000.0/22
   ports:
   - name: http
     port: 80
