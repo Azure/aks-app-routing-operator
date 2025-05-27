@@ -437,6 +437,28 @@ var (
 			},
 			IngConfig: ingConfig,
 		},
+		{
+			Name: "full-with-ip-source-ranges",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.ServiceConfig.LoadBalancerSourceRanges = []string{"100.00.000.0/22"}
+				return &copy
+			}(),
+		},
 	}
 	classTestCases = []struct {
 		Name      string

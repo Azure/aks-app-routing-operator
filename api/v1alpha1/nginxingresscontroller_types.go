@@ -52,6 +52,10 @@ type NginxIngressControllerSpec struct {
 	// +optional
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
 
+	// LoadBalancerSourceRanges restricts traffic to the LoadBalancer Service to the specified client IPs. This can be used along with
+	// deny-all annotations to restrict access  https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
+	LoadBalancerSourceRanges []string `json:"loadBalancerSourceRanges,omitempty"`
+
 	// DefaultSSLCertificate defines whether the NginxIngressController should use a certain SSL certificate by default.
 	// If this field is omitted, no default certificate will be used.
 	// +optional
