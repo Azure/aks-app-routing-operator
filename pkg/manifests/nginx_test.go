@@ -40,6 +40,7 @@ var (
 			Annotations: map[string]string{
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
+			LoadBalancerSourceRanges: []string{"127.1.000.1"},
 		},
 		MinReplicas:                    2,
 		MaxReplicas:                    100,
@@ -438,7 +439,7 @@ var (
 			IngConfig: ingConfig,
 		},
 		{
-			Name: "full-with-ip-source-ranges",
+			Name: "full-with-other-ip-source-ranges",
 			Conf: &config.Config{
 				NS:          "test-namespace",
 				Registry:    "test-registry",
@@ -457,7 +458,7 @@ var (
 				copy := *ingConfig
 				copy.ServiceConfig = &ServiceConfig{
 					Annotations:              copy.ServiceConfig.Annotations,
-					LoadBalancerSourceRanges: []string{"100.00.000.0/22"},
+					LoadBalancerSourceRanges: []string{"100.00.000.0/22", "222.22.222.2/22"},
 				}
 				return &copy
 			}(),
