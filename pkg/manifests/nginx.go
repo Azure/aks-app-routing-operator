@@ -532,7 +532,6 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 	}
 
 	if conf.EnableClientIpLogging {
-		confMap.Data["use-forwarded-headers"] = "true"
 		confMap.Data["log-format-upstream"] = defaultLogFormat + ` $http_x_forwarded_for`
 	}
 
