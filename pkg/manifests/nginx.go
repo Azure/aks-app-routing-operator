@@ -57,6 +57,9 @@ var (
 	}
 )
 
+// comes from https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap
+const defaultLogFormat = `$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id`
+
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
 	if ingressConfig != nil && ingressConfig.Version == nil {
 		ingressConfig.Version = &LatestNginxVersion
@@ -526,6 +529,10 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 
 	if ingressConfig.CustomHTTPErrors != "" {
 		confMap.Data["custom-http-errors"] = ingressConfig.CustomHTTPErrors
+	}
+
+	if conf.EnableClientIpLogging {
+		confMap.Data["log-format-upstream"] = defaultLogFormat + ` $http_x_forwarded_for`
 	}
 
 	return confMap

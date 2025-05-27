@@ -79,4 +79,5 @@ type Config struct {
 	EnableGateway                       bool
 	DisableExpensiveCache               bool
 	EnableManagedCertificates           bool
+	EnableClientIpLogging               bool
 }
