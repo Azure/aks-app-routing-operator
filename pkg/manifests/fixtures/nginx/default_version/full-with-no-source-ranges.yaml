@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   creationTimestamp: null
+  labels:
+    openservicemesh.io/monitored-by: osm
   name: test-namespace
 spec: {}
 status: {}
@@ -262,8 +264,6 @@ metadata:
   namespace: test-namespace
 spec:
   externalTrafficPolicy: Local
-  loadBalancerSourceRanges:
-  - 127.1.000.1
   ports:
   - name: http
     port: 80
@@ -323,6 +323,7 @@ spec:
     metadata:
       annotations:
         kubernetes.azure.com/set-kube-service-host-fqdn: "true"
+        openservicemesh.io/sidecar-injection: disabled
         prometheus.io/port: "10254"
         prometheus.io/scrape: "true"
       creationTimestamp: null

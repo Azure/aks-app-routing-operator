@@ -307,10 +307,13 @@ func newNginxIngressControllerRoleBinding(conf *config.Config, ingressConfig *Ng
 
 func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxIngressConfig) *corev1.Service {
 	annotations := make(map[string]string)
+	sourceRanges := []string{}
 	if ingressConfig != nil && ingressConfig.ServiceConfig != nil {
 		for k, v := range ingressConfig.ServiceConfig.Annotations {
 			annotations[k] = v
 		}
+
+		sourceRanges = ingressConfig.ServiceConfig.LoadBalancerSourceRanges
 	}
 
 	ret := &corev1.Service{
@@ -325,9 +328,10 @@ func newNginxIngressControllerService(conf *config.Config, ingressConfig *NginxI
 			Annotations: annotations,
 		},
 		Spec: corev1.ServiceSpec{
-			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
-			Type:                  corev1.ServiceTypeLoadBalancer,
-			Selector:              ingressConfig.PodLabels(),
+			ExternalTrafficPolicy:    corev1.ServiceExternalTrafficPolicyTypeLocal,
+			Type:                     corev1.ServiceTypeLoadBalancer,
+			Selector:                 ingressConfig.PodLabels(),
+			LoadBalancerSourceRanges: sourceRanges,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "https",

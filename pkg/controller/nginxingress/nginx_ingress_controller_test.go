@@ -467,7 +467,6 @@ func TestUpdateStatusManagedResourceRefs(t *testing.T) {
 		}
 		n.updateStatusManagedResourceRefs(nic, refs)
 		require.Equal(t, refs, nic.Status.ManagedResourceRefs)
-
 	})
 }
 
@@ -505,7 +504,6 @@ func TestUpdateStatusIngressClass(t *testing.T) {
 		got := nic.GetCondition(approutingv1alpha1.ConditionTypeIngressClassReady)
 		require.NotNil(t, got)
 		require.Equal(t, metav1.ConditionTrue, got.Status)
-
 	})
 }
 
@@ -956,9 +954,61 @@ func TestToNginxIngressConfig(t *testing.T) {
 				ControllerClass: "approuting.kubernetes.azure.com/nicName",
 				ResourceName:    "controllerNamePrefix-0",
 				ServiceConfig: &manifests.ServiceConfig{
-					map[string]string{
+					Annotations: map[string]string{
 						"foo": "bar",
 					},
+				},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with load balancer source ranges",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:         "ingressClassName",
+					ControllerNamePrefix:     "controllerNamePrefix",
+					LoadBalancerSourceRanges: []string{"127.0.1.1/32"},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
+				ResourceName:    "controllerNamePrefix-0",
+				ServiceConfig: &manifests.ServiceConfig{
+					LoadBalancerSourceRanges: []string{"127.0.1.1/32"},
+				},
+				IcName:                         "ingressClassName",
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "custom fields with annotations and load balancer source ranges",
+			nic: &approutingv1alpha1.NginxIngressController{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nicName",
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					IngressClassName:     "ingressClassName",
+					ControllerNamePrefix: "controllerNamePrefix",
+					LoadBalancerAnnotations: map[string]string{
+						"foo": "bar",
+					},
+					LoadBalancerSourceRanges: []string{"127.0.1.1/32"},
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass: "approuting.kubernetes.azure.com/nicName",
+				ResourceName:    "controllerNamePrefix-0",
+				ServiceConfig: &manifests.ServiceConfig{
+					Annotations:              map[string]string{"foo": "bar"},
+					LoadBalancerSourceRanges: []string{"127.0.1.1/32"},
 				},
 				IcName:                         "ingressClassName",
 				MaxReplicas:                    defaultMaxReplicas,
@@ -1528,7 +1578,6 @@ func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
 			require.Equal(t, c.want, got)
 		})
 	}
-
 }
 
 func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
