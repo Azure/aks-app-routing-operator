@@ -159,6 +159,10 @@ spec:
                 items:
                   type: string
                 type: array
+              logFormat:
+                description: LogFormat is the log format used by the Nginx Ingress
+                  Controller. See https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#log-format-upstream
+                type: string
               scaling:
                 description: Scaling defines configuration options for how the Ingress
                   Controller scales

@@ -897,6 +897,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
 
+	customLogFormat := "$remote_addr - $remote_user [$time_local]"
+
 	cases := []struct {
 		name string
 		nic  *approutingv1alpha1.NginxIngressController
@@ -1495,6 +1497,84 @@ func TestToNginxIngressConfig(t *testing.T) {
 				IcName:                         DefaultIcName,
 				ServiceConfig:                  &manifests.ServiceConfig{},
 				HTTPDisabled:                   true,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class with LogFormat",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					LogFormat:            &customLogFormat,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+				LogFormat:                      customLogFormat,
+			},
+		},
+		{
+			name: "default controller class with empty LogFormat",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					LogFormat:            util.ToPtr(""),
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class without LogFormat",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
 				MaxReplicas:                    defaultMaxReplicas,
 				MinReplicas:                    defaultMinReplicas,
 				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
