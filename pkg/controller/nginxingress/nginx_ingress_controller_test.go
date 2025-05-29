@@ -467,7 +467,6 @@ func TestUpdateStatusManagedResourceRefs(t *testing.T) {
 		}
 		n.updateStatusManagedResourceRefs(nic, refs)
 		require.Equal(t, refs, nic.Status.ManagedResourceRefs)
-
 	})
 }
 
@@ -505,7 +504,6 @@ func TestUpdateStatusIngressClass(t *testing.T) {
 		got := nic.GetCondition(approutingv1alpha1.ConditionTypeIngressClassReady)
 		require.NotNil(t, got)
 		require.Equal(t, metav1.ConditionTrue, got.Status)
-
 	})
 }
 
@@ -898,6 +896,8 @@ func TestToNginxIngressConfig(t *testing.T) {
 
 	FakeCertWithForceSSLRedirectTrue := getFakeDefaultSSLCert("fake", "fakenamespace")
 	FakeCertWithForceSSLRedirectTrue.ForceSSLRedirect = true
+
+	customLogFormat := "$remote_addr - $remote_user [$time_local]"
 
 	cases := []struct {
 		name string
@@ -1450,6 +1450,84 @@ func TestToNginxIngressConfig(t *testing.T) {
 				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
 			},
 		},
+		{
+			name: "default controller class with LogFormat",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					LogFormat:            &customLogFormat,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+				LogFormat:                      customLogFormat,
+			},
+		},
+		{
+			name: "default controller class with empty LogFormat",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					LogFormat:            util.ToPtr(""),
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
+			name: "default controller class without LogFormat",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -1528,7 +1606,6 @@ func TestGetTargetCPUUtilizationPercentage(t *testing.T) {
 			require.Equal(t, c.want, got)
 		})
 	}
-
 }
 
 func getFakeDefaultSSLCert(name, namespace string) *approutingv1alpha1.DefaultSSLCertificate {
