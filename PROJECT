@@ -31,12 +31,4 @@ resources:
   kind: ExternalDNS
   path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
   version: v1alpha1
-- api:
-    crdVersion: v1
-    namespaced: true
-  domain: kubernetes.azure.com
-  group: approuting
-  kind: ManagedCertificate
-  path: github.com/Azure/aks-app-routing-operator/api/v1alpha1
-  version: v1alpha1
 version: "3"

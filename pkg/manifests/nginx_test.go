@@ -40,6 +40,7 @@ var (
 			Annotations: map[string]string{
 				"service.beta.kubernetes.io/azure-load-balancer-internal": "true",
 			},
+			LoadBalancerSourceRanges: []string{"127.1.000.1"},
 		},
 		MinReplicas:                    2,
 		MaxReplicas:                    100,
@@ -438,6 +439,55 @@ var (
 			IngConfig: ingConfig,
 		},
 		{
+			Name: "full-with-other-ip-source-ranges",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.ServiceConfig = &ServiceConfig{
+					Annotations:              copy.ServiceConfig.Annotations,
+					LoadBalancerSourceRanges: []string{"100.00.000.0/22", "222.22.222.2/22"},
+				}
+				return &copy
+			}(),
+		},
+		{
+			Name: "full-with-no-source-ranges",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.ServiceConfig = &ServiceConfig{
+					Annotations: copy.ServiceConfig.Annotations,
+				}
+				return &copy
+			}(),
+		},
+	  {
 			Name: "full-with-client-ip-logging-and-custom-log-format",
 			Conf: &config.Config{
 				NS:                    "test-namespace",

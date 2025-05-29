@@ -254,6 +254,8 @@ metadata:
   namespace: kube-system
 spec:
   externalTrafficPolicy: Local
+  loadBalancerSourceRanges:
+  - 127.1.000.1
   ports:
   - name: http
     port: 80

@@ -156,6 +156,13 @@ spec:
                 description: LogFormat is the log format used by the Nginx Ingress
                   Controller. See https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#log-format-upstream
                 type: string
+              loadBalancerSourceRanges:
+                description: |-
+                  LoadBalancerSourceRanges restricts traffic to the LoadBalancer Service to the specified client IPs. This can be used along with
+                  deny-all annotations to restrict access  https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
+                items:
+                  type: string
+                type: array
               scaling:
                 description: Scaling defines configuration options for how the Ingress
                   Controller scales
