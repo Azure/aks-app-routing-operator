@@ -152,10 +152,6 @@ spec:
                   LoadBalancerAnnotations is a map of annotations to apply to the NGINX Ingress Controller's Service. Common annotations
                   will be from the Azure LoadBalancer annotations here https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/#loadbalancer-annotations
                 type: object
-              logFormat:
-                description: LogFormat is the log format used by the Nginx Ingress
-                  Controller. See https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#log-format-upstream
-                type: string
               loadBalancerSourceRanges:
                 description: |-
                   LoadBalancerSourceRanges restricts traffic to the LoadBalancer Service to the specified client IPs. This can be used along with
@@ -163,6 +159,10 @@ spec:
                 items:
                   type: string
                 type: array
+              logFormat:
+                description: LogFormat is the log format used by the Nginx Ingress
+                  Controller. See https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#log-format-upstream
+                type: string
               scaling:
                 description: Scaling defines configuration options for how the Ingress
                   Controller scales
