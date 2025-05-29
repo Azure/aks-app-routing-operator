@@ -67,6 +67,9 @@ type NginxIngressConfig struct {
 	MaxReplicas           int32
 	// TargetCPUUtilizationPercentage is the target average CPU utilization of the Ingress Controller
 	TargetCPUUtilizationPercentage int32
+	// Log format is the log format used by the Nginx Ingress Controller
+	// https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/
+	LogFormat string
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {

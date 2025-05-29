@@ -601,6 +601,10 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		nginxIng.CustomHTTPErrors = errStr
 	}
 
+	if nic.Spec.LogFormat != nil && *nic.Spec.LogFormat != "" {
+		nginxIng.LogFormat = *nic.Spec.LogFormat
+	}
+
 	return nginxIng
 }
 

@@ -535,6 +535,10 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 		confMap.Data["log-format-upstream"] = defaultLogFormat + ` $http_x_forwarded_for`
 	}
 
+	if ingressConfig.LogFormat != "" {
+		confMap.Data["log-format-upstream"] = ingressConfig.LogFormat
+	}
+
 	return confMap
 }
 
