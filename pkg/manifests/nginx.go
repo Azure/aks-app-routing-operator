@@ -428,7 +428,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 	}
 
 	if ingressConfig.EnableSSLPassthrough {
-		deploymentArgs = append(deploymentArgs, "--enable-ssl-passthrough")
+		deploymentArgs = append(deploymentArgs, "--enable-ssl-passthrough=true")
 	}
 
 	ret := &appsv1.Deployment{

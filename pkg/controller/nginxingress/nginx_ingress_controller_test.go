@@ -918,6 +918,33 @@ func TestToNginxIngressConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "default controller class with SSL Passthrough enabled",
+			nic: &approutingv1alpha1.NginxIngressController{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+					Kind:       "NginxIngressController",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: DefaultNicName,
+				},
+				Spec: approutingv1alpha1.NginxIngressControllerSpec{
+					ControllerNamePrefix: DefaultNicResourceName,
+					IngressClassName:     DefaultIcName,
+					EnableSSLPassthrough: true,
+				},
+			},
+			want: manifests.NginxIngressConfig{
+				ControllerClass:                defaultCc,
+				ResourceName:                   DefaultNicResourceName,
+				IcName:                         DefaultIcName,
+				ServiceConfig:                  &manifests.ServiceConfig{},
+				EnableSSLPassthrough:           true,
+				MaxReplicas:                    defaultMaxReplicas,
+				MinReplicas:                    defaultMinReplicas,
+				TargetCPUUtilizationPercentage: defaultTargetCPUUtilization,
+			},
+		},
+		{
 			name: "custom fields",
 			nic: &approutingv1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
