@@ -69,7 +69,8 @@ type NginxIngressConfig struct {
 	TargetCPUUtilizationPercentage int32
 	// Log format is the log format used by the Nginx Ingress Controller
 	// https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/
-	LogFormat string
+	LogFormat            string
+	EnableSSLPassthrough bool
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {

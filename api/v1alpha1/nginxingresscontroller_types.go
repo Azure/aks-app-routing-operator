@@ -79,7 +79,12 @@ type NginxIngressControllerSpec struct {
 	HTTPDisabled bool `json:"httpDisabled,omitempty"`
 
 	// LogFormat is the log format used by the Nginx Ingress Controller. See https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#log-format-upstream
+	// +optional
 	LogFormat *string `json:"logFormat,omitempty"`
+
+	// EnableSSLPassthrough is a flag that enables SSL passthrough for the NginxIngressController. This allows the controller to pass through SSL traffic without terminating it.
+	// +optional
+	EnableSSLPassthrough bool `json:"enableSSLPassthrough,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri

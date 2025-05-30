@@ -427,6 +427,10 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		deploymentArgs = append(deploymentArgs, "--default-backend-service="+ingressConfig.DefaultBackendService)
 	}
 
+	if ingressConfig.EnableSSLPassthrough {
+		deploymentArgs = append(deploymentArgs, "--enable-ssl-passthrough")
+	}
+
 	ret := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
