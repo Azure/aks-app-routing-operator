@@ -487,7 +487,7 @@ var (
 				return &copy
 			}(),
 		},
-	  {
+		{
 			Name: "full-with-client-ip-logging-and-custom-log-format",
 			Conf: &config.Config{
 				NS:                    "test-namespace",
@@ -529,6 +529,28 @@ var (
 			IngConfig: func() *NginxIngressConfig {
 				copy := *ingConfig
 				copy.LogFormat = `custom format with only request: "$request"` // also covers quotes test case
+				return &copy
+			}(),
+		},
+		{
+			Name: "full-with-ssl-passthrough",
+			Conf: &config.Config{
+				NS:          "test-namespace",
+				Registry:    "test-registry",
+				MSIClientID: "test-msi-client-id",
+				TenantID:    "test-tenant-id",
+				Cloud:       "test-cloud",
+				Location:    "test-location",
+			},
+			Deploy: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operator-deploy",
+					UID:  "test-operator-deploy-uid",
+				},
+			},
+			IngConfig: func() *NginxIngressConfig {
+				copy := *ingConfig
+				copy.EnableSSLPassthrough = true
 				return &copy
 			}(),
 		},
