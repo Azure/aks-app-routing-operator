@@ -19,7 +19,7 @@ jobs:
   operator:
     runs-on: ubuntu-latest
     steps:
-      - uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+      - uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
         with:
           image-ref: ${{ inputs.operator }}
           format: 'table'
@@ -30,7 +30,7 @@ jobs:
   nginx:
     runs-on: ubuntu-latest
     steps:
-      - uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+      - uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
         with:
           image-ref: ${{ inputs.nginx }}
           format: 'table'
@@ -41,7 +41,7 @@ jobs:
   externaldns:
     runs-on: ubuntu-latest
     steps:
-      - uses: aquasecurity/trivy-action@595be6a0f6560a0a8fc419ddf630567fc623531d # v0.22.0
+      - uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
         with:
           image-ref: ${{ inputs.externaldns }}
           format: 'table'
