@@ -1,4 +1,4 @@
-// This Terraform configuration deploys a simple web application and Ingress setup to help test the Ingress controller test the Ingress controller test the Ingress controller test the Ingress controller tes
+// This Terraform configuration deploys a simple web application and Ingress setup to help test the Ingress controller 
 
 # Namespace
 resource "kubernetes_namespace" "ing-dev" {
