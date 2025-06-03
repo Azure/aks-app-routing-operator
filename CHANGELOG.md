@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2025-05-30
+
+### Added
+- ssl passthrough configuration option - [link](https://github.com/Azure/aks-app-routing-operator/pull/440)
+- custom logging configuration option - [link](https://github.com/Azure/aks-app-routing-operator/pull/439)
+- load balancer source ip ranges configuration option - [link](https://github.com/Azure/aks-app-routing-operator/pull/437)
+- client ip logging flag - [link](https://github.com/Azure/aks-app-routing-operator/pull/436)
+- firewall bypass with kubernetes.azure.com/set-kube-service-host-fqdn flag - [link](https://github.com/Azure/aks-app-routing-operator/pull/434)
+
+
 ## [0.2.5] - 2025-04-22
 
 ### Added
