@@ -41,7 +41,7 @@ type secretProviderClassReconciler[objectType client.Object] struct {
 	// config options
 	name            controllername.ControllerNamer
 	spcNamer        func(objectType) string
-	shouldReconcile func(logr.Logger, client.Client) bool
+	shouldReconcile func(objectType) (bool, error)
 	toSpcOpts       func(objectType) (spcOpts, error)
 
 	// set during constructor
@@ -90,7 +90,13 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	}
 	logger = logger.WithValues("spc", spc.Name)
 
-	if !s.shouldReconcile(logger, s.client) {
+	reconcile, err := s.shouldReconcile(obj)
+	if err != nil {
+		logger.Error(err, "failed to determine if SecretProviderClass should be reconciled")
+		return ctrl.Result{}, fmt.Errorf("determining if SecretProviderClass should be reconciled: %w", err)
+	}
+
+	if !reconcile {
 		logger.Info("skipping reconciliation for SecretProviderClass, will attempt to cleanup")
 
 		logger.Info("getting SecretProviderClass to clean")
