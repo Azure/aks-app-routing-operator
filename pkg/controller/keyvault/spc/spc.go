@@ -102,7 +102,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 
 			logger.Info("getting SecretProviderClass to clean")
 			toCleanSPC := &secv1.SecretProviderClass{}
-			if err := s.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC); err != nil {
+			if err := s.client.Get(ctx, client.ObjectKey{Namespace: spcOpts.namespace, Name: spcOpts.name}, toCleanSPC); err != nil {
 				if client.IgnoreNotFound(err) != nil {
 					logger.Error(err, "failed to get SecretProviderClass to clean")
 					return ctrl.Result{}, fmt.Errorf("getting SecretProviderClass to clean: %w", err)
