@@ -23,7 +23,9 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 
 	spcReconciler := &secretProviderClassReconciler[*netv1.Ingress]{
 		name: ingressSecretProviderControllerName,
-
+		toSpcOpts: func(ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return ingressToSpcOpts(conf, ing, ingressManager)
+		},
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
 		config: conf,
@@ -36,6 +38,68 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 			Owns(&secv1.SecretProviderClass{}),
 		manager.GetLogger(),
 	).Complete(spcReconciler)
+}
+
+func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager util.IngressManager) iter.Seq2[spcOpts, error] {
+	if conf == nil {
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, fmt.Errorf("config is nil"))
+		}
+	}
+
+	if ing == nil {
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, fmt.Errorf("ingress is nil"))
+		}
+	}
+
+	opts := spcOpts{
+		action:     actionReconcile,
+		name:       getIngressSpcName(ing),
+		namespace:  ing.GetNamespace(),
+		clientId:   conf.MSIClientID,
+		tenantId:   conf.TenantID,
+		secretName: getIngressCertSecretName(ing),
+		cloud:      conf.Cloud,
+	}
+
+	reconcile, err := shouldReconcileIngress(ingressManager, ing)
+	if err != nil {
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, fmt.Errorf("checking if ingress is managed: %w", err))
+		}
+	}
+
+	if !reconcile {
+		opts.action = actionCleanup
+		return func(yield func(spcOpts, error) bool) {
+			yield(opts, nil)
+		}
+	}
+
+	uri := ing.Annotations[keyVaultUriKey]
+	certRef, err := parseKeyVaultCertURI(uri)
+	if err != nil {
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri)))
+		}
+	}
+
+	opts.vaultName = certRef.vaultName
+	opts.certName = certRef.certName
+	opts.objectVersion = certRef.objectVersion
+
+	return func(yield func(spcOpts, error) bool) {
+		yield(opts, nil)
+	}
+}
+
+func getIngressCertSecretName(ing *netv1.Ingress) string {
+	if ing == nil {
+		return ""
+	}
+
+	return "keyvault-" + ing.Name
 }
 
 func shouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingress) (bool, error) {
@@ -60,47 +124,6 @@ func shouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingre
 }
 
 func getIngressSpcName(ing *netv1.Ingress) string {
-	if ing == nil {
-		return ""
-	}
-
-	return "keyvault-" + ing.Name
-}
-
-func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
-	if conf == nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, fmt.Errorf("config is nil"))
-		}
-	}
-
-	if ing == nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, fmt.Errorf("ingress is nil"))
-		}
-	}
-
-	uri := ing.Annotations[keyVaultUriKey]
-	certRef, err := parseKeyVaultCertURI(uri)
-	if err != nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri)))
-		}
-	}
-
-	return func(yield func(spcOpts, error) bool) {
-		yield(spcOpts{
-			clientId:      conf.MSIClientID,
-			tenantId:      conf.TenantID,
-			vaultName:     certRef.vaultName,
-			certName:      certRef.certName,
-			objectVersion: certRef.objectVersion,
-			secretName:    getIngressCertSecretName(ing),
-		}, nil)
-	}
-}
-
-func getIngressCertSecretName(ing *netv1.Ingress) string {
 	if ing == nil {
 		return ""
 	}
