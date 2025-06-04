@@ -14,7 +14,7 @@ import (
 
 var ingressSecretProviderControllerName = controllername.New("keyvault", "ingress", "secret", "provider")
 
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager util.IngressManager) error {
 	metrics.InitControllerMetrics(ingressSecretProviderControllerName)
 	if conf.DisableKeyvault {
 		return nil
@@ -44,7 +44,7 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 	).Complete(spcReconciler)
 }
 
-func shouldReconcileIngress(ingressManager IngressManager, ing *netv1.Ingress) (bool, error) {
+func shouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingress) (bool, error) {
 	isManaged, err := ingressManager.IsManaging(ing)
 	if err != nil {
 		return false, fmt.Errorf("checking if ingress %s is managed: %w", ing.Name, err)

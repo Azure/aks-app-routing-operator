@@ -11,7 +11,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -36,10 +35,10 @@ type IngressSecretProviderClassReconciler struct {
 	client         client.Client
 	events         record.EventRecorder
 	config         *config.Config
-	ingressManager spc.IngressManager
+	ingressManager util.IngressManager
 }
 
-func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager spc.IngressManager) error {
+func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Config, ingressManager util.IngressManager) error {
 	metrics.InitControllerMetrics(ingressSecretProviderControllerName)
 	if conf.DisableKeyvault {
 		return nil

@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -213,7 +214,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
 	}
 
-	ingressManager := spc.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+	ingressManager := util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 		return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
 	})
 	lgr.Info("setting up keyvault secret provider class reconciler")

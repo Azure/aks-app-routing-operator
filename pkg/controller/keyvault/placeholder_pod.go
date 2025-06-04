@@ -43,10 +43,10 @@ type PlaceholderPodController struct {
 	client         client.Client
 	events         record.EventRecorder
 	config         *config.Config
-	ingressManager IngressManager
+	ingressManager util.IngressManager
 }
 
-func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingressManager util.IngressManager) error {
 	metrics.InitControllerMetrics(placeholderPodControllerName)
 	if conf.DisableKeyvault {
 		return nil

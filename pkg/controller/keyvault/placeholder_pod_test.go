@@ -115,7 +115,7 @@ func TestPlaceholderPodControllerIntegrationWithIng(t *testing.T) {
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if ing == nil {
 				return false, nil
 			}
