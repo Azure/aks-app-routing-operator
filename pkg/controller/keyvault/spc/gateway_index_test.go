@@ -1,4 +1,4 @@
-package keyvault
+package spc
 
 import (
 	"context"
@@ -201,5 +201,4 @@ func Test_generateGatewayGetter(t *testing.T) {
 	}
 	// done with tests, so shut down the manager
 	cancel()
-
 }

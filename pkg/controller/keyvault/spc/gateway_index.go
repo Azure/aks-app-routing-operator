@@ -1,4 +1,4 @@
-package keyvault
+package spc
 
 import (
 	"context"
@@ -62,5 +62,4 @@ func generateGatewayGetter(mgr ctrl.Manager, serviceAccountIndexName string) han
 
 		return ret
 	}
-
 }
