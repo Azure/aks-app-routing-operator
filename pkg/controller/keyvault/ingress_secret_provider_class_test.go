@@ -22,6 +22,7 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
@@ -57,7 +58,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: spc.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if *ing.Spec.IngressClassName == spcTestIngressClassName {
 				return true, nil
 			}

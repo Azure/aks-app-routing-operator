@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -24,7 +25,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 	recorder := record.NewFakeRecorder(10)
 	i := &ingressTlsReconciler{
 		client: c,
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: spc.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if *ing.Spec.IngressClassName == managedIngressClassName {
 				return true, nil
 			}

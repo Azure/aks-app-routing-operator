@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
@@ -26,10 +27,10 @@ var ingressTlsControllerName = controllername.New("keyvault", "ingress", "tls")
 type ingressTlsReconciler struct {
 	client         client.Client
 	events         record.EventRecorder
-	ingressManager IngressManager
+	ingressManager spc.IngressManager
 }
 
-func NewIngressTlsReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+func NewIngressTlsReconciler(manager ctrl.Manager, conf *config.Config, ingressManager spc.IngressManager) error {
 	metrics.InitControllerMetrics(ingressTlsControllerName)
 
 	if conf.DisableKeyvault {

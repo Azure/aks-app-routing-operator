@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/go-logr/logr"
@@ -212,11 +213,11 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
 	}
 
-	ingressManager := keyvault.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+	ingressManager := spc.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 		return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
 	})
 	lgr.Info("setting up keyvault secret provider class reconciler")
-	if err := keyvault.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
+	if err := spc.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
 	}
 	lgr.Info("setting up nginx keyvault secret provider class reconciler")
