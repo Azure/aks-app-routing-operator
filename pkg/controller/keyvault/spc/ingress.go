@@ -2,6 +2,7 @@ package spc
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -21,14 +22,7 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 	}
 
 	spcReconciler := &secretProviderClassReconciler[*netv1.Ingress]{
-		name:     ingressSecretProviderControllerName,
-		spcNamer: getIngressSpcName,
-		shouldReconcile: func(ing *netv1.Ingress) (bool, error) {
-			return shouldReconcileIngress(ingressManager, ing)
-		},
-		toSpcOpts: func(ing *netv1.Ingress) (spcOpts, error) {
-			return ingressToSpcOpts(conf, ing)
-		},
+		name: ingressSecretProviderControllerName,
 
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
@@ -73,29 +67,37 @@ func getIngressSpcName(ing *netv1.Ingress) string {
 	return "keyvault-" + ing.Name
 }
 
-func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress) (spcOpts, error) {
+func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
 	if conf == nil {
-		return spcOpts{}, fmt.Errorf("config is nil")
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, fmt.Errorf("config is nil"))
+		}
 	}
 
 	if ing == nil {
-		return spcOpts{}, fmt.Errorf("ingress is nil")
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, fmt.Errorf("ingress is nil"))
+		}
 	}
 
 	uri := ing.Annotations[keyVaultUriKey]
 	certRef, err := parseKeyVaultCertURI(uri)
 	if err != nil {
-		return spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri))
+		return func(yield func(spcOpts, error) bool) {
+			yield(spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri)))
+		}
 	}
 
-	return spcOpts{
-		clientId:      conf.MSIClientID,
-		tenantId:      conf.TenantID,
-		vaultName:     certRef.vaultName,
-		certName:      certRef.certName,
-		objectVersion: certRef.objectVersion,
-		secretName:    getIngressCertSecretName(ing),
-	}, nil
+	return func(yield func(spcOpts, error) bool) {
+		yield(spcOpts{
+			clientId:      conf.MSIClientID,
+			tenantId:      conf.TenantID,
+			vaultName:     certRef.vaultName,
+			certName:      certRef.certName,
+			objectVersion: certRef.objectVersion,
+			secretName:    getIngressCertSecretName(ing),
+		}, nil)
+	}
 }
 
 func getIngressCertSecretName(ing *netv1.Ingress) string {

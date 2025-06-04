@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -20,7 +21,26 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
+// action is used to determine what action to take when reconciling the SecretProviderClass
+type action uint
+
+const (
+	// actionReconcile means that the SecretProviderClass should be created or updated
+	actionReconcile action = iota
+	// actionCleanup means that the SecretProviderClass should be deleted if it exists
+	actionCleanup
+)
+
 type spcOpts struct {
+	// action is the action to take when reconciling the SecretProviderClass
+	action action
+	// name is the name of the SecretProviderClass that will be created
+	name string
+	// namespace is the namespace of the SecretProviderClass that will be created
+	namespace string
+
+	// *** above fields are required, below fields are only needed if action is actionReconcile ***
+
 	// clientId is the identity client ID that will be used to access Keyvault
 	clientId string
 	// tenantId is the tenant ID of the Keyvault
@@ -39,10 +59,9 @@ type spcOpts struct {
 
 type secretProviderClassReconciler[objectType client.Object] struct {
 	// config options
-	name            controllername.ControllerNamer
-	spcNamer        func(objectType) string
-	shouldReconcile func(objectType) (bool, error)
-	toSpcOpts       func(objectType) (spcOpts, error)
+	name controllername.ControllerNamer
+	// toSpcNamer is a function that returns an iterator for each SecretProviderClass that should be managed for the given object
+	toSpcOpts func(objectType) iter.Seq2[spcOpts, error]
 
 	// set during constructor
 	client client.Client
@@ -68,93 +87,65 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	}
 	logger = logger.WithValues("generation", obj.GetGeneration())
 
-	// todo: verify that the api version here is okay
-	spc := &secv1.SecretProviderClass{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "secrets-store.csi.x-k8s.io/v1",
-			Kind:       "SecretProviderClass",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.spcNamer(obj),
-			Namespace: obj.GetNamespace(),
-			Labels:    manifests.GetTopLevelLabels(),
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: obj.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-				Controller: util.ToPtr(true),
-				Kind:       obj.GetObjectKind().GroupVersionKind().Kind,
-				Name:       obj.GetName(),
-				UID:        obj.GetUID(),
-			}},
-		},
-		// we build the spec later, after we determine if we should reconcile and get the options
-	}
-	logger = logger.WithValues("spc", spc.Name)
-
-	reconcile, err := s.shouldReconcile(obj)
-	if err != nil {
-		logger.Error(err, "failed to determine if SecretProviderClass should be reconciled")
-		return ctrl.Result{}, fmt.Errorf("determining if SecretProviderClass should be reconciled: %w", err)
-	}
-
-	if !reconcile {
-		logger.Info("skipping reconciliation for SecretProviderClass, will attempt to cleanup")
-
-		logger.Info("getting SecretProviderClass to clean")
-		toCleanSPC := &secv1.SecretProviderClass{}
-		if err := s.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				logger.Error(err, "failed to get SecretProviderClass to clean")
-				return ctrl.Result{}, fmt.Errorf("getting SecretProviderClass to clean: %w", err)
+	for spcOpts, err := range s.toSpcOpts(obj) {
+		if err != nil {
+			var userErr util.UserError
+			if errors.As(err, &userErr) {
+				logger.Info(fmt.Sprintf("failed to build secret provider class with user error: %s", userErr.Error()))
+				s.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+				return ctrl.Result{}, nil
 			}
-
-			logger.Info("SecretProviderClass not found, nothing to clean")
-			return ctrl.Result{}, nil
 		}
 
-		if manifests.HasTopLevelLabels(toCleanSPC.Labels) {
-			logger.Info("deleting SecretProviderClass")
-			if err := s.client.Delete(ctx, toCleanSPC); err != nil {
-				logger.Error(err, "failed to delete SecretProviderClass")
+		if spcOpts.action == actionCleanup {
+			logger.Info("skipping reconciliation for SecretProviderClass, will attempt to cleanup")
+
+			logger.Info("getting SecretProviderClass to clean")
+			toCleanSPC := &secv1.SecretProviderClass{}
+			if err := s.client.Get(ctx, client.ObjectKeyFromObject(spc), toCleanSPC); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					logger.Error(err, "failed to get SecretProviderClass to clean")
+					return ctrl.Result{}, fmt.Errorf("getting SecretProviderClass to clean: %w", err)
+				}
+
+				logger.Info("SecretProviderClass not found, nothing to clean")
+				return ctrl.Result{}, nil
+			}
+
+			if manifests.HasTopLevelLabels(toCleanSPC.Labels) {
+				logger.Info("deleting SecretProviderClass")
+				if err := s.client.Delete(ctx, toCleanSPC); err != nil {
+					logger.Error(err, "failed to delete SecretProviderClass")
+					return ctrl.Result{}, client.IgnoreNotFound(err)
+				}
+
 				return ctrl.Result{}, client.IgnoreNotFound(err)
 			}
 
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-
-		logger.Info("SecretProviderClass does not have top-level labels, not managed by us. Fully skipping.")
-		return ctrl.Result{}, nil
-	}
-
-	spcOpts, err := s.toSpcOpts(obj)
-	if err != nil {
-		var userErr util.UserError
-		if errors.As(err, &userErr) {
-			logger.Info(fmt.Sprintf("failed to build secret provider class with user error: %s", userErr.Error()))
-			s.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
+			logger.Info("SecretProviderClass does not have top-level labels, not managed by us. Fully skipping.")
 			return ctrl.Result{}, nil
 		}
 
-		logger.Error(err, "failed to get SPC options")
-		return ctrl.Result{}, fmt.Errorf("getting SPC options: %w", err)
-	}
+		spc, err := s.buildSpc(obj, spcOpts)
+		if err != nil {
+			logger.Error(err, "failed to build SecretProviderClass spec")
+			return ctrl.Result{}, fmt.Errorf("building SecretProviderClass spec: %w", err)
+		}
+		logger = logger.WithValues("spc", spc.Name)
 
-	if err := s.buildSpcSpec(spc, spcOpts); err != nil {
-		logger.Error(err, "failed to build SecretProviderClass spec")
-		return ctrl.Result{}, fmt.Errorf("building SecretProviderClass spec: %w", err)
-	}
-
-	logger.Info("reconciling SecretProviderClass")
-	if err := util.Upsert(ctx, s.client, spc); err != nil {
-		err := fmt.Errorf("failed to reconcile SecretProviderClass %s: %w", spc.Name, err)
-		s.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
-		logger.Error(err, "failed to upsert SecretProviderClass")
-		return ctrl.Result{}, err
+		logger.Info("reconciling SecretProviderClass")
+		if err := util.Upsert(ctx, s.client, spc); err != nil {
+			err := fmt.Errorf("failed to reconcile SecretProviderClass %s: %w", spc.Name, err)
+			s.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
+			logger.Error(err, "failed to upsert SecretProviderClass")
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (s *secretProviderClassReconciler[objectType]) buildSpcSpec(spc *secv1.SecretProviderClass, opts spcOpts) error {
+func (s *secretProviderClassReconciler[objectType]) buildSpc(obj client.Object, opts spcOpts) (*secv1.SecretProviderClass, error) {
 	p := map[string]interface{}{
 		"objectName": opts.certName,
 		"objectType": "secret",
@@ -165,37 +156,56 @@ func (s *secretProviderClassReconciler[objectType]) buildSpcSpec(spc *secv1.Secr
 
 	params, err := json.Marshal(p)
 	if err != nil {
-		return fmt.Errorf("marshalling parameters: %w", err)
+		return nil, fmt.Errorf("marshalling parameters: %w", err)
 	}
 
 	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(params)}})
 	if err != nil {
-		return fmt.Errorf("marshalling objects: %w", err)
+		return nil, fmt.Errorf("marshalling objects: %w", err)
 	}
 
-	spc.Spec = secv1.SecretProviderClassSpec{
-		Provider: secv1.Provider("azure"),
-		SecretObjects: []*secv1.SecretObject{{
-			SecretName: opts.secretName,
-			Type:       "kubernetes.io/tls",
-			Data: []*secv1.SecretObjectData{
-				{
-					ObjectName: opts.certName,
-					Key:        "tls.key",
+	spc := &secv1.SecretProviderClass{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "secrets-store.csi.x-k8s.io/v1",
+			Kind:       "SecretProviderClass",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      opts.name,
+			Namespace: opts.namespace,
+			Labels:    manifests.GetTopLevelLabels(),
+			OwnerReferences: []metav1.OwnerReference{{
+				// todo: verify that the api version here is okay
+				APIVersion: obj.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+				Controller: util.ToPtr(true),
+				Kind:       obj.GetObjectKind().GroupVersionKind().Kind,
+				Name:       obj.GetName(),
+				UID:        obj.GetUID(),
+			}},
+		},
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: secv1.Provider("azure"),
+			SecretObjects: []*secv1.SecretObject{{
+				SecretName: opts.secretName,
+				Type:       "kubernetes.io/tls",
+				Data: []*secv1.SecretObjectData{
+					{
+						ObjectName: opts.certName,
+						Key:        "tls.key",
+					},
+					{
+						ObjectName: opts.certName,
+						Key:        "tls.crt",
+					},
 				},
-				{
-					ObjectName: opts.certName,
-					Key:        "tls.crt",
-				},
+			}},
+			// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
+			Parameters: map[string]string{
+				"keyvaultName":           opts.vaultName,
+				"useVMManagedIdentity":   "true",
+				"userAssignedIdentityID": opts.clientId,
+				"tenantId":               opts.tenantId,
+				"objects":                string(objects),
 			},
-		}},
-		// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-		Parameters: map[string]string{
-			"keyvaultName":           opts.vaultName,
-			"useVMManagedIdentity":   "true",
-			"userAssignedIdentityID": opts.clientId,
-			"tenantId":               opts.tenantId,
-			"objects":                string(objects),
 		},
 	}
 
@@ -203,5 +213,5 @@ func (s *secretProviderClassReconciler[objectType]) buildSpcSpec(spc *secv1.Secr
 		spc.Spec.Parameters["cloud"] = opts.cloud
 	}
 
-	return nil
+	return spc, nil
 }
