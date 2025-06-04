@@ -612,7 +612,7 @@ func TestPlaceholderPodControllerNoManagedByLabels(t *testing.T) {
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if ing == nil {
 				return false, nil
 			}
@@ -779,7 +779,7 @@ func TestPlaceholderPodControllerUnmanagedDeploymentUnmanagedSPC(t *testing.T) {
 	p := &PlaceholderPodController{
 		client:         cl,
 		config:         &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) { return false, nil }),
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) { return false, nil }),
 	}
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: spc.Namespace, Name: spc.Name}}
 	beforeErrCount := testutils.GetErrMetricCount(t, placeholderPodControllerName)
@@ -805,7 +805,7 @@ func TestNewPlaceholderPodController(t *testing.T) {
 
 	conf := &config.Config{NS: "app-routing-system", OperatorDeployment: "operator"}
 
-	ingressManager := NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+	ingressManager := util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 		if ing == nil {
 			return false, nil
 		}
@@ -878,7 +878,7 @@ func TestPlaceholderPodCleanCheck(t *testing.T) {
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if ing.Spec.IngressClassName != nil {
 				if *ing.Spec.IngressClassName == unmanagedIngClassName {
 					return false, nil
@@ -994,7 +994,7 @@ func TestBuildDeployment(t *testing.T) {
 	p := &PlaceholderPodController{
 		client: c,
 		config: &config.Config{Registry: "test-registry"},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			return true, nil
 		}),
 	}
