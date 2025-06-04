@@ -1,6 +1,7 @@
 package spc
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 
@@ -43,13 +44,13 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager util.IngressManager) iter.Seq2[spcOpts, error] {
 	if conf == nil {
 		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, fmt.Errorf("config is nil"))
+			yield(spcOpts{}, errors.New("config is nil"))
 		}
 	}
 
 	if ing == nil {
 		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, fmt.Errorf("ingress is nil"))
+			yield(spcOpts{}, errors.New("ingress is nil"))
 		}
 	}
 
