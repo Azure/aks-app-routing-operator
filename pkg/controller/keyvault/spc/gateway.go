@@ -42,7 +42,7 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 			NewControllerManagedBy(manager).
 			For(&gatewayv1.Gateway{}).
 			Owns(&secv1.SecretProviderClass{}).
-			Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(generateGatewayGetter(manager, serviceAccountIndexName))),
+			Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(util.GenerateGatewayGetter(manager, serviceAccountIndexName))),
 		manager.GetLogger(),
 	).Complete(spcReconciler)
 }
@@ -143,7 +143,7 @@ func listenerIsKvEnabled(listener gatewayv1.Listener) bool {
 
 func clientIdFromListener(ctx context.Context, cl client.Client, namespace string, listener gatewayv1.Listener) (string, error) {
 	certUri := string(listener.TLS.Options[certUriTLSOption])
-	saName := string(listener.TLS.Options[serviceAccountTLSOption])
+	saName := string(listener.TLS.Options[util.ServiceAccountTLSOption])
 
 	// validate user input
 	if certUri != "" && saName == "" {

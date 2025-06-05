@@ -1,9 +1,8 @@
 package spc
 
 const (
-	keyVaultUriKey          = "kubernetes.azure.com/tls-cert-keyvault-uri"
-	certUriTLSOption        = keyVaultUriKey
-	serviceAccountTLSOption = "kubernetes.azure.com/tls-cert-service-account"
+	keyVaultUriKey   = "kubernetes.azure.com/tls-cert-keyvault-uri"
+	certUriTLSOption = keyVaultUriKey
 )
 
 const istioGatewayClassName = "istio"
