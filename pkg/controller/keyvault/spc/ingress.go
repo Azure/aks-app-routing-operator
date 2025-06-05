@@ -1,6 +1,7 @@
 package spc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"iter"
@@ -11,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	netv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -24,7 +26,7 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 
 	spcReconciler := &secretProviderClassReconciler[*netv1.Ingress]{
 		name: ingressSecretProviderControllerName,
-		toSpcOpts: func(ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
+		toSpcOpts: func(_ context.Context, _ client.Client, ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
 			return ingressToSpcOpts(conf, ing, ingressManager)
 		},
 		client: manager.GetClient(),

@@ -1,6 +1,7 @@
 package spc
 
 import (
+	"context"
 	"errors"
 	"iter"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -23,6 +25,9 @@ func NewNginxSecretProviderClassReconciler(manager ctrl.Manager, conf *config.Co
 
 	spcReconciler := &secretProviderClassReconciler[*approutingv1alpha1.NginxIngressController]{
 		name: nginxSecretProviderControllerName,
+		toSpcOpts: func(_ context.Context, _ client.Client, nic *approutingv1alpha1.NginxIngressController) iter.Seq2[spcOpts, error] {
+			return nicToSpcOpts(conf, nic)
+		},
 
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),

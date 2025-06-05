@@ -65,7 +65,7 @@ type secretProviderClassReconciler[objectType client.Object] struct {
 	// config options
 	name controllername.ControllerNamer
 	// toSpcNamer is a function that returns an iterator for each SecretProviderClass that should be managed for the given object
-	toSpcOpts func(objectType) iter.Seq2[spcOpts, error]
+	toSpcOpts func(context.Context, client.Client, objectType) iter.Seq2[spcOpts, error]
 
 	// set during constructor
 	client client.Client
@@ -92,7 +92,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	logger = logger.WithValues("generation", obj.GetGeneration())
 
 	objUpdated := false
-	for spcOpts, err := range s.toSpcOpts(obj) {
+	for spcOpts, err := range s.toSpcOpts(ctx, s.client, obj) {
 		if err != nil {
 			var userErr util.UserError
 			if errors.As(err, &userErr) {

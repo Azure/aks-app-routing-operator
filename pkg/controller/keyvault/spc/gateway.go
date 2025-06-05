@@ -28,6 +28,9 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 
 	spcReconciler := &secretProviderClassReconciler[*gatewayv1.Gateway]{
 		name: gatewaySecretProviderControllerName,
+		toSpcOpts: func(ctx context.Context, cl client.Client, gw *gatewayv1.Gateway) iter.Seq2[spcOpts, error] {
+			return gatewayToSpcOpts(ctx, cl, conf, gw)
+		},
 
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
@@ -44,7 +47,7 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 	).Complete(spcReconciler)
 }
 
-func gatewayToSpcOpts(ctx context.Context, conf *config.Config, gw *gatewayv1.Gateway, cl client.Client) iter.Seq2[spcOpts, error] {
+func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config, gw *gatewayv1.Gateway) iter.Seq2[spcOpts, error] {
 	return func(yield func(spcOpts, error) bool) {
 		if conf == nil {
 			yield(spcOpts{}, errors.New("config is nil"))
@@ -110,7 +113,7 @@ func gatewayToSpcOpts(ctx context.Context, conf *config.Config, gw *gatewayv1.Ga
 				gwObj.Spec.Listeners[index].TLS.CertificateRefs = []gatewayv1.SecretObjectReference{
 					{
 						Namespace: util.ToPtr(gatewayv1.Namespace(opts.namespace)),
-						Name:      util.ToPtr(gatewayv1.Name(opts.secretName)),
+						Name:      gatewayv1.ObjectName(opts.secretName),
 						Group:     util.ToPtr(gatewayv1.Group(corev1.GroupName)),
 						Kind:      util.ToPtr(gatewayv1.Kind("Secret")),
 					},
