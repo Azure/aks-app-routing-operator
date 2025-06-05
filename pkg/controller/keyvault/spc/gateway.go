@@ -101,11 +101,26 @@ func gatewayToSpcOpts(ctx context.Context, conf *config.Config, gw *gatewayv1.Ga
 			opts.vaultName = certRef.vaultName
 			opts.certName = certRef.certName
 			opts.objectVersion = certRef.objectVersion
+			opts.modifyOwner = func(obj client.Object) error {
+				gwObj, ok := obj.(*gatewayv1.Gateway)
+				if !ok {
+					return fmt.Errorf("object is not a Gateway: %T", obj)
+				}
+
+				gwObj.Spec.Listeners[index].TLS.CertificateRefs = []gatewayv1.SecretObjectReference{
+					{
+						Namespace: util.ToPtr(gatewayv1.Namespace(opts.namespace)),
+						Name:      util.ToPtr(gatewayv1.Name(opts.secretName)),
+						Group:     util.ToPtr(gatewayv1.Group(corev1.GroupName)),
+						Kind:      util.ToPtr(gatewayv1.Kind("Secret")),
+					},
+				}
+
+				return nil
+			}
 			if !yield(opts, nil) {
 				return
 			}
-
-			// todo: how to handle attaching cert reference
 		}
 	}
 }

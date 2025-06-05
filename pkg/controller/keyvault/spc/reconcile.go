@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,6 +56,9 @@ type spcOpts struct {
 	secretName string
 	// cloud is the cloud environment to use, if empty, the default Azure cloud will be used
 	cloud string
+
+	// if set, the owner object will be updated
+	modifyOwner func(obj client.Object) error
 }
 
 type secretProviderClassReconciler[objectType client.Object] struct {
@@ -87,6 +91,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	}
 	logger = logger.WithValues("generation", obj.GetGeneration())
 
+	objUpdated := false
 	for spcOpts, err := range s.toSpcOpts(obj) {
 		if err != nil {
 			var userErr util.UserError
@@ -138,6 +143,29 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 			err := fmt.Errorf("failed to reconcile SecretProviderClass %s: %w", spc.Name, err)
 			s.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateSPC", "error while creating or updating SecretProviderClass needed to pull Keyvault reference: %s", err.Error())
 			logger.Error(err, "failed to upsert SecretProviderClass")
+			return ctrl.Result{}, err
+		}
+
+		if spcOpts.modifyOwner != nil {
+			if err := spcOpts.modifyOwner(obj); err != nil {
+				logger.Error(err, "failed to modify owning object")
+				return ctrl.Result{}, fmt.Errorf("modifying owning object: %w", err)
+			}
+			objUpdated = true
+		}
+	}
+
+	if objUpdated {
+		logger.Info("updating owning object ")
+		if err := s.client.Update(ctx, obj); err != nil {
+			if apierrors.IsConflict(err) {
+				logger.Info("owning object was updated by another process, retrying")
+				return ctrl.Result{Requeue: true}, nil
+			}
+
+			err = fmt.Errorf("failed to update owning object: %w", err)
+			logger.Error(err, "failed to update owning object")
+			s.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateUpstreamCertRef", err.Error())
 			return ctrl.Result{}, err
 		}
 	}

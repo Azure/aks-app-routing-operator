@@ -89,14 +89,6 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 	}
 }
 
-func getIngressCertSecretName(ing *netv1.Ingress) string {
-	if ing == nil {
-		return ""
-	}
-
-	return "keyvault-" + ing.Name
-}
-
 func shouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingress) (bool, error) {
 	isManaged, err := ingressManager.IsManaging(ing)
 	if err != nil {
@@ -117,6 +109,8 @@ func shouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingre
 
 	return isManaged, nil
 }
+
+var getIngressCertSecretName = getIngressSpcName
 
 func getIngressSpcName(ing *netv1.Ingress) string {
 	if ing == nil {
