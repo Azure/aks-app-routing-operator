@@ -45,24 +45,22 @@ func NewGatewaySecretClassProviderReconciler(manager ctrl.Manager, conf *config.
 }
 
 func gatewayToSpcOpts(ctx context.Context, conf *config.Config, gw *gatewayv1.Gateway, cl client.Client) iter.Seq2[spcOpts, error] {
-	if conf == nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, errors.New("config is nil"))
-		}
-	}
-
-	if gw == nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, errors.New("gateway is nil"))
-		}
-	}
-
-	if gw.Spec.GatewayClassName != istioGatewayClassName {
-		// todo: test this and make sure it returns no values instead of hangs
-		return func(yield func(spcOpts, error) bool) {}
-	}
-
 	return func(yield func(spcOpts, error) bool) {
+		if conf == nil {
+			yield(spcOpts{}, errors.New("config is nil"))
+			return
+		}
+
+		if gw == nil {
+			yield(spcOpts{}, errors.New("gateway is nil"))
+			return
+		}
+
+		if gw.Spec.GatewayClassName != istioGatewayClassName {
+			// todo: test this and make sure it returns no values instead of hangs
+			return
+		}
+
 		for index, listener := range gw.Spec.Listeners {
 			name := getGatewaySpcName(gw.Name, string(listener.Name))
 			opts := spcOpts{

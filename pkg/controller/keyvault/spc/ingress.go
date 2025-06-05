@@ -42,55 +42,49 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 }
 
 func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager util.IngressManager) iter.Seq2[spcOpts, error] {
-	if conf == nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, errors.New("config is nil"))
-		}
-	}
-
-	if ing == nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, errors.New("ingress is nil"))
-		}
-	}
-
-	opts := spcOpts{
-		action:     actionReconcile,
-		name:       getIngressSpcName(ing),
-		namespace:  ing.GetNamespace(),
-		clientId:   conf.MSIClientID,
-		tenantId:   conf.TenantID,
-		secretName: getIngressCertSecretName(ing),
-		cloud:      conf.Cloud,
-	}
-
-	reconcile, err := shouldReconcileIngress(ingressManager, ing)
-	if err != nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, fmt.Errorf("checking if ingress is managed: %w", err))
-		}
-	}
-
-	if !reconcile {
-		opts.action = actionCleanup
-		return func(yield func(spcOpts, error) bool) {
-			yield(opts, nil)
-		}
-	}
-
-	uri := ing.Annotations[keyVaultUriKey]
-	certRef, err := parseKeyVaultCertURI(uri)
-	if err != nil {
-		return func(yield func(spcOpts, error) bool) {
-			yield(spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri)))
-		}
-	}
-
-	opts.vaultName = certRef.vaultName
-	opts.certName = certRef.certName
-	opts.objectVersion = certRef.objectVersion
-
 	return func(yield func(spcOpts, error) bool) {
+		if conf == nil {
+			yield(spcOpts{}, errors.New("config is nil"))
+			return
+		}
+
+		if ing == nil {
+			yield(spcOpts{}, errors.New("ingress is nil"))
+			return
+		}
+
+		opts := spcOpts{
+			action:     actionReconcile,
+			name:       getIngressSpcName(ing),
+			namespace:  ing.GetNamespace(),
+			clientId:   conf.MSIClientID,
+			tenantId:   conf.TenantID,
+			secretName: getIngressCertSecretName(ing),
+			cloud:      conf.Cloud,
+		}
+
+		reconcile, err := shouldReconcileIngress(ingressManager, ing)
+		if err != nil {
+			yield(spcOpts{}, fmt.Errorf("checking if ingress is managed: %w", err))
+			return
+		}
+
+		if !reconcile {
+			opts.action = actionCleanup
+			yield(opts, nil)
+			return
+		}
+
+		uri := ing.Annotations[keyVaultUriKey]
+		certRef, err := parseKeyVaultCertURI(uri)
+		if err != nil {
+			yield(spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri)))
+			return
+		}
+
+		opts.vaultName = certRef.vaultName
+		opts.certName = certRef.certName
+		opts.objectVersion = certRef.objectVersion
 		yield(opts, nil)
 	}
 }
