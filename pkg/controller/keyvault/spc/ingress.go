@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -87,6 +88,32 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 		opts.vaultName = certRef.vaultName
 		opts.certName = certRef.certName
 		opts.objectVersion = certRef.objectVersion
+
+		if strings.ToLower(ing.Annotations[tlsCertManagedAnnotation]) == "true" {
+			opts.modifyOwner = func(obj client.Object) error {
+				ingress, ok := obj.(*netv1.Ingress)
+				if !ok {
+					return fmt.Errorf("object is not an Ingress: %T", obj)
+				}
+
+				hosts := []string{}
+				for _, rule := range ingress.Spec.Rules {
+					if host := rule.Host; host != "" {
+						hosts = append(hosts, host)
+					}
+				}
+
+				ingress.Spec.TLS = []netv1.IngressTLS{
+					{
+						SecretName: opts.secretName,
+						Hosts:      hosts,
+					},
+				}
+
+				return nil
+			}
+		}
+
 		yield(opts, nil)
 	}
 }
