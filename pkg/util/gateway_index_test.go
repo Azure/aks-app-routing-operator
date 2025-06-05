@@ -33,7 +33,7 @@ func Test_gatewayServiceAccountIndexFn(t *testing.T) {
 	}{
 		{
 			name:    "no listeners",
-			gateway: noListenersGateway,
+			gateway: &gatewayv1.Gateway{Spec: gatewayv1.GatewaySpec{}},
 		},
 		{
 			name: "no tls",
@@ -78,8 +78,40 @@ func Test_gatewayServiceAccountIndexFn(t *testing.T) {
 			},
 		},
 		{
-			name:                    "multiple service accounts",
-			gateway:                 gatewayWithTwoServiceAccounts,
+			name: "multiple service accounts",
+			gateway: &gatewayv1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Gateway",
+					APIVersion: "gateway.networking.k8s.io/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gw",
+					Namespace: "test-ns",
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: "istio",
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "test-listener",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+								},
+							},
+						},
+						{
+							Name: "test-listener-2",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a35",
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa-2",
+								},
+							},
+						},
+					},
+				},
+			},
 			expectedServiceAccounts: []string{"test-sa", "test-sa-2"},
 		},
 		{
@@ -164,12 +196,60 @@ func Test_generateGatewayGetter(t *testing.T) {
 			},
 		},
 		{
-			name:              "matching gateways",
-			serviceAccountObj: annotatedServiceAccount,
-			existingGateways:  []client.Object{fullGw},
+			name: "matching gateways",
+			serviceAccountObj: &corev1.ServiceAccount{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ServiceAccount",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-sa",
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						"azure.workload.identity/client-id": "test-client-id",
+					},
+				},
+			},
+			existingGateways: []client.Object{&gatewayv1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Gateway",
+					APIVersion: "gateway.networking.k8s.io/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gw",
+					Namespace: "test-ns",
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: "istio",
+					Listeners: []gatewayv1.Listener{
+						{
+							Name:     "test-listener",
+							Port:     20,
+							Protocol: gatewayv1.ProtocolType("HTTPS"),
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a34",
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+								},
+							},
+						},
+						{
+							Name:     "test-listener-2",
+							Port:     21,
+							Protocol: gatewayv1.ProtocolType("HTTPS"),
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://testvault.vault.azure.net/certificates/testcert/f8982febc6894c0697b884f946fb1a35",
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa-2",
+								},
+							},
+						},
+					},
+				},
+			}},
 			expectedReqs: []ctrl.Request{
 				{
-					NamespacedName: types.NamespacedName{Name: fullGw.Name, Namespace: fullGw.Namespace},
+					NamespacedName: types.NamespacedName{Name: "test-gw", Namespace: "test-ns"},
 				},
 			},
 		},
@@ -188,7 +268,7 @@ func Test_generateGatewayGetter(t *testing.T) {
 
 		time.Sleep(1 * time.Second) // wait for manager to start + cache update
 
-		testFunc := generateGatewayGetter(m, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
+		testFunc := GenerateGatewayGetter(m, "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account")
 		actualReqs := testFunc(ctx, tc.serviceAccountObj)
 		require.ElementsMatch(t, tc.expectedReqs, actualReqs)
 
