@@ -66,7 +66,7 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 			cloud:      conf.Cloud,
 		}
 
-		reconcile, err := shouldReconcileIngress(ingressManager, ing)
+		reconcile, err := ShouldReconcileIngress(ingressManager, ing)
 		if err != nil {
 			yield(spcOpts{}, fmt.Errorf("checking if ingress is managed: %w", err))
 			return
@@ -118,7 +118,8 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 	}
 }
 
-func shouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingress) (bool, error) {
+// ShouldReconcileIngress checks if the ingress should be reconciled
+func ShouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingress) (bool, error) {
 	isManaged, err := ingressManager.IsManaging(ing)
 	if err != nil {
 		return false, fmt.Errorf("checking if ingress %s is managed: %w", ing.Name, err)

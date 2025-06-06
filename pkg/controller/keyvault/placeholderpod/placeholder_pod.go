@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	spcpkg "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
@@ -212,27 +213,27 @@ func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deploym
 func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretProviderClass, obj client.Object) (bool, error) {
 	switch t := obj.(type) {
 	case *v1alpha1.NginxIngressController:
-		if t.Spec.DefaultSSLCertificate == nil || t.Spec.DefaultSSLCertificate.KeyVaultURI == nil {
-			return true, nil
-		}
+		return !spcpkg.ShouldReconcileNic(t), nil
 	case *netv1.Ingress:
-		managed, err := p.ingressManager.IsManaging(t)
+		managed, err := spcpkg.ShouldReconcileIngress(p.ingressManager, t)
 		if err != nil {
 			return false, fmt.Errorf("determining if ingress is managed: %w", err)
 		}
-		if t.Name == "" || t.Spec.IngressClassName == nil || !managed {
-			return true, nil
-		}
+
+		return !managed, nil
 	case *gatewayv1.Gateway:
-		if !shouldReconcileGateway(t) {
+		if !spcpkg.IsManagedGateway(t) {
 			return true, nil
 		}
+
 		for _, listener := range t.Spec.Listeners {
-			if spc.Name != generateGwListenerCertName(t.Name, listener.Name) {
+			if spc.Name != spcpkg.GetGatewayListenerSpcName(t.Name, string(listener.Name)) {
 				continue
 			}
-			return !listenerIsKvEnabled(listener), nil
+
+			return !spcpkg.ListenerIsKvEnabled(listener), nil
 		}
+
 		// couldn't find the listener the pod belongs to so return true
 		return true, nil
 	}

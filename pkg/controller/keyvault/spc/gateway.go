@@ -59,13 +59,13 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 			return
 		}
 
-		if gw.Spec.GatewayClassName != istioGatewayClassName {
+		if !IsManagedGateway(gw) {
 			// todo: test this and make sure it returns no values instead of hangs
 			return
 		}
 
 		for index, listener := range gw.Spec.Listeners {
-			name := getGatewaySpcName(gw.Name, string(listener.Name))
+			name := GetGatewayListenerSpcName(gw.Name, string(listener.Name))
 			opts := spcOpts{
 				action:     actionReconcile,
 				name:       name,
@@ -75,7 +75,7 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 				cloud:      conf.Cloud,
 			}
 
-			if !listenerIsKvEnabled(listener) {
+			if !ListenerIsKvEnabled(listener) {
 				opts.action = actionCleanup
 				if !yield(opts, nil) {
 					return
@@ -128,7 +128,17 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 	}
 }
 
-func getGatewaySpcName(gwName, listenerName string) string {
+// IsManagedGateway checks if the given Gateway is an Istio Gateway
+func IsManagedGateway(gw *gatewayv1.Gateway) bool {
+	if gw == nil {
+		return false
+	}
+
+	return gw.Spec.GatewayClassName == istioGatewayClassName
+}
+
+// GetGatewayListenerSpcName returns a name for the SecretProviderClass that is unique to the Gateway and Listener
+func GetGatewayListenerSpcName(gwName, listenerName string) string {
 	name := fmt.Sprintf("kv-gw-cert-%s-%s", gwName, listenerName)
 	if len(name) > 253 {
 		name = name[:253]
@@ -137,7 +147,8 @@ func getGatewaySpcName(gwName, listenerName string) string {
 	return name
 }
 
-func listenerIsKvEnabled(listener gatewayv1.Listener) bool {
+// ListenerIsKvEnabled checks if the listener is configured to use KeyVault for TLS certificates
+func ListenerIsKvEnabled(listener gatewayv1.Listener) bool {
 	return listener.TLS != nil && listener.TLS.Options != nil && listener.TLS.Options[certUriTLSOption] != ""
 }
 

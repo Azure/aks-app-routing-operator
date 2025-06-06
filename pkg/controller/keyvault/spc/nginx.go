@@ -64,7 +64,7 @@ func nicToSpcOpts(conf *config.Config, nic *approutingv1alpha1.NginxIngressContr
 			secretName: nicDefaultSecretName(nic),
 		}
 
-		if !shouldReconcileNic(nic) {
+		if !ShouldReconcileNic(nic) {
 			opts.action = actionCleanup
 			yield(opts, nil)
 			return
@@ -104,7 +104,8 @@ func nicDefaultCertName(nic *approutingv1alpha1.NginxIngressController) string {
 	return name
 }
 
-func shouldReconcileNic(nic *approutingv1alpha1.NginxIngressController) bool {
+// ShouldReconcileNic checks if the NginxIngressController should be reconciled for KeyVault integration
+func ShouldReconcileNic(nic *approutingv1alpha1.NginxIngressController) bool {
 	if nic == nil || nic.Spec.DefaultSSLCertificate == nil || nic.Spec.DefaultSSLCertificate.KeyVaultURI == nil || *nic.Spec.DefaultSSLCertificate.KeyVaultURI == "" {
 		return false
 	}
