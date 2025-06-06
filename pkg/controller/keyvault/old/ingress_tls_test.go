@@ -24,7 +24,7 @@ func TestIngressTlsReconciler(t *testing.T) {
 	recorder := record.NewFakeRecorder(10)
 	i := &ingressTlsReconciler{
 		client: c,
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if *ing.Spec.IngressClassName == managedIngressClassName {
 				return true, nil
 			}

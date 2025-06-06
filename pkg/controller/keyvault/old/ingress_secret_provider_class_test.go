@@ -57,7 +57,7 @@ func TestIngressSecretProviderClassReconcilerIntegration(t *testing.T) {
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if *ing.Spec.IngressClassName == spcTestIngressClassName {
 				return true, nil
 			}
@@ -191,7 +191,7 @@ func TestIngressSecretProviderClassReconcilerIntegrationWithoutSPCLabels(t *test
 			TenantID:    "test-tenant-id",
 			MSIClientID: "test-msi-client-id",
 		},
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if *ing.Spec.IngressClassName == spcTestIngressClassName {
 				return true, nil
 			}
@@ -307,7 +307,7 @@ func TestIngressSecretProviderClassReconcilerInvalidURL(t *testing.T) {
 			MSIClientID: "test-msi-client-id",
 		},
 		events: recorder,
-		ingressManager: NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 			if *ing.Spec.IngressClassName == spcTestIngressClassName {
 				return true, nil
 			}

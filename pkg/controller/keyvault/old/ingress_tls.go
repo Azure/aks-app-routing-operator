@@ -26,10 +26,10 @@ var ingressTlsControllerName = controllername.New("keyvault", "ingress", "tls")
 type ingressTlsReconciler struct {
 	client         client.Client
 	events         record.EventRecorder
-	ingressManager IngressManager
+	ingressManager util.IngressManager
 }
 
-func NewIngressTlsReconciler(manager ctrl.Manager, conf *config.Config, ingressManager IngressManager) error {
+func NewIngressTlsReconciler(manager ctrl.Manager, conf *config.Config, ingressManager util.IngressManager) error {
 	metrics.InitControllerMetrics(ingressTlsControllerName)
 
 	if conf.DisableKeyvault {
