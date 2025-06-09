@@ -61,7 +61,7 @@ func nicToSpcOpts(conf *config.Config, nic *approutingv1alpha1.NginxIngressContr
 			clientId:   config.Flags.MSIClientID,
 			tenantId:   conf.TenantID,
 			cloud:      conf.Cloud,
-			secretName: nicDefaultSecretName(nic),
+			secretName: NicDefaultSecretName(nic),
 		}
 
 		if !ShouldReconcileNic(nic) {
@@ -89,8 +89,10 @@ func nicToSpcOpts(conf *config.Config, nic *approutingv1alpha1.NginxIngressContr
 	}
 }
 
-var nicDefaultSecretName = nicDefaultCertName
+// NicDefaultSecretName returns the default secret name for the NginxIngressController.
+var NicDefaultSecretName = nicDefaultCertName
 
+// nicDefaultCertName returns the default certificate name for the NginxIngressController.
 func nicDefaultCertName(nic *approutingv1alpha1.NginxIngressController) string {
 	if nic == nil {
 		return ""
