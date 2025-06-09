@@ -226,7 +226,7 @@ func retrieveClientIdForListener(ctx context.Context, k8sclient client.Client, n
 	}
 
 	// pull service account
-	wiSaClientId, err := util.GetServiceAccountAndVerifyWorkloadIdentity(ctx, k8sclient, saName, namespace)
+	wiSaClientId, err := util.GetServiceAccountWorkloadIdentityClient(ctx, k8sclient, saName, namespace)
 	if err != nil {
 		return "", err
 	}

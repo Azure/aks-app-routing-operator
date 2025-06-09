@@ -32,7 +32,6 @@ func NewClusterExternalDNSController(mgr ctrl.Manager, config *config.Config) er
 			client: mgr.GetClient(),
 			events: mgr.GetEventRecorderFor("aks-app-routing-operator"),
 		})
-
 }
 
 type ClusterExternalDNSController struct {
@@ -66,7 +65,7 @@ func (c *ClusterExternalDNSController) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// verify serviceaccount
-	if _, err = util.GetServiceAccountAndVerifyWorkloadIdentity(ctx, c.client, obj.GetInputServiceAccount(), obj.GetResourceNamespace()); err != nil {
+	if _, err = util.GetServiceAccountWorkloadIdentityClient(ctx, c.client, obj.GetInputServiceAccount(), obj.GetResourceNamespace()); err != nil {
 		var userErr util.UserError
 		if errors.As(err, &userErr) {
 			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())
@@ -96,7 +95,6 @@ func (c *ClusterExternalDNSController) Reconcile(ctx context.Context, req ctrl.R
 		Name:       obj.Name,
 		UID:        obj.UID,
 	}})
-
 	if err != nil {
 		logger.Error(err, "failed to upsert externaldns resources")
 		c.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", err.Error())

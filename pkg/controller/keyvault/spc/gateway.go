@@ -152,9 +152,14 @@ func ListenerIsKvEnabled(listener gatewayv1.Listener) bool {
 	return listener.TLS != nil && listener.TLS.Options != nil && listener.TLS.Options[certUriTLSOption] != ""
 }
 
+// ServiceAccountFromListener extracts the ServiceAccount name from the TLS options of a Gateway listener
+func ServiceAccountFromListener(listener gatewayv1.Listener) string {
+	return string(listener.TLS.Options[util.ServiceAccountTLSOption])
+}
+
 func clientIdFromListener(ctx context.Context, cl client.Client, namespace string, listener gatewayv1.Listener) (string, error) {
 	certUri := string(listener.TLS.Options[certUriTLSOption])
-	saName := string(listener.TLS.Options[util.ServiceAccountTLSOption])
+	saName := ServiceAccountFromListener(listener)
 
 	// validate user input
 	if certUri != "" && saName == "" {
