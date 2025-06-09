@@ -49,6 +49,11 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 		return nil
 	}
 
+	spcOwnerTypes := []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager)}
+	if conf.EnableGateway {
+		spcOwnerTypes = append(spcOwnerTypes, gatewaySpcOwner)
+	}
+
 	return placeholderPodControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
@@ -56,7 +61,7 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 	).Complete(&PlaceholderPodController{
 		client:        manager.GetClient(),
 		config:        conf,
-		spcOwnerTypes: []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager), gatewaySpcOwner},
+		spcOwnerTypes: spcOwnerTypes,
 		events:        manager.GetEventRecorderFor("aks-app-routing-operator"),
 	})
 }
@@ -166,7 +171,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
-		p.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		p.events.Eventf(ownerObj, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to upsert placeholder deployment")
 		return ctrl.Result{}, err
 	}
