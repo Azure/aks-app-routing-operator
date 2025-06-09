@@ -10,17 +10,21 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	spcpkg "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -37,10 +41,10 @@ var placeholderPodControllerName = controllername.New("keyvault", "placeholder",
 // This is necessitated by the Keyvault CSI implementation, which requires at least one mount
 // in order to start mirroring the Keyvault values into corresponding Kubernetes secret(s).
 type PlaceholderPodController struct {
-	client        client.Client
-	events        record.EventRecorder
-	config        *config.Config
-	spcOwnerTypes []spcOwnerType
+	client         client.Client
+	events         record.EventRecorder
+	config         *config.Config
+	ingressManager util.IngressManager
 }
 
 func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingressManager util.IngressManager) error {
@@ -48,16 +52,15 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 	if conf.DisableKeyvault {
 		return nil
 	}
-
 	return placeholderPodControllerName.AddToController(
 		ctrl.
 			NewControllerManagedBy(manager).
 			For(&secv1.SecretProviderClass{}), manager.GetLogger(),
 	).Complete(&PlaceholderPodController{
-		client:        manager.GetClient(),
-		config:        conf,
-		spcOwnerTypes: []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager), gatewaySpcOwner},
-		events:        manager.GetEventRecorderFor("aks-app-routing-operator"),
+		client:         manager.GetClient(),
+		config:         conf,
+		ingressManager: ingressManager,
+		events:         manager.GetEventRecorderFor("aks-app-routing-operator"),
 	})
 }
 
@@ -109,69 +112,133 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	logger = logger.WithValues("deployment", dep.Name)
 
-	var ownerType spcOwnerType
-	for _, o := range p.spcOwnerTypes {
-		if o.IsOwner(spc) {
-			ownerType = o
+	return p.reconcileObjectDeployment(dep, spc, req, ctx, logger)
+}
+
+func (p *PlaceholderPodController) reconcileObjectDeployment(dep *appsv1.Deployment, spc *secv1.SecretProviderClass, req ctrl.Request, ctx context.Context, logger logr.Logger) (ctrl.Result, error) {
+	var (
+		err            error
+		obj            client.Object
+		serviceAccount string
+	)
+
+	result := ctrl.Result{}
+
+	switch {
+	case util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController") != "":
+		obj = &v1alpha1.NginxIngressController{}
+		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "NginxIngressController"))
+		logger.Info(fmt.Sprint("getting owner NginxIngressController"))
+	case util.FindOwnerKind(spc.OwnerReferences, "Ingress") != "":
+		obj = &netv1.Ingress{}
+		obj.SetName(util.FindOwnerKind(spc.OwnerReferences, "Ingress"))
+		obj.SetNamespace(req.Namespace)
+		logger.Info(fmt.Sprint("getting owner Ingress"))
+	case util.FindOwnerKind(spc.OwnerReferences, "Gateway") != "":
+		obj = &gatewayv1.Gateway{}
+		gwName := util.FindOwnerKind(spc.OwnerReferences, "Gateway")
+		obj.SetName(gwName)
+		obj.SetNamespace(req.Namespace)
+		logger.Info(fmt.Sprintf("getting owner Gateway resource %s", gwName))
+	default:
+		logger.Info("owner type not found")
+		return result, nil
+	}
+
+	if obj.GetName() != "" {
+		if err = p.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+			return result, client.IgnoreNotFound(err)
 		}
 	}
-	if ownerType == nil {
-		logger.Info("no SPC owner found, skipping reconciliation")
-		return ctrl.Result{}, nil
-	}
 
-	ownerObj, err := ownerType.GetObject(ctx, p.client, spc)
+	cleanPod, err := p.placeholderPodCleanCheck(spc, obj)
 	if err != nil {
-		if errors.Is(err, noSpcOwnerErr) {
-			logger.Info("no SPC owner found, skipping reconciliation")
-			return ctrl.Result{}, nil
-		}
-
-		logger.Error(err, "failed to get SPC owner object")
-		return ctrl.Result{}, fmt.Errorf("getting SPC owner object: %w", err)
+		return result, err
 	}
 
-	reconcile, err := ownerType.ShouldReconcile(spc, ownerObj)
-	if err != nil {
-		logger.Error(err, "failed to determine if SPC should be reconciled")
-		return ctrl.Result{}, fmt.Errorf("determining if SPC should be reconciled: %w", err)
-	}
-
-	if !reconcile {
+	if cleanPod {
 		logger.Info("attempting to clean unused placeholder pod deployment")
 		logger.Info("getting placeholder deployment")
 		toCleanDeployment := &appsv1.Deployment{}
 		if err = p.client.Get(ctx, client.ObjectKeyFromObject(dep), toCleanDeployment); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
+			return result, client.IgnoreNotFound(err)
 		}
 		if manifests.HasTopLevelLabels(toCleanDeployment.Labels) {
 			logger.Info("deleting placeholder deployment")
 			err = p.client.Delete(ctx, toCleanDeployment)
-			return ctrl.Result{}, client.IgnoreNotFound(err)
+			return result, client.IgnoreNotFound(err)
 		}
 
 		logger.Info("deployment found but it's not managed by us, skipping cleaning")
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
-	if err = p.buildDeploymentSpec(ctx, dep, spc, ownerObj, ownerType); err != nil {
-		var userErr *util.UserError
+	// Verify ServiceAccount exists (if Gateway)
+	serviceAccount, err = p.verifyServiceAccount(ctx, spc, obj, logger)
+	if err != nil {
+		var userErr util.UserError
 		if errors.As(err, &userErr) {
-			p.events.Eventf(spc, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", userErr.Error())
-			logger.Error(userErr, "failed to build placeholder deployment")
-			return ctrl.Result{}, nil
+			logger.Info("user error while verifying if service account exists: %s", userErr.Err)
+			p.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", userErr.UserMessage)
+			return result, nil
 		}
 
-		return ctrl.Result{}, fmt.Errorf("building deployment spec: %w", err)
+		logger.Error(err, "verifying ServiceAccount for placeholder pod")
+		return result, fmt.Errorf("verifying service account for placeholder pod: %s", err.Error())
+	}
+
+	// Manage a deployment resource
+	logger.Info("reconciling placeholder deployment for secret provider class")
+	if err = p.buildDeployment(ctx, dep, spc, obj); err != nil {
+		err = fmt.Errorf("building deployment: %w", err)
+		p.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while building placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
+		logger.Error(err, "failed to build placeholder deployment")
+		return result, err
+	}
+
+	if serviceAccount != "" {
+		dep.Spec.Template.Spec.AutomountServiceAccountToken = to.Ptr(true)
+		dep.Spec.Template.Spec.ServiceAccountName = serviceAccount
 	}
 
 	if err = util.Upsert(ctx, p.client, dep); err != nil {
 		p.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreatePlaceholderPodDeployment", "error while creating or updating placeholder pod Deployment needed to pull Keyvault reference: %s", err.Error())
 		logger.Error(err, "failed to upsert placeholder deployment")
-		return ctrl.Result{}, err
+		return result, err
 	}
 
-	return ctrl.Result{}, nil
+	return result, nil
+}
+
+func (p *PlaceholderPodController) placeholderPodCleanCheck(spc *secv1.SecretProviderClass, obj client.Object) (bool, error) {
+	switch t := obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		return !spcpkg.ShouldReconcileNic(t), nil
+	case *netv1.Ingress:
+		managed, err := spcpkg.ShouldReconcileIngress(p.ingressManager, t)
+		if err != nil {
+			return false, fmt.Errorf("determining if ingress is managed: %w", err)
+		}
+
+		return !managed, nil
+	case *gatewayv1.Gateway:
+		if !spcpkg.IsManagedGateway(t) {
+			return true, nil
+		}
+
+		for _, listener := range t.Spec.Listeners {
+			if spc.Name != spcpkg.GetGatewayListenerSpcName(t.Name, string(listener.Name)) {
+				continue
+			}
+
+			return !spcpkg.ListenerIsKvEnabled(listener), nil
+		}
+
+		// couldn't find the listener the pod belongs to so return true
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // getCurrentDeployment returns the current deployment for the given name or nil if it does not exist. nil, nil is returned if the deployment is not found
@@ -185,7 +252,7 @@ func (p *PlaceholderPodController) getCurrentDeployment(ctx context.Context, nam
 	return dep, nil
 }
 
-func (p *PlaceholderPodController) buildDeploymentSpec(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, owner client.Object, ownerType spcOwnerType) error {
+func (p *PlaceholderPodController) buildDeployment(ctx context.Context, dep *appsv1.Deployment, spc *secv1.SecretProviderClass, obj client.Object) error {
 	old, err := p.getCurrentDeployment(ctx, client.ObjectKeyFromObject(dep))
 	if err != nil {
 		return fmt.Errorf("getting current deployment: %w", err)
@@ -195,6 +262,18 @@ func (p *PlaceholderPodController) buildDeploymentSpec(ctx context.Context, dep 
 
 	if old != nil { // we need to ensure that immutable fields are not changed
 		labels = old.Spec.Selector.MatchLabels
+	}
+
+	var ownerAnnotation string
+	switch obj.(type) {
+	case *v1alpha1.NginxIngressController:
+		ownerAnnotation = "kubernetes.azure.com/nginx-ingress-controller-owner"
+	case *netv1.Ingress:
+		ownerAnnotation = "kubernetes.azure.com/ingress-owner"
+	case *gatewayv1.Gateway:
+		ownerAnnotation = "kubernetes.azure.com/gateway-owner"
+	default:
+		return fmt.Errorf("failed to build deployment: object type not ingress, nginxingresscontroller, or gateway")
 	}
 
 	dep.Spec = appsv1.DeploymentSpec{
@@ -207,7 +286,7 @@ func (p *PlaceholderPodController) buildDeploymentSpec(ctx context.Context, dep 
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
-					ownerType.GetOwnerAnnotation():             owner.GetName(),
+					ownerAnnotation:                            obj.GetName(),
 					"openservicemesh.io/sidecar-injection":     "disabled",
 				},
 			},
@@ -255,16 +334,37 @@ func (p *PlaceholderPodController) buildDeploymentSpec(ctx context.Context, dep 
 			}),
 		},
 	}
-
-	sa, err := ownerType.GetServiceAccountName(ctx, p.client, spc, owner)
-	if err != nil {
-		return err
-	}
-
-	if sa != "" {
-		dep.Spec.Template.Spec.AutomountServiceAccountToken = to.Ptr(true)
-		dep.Spec.Template.Spec.ServiceAccountName = sa
-	}
-
 	return nil
+}
+
+// verifyServiceAccount ensures that the ServiceAccount used to create the placeholder pod exists
+func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc *secv1.SecretProviderClass, obj client.Object, logger logr.Logger) (string, error) {
+	var serviceAccount string
+
+	switch t := obj.(type) {
+	case *gatewayv1.Gateway:
+		logger.Info("verifying service account referenced by listener exists")
+		for _, listener := range t.Spec.Listeners {
+			if spc.Name != generateGwListenerCertName(t.Name, listener.Name) {
+				continue
+			}
+			if listener.TLS != nil && listener.TLS.Options != nil {
+				serviceAccount = string(listener.TLS.Options[serviceAccountTLSOption])
+				break
+			}
+		}
+
+		if serviceAccount == "" {
+			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
+			return "", util.NewUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
+		}
+
+		_, err := util.GetServiceAccountWorkloadIdentityClient(ctx, p.client, serviceAccount, spc.Namespace)
+		if err != nil {
+			return "", err
+		}
+		return serviceAccount, nil
+	}
+
+	return "", nil
 }
