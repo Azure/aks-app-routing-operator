@@ -1,6 +1,13 @@
 # convenience dockerfile for unit tests
 # run make unit from root
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23
+
+WORKDIR /workspace
+
+# Copy go mod files first for better layer caching
+COPY go.mod go.sum ./
+RUN go mod download
+
 RUN mkdir -p /usr/local/kubebuilder/bin
 RUN wget -q https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz &&\
     tar xzf etcd-v3.5.0-linux-amd64.tar.gz &&\
