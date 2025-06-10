@@ -100,35 +100,16 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 				s.events.Eventf(obj, corev1.EventTypeWarning, "InvalidInput", "error while processing Keyvault reference: %s", userErr.UserError())
 				return ctrl.Result{}, nil
 			}
+
+			logger.Error(err, "failed to build secret provider class")
+			return ctrl.Result{}, fmt.Errorf("building secret provider class: %w", err)
 		}
 
 		if spcOpts.action == actionCleanup {
-			logger.Info("skipping reconciliation for SecretProviderClass, will attempt to cleanup")
-
-			logger.Info("getting SecretProviderClass to clean")
-			toCleanSPC := &secv1.SecretProviderClass{}
-			if err := s.client.Get(ctx, client.ObjectKey{Namespace: spcOpts.namespace, Name: spcOpts.name}, toCleanSPC); err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					logger.Error(err, "failed to get SecretProviderClass to clean")
-					return ctrl.Result{}, fmt.Errorf("getting SecretProviderClass to clean: %w", err)
-				}
-
-				logger.Info("SecretProviderClass not found, nothing to clean")
-				return ctrl.Result{}, nil
+			if err := s.cleanupSpcOpt(ctx, logger, spcOpts); err != nil {
+				logger.Error(err, "failed to clean up SecretProviderClass")
+				return ctrl.Result{}, fmt.Errorf("cleaning up SecretProviderClass: %w", err)
 			}
-
-			if manifests.HasTopLevelLabels(toCleanSPC.Labels) {
-				logger.Info("deleting SecretProviderClass")
-				if err := s.client.Delete(ctx, toCleanSPC); err != nil {
-					logger.Error(err, "failed to delete SecretProviderClass")
-					return ctrl.Result{}, client.IgnoreNotFound(err)
-				}
-
-				return ctrl.Result{}, client.IgnoreNotFound(err)
-			}
-
-			logger.Info("SecretProviderClass does not have top-level labels, not managed by us. Fully skipping.")
-			return ctrl.Result{}, nil
 		}
 
 		spc, err := s.buildSpc(obj, spcOpts)
@@ -171,6 +152,39 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (s *secretProviderClassReconciler[objectType]) cleanupSpcOpt(ctx context.Context, lgr logr.Logger, opt spcOpts) error {
+	if opt.action != actionCleanup {
+		return errors.New("cleanupSpcOpt called with non-cleanup action")
+	}
+
+	lgr.Info("cleaning up SecretProviderClass")
+
+	lgr.Info("getting SecretProviderClass to clean")
+	toCleanSPC := &secv1.SecretProviderClass{}
+	if err := s.client.Get(ctx, client.ObjectKey{Namespace: opt.namespace, Name: opt.name}, toCleanSPC); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			lgr.Error(err, "failed to get SecretProviderClass to clean")
+			return fmt.Errorf("getting SecretProviderClass to clean: %w", err)
+		}
+
+		lgr.Info("SecretProviderClass not found, nothing to clean")
+		return nil
+	}
+
+	if manifests.HasTopLevelLabels(toCleanSPC.Labels) {
+		lgr.Info("deleting SecretProviderClass")
+		if err := s.client.Delete(ctx, toCleanSPC); err != nil {
+			lgr.Error(err, "failed to delete SecretProviderClass")
+			return fmt.Errorf("failed to delete SecretProviderClass: %w", err)
+		}
+
+		return nil
+	}
+
+	lgr.Info("SecretProviderClass does not have top-level labels, not managed by us")
+	return nil
 }
 
 func (s *secretProviderClassReconciler[objectType]) buildSpc(obj client.Object, opts spcOpts) (*secv1.SecretProviderClass, error) {
