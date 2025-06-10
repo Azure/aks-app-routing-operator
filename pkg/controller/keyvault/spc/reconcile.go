@@ -85,9 +85,13 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	logger = s.name.AddToLogger(logger).WithValues("name", req.Name, "namespace", req.Namespace)
 
 	logger.Info("getting Object")
-	obj := *new(objectType)
+	obj := util.NewObject[objectType]()
 	if err := s.client.Get(ctx, req.NamespacedName, obj); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+
+		return ctrl.Result{}, fmt.Errorf("getting object: %w", err)
 	}
 	logger = logger.WithValues("generation", obj.GetGeneration())
 

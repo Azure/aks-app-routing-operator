@@ -56,7 +56,7 @@ func (s spcOwnerStruct[objectType]) GetOwnerAnnotation() string {
 }
 
 func (s spcOwnerStruct[objectType]) GetObject(ctx context.Context, cl client.Client, spc *secv1.SecretProviderClass) (client.Object, error) {
-	obj := *new(objectType)
+	obj := util.NewObject[objectType]()
 	obj.SetName(util.FindOwnerKind(spc.OwnerReferences, s.kind))
 	obj.SetNamespace(s.namespace(obj))
 
