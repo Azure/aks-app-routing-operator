@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -23,12 +25,12 @@ func TestToPtr(t *testing.T) {
 }
 
 func TestToInt32Ptr(t *testing.T) {
-	var int32Var = int32(2)
+	int32Var := int32(2)
 	require.Equal(t, &int32Var, Int32Ptr(int32Var))
 }
 
 func TestToInt64Ptr(t *testing.T) {
-	var int64Var = int64(2)
+	int64Var := int64(2)
 	require.Equal(t, &int64Var, Int64Ptr(int64Var))
 }
 
@@ -354,4 +356,89 @@ func TestFilterMap(t *testing.T) {
 		got := FilterMap(c.m, keyStartsWithAFn)
 		require.Equal(t, c.expected, got)
 	}
+}
+
+func TestNewObject(t *testing.T) {
+	t.Run("kubernetes types", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			validate func(t *testing.T)
+		}{
+			{
+				name: "deployment",
+				validate: func(t *testing.T) {
+					obj := NewObject[*appsv1.Deployment]()
+					require.NotNil(t, obj)
+					require.IsType(t, &appsv1.Deployment{}, obj)
+				},
+			},
+			{
+				name: "pod",
+				validate: func(t *testing.T) {
+					obj := NewObject[*corev1.Pod]()
+					require.NotNil(t, obj)
+					require.IsType(t, &corev1.Pod{}, obj)
+				},
+			},
+			{
+				name: "ingress",
+				validate: func(t *testing.T) {
+					obj := NewObject[*networkingv1.Ingress]()
+					require.NotNil(t, obj)
+					require.IsType(t, &networkingv1.Ingress{}, obj)
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, tt.validate)
+		}
+	})
+
+	t.Run("basic go types", func(t *testing.T) {
+		type testStruct struct {
+			Name string
+			Age  int
+		}
+
+		tests := []struct {
+			name     string
+			validate func(t *testing.T)
+		}{
+			{
+				name: "struct pointer",
+				validate: func(t *testing.T) {
+					obj := NewObject[*testStruct]()
+					require.NotNil(t, obj)
+					require.IsType(t, &testStruct{}, obj)
+				},
+			},
+			{
+				name: "struct",
+				validate: func(t *testing.T) {
+					obj := NewObject[testStruct]()
+					require.IsType(t, testStruct{}, obj)
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, tt.validate)
+		}
+	})
+
+	t.Run("kubernetes type field initialization", func(t *testing.T) {
+		obj := NewObject[*appsv1.Deployment]()
+		require.NotNil(t, obj)
+		require.Equal(t, "", obj.Name)
+		require.Equal(t, "", obj.Namespace)
+		require.Nil(t, obj.Spec.Replicas)
+	})
+
+	t.Run("client.Object interface", func(t *testing.T) {
+		obj := NewObject[*appsv1.Deployment]()
+		// Verify it implements client.Object
+		_, ok := interface{}(obj).(client.Object)
+		require.True(t, ok, "NewObject should return an object that implements client.Object")
+	})
 }
