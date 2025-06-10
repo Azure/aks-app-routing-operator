@@ -5,6 +5,7 @@ package spc
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,6 +171,66 @@ func TestBuildSpc(t *testing.T) {
 	assert.Equal(t, "test-client-id", spc.Spec.Parameters["userAssignedIdentityID"])
 	assert.Equal(t, "test-tenant-id", spc.Spec.Parameters["tenantId"])
 	assert.Equal(t, "AzurePublicCloud", spc.Spec.Parameters["cloud"])
+}
+
+// Test toSpcOpts with invalid certificate URI
+func TestToSpcOptsUserError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-ns",
+			UID:       "test-uid",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				yield(spcOpts{}, util.NewUserError(fmt.Errorf("user error"), "user error"))
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// Test reconcile with invalid cert URI
+	beforeErrCount := testutils.GetErrMetricCount(t, reconciler.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelError)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err) // User errors should not return an error from Reconcile
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify metrics for user error
+	require.Equal(t, testutils.GetErrMetricCount(t, reconciler.name), beforeErrCount)
+	require.Equal(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelError), beforeReconcileCount)
+
+	// Verify no SPC was created
+	spc := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	require.True(t, errors.IsNotFound(err), "expected SPC to not be created")
+
+	// Verify warning event was sent to the deployment
+	require.Len(t, events.Events, 1, "expected one event to be recorded")
+	event := <-events.Events
+	assert.Contains(t, event, "InvalidInput")
+	assert.Contains(t, event, "user error")
 }
 
 // Helper function to simulate toSpcOpts
