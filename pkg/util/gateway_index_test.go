@@ -160,7 +160,7 @@ func Test_generateGatewayGetter(t *testing.T) {
 
 	testenv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("..", "..", "..", "config", "gatewaycrd"),
+			filepath.Join("..", "..", "config", "gatewaycrd"),
 		},
 	}
 

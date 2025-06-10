@@ -2,7 +2,7 @@
 # run make unit from root
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23
 
-WORKDIR /workspace
+WORKDIR /app-routing-operator
 
 # Copy go mod files first for better layer caching
 COPY go.mod go.sum ./
