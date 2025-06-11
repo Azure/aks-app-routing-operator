@@ -120,13 +120,13 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 
 // ShouldReconcileIngress checks if the ingress should be reconciled
 func ShouldReconcileIngress(ingressManager util.IngressManager, ing *netv1.Ingress) (bool, error) {
+	if ing == nil {
+		return false, fmt.Errorf("ingress is nil")
+	}
+
 	isManaged, err := ingressManager.IsManaging(ing)
 	if err != nil {
 		return false, fmt.Errorf("checking if ingress %s is managed: %w", ing.Name, err)
-	}
-
-	if ing == nil {
-		return false, fmt.Errorf("ingress is nil")
 	}
 
 	if ing.Annotations == nil {
