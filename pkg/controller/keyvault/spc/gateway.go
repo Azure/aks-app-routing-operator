@@ -154,6 +154,10 @@ func ListenerIsKvEnabled(listener gatewayv1.Listener) bool {
 
 // ServiceAccountFromListener extracts the ServiceAccount name from the TLS options of a Gateway listener
 func ServiceAccountFromListener(listener gatewayv1.Listener) string {
+	if listener.TLS == nil || listener.TLS.Options == nil {
+		return ""
+	}
+
 	return string(listener.TLS.Options[util.ServiceAccountTLSOption])
 }
 

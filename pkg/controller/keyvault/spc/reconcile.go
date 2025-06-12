@@ -57,7 +57,7 @@ type spcOpts struct {
 	// cloud is the cloud environment to use, if empty, the default Azure cloud will be used
 	cloud string
 
-	// if set, the owner object will be updated
+	// if non-nil, the owner object will be updated
 	modifyOwner func(obj client.Object) error
 }
 
