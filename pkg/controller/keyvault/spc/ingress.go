@@ -91,26 +91,7 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 
 		if strings.ToLower(ing.Annotations[tlsCertManagedAnnotation]) == "true" {
 			opts.modifyOwner = func(obj client.Object) error {
-				ingress, ok := obj.(*netv1.Ingress)
-				if !ok {
-					return fmt.Errorf("object is not an Ingress: %T", obj)
-				}
-
-				hosts := []string{}
-				for _, rule := range ingress.Spec.Rules {
-					if host := rule.Host; host != "" {
-						hosts = append(hosts, host)
-					}
-				}
-
-				ingress.Spec.TLS = []netv1.IngressTLS{
-					{
-						SecretName: opts.secretName,
-						Hosts:      hosts,
-					},
-				}
-
-				return nil
+				return addTlsRef(obj, opts.secretName)
 			}
 		}
 
@@ -148,4 +129,27 @@ func getIngressSpcName(ing *netv1.Ingress) string {
 	}
 
 	return "keyvault-" + ing.Name
+}
+
+func addTlsRef(obj client.Object, secretName string) error {
+	ingress, ok := obj.(*netv1.Ingress)
+	if !ok {
+		return fmt.Errorf("object is not an Ingress: %T", obj)
+	}
+
+	hosts := []string{}
+	for _, rule := range ingress.Spec.Rules {
+		if host := rule.Host; host != "" {
+			hosts = append(hosts, host)
+		}
+	}
+
+	ingress.Spec.TLS = []netv1.IngressTLS{
+		{
+			SecretName: secretName,
+			Hosts:      hosts,
+		},
+	}
+
+	return nil
 }

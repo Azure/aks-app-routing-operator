@@ -10,8 +10,10 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestIngressToSpcOpts(t *testing.T) {
@@ -381,6 +383,131 @@ func TestGetIngressCertSecretName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getIngressCertSecretName(tt.ingress)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAddTlsRef(t *testing.T) {
+	tests := []struct {
+		name       string
+		obj        client.Object
+		secretName string
+		wantErr    bool
+		wantTLS    []netv1.IngressTLS
+	}{
+		{
+			name: "single host",
+			obj: &netv1.Ingress{
+				Spec: netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "test.example.com",
+						},
+					},
+				},
+			},
+			secretName: "test-secret",
+			wantTLS: []netv1.IngressTLS{
+				{
+					SecretName: "test-secret",
+					Hosts:      []string{"test.example.com"},
+				},
+			},
+		},
+		{
+			name: "multiple hosts",
+			obj: &netv1.Ingress{
+				Spec: netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "test1.example.com",
+						},
+						{
+							Host: "test2.example.com",
+						},
+					},
+				},
+			},
+			secretName: "test-secret",
+			wantTLS: []netv1.IngressTLS{
+				{
+					SecretName: "test-secret",
+					Hosts:      []string{"test1.example.com", "test2.example.com"},
+				},
+			},
+		},
+		{
+			name: "empty host rules",
+			obj: &netv1.Ingress{
+				Spec: netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{},
+					},
+				},
+			},
+			secretName: "test-secret",
+			wantTLS: []netv1.IngressTLS{
+				{
+					SecretName: "test-secret",
+					Hosts:      []string{},
+				},
+			},
+		},
+		{
+			name: "no rules",
+			obj: &netv1.Ingress{
+				Spec: netv1.IngressSpec{},
+			},
+			secretName: "test-secret",
+			wantTLS: []netv1.IngressTLS{
+				{
+					SecretName: "test-secret",
+					Hosts:      []string{},
+				},
+			},
+		},
+		{
+			name:       "non-ingress object",
+			obj:        &corev1.Pod{},
+			secretName: "test-secret",
+			wantErr:    true,
+		},
+		{
+			name: "mixed empty and non-empty hosts",
+			obj: &netv1.Ingress{
+				Spec: netv1.IngressSpec{
+					Rules: []netv1.IngressRule{
+						{
+							Host: "test1.example.com",
+						},
+						{},
+						{
+							Host: "test2.example.com",
+						},
+					},
+				},
+			},
+			secretName: "test-secret",
+			wantTLS: []netv1.IngressTLS{
+				{
+					SecretName: "test-secret",
+					Hosts:      []string{"test1.example.com", "test2.example.com"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := addTlsRef(tt.obj, tt.secretName)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			ingress := tt.obj.(*netv1.Ingress)
+			assert.Equal(t, tt.wantTLS, ingress.Spec.TLS)
 		})
 	}
 }
