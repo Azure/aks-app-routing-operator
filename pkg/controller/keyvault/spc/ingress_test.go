@@ -511,3 +511,43 @@ func TestAddTlsRef(t *testing.T) {
 		})
 	}
 }
+
+func TestModifyOwner(t *testing.T) {
+	conf := &config.Config{
+		MSIClientID: "test-client-id",
+		TenantID:    "test-tenant-id",
+		Cloud:       "AzurePublicCloud",
+	}
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: "test-ns",
+			Annotations: map[string]string{
+				"kubernetes.azure.com/tls-cert-keyvault-uri":     "https://test-vault.vault.azure.net/secrets/test-cert",
+				"kubernetes.azure.com/tls-cert-keyvault-managed": "true",
+			},
+		},
+		Spec: netv1.IngressSpec{
+			Rules: []netv1.IngressRule{
+				{
+					Host: "test.example.com",
+				},
+			},
+		},
+	}
+	ingressManager := util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+		return true, nil
+	})
+
+	ingressOpts := ingressToSpcOpts(conf, ingress, ingressManager)
+	for opts, err := range ingressOpts {
+		require.NoError(t, err)
+		require.NotNil(t, opts.modifyOwner)
+
+		err = opts.modifyOwner(ingress)
+		require.NoError(t, err)
+
+		assert.Equal(t, opts.secretName, ingress.Spec.TLS[0].SecretName)
+		assert.Equal(t, []string{"test.example.com"}, ingress.Spec.TLS[0].Hosts)
+	}
+}
