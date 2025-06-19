@@ -47,6 +47,10 @@ type spcOwnerStruct[objectType client.Object] struct {
 }
 
 func (s spcOwnerStruct[objectType]) IsOwner(spc *secv1.SecretProviderClass) bool {
+	if spc == nil {
+		return false
+	}
+
 	owner := util.FindOwnerKind(spc.OwnerReferences, s.kind)
 	return owner != ""
 }

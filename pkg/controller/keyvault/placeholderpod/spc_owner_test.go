@@ -102,6 +102,11 @@ func TestSpcOwnerStructIsOwner(t *testing.T) {
 
 func TestSpcOwnerStructGetObject(t *testing.T) {
 	scheme := runtime.NewScheme()
+	scheme.AddKnownTypeWithName(schema.GroupVersionKind{
+		Group:   "testgroup",
+		Version: "v1",
+		Kind:    "TestOwner",
+	}, &testOwner{})
 	require.NoError(t, secv1.AddToScheme(scheme))
 
 	tests := []struct {
@@ -581,6 +586,9 @@ func TestGatewaySpcOwner(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantServiceAcct, sa)
+			assert.Equal(t, gatewaySpcOwner.kind, "Gateway")
+			assert.Equal(t, gatewaySpcOwner.ownerNameAnnotation, "kubernetes.azure.com/gateway-owner")
+			assert.Equal(t, gatewaySpcOwner.namespace(tt.gateway), tt.gateway.Namespace)
 		})
 	}
 }
@@ -589,16 +597,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, netv1.AddToScheme(scheme))
 
-	mockIngressManager := &testIngressManager{
-		managedFunc: func(ing *netv1.Ingress) (bool, error) {
-			return ing.Annotations != nil && ing.Annotations["test"] == "true", nil
-		},
-	}
-
 	tests := []struct {
 		name          string
 		ingress       *netv1.Ingress
 		spc           *secv1.SecretProviderClass
+		isManaged     bool
+		isManagedErr  error
 		wantReconcile bool
 		wantError     bool
 	}{
@@ -613,6 +617,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					},
 				},
 			},
+			isManaged:     true,
 			wantReconcile: true,
 		},
 		{
@@ -625,11 +630,25 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			},
 			wantReconcile: false,
 		},
+		{
+			name: "error when checking if ingress is managed",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "test-ns",
+				},
+			},
+			isManagedErr:  errors.New("test error"),
+			wantError:     true,
+			wantReconcile: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			owner := getIngressSpcOwner(mockIngressManager)
+			owner := getIngressSpcOwner(util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return tt.isManaged, tt.isManagedErr
+			}))
 			reconcile, err := owner.ShouldReconcile(tt.spc, tt.ingress)
 			if tt.wantError {
 				require.Error(t, err)
@@ -645,14 +664,9 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			sa, err := owner.GetServiceAccountName(context.Background(), nil, tt.spc, tt.ingress)
 			require.NoError(t, err)
 			assert.Empty(t, sa)
+			assert.Equal(t, owner.kind, "Ingress")
+			assert.Equal(t, owner.ownerNameAnnotation, ingressOwnerAnnotation)
+			assert.Equal(t, owner.namespace(tt.ingress), tt.ingress.Namespace)
 		})
 	}
-}
-
-type testIngressManager struct {
-	managedFunc func(ing *netv1.Ingress) (bool, error)
-}
-
-func (m *testIngressManager) IsManaged(ing *netv1.Ingress) (bool, error) {
-	return m.managedFunc(ing)
 }
