@@ -58,6 +58,11 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 			certURI:     "",
 			expectError: true,
 		},
+		{
+			name:        "no certificate name",
+			certURI:     "https://myvault.vault.azure.net/certificates/",
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {

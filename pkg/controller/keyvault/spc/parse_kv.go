@@ -1,6 +1,7 @@
 package spc
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -27,13 +28,17 @@ func parseKeyVaultCertURI(certURI string) (certReference, error) {
 	chunks := strings.Split(uri.Path, "/")
 
 	if len(chunks) < 3 {
-		return certReference{}, util.NewUserError(fmt.Errorf("uri Path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
+		return certReference{}, util.NewUserError(fmt.Errorf("uri path contains too few segments: has: %d requires greater than: %d uri path: %s", len(chunks), 3, uri.Path), fmt.Sprintf("invalid secret uri: %s", certURI))
 	}
 	secretName := chunks[2]
 
 	objectVersion := ""
 	if len(chunks) > 3 {
 		objectVersion = chunks[3]
+	}
+
+	if vaultName == "" || secretName == "" {
+		return certReference{}, util.NewUserError(errors.New("vault name or secret name is empty"), "invalid certificate uri: "+certURI)
 	}
 
 	return certReference{

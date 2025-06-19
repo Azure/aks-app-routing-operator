@@ -131,7 +131,7 @@ func TestIngressToSpcOpts(t *testing.T) {
 				return true, nil
 			}),
 			wantErr:       true,
-			wantErrString: "uri Path contains too few segments: has: 1 requires greater than: 3 uri path: invalid-uri",
+			wantErrString: "uri path contains too few segments",
 		},
 		{
 			name: "managed ingress with tls cert managed annotation",

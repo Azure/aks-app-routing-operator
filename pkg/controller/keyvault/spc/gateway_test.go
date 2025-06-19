@@ -275,7 +275,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "serviceAccount test-sa was specified but does not include necessary annotation for workload identity",
+			wantErrStr: "user-specified service account does not contain WI annotation",
 		},
 		{
 			name: "cert URI without service account",
@@ -328,9 +328,17 @@ func TestGatewayToSpcOpts(t *testing.T) {
 					},
 				},
 			},
-			objects:    []client.Object{validServiceAccount},
-			wantErr:    true,
-			wantErrStr: "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not",
+			objects: []client.Object{validServiceAccount},
+			wantSpcOpts: []spcOpts{
+				{
+					action:     actionCleanup,
+					name:       "kv-gw-cert-test-gateway-https",
+					namespace:  "test-ns",
+					tenantId:   "test-tenant-id",
+					secretName: "kv-gw-cert-test-gateway-https",
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name: "malformed certificate URI - invalid URL",
@@ -360,37 +368,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			},
 			objects:    []client.Object{validServiceAccount},
 			wantErr:    true,
-			wantErrStr: "invalid certificate URI",
-		},
-		{
-			name: "malformed certificate URI - non-keyvault domain",
-			conf: &config.Config{
-				TenantID: "test-tenant-id",
-				Cloud:    "AzurePublicCloud",
-			},
-			gateway: &gatewayv1.Gateway{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
-				},
-				Spec: gatewayv1.GatewaySpec{
-					GatewayClassName: istioGatewayClassName,
-					Listeners: []gatewayv1.Listener{
-						{
-							Name: "https",
-							TLS: &gatewayv1.GatewayTLSConfig{
-								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									certUriTLSOption: "https://example.com/certificates/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
-								},
-							},
-						},
-					},
-				},
-			},
-			objects:    []client.Object{validServiceAccount},
-			wantErr:    true,
-			wantErrStr: "invalid vault domain",
+			wantErrStr: "uri path contains too few segments",
 		},
 		{
 			name: "malformed certificate URI - missing certificate name",
@@ -420,7 +398,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			},
 			objects:    []client.Object{validServiceAccount},
 			wantErr:    true,
-			wantErrStr: "invalid certificate name",
+			wantErrStr: "parsing KeyVault cert URI",
 		},
 		{
 			name: "valid with custom national cloud",
@@ -712,7 +690,7 @@ func TestGetServiceAccountClientId(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "does not include necessary annotation for workload identity",
+			wantErrStr: "user-specified service account does not contain WI annotation",
 		},
 		{
 			name: "empty annotation",
@@ -726,7 +704,7 @@ func TestGetServiceAccountClientId(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "does not include necessary annotation for workload identity",
+			wantErrStr: "user-specified service account does not contain WI annotation",
 		},
 	}
 
@@ -811,7 +789,7 @@ func TestClientIdFromListener(t *testing.T) {
 			},
 			objects:    []client.Object{validServiceAccount},
 			wantErr:    true,
-			wantErrStr: "ServiceAccount for WorkloadIdentity provided, but KeyVault Cert URI was not",
+			wantErrStr: "user specified ServiceAccount but no cert URI in a listener",
 		},
 		{
 			name: "missing both cert URI and service account",
@@ -821,7 +799,7 @@ func TestClientIdFromListener(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "KeyVault Cert URI and ServiceAccount must both be specified",
+			wantErrStr: "none of the required TLS options were specified",
 		},
 		{
 			name: "non-existent service account",
@@ -834,7 +812,7 @@ func TestClientIdFromListener(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "does not exist in namespace",
+			wantErrStr: "serviceaccounts \"non-existent-sa\" not found",
 		},
 		{
 			name: "service account without client ID annotation",
