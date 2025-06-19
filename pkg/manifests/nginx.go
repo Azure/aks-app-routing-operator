@@ -57,8 +57,7 @@ var (
 	}
 )
 
-// comes from https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap
-const defaultLogFormat = `$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id`
+const internalLogFormat = `{"remote_addr":"$remote_addr","remote_user":"$remote_user","time_local":"$time_local","request":"$request","status":"$status","body_bytes_sent":"$body_bytes_sent","http_referer":"$http_referer","http_user_agent":"$http_user_agent","request_length":"$request_length","request_time":"$request_time","proxy_upstream_name":"$proxy_upstream_name","proxy_alternative_upstream_name":"$proxy_alternative_upstream_name","upstream_addr":"$upstream_addr","upstream_response_length":"$upstream_response_length","upstream_response_time":"$upstream_response_time","upstream_status":"$upstream_status","req_id":"$req_id","http_x_forwarded_for":"$http_x_forwarded_for","http_x_ms_client_ip_address":"$http_x_ms_client_ip_address","http_x_ms_correlation_request_id":"$http_x_ms_correlation_request_id"}`
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
 	if ingressConfig != nil && ingressConfig.Version == nil {
@@ -539,8 +538,8 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 		confMap.Data["custom-http-errors"] = ingressConfig.CustomHTTPErrors
 	}
 
-	if conf.EnableClientIpLogging {
-		confMap.Data["log-format-upstream"] = defaultLogFormat + ` $http_x_forwarded_for`
+	if conf.EnableInternalLogging {
+		confMap.Data["log-format-upstream"] = internalLogFormat
 	}
 
 	if ingressConfig.LogFormat != "" {
