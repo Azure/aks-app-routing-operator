@@ -193,11 +193,11 @@ func getServiceAccountClientId(ctx context.Context, cl client.Client, saName, sa
 			return "", fmt.Errorf("failed to fetch service account to verify workload identity configuration: %w", err)
 		}
 
-		return "", util.NewUserError(err, fmt.Sprintf("serviceAccount %s does not exist in namespace %s", saName, saNamespace))
+		return "", util.NewUserError(err, fmt.Sprintf("service account %s does not exist in namespace %s", saName, saNamespace))
 	}
 
 	if sa.Annotations == nil || sa.Annotations[wiSaClientIdAnnotation] == "" {
-		return "", util.NewUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("serviceAccount %s was specified but does not include necessary annotation for workload identity", saName))
+		return "", util.NewUserError(errors.New("user-specified service account does not contain WI annotation"), fmt.Sprintf("service account %s was specified but does not include necessary annotation for workload identity", saName))
 	}
 
 	return sa.Annotations[wiSaClientIdAnnotation], nil

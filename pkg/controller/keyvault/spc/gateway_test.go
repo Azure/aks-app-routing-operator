@@ -239,7 +239,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "serviceAccount test-sa does not exist in namespace test-ns",
+			wantErrStr: "serviceaccounts \"test-sa\" not found",
 		},
 		{
 			name: "service account without client ID annotation",
@@ -302,7 +302,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "KeyVault Cert URI provided, but the required ServiceAccount option was not",
+			wantErrStr: "user specified cert URI but no ServiceAccount in a listener",
 		},
 		{
 			name: "service account without cert URI",
@@ -701,7 +701,7 @@ func TestGetServiceAccountClientId(t *testing.T) {
 			name:       "missing service account",
 			sa:         nil,
 			wantErr:    true,
-			wantErrStr: "does not exist in namespace",
+			wantErrStr: "serviceaccounts \"test-sa\" not found",
 		},
 		{
 			name: "missing annotation",
@@ -798,7 +798,7 @@ func TestClientIdFromListener(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "KeyVault Cert URI provided, but the required ServiceAccount option was not",
+			wantErrStr: "user specified cert URI but no ServiceAccount in a listener",
 		},
 		{
 			name: "service account without cert URI",
@@ -855,7 +855,7 @@ func TestClientIdFromListener(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "does not include necessary annotation for workload identity",
+			wantErrStr: "user-specified service account does not contain WI annotation",
 		},
 	}
 
