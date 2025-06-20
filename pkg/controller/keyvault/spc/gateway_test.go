@@ -5,6 +5,7 @@ package spc
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -39,13 +40,15 @@ func TestGatewayToSpcOpts(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		conf        *config.Config
-		gateway     *gatewayv1.Gateway
-		objects     []client.Object
-		wantSpcOpts []spcOpts
-		wantErr     bool
-		wantErrStr  string
+		name               string
+		conf               *config.Config
+		gateway            *gatewayv1.Gateway
+		objects            []client.Object
+		wantSpcOpts        []spcOpts
+		wantErr            bool
+		wantErrStr         string
+		verifyModifyOwner  bool
+		wantCertificateRef *gatewayv1.SecretObjectReference
 	}{
 		{
 			name: "nil config",
@@ -441,6 +444,54 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "verify modify owner updates certificate references",
+			conf: &config.Config{
+				TenantID: "test-tenant-id",
+				Cloud:    "AzurePublicCloud",
+			},
+			gateway: &gatewayv1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gateway",
+					Namespace: "test-ns",
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: istioGatewayClassName,
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "https",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
+									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+								},
+							},
+						},
+					},
+				},
+			},
+			objects: []client.Object{validServiceAccount},
+			wantSpcOpts: []spcOpts{
+				{
+					action:     actionReconcile,
+					name:       "kv-gw-cert-test-gateway-https",
+					namespace:  "test-ns",
+					clientId:   testClientID,
+					tenantId:   "test-tenant-id",
+					vaultName:  "test-vault",
+					certName:   "test-cert",
+					secretName: "kv-gw-cert-test-gateway-https",
+					cloud:      "AzurePublicCloud",
+				},
+			},
+			verifyModifyOwner: true,
+			wantCertificateRef: &gatewayv1.SecretObjectReference{
+				Group:     util.ToPtr(gatewayv1.Group(corev1.GroupName)),
+				Kind:      util.ToPtr(gatewayv1.Kind("Secret")),
+				Name:      "kv-gw-cert-test-gateway-https",
+				Namespace: util.ToPtr(gatewayv1.Namespace("test-ns")),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -478,6 +529,20 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			require.Equal(t, len(tt.wantSpcOpts), len(gotOpts))
 			for i, want := range tt.wantSpcOpts {
 				got := gotOpts[i]
+
+				if tt.verifyModifyOwner && got.modifyOwner != nil {
+					// Create a copy of the gateway to test modifyOwner
+					gatewayCopy := tt.gateway.DeepCopy()
+					err := got.modifyOwner(gatewayCopy)
+					require.NoError(t, err)
+
+					// Verify certificate references were updated correctly
+					listener := gatewayCopy.Spec.Listeners[i]
+					require.NotNil(t, listener.TLS)
+					require.NotEmpty(t, listener.TLS.CertificateRefs)
+					assert.Equal(t, *tt.wantCertificateRef, listener.TLS.CertificateRefs[0])
+				}
+
 				// Clear modifyOwner for comparison
 				hasModifyOwner := got.modifyOwner != nil
 				got.modifyOwner = nil
@@ -547,9 +612,9 @@ func TestGetGatewayListenerSpcName(t *testing.T) {
 		},
 		{
 			name:         "long names",
-			gwName:       "very-long-gateway-name-that-exceeds-the-limit-when-combined-with-other-parts",
-			listenerName: "very-long-listener-name-that-makes-the-total-length-too-long",
-			want:         "kv-gw-cert-very-long-gateway-name-that-exceeds-the-limit-when-combined-with-other-parts-very-long-listener-name-that-makes-the-total-length-too-long",
+			gwName:       strings.Repeat("a", 300),
+			listenerName: strings.Repeat("a", 300),
+			want:         "kv-gw-cert-" + strings.Repeat("a", 253-len("kv-gw-cert-")),
 		},
 	}
 
