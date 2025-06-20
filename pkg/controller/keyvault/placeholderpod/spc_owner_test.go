@@ -684,3 +684,42 @@ func TestGetIngressSpcOwner(t *testing.T) {
 		})
 	}
 }
+
+func TestSpcOwnerStructGetOwnerAnnotation(t *testing.T) {
+	tests := []struct {
+		name      string
+		ownerType spcOwnerStruct[*testOwner]
+		wantAnnot string
+	}{
+		{
+			name: "returns configured annotation",
+			ownerType: spcOwnerStruct[*testOwner]{
+				kind:                "TestKind",
+				ownerNameAnnotation: "test.company.com/owner-annotation",
+			},
+			wantAnnot: "test.company.com/owner-annotation",
+		},
+		{
+			name: "returns empty string when not configured",
+			ownerType: spcOwnerStruct[*testOwner]{
+				kind: "TestKind",
+			},
+			wantAnnot: "",
+		},
+		{
+			name: "returns kubernetes prefixed annotation",
+			ownerType: spcOwnerStruct[*testOwner]{
+				kind:                "TestKind",
+				ownerNameAnnotation: "kubernetes.azure.com/test-owner",
+			},
+			wantAnnot: "kubernetes.azure.com/test-owner",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.ownerType.GetOwnerAnnotation()
+			assert.Equal(t, tt.wantAnnot, got)
+		})
+	}
+}
