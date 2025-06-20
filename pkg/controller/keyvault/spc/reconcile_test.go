@@ -592,3 +592,177 @@ func testToSpcOpts(ctx context.Context, c client.Client, obj *appsv1.Deployment)
 		}
 	}
 }
+
+// Test reconcile with multiple spcOpts
+func TestReconcileMultipleSpcOpts(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-ns",
+			UID:       "test-uid",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				// First SPC opt for reconciliation
+				opts1 := spcOpts{
+					action:    actionReconcile,
+					name:      "test-spc-1",
+					namespace: "test-ns",
+					modifyOwner: func(obj client.Object) error {
+						annotations := map[string]string{"test1": "value1"}
+						if existing := obj.GetAnnotations(); existing != nil {
+							for k, v := range existing {
+								annotations[k] = v
+							}
+						}
+						obj.SetAnnotations(annotations)
+						return nil
+					},
+				}
+				yield(opts1, nil)
+
+				// Second SPC opt for reconciliation
+				opts2 := spcOpts{
+					action:    actionReconcile,
+					name:      "test-spc-2",
+					namespace: "test-ns",
+					modifyOwner: func(obj client.Object) error {
+						annotations := map[string]string{"test2": "value2"}
+						if existing := obj.GetAnnotations(); existing != nil {
+							for k, v := range existing {
+								annotations[k] = v
+							}
+						}
+						obj.SetAnnotations(annotations)
+						return nil
+					},
+				}
+				yield(opts2, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// Test reconcile with multiple opts
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify metrics
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Verify deployment was updated with both annotations
+	err = c.Get(ctx, req.NamespacedName, deployment)
+	require.NoError(t, err)
+	assert.Equal(t, "value1", deployment.Annotations["test1"])
+	assert.Equal(t, "value2", deployment.Annotations["test2"])
+}
+
+// Test reconcile when object is being cleaned up
+func TestReconcileObjectCleanup(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	now := metav1.Now()
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-deployment",
+			Namespace:         "test-ns",
+			UID:               "test-uid",
+			DeletionTimestamp: &now,
+			Finalizers:        []string{"test-finalizer"},
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	existingSpc := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-spc",
+			Namespace: "test-ns",
+			Labels:    manifests.GetTopLevelLabels(),
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       "test-deployment",
+					UID:        "test-uid",
+					Controller: util.ToPtr(true),
+				},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment, existingSpc).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				opts := spcOpts{
+					action:    actionCleanup,
+					name:      "test-spc",
+					namespace: "test-ns",
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// Test reconcile with cleanup
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify metrics
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Verify SPC was deleted
+	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, &secv1.SecretProviderClass{})
+	require.True(t, errors.IsNotFound(err), "expected SPC to be deleted")
+
+	// Verify no events were recorded
+	require.Len(t, events.Events, 0, "expected no events to be recorded")
+}

@@ -115,7 +115,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 				return ctrl.Result{}, fmt.Errorf("cleaning up SecretProviderClass: %w", err)
 			}
 
-			continue // todo: test this
+			continue
 		}
 
 		spc, err := s.buildSpc(obj, spcOpts)
