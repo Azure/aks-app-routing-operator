@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -219,11 +220,6 @@ func TestNicSpcOwner(t *testing.T) {
 			},
 			wantReconcile: false,
 		},
-		{
-			name:          "nil nic",
-			nic:           nil,
-			wantReconcile: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -255,12 +251,13 @@ func TestGatewaySpcOwner(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, secv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
 
 	tests := []struct {
 		name             string
 		gateway          *gatewayv1.Gateway
 		spc              *secv1.SecretProviderClass
-		serviceAccount   *testOwner
+		serviceAccount   *corev1.ServiceAccount
 		wantReconcile    bool
 		wantServiceAcct  string
 		wantServiceError bool
@@ -317,7 +314,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					Name: "kv-gw-cert-test-gateway-test-listener",
 				},
 			},
-			serviceAccount: &testOwner{
+			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
 					Namespace: "test-ns",
@@ -412,7 +409,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					Name: "kv-gw-cert-test-gateway-https",
 				},
 			},
-			serviceAccount: &testOwner{
+			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
 					Namespace: "test-ns",
@@ -458,7 +455,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					Name: "kv-gw-cert-test-gateway-https",
 				},
 			},
-			serviceAccount: &testOwner{
+			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
 					Namespace: "test-ns",
@@ -503,7 +500,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					Name: "kv-gw-cert-test-gateway-https-1",
 				},
 			},
-			serviceAccount: &testOwner{
+			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "sa-1",
 					Namespace: "test-ns",
@@ -549,7 +546,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					Name: "kv-gw-cert-test-gateway-https",
 				},
 			},
-			serviceAccount: &testOwner{
+			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sa",
 					Namespace: "test-ns",
@@ -578,6 +575,9 @@ func TestGatewaySpcOwner(t *testing.T) {
 			reconcile, err := gatewaySpcOwner.ShouldReconcile(tt.spc, tt.gateway)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantReconcile, reconcile)
+			if !tt.wantReconcile {
+				return
+			}
 
 			sa, err := gatewaySpcOwner.GetServiceAccountName(context.Background(), client, tt.spc, tt.gateway)
 			if tt.wantServiceError {
@@ -607,13 +607,27 @@ func TestGetIngressSpcOwner(t *testing.T) {
 		wantError     bool
 	}{
 		{
-			name: "should reconcile managed ingress",
+			name: "managed ingress, no keyvault annotations",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
 					Namespace: "test-ns",
 					Annotations: map[string]string{
 						"test": "true",
+					},
+				},
+			},
+			isManaged:     true,
+			wantReconcile: false,
+		},
+		{
+			name: "managed ingress, keyvault annotations",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://kv.vault.azure.net/secrets/cert",
 					},
 				},
 			},

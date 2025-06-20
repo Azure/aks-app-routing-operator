@@ -146,7 +146,7 @@ var gatewaySpcOwner = spcOwnerStruct[*gatewayv1.Gateway]{
 		}
 
 		if sa == "" {
-			err := fmt.Errorf("failed to locate listener for SPC %s on user's gateway resource", spc.Name)
+			err := errors.New("failed to locate listener for SPC on user's gateway resource")
 			return "", util.NewUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
