@@ -70,6 +70,7 @@ func nicToSpcOpts(conf *config.Config, nic *approutingv1alpha1.NginxIngressContr
 			return
 		}
 
+		uri := nic.Spec.DefaultSSLCertificate.KeyVaultURI
 		certRef, err := parseKeyVaultCertURI(*uri)
 		if err != nil {
 			yield(opts, util.NewUserError(err, "unable to parse KeyVault URI for Nginx Ingress Controller"))

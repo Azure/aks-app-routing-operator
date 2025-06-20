@@ -96,39 +96,96 @@ func TestCleanupSpcOpt(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, secv1.AddToScheme(scheme))
 
-	spc := &secv1.SecretProviderClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-spc",
-			Namespace: "test-ns",
-			Labels:    manifests.GetTopLevelLabels(),
+	tests := []struct {
+		name    string
+		spc     *secv1.SecretProviderClass
+		wantErr bool
+		verify  func(*testing.T, client.Client)
+	}{
+		{
+			name: "spc with top-level labels is deleted",
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-spc",
+					Namespace: "test-ns",
+					Labels:    manifests.GetTopLevelLabels(),
+				},
+				Spec: secv1.SecretProviderClassSpec{
+					Provider: "azure",
+				},
+			},
+			verify: func(t *testing.T, c client.Client) {
+				// Verify SPC was deleted
+				spc := &secv1.SecretProviderClass{}
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+				require.True(t, errors.IsNotFound(err), "expected SPC to be deleted")
+			},
 		},
-		Spec: secv1.SecretProviderClassSpec{
-			Provider: "azure",
+		{
+			name: "spc without top-level labels is not deleted",
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-spc",
+					Namespace: "test-ns",
+					Labels: map[string]string{
+						"custom-label": "value",
+					},
+				},
+				Spec: secv1.SecretProviderClassSpec{
+					Provider: "azure",
+				},
+			},
+			verify: func(t *testing.T, c client.Client) {
+				// Verify SPC still exists
+				spc := &secv1.SecretProviderClass{}
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+				require.NoError(t, err)
+				assert.Equal(t, "value", spc.Labels["custom-label"])
+			},
+		},
+		{
+			name: "spc not found returns success",
+			spc:  nil,
+			verify: func(t *testing.T, c client.Client) {
+				// Verify attempting to get SPC returns not found
+				spc := &secv1.SecretProviderClass{}
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+				require.True(t, errors.IsNotFound(err))
+			},
 		},
 	}
 
-	c := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(spc).
-		Build()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := fake.NewClientBuilder().WithScheme(scheme)
+			if tt.spc != nil {
+				builder = builder.WithObjects(tt.spc)
+			}
+			c := builder.Build()
 
-	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
-		client: c,
-		name:   controllername.New("test-controller"),
+			reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+				client: c,
+				name:   controllername.New("test-controller"),
+			}
+
+			opts := spcOpts{
+				action:    actionCleanup,
+				name:      "test-spc",
+				namespace: "test-ns",
+			}
+
+			err := reconciler.cleanupSpcOpt(context.Background(), logr.Discard(), opts)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			if tt.verify != nil {
+				tt.verify(t, c)
+			}
+		})
 	}
-
-	opts := spcOpts{
-		action:    actionCleanup,
-		name:      "test-spc",
-		namespace: "test-ns",
-	}
-
-	err := reconciler.cleanupSpcOpt(context.Background(), logr.Discard(), opts)
-	require.NoError(t, err)
-
-	// Verify SPC was deleted
-	err = c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
-	require.True(t, errors.IsNotFound(err))
 }
 
 // Test toSpcOpts with user error
