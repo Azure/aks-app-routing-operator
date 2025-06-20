@@ -823,3 +823,154 @@ func TestReconcileObjectCleanup(t *testing.T) {
 	// Verify no events were recorded
 	require.Len(t, events.Events, 0, "expected no events to be recorded")
 }
+
+// Test error handling when checking if an ingress is managed
+func TestReconcileIngressManagedError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-ns",
+			UID:       "test-uid",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				// Simulate an error that could occur when checking if ingress is managed
+				err := fmt.Errorf("failed to check if ingress is managed: some error")
+				yield(spcOpts{}, err)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// Test reconcile with error checking if ingress is managed
+	beforeErrCount := testutils.GetErrMetricCount(t, reconciler.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelError)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check if ingress is managed: some error")
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify error metrics were incremented
+	require.Greater(t, testutils.GetErrMetricCount(t, reconciler.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelError), beforeReconcileCount)
+
+	// Verify no SPC was created
+	spc := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	require.True(t, errors.IsNotFound(err), "expected SPC to not be created")
+
+	// Verify no events were sent (non-user errors don't generate events)
+	require.Len(t, events.Events, 0, "expected no events to be recorded")
+}
+
+// Test cleanup of SPC when deployment has top-level labels
+func TestReconcileWithTopLevelLabels(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	// Create a deployment with top-level labels
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-ns",
+			UID:       "test-uid",
+			Labels:    manifests.GetTopLevelLabels(),
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	// Create an existing SPC that should be cleaned up
+	existingSpc := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "existing-spc",
+			Namespace: "test-ns",
+			Labels:    manifests.GetTopLevelLabels(),
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       "test-deployment",
+					UID:        "test-uid",
+					Controller: util.ToPtr(true),
+				},
+			},
+		},
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: "azure",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment, existingSpc).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				// Return cleanup action since this deployment has top-level labels
+				opts := spcOpts{
+					action:    actionCleanup,
+					name:      "existing-spc",
+					namespace: "test-ns",
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// Test reconcile with deployment having top-level labels
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify metrics
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Verify existing SPC was cleaned up due to deployment having top-level labels
+	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "existing-spc"}, &secv1.SecretProviderClass{})
+	require.True(t, errors.IsNotFound(err), "expected existing SPC to be deleted")
+
+	// Verify no events were recorded (cleanup operations don't generate events)
+	require.Len(t, events.Events, 0, "expected no events to be recorded")
+}
