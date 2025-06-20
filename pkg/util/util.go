@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"math/rand"
+	"reflect"
 	"strings"
 	"time"
 
@@ -93,4 +94,19 @@ func FilterMap[K comparable, V comparable](m map[K]V, keep func(K, V) bool) map[
 	}
 
 	return new
+}
+
+// NewObject creates a new instance of the type T
+func NewObject[T any]() T {
+	// Get the type of T
+	var typeT T
+	t := reflect.TypeOf(typeT)
+
+	// If it's a pointer type, create a new instance of the underlying type
+	if t.Kind() == reflect.Ptr {
+		return reflect.New(t.Elem()).Interface().(T)
+	}
+
+	// Otherwise create a new instance of the type directly
+	return reflect.New(t).Elem().Interface().(T)
 }
