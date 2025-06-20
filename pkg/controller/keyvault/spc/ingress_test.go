@@ -4,6 +4,7 @@
 package spc
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -243,12 +244,15 @@ func TestIngressToSpcOpts(t *testing.T) {
 }
 
 func TestShouldReconcileIngress(t *testing.T) {
+	expectedErr := fmt.Errorf("test error")
+
 	tests := []struct {
 		name           string
 		ingress        *netv1.Ingress
 		ingressManager util.IngressManager
 		want           bool
 		wantErr        bool
+		wantErrString  string
 	}{
 		{
 			name:    "nil ingress",
@@ -312,6 +316,22 @@ func TestShouldReconcileIngress(t *testing.T) {
 			}),
 			want: false,
 		},
+		{
+			name: "error checking if ingress is managed",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-ingress",
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.net/secrets/test-cert",
+					},
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return false, expectedErr
+			}),
+			wantErr:       true,
+			wantErrString: "checking if ingress test-ingress is managed",
+		},
 	}
 
 	for _, tt := range tests {
@@ -319,6 +339,7 @@ func TestShouldReconcileIngress(t *testing.T) {
 			got, err := ShouldReconcileIngress(tt.ingressManager, tt.ingress)
 			if tt.wantErr {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrString)
 				return
 			}
 			require.NoError(t, err)
