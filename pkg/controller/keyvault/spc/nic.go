@@ -70,12 +70,6 @@ func nicToSpcOpts(conf *config.Config, nic *approutingv1alpha1.NginxIngressContr
 			return
 		}
 
-		uri := nic.Spec.DefaultSSLCertificate.KeyVaultURI
-		if uri == nil || *uri == "" {
-			// this should be caught in shouldReconcileNic, but just in case
-			yield(opts, errors.New("nginx ingress controller does not have a valid KeyVault URI"))
-			return
-		}
 		certRef, err := parseKeyVaultCertURI(*uri)
 		if err != nil {
 			yield(opts, util.NewUserError(err, "unable to parse KeyVault URI for Nginx Ingress Controller"))
