@@ -4,6 +4,7 @@
 package manifests
 
 import (
+	"encoding/json"
 	"path"
 	"testing"
 
@@ -428,7 +429,7 @@ var (
 				TenantID:              "test-tenant-id",
 				Cloud:                 "test-cloud",
 				Location:              "test-location",
-				EnableClientIpLogging: true,
+				EnableInternalLogging: true,
 			},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -496,7 +497,7 @@ var (
 				TenantID:              "test-tenant-id",
 				Cloud:                 "test-cloud",
 				Location:              "test-location",
-				EnableClientIpLogging: true,
+				EnableInternalLogging: true,
 			},
 			Deploy: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -628,5 +629,19 @@ func TestMapAdditions(t *testing.T) {
 	_, ok := testMap["app.kubernetes.io/component"]
 	if ok {
 		t.Errorf("original map was written to")
+	}
+}
+
+func TestInternalLogFormatIsJson(t *testing.T) {
+	t.Parallel()
+
+	if internalLogFormat == "" {
+		t.Fatal("internalLogFormat is empty")
+	}
+
+	// check if internalLogFormat is valid JSON
+	var js map[string]interface{}
+	if err := json.Unmarshal([]byte(internalLogFormat), &js); err != nil {
+		t.Fatalf("internalLogFormat is not valid JSON: %v", err)
 	}
 }
