@@ -114,6 +114,8 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 				logger.Error(err, "failed to clean up SecretProviderClass")
 				return ctrl.Result{}, fmt.Errorf("cleaning up SecretProviderClass: %w", err)
 			}
+
+			continue // todo: test this
 		}
 
 		spc, err := s.buildSpc(obj, spcOpts)
@@ -187,7 +189,7 @@ func (s *secretProviderClassReconciler[objectType]) cleanupSpcOpt(ctx context.Co
 		return nil
 	}
 
-	lgr.Info("SecretProviderClass does not have top-level labels, not managed by us")
+	lgr.Info("SecretProviderClass does not have top-level labels, not managed by app routing")
 	return nil
 }
 
