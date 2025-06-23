@@ -17,7 +17,7 @@ const (
 )
 
 // AddGatewayServiceAccountIndex adds an index to the Gateway resource based on the service account specified in the TLS options of the listeners
-func AddGatewaySerAddGatewayServiceAccountIndex(indexer client.FieldIndexer, indexName string) error {
+func AddGatewayServiceAccountIndex(indexer client.FieldIndexer, indexName string) error {
 	if err := indexer.IndexField(context.Background(), &gatewayv1.Gateway{}, indexName, gatewayServiceAccountIndexFn); err != nil {
 		return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
 	}

@@ -64,7 +64,7 @@ func TestReconcileSuccess(t *testing.T) {
 		client:    c,
 		events:    events,
 		config:    &config.Config{},
-		toSpcOpts: testToSpcOpts,
+		toSpcOpts: getSpcOpts,
 	}
 
 	ctx := logr.NewContext(context.Background(), logr.Discard())
@@ -174,7 +174,7 @@ func TestCleanupSpcOpt(t *testing.T) {
 				namespace: "test-ns",
 			}
 
-			err := reconciler.cleanupSpcOpt(context.Background(), logr.Discard(), opts)
+			err := reconciler.cleanupSpc(context.Background(), logr.Discard(), opts)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -625,7 +625,7 @@ func TestBuildSpc(t *testing.T) {
 }
 
 // Helper function to simulate toSpcOpts
-func testToSpcOpts(ctx context.Context, c client.Client, obj *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+func getSpcOpts(ctx context.Context, c client.Client, obj *appsv1.Deployment) iter.Seq2[spcOpts, error] {
 	return func(yield func(spcOpts, error) bool) {
 		if certURI, ok := obj.Annotations["kubernetes.azure.com/tls-cert-keyvault-uri"]; ok {
 			certRef, err := parseKeyVaultCertURI(certURI)

@@ -110,7 +110,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 		}
 
 		if spcOpts.action == actionCleanup {
-			if err := s.cleanupSpcOpt(ctx, logger, spcOpts); err != nil {
+			if err := s.cleanupSpc(ctx, logger, spcOpts); err != nil {
 				logger.Error(err, "failed to clean up SecretProviderClass")
 				return ctrl.Result{}, fmt.Errorf("cleaning up SecretProviderClass: %w", err)
 			}
@@ -160,7 +160,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	return ctrl.Result{}, nil
 }
 
-func (s *secretProviderClassReconciler[objectType]) cleanupSpcOpt(ctx context.Context, lgr logr.Logger, opt spcOpts) error {
+func (s *secretProviderClassReconciler[objectType]) cleanupSpc(ctx context.Context, lgr logr.Logger, opt spcOpts) error {
 	if opt.action != actionCleanup {
 		return errors.New("cleanupSpcOpt called with non-cleanup action")
 	}

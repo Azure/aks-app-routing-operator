@@ -165,7 +165,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error
 	}
 
 	if conf.EnableGateway {
-		if err := util.AddGatewaySerAddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
+		if err := util.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
 			lgr.Error(err, "adding Gateway Service Account indexer")
 			return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
 		}

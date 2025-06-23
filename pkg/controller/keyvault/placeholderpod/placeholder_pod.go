@@ -136,13 +136,13 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, fmt.Errorf("getting SPC owner object: %w", err)
 	}
 
-	reconcile, err := ownerType.ShouldReconcile(spc, ownerObj)
+	shouldReconcile, err := ownerType.ShouldReconcile(spc, ownerObj)
 	if err != nil {
 		logger.Error(err, "failed to determine if SPC should be reconciled")
 		return ctrl.Result{}, fmt.Errorf("determining if SPC should be reconciled: %w", err)
 	}
 
-	if !reconcile {
+	if !shouldReconcile {
 		logger.Info("attempting to clean unused placeholder pod deployment")
 		logger.Info("getting placeholder deployment")
 		toCleanDeployment := &appsv1.Deployment{}

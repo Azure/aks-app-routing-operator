@@ -173,7 +173,7 @@ func Test_generateGatewayGetter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, AddGatewaySerAddGatewayServiceAccountIndex(m.GetFieldIndexer(), "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"))
+	require.NoError(t, AddGatewayServiceAccountIndex(m.GetFieldIndexer(), "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"))
 	require.NoError(t, m.GetClient().Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}}))
 	type testcase struct {
 		name              string
