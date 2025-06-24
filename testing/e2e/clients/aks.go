@@ -36,6 +36,7 @@ type aks struct {
 	location                            string
 	principalId                         string
 	clientId                            string
+	oidcUrl                             string
 	options                             map[string]struct{}
 }
 
@@ -102,7 +103,7 @@ func VmCountOpt(count int32) McOpt {
 	}
 }
 
-func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string, options map[string]struct{}) *aks {
+func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string, oidcUrl string, options map[string]struct{}) *aks {
 	return &aks{
 		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
@@ -112,6 +113,7 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 		dnsServiceIp:   dnsServiceIp,
 		location:       location,
 		principalId:    principalId,
+		oidcUrl:        oidcUrl,
 		options:        options,
 	}
 }
@@ -211,6 +213,10 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("dns service ip is nil")
 	}
 
+	if result.ManagedCluster.Properties.OidcIssuerProfile == nil || result.ManagedCluster.Properties.OidcIssuerProfile.IssuerURL == nil {
+		return nil, fmt.Errorf("oidc issuer url is nil")
+	}
+
 	// validate MSI when not using Service Principal
 	var identity *armcontainerservice.UserAssignedIdentity
 	var principalID, clientID string
@@ -247,6 +253,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		location:       location,
 		principalId:    principalID,
 		clientId:       clientID,
+		oidcUrl:        *result.ManagedCluster.Properties.OidcIssuerProfile.IssuerURL,
 		options:        options,
 	}
 
@@ -568,4 +575,8 @@ func (a *aks) GetClientId() string {
 
 func (a *aks) GetOptions() map[string]struct{} {
 	return a.options
+}
+
+func (a *aks) GetOidcUrl() string {
+	return a.oidcUrl
 }

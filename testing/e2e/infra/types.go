@@ -47,6 +47,7 @@ type cluster interface {
 	GetLocation() string
 	GetDnsServiceIp() string
 	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
+	GetOidcUrl() string
 	GetOptions() map[string]struct{}
 	Identifier
 }
@@ -123,17 +124,17 @@ type withLoadableCert[T any] struct {
 // LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.
 // Ensure that all fields are exported so that they can properly be serialized/deserialized.
 type LoadableProvisioned struct {
-	Name                                                                      string
-	Cluster                                                                   azure.Resource
-	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId string
-	ClusterOptions                                                            map[string]struct{}
-	ContainerRegistry                                                         azure.Resource
-	Zones                                                                     []withLoadableCert[LoadableZone]
-	PrivateZones                                                              []withLoadableCert[azure.Resource]
-	KeyVault                                                                  azure.Resource
-	ResourceGroup                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
-	SubscriptionId                                                            string
-	TenantId                                                                  string
-	E2eImage                                                                  string
-	OperatorImage                                                             string
+	Name                                                                                      string
+	Cluster                                                                                   azure.Resource
+	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId, ClusterOidcUrl string
+	ClusterOptions                                                                            map[string]struct{}
+	ContainerRegistry                                                                         azure.Resource
+	Zones                                                                                     []withLoadableCert[LoadableZone]
+	PrivateZones                                                                              []withLoadableCert[azure.Resource]
+	KeyVault                                                                                  azure.Resource
+	ResourceGroup                                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
+	SubscriptionId                                                                            string
+	TenantId                                                                                  string
+	E2eImage                                                                                  string
+	OperatorImage                                                                             string
 }
