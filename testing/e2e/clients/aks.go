@@ -155,6 +155,9 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 					},
 				},
 			},
+			OidcIssuerProfile: &armcontainerservice.ManagedClusterOIDCIssuerProfile{
+				Enabled: to.Ptr(true),
+			},
 		},
 	}
 
