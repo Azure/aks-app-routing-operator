@@ -411,6 +411,7 @@ func TestReconcileModifyOwnerError(t *testing.T) {
 					name:      "test-spc",
 					namespace: "test-ns",
 					modifyOwner: func(obj client.Object) error {
+						obj.SetAnnotations(map[string]string{"new": "annotation"})
 						return expectedError
 					},
 				}
