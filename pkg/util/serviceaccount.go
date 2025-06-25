@@ -12,7 +12,8 @@ import (
 
 const wiSaClientIdAnnotation = "azure.workload.identity/client-id"
 
-func GetServiceAccountAndVerifyWorkloadIdentity(ctx context.Context, k8sclient client.Client, saName, saNamespace string) (string, error) {
+// GetWorkloadIdentityClientID retrieves the client ID for a service account configured for Workload Identity
+func GetWorkloadIdentityClientID(ctx context.Context, k8sclient client.Client, saName, saNamespace string) (string, error) {
 	// ensure referenced serviceaccount exists
 	saObj := &corev1.ServiceAccount{}
 	err := k8sclient.Get(ctx, types.NamespacedName{Name: saName, Namespace: saNamespace}, saObj)

@@ -358,7 +358,7 @@ func (p *PlaceholderPodController) verifyServiceAccount(ctx context.Context, spc
 			return "", util.NewUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
-		_, err := util.GetServiceAccountAndVerifyWorkloadIdentity(ctx, p.client, serviceAccount, spc.Namespace)
+		_, err := util.GetWorkloadIdentityClientID(ctx, p.client, serviceAccount, spc.Namespace)
 		if err != nil {
 			return "", err
 		}

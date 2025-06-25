@@ -62,7 +62,7 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// verify serviceaccount
-	if _, err = util.GetServiceAccountAndVerifyWorkloadIdentity(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
+	if _, err = util.GetWorkloadIdentityClientID(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
 		var userErr util.UserError
 		if errors.As(err, &userErr) {
 			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())
@@ -90,7 +90,6 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 		Name:       obj.Name,
 		UID:        obj.UID,
 	}})
-
 	if err != nil {
 		logger.Error(err, "failed to upsert externaldns resources")
 		e.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed to deploy external DNS resources: %s", err.Error())

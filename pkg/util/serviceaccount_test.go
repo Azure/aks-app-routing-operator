@@ -80,7 +80,7 @@ func Test_GetServiceAccountAndVerifyWorkloadIdentity(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Logf("Running test case: %s", tc.name)
-		clientId, err := GetServiceAccountAndVerifyWorkloadIdentity(context.Background(), tc.generateClientState(), tc.saName, tc.namespace)
+		clientId, err := GetWorkloadIdentityClientID(context.Background(), tc.generateClientState(), tc.saName, tc.namespace)
 		if tc.expectedError != nil {
 			require.Equal(t, tc.expectedError.Error(), err.Error())
 		} else {
@@ -88,5 +88,4 @@ func Test_GetServiceAccountAndVerifyWorkloadIdentity(t *testing.T) {
 			require.Equal(t, tc.expectedClientId, clientId)
 		}
 	}
-
 }
