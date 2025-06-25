@@ -69,7 +69,6 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		spc            *secv1.SecretProviderClass
 		objects        []client.Object
 		mockOwner      *mockSpcOwner
 		config         *config.Config
@@ -80,14 +79,15 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 	}{
 		{
 			name: "spc not found returns success",
-			spc:  nil,
 		},
 		{
 			name: "no owner found skips reconciliation",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -96,10 +96,12 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "owner found but should not reconcile",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -115,10 +117,12 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "owner found but get object returns error",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -128,10 +132,12 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "creates deployment",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -156,10 +162,12 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "creates deployment with correct security context",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -193,10 +201,12 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "creates deployment with correct volume configuration",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -235,16 +245,16 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "preserves existing labels on update",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
-					Labels: map[string]string{
-						"new-label": "value",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+						Labels: map[string]string{
+							"new-label": "value",
+						},
 					},
 				},
-			},
-			objects: []client.Object{
 				&appsv1.Deployment{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-spc",
@@ -284,10 +294,12 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "owner found but service account error",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-spc",
+						Namespace: "test-ns",
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -309,11 +321,13 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		},
 		{
 			name: "handles generation change",
-			spc: &secv1.SecretProviderClass{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-spc",
-					Namespace:  "test-ns",
-					Generation: 2,
+			objects: []client.Object{
+				&secv1.SecretProviderClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "test-spc",
+						Namespace:  "test-ns",
+						Generation: 2,
+					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
@@ -339,15 +353,9 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			objects := []client.Object{}
-			if tt.spc != nil {
-				objects = append(objects, tt.spc)
-			}
-			objects = append(objects, tt.objects...)
-
 			client := fake.NewClientBuilder().
 				WithScheme(scheme).
-				WithObjects(objects...).
+				WithObjects(tt.objects...).
 				Build()
 
 			controller := &PlaceholderPodController{
