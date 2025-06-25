@@ -62,7 +62,7 @@ func (e *ExternalDNSCRDController) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// verify serviceaccount
-	if _, err = util.GetServiceAccountWorkloadIdentityClient(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
+	if _, err = util.GetServiceAccountWorkloadIdentityClientId(ctx, e.client, obj.GetInputServiceAccount(), obj.GetNamespace()); err != nil {
 		var userErr util.UserError
 		if errors.As(err, &userErr) {
 			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())

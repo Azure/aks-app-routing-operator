@@ -150,7 +150,7 @@ var gatewaySpcOwner = spcOwnerStruct[*gatewayv1.Gateway]{
 			return "", util.NewUserError(err, fmt.Sprintf("gateway listener for spc %s doesn't exist or doesn't contain required TLS options", spc.Name))
 		}
 
-		_, err := util.GetServiceAccountWorkloadIdentityClient(ctx, cl, sa, gw.Namespace)
+		_, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, cl, sa, gw.Namespace)
 		if err != nil {
 			return "", err
 		}

@@ -65,7 +65,7 @@ func (c *ClusterExternalDNSController) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// verify serviceaccount
-	if _, err = util.GetServiceAccountWorkloadIdentityClient(ctx, c.client, obj.GetInputServiceAccount(), obj.GetResourceNamespace()); err != nil {
+	if _, err = util.GetServiceAccountWorkloadIdentityClientId(ctx, c.client, obj.GetInputServiceAccount(), obj.GetResourceNamespace()); err != nil {
 		var userErr util.UserError
 		if errors.As(err, &userErr) {
 			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())
