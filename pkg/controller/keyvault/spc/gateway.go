@@ -60,7 +60,6 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 		}
 
 		if !IsManagedGateway(gw) {
-			// todo: test this and make sure it returns no values instead of hangs
 			return
 		}
 
@@ -95,7 +94,7 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 			uri := string(listener.TLS.Options[certUriTLSOption])
 			certRef, err := parseKeyVaultCertURI(uri)
 			if err != nil {
-				if !yield(opts, fmt.Errorf("parsing KeyVault cert URI %s: %w", uri, err)) {
+				if !yield(opts, err) {
 					return
 				}
 				continue
