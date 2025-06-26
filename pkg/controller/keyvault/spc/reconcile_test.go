@@ -41,6 +41,157 @@ const (
 	reconcileTestCertUri    = "https://keyvault.vault.azure.net/secrets/certificate"
 )
 
+// Test successful case when reconciling updates an existing SecretProviderClass with new values
+func TestReconcileUpdateExistingSecretProviderClass(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+			Annotations: map[string]string{
+				"kubernetes.azure.com/tls-cert-keyvault-uri": reconcileTestCertUri,
+			},
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	// Create the initial SPC with original values
+	existingSpc := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      reconcileTestSPC,
+			Namespace: reconcileTestNamespace,
+			Labels:    manifests.GetTopLevelLabels(),
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       reconcileTestDeployment,
+					UID:        reconcileTestUID,
+					Controller: util.ToPtr(true),
+				},
+			},
+		},
+		Spec: secv1.SecretProviderClassSpec{
+			Provider: "azure",
+			Parameters: map[string]string{
+				"keyvaultName":           "original-vault",
+				"useVMManagedIdentity":   "true",
+				"userAssignedIdentityID": "original-client-id",
+				"tenantId":               "original-tenant-id",
+				"objects":                "{\"array\":[\"{\\\"objectName\\\":\\\"original-cert\\\",\\\"objectType\\\":\\\"secret\\\"}\"]}",
+			},
+			SecretObjects: []*secv1.SecretObject{
+				{
+					SecretName: "original-secret",
+					Type:       "kubernetes.io/tls",
+					Data: []*secv1.SecretObjectData{
+						{ObjectName: "original-cert", Key: "tls.key"},
+						{ObjectName: "original-cert", Key: "tls.crt"},
+					},
+				},
+			},
+		},
+	}
+
+	firstReconcile := true
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment, existingSpc).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				if firstReconcile {
+					// First reconcile - return original values
+					opts := spcOpts{
+						action:        actionReconcile,
+						name:          reconcileTestSPC,
+						namespace:     reconcileTestNamespace,
+						clientId:      "original-client-id",
+						tenantId:      "original-tenant-id",
+						vaultName:     "original-vault",
+						certName:      "original-cert",
+						secretName:    "original-secret",
+						objectVersion: "",
+					}
+					firstReconcile = false
+					yield(opts, nil)
+				} else {
+					// Second reconcile - return updated values
+					opts := spcOpts{
+						action:        actionReconcile,
+						name:          reconcileTestSPC,
+						namespace:     reconcileTestNamespace,
+						clientId:      "updated-client-id",
+						tenantId:      "updated-tenant-id",
+						vaultName:     "updated-vault",
+						certName:      "updated-cert",
+						secretName:    "updated-secret",
+						objectVersion: "v2",
+					}
+					yield(opts, nil)
+				}
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// First reconciliation
+	beforeErrCount := testutils.GetErrMetricCount(t, reconciler.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify metrics after first reconciliation
+	require.Equal(t, testutils.GetErrMetricCount(t, reconciler.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Second reconciliation
+	beforeReconcileCount = testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess)
+	result, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify metrics after second reconciliation
+	require.Equal(t, testutils.GetErrMetricCount(t, reconciler.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess), beforeReconcileCount)
+
+	// Verify SPC was updated with new values
+	updatedSpc := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, updatedSpc)
+	require.NoError(t, err)
+
+	// Verify the updated values
+	assert.Equal(t, "updated-vault", updatedSpc.Spec.Parameters["keyvaultName"])
+	assert.Equal(t, "updated-client-id", updatedSpc.Spec.Parameters["userAssignedIdentityID"])
+	assert.Equal(t, "updated-tenant-id", updatedSpc.Spec.Parameters["tenantId"])
+	assert.Contains(t, updatedSpc.Spec.Parameters["objects"], "updated-cert")
+	assert.Contains(t, updatedSpc.Spec.Parameters["objects"], "v2") // Check that object version was updated
+	require.Len(t, updatedSpc.Spec.SecretObjects, 1)
+	assert.Equal(t, "updated-secret", updatedSpc.Spec.SecretObjects[0].SecretName)
+	require.Len(t, updatedSpc.Spec.SecretObjects[0].Data, 2)
+	assert.Equal(t, "updated-cert", updatedSpc.Spec.SecretObjects[0].Data[0].ObjectName)
+	assert.Equal(t, "updated-cert", updatedSpc.Spec.SecretObjects[0].Data[1].ObjectName)
+}
+
 // Test the Reconcile method with successful case
 func TestReconcileSuccess(t *testing.T) {
 	scheme := runtime.NewScheme()
