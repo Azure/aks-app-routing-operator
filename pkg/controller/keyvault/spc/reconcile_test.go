@@ -917,6 +917,100 @@ func TestReconcileMultipleSpcOpts(t *testing.T) {
 	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-spc-2"}, spc2)
 }
 
+// Test reconcile with multiple spcOpts where one returns an error
+func TestReconcileMultipleSpcOptsWithError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	expectedError := fmt.Errorf("test error from second spcOpt")
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-controller"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				// First SPC opt succeeds
+				opts1 := spcOpts{
+					action:    actionReconcile,
+					name:      "test-spc-1",
+					namespace: reconcileTestNamespace,
+					modifyOwner: func(obj client.Object) error {
+						annotations := map[string]string{"test1": "value1"}
+						if existing := obj.GetAnnotations(); existing != nil {
+							for k, v := range existing {
+								annotations[k] = v
+							}
+						}
+						obj.SetAnnotations(annotations)
+						return nil
+					},
+				}
+				if !yield(opts1, nil) {
+					return
+				}
+
+				yield(spcOpts{
+					action:    actionReconcile,
+					name:      "test-spc-2",
+					namespace: reconcileTestNamespace,
+				}, expectedError)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: deployment.Namespace, Name: deployment.Name}}
+
+	// Test reconcile with multiple opts where one fails
+	beforeErrCount := testutils.GetErrMetricCount(t, reconciler.name)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelError)
+
+	result, err := reconciler.Reconcile(ctx, req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), expectedError.Error())
+	require.Equal(t, ctrl.Result{}, result)
+
+	// Verify error metrics were incremented
+	require.Greater(t, testutils.GetErrMetricCount(t, reconciler.name), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelError), beforeReconcileCount)
+
+	// Verify first SPC was created successfully despite second one failing
+	spc1 := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-spc-1"}, spc1)
+	require.NoError(t, err)
+
+	// Verify second SPC was not created
+	spc2 := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-spc-2"}, spc2)
+	require.True(t, errors.IsNotFound(err), "expected second SPC to not be created")
+
+	// Verify deployment does not have the annotation from the first successful opt
+	err = c.Get(ctx, req.NamespacedName, deployment)
+	require.NoError(t, err)
+	assert.NotEqual(t, "value1", deployment.Annotations["test1"])
+}
+
 // Test reconcile when object is being cleaned up
 func TestReconcileObjectCleanup(t *testing.T) {
 	scheme := runtime.NewScheme()
