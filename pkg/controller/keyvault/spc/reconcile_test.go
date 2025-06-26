@@ -456,7 +456,7 @@ func TestReconcileModifyOwnerError(t *testing.T) {
 }
 
 // Test case for when getting the initial object returns not found
-func TestReconcileObjectNotFound(t *testing.T) {
+func TestReconcileObjectNotExists(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
