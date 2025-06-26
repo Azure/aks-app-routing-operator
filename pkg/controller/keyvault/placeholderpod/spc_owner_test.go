@@ -173,7 +173,7 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 					},
 				},
 			},
-			wantError: noSpcOwnerErr,
+			wantError: spcOwnerNotFoundErr,
 		},
 	}
 

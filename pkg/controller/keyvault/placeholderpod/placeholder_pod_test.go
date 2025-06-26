@@ -139,7 +139,7 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			},
 			mockOwner: &mockSpcOwner{
 				isOwner:        true,
-				getObjectError: noSpcOwnerErr,
+				getObjectError: spcOwnerNotFoundErr,
 			},
 		},
 		{

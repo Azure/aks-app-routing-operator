@@ -17,7 +17,7 @@ import (
 
 const ingressOwnerAnnotation = "kubernetes.azure.com/ingress-owner"
 
-var noSpcOwnerErr = errors.New("no SecretProviderClass owner found")
+var spcOwnerNotFoundErr = errors.New("no SecretProviderClass owner found")
 
 type spcOwnerType interface {
 	// IsOwner checks if the given owner type is the owner of the SecretProviderClass
@@ -66,7 +66,7 @@ func (s spcOwnerStruct[objectType]) GetObject(ctx context.Context, cl client.Cli
 
 	if err := cl.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return nil, noSpcOwnerErr
+			return nil, spcOwnerNotFoundErr
 		}
 
 		return nil, fmt.Errorf("getting object: %w", err)

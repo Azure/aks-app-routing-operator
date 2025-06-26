@@ -127,7 +127,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 
 	ownerObj, err := ownerType.GetObject(ctx, p.client, spc)
 	if err != nil {
-		if errors.Is(err, noSpcOwnerErr) {
+		if errors.Is(err, spcOwnerNotFoundErr) {
 			logger.Info("no SPC owner found, skipping reconciliation")
 			return ctrl.Result{}, nil
 		}
