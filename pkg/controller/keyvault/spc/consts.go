@@ -7,5 +7,3 @@ const (
 )
 
 const istioGatewayClassName = "istio"
-
-const wiSaClientIdAnnotation = "azure.workload.identity/client-id"
