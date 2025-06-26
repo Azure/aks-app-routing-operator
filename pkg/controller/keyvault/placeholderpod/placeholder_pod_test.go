@@ -25,6 +25,18 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
+const (
+	testNamespace     = "test-ns"
+	testSPCName       = "test-spc"
+	testOwnerName     = "test-owner"
+	testAnnotation    = "test-annotation"
+	testRegistry      = "test.azurecr.io"
+	testContainerName = "placeholder"
+	testVolumeName    = "secrets"
+	testVolumePath    = "/mnt/secrets"
+	testCSIDriver     = "secrets-store.csi.k8s.io"
+)
+
 type mockSpcOwner struct {
 	isOwner             bool
 	ownerAnnotation     string
@@ -85,8 +97,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
@@ -99,8 +111,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
@@ -109,8 +121,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 				shouldReconcile: false,
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
@@ -120,8 +132,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
@@ -135,29 +147,29 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
 				isOwner:         true,
 				shouldReconcile: true,
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantDeployment: true,
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
 				container := dep.Spec.Template.Spec.Containers[0]
-				require.Equal(t, "placeholder", container.Name)
+				require.Equal(t, testContainerName, container.Name)
 			},
 		},
 		{
@@ -165,24 +177,24 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
 				isOwner:         true,
 				shouldReconcile: true,
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantDeployment: true,
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
@@ -204,24 +216,24 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			mockOwner: &mockSpcOwner{
 				isOwner:         true,
 				shouldReconcile: true,
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantDeployment: true,
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
@@ -229,18 +241,18 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 				container := dep.Spec.Template.Spec.Containers[0]
 				require.Len(t, container.VolumeMounts, 1)
 				volumeMount := container.VolumeMounts[0]
-				assert.Equal(t, "secrets", volumeMount.Name)
-				assert.Equal(t, "/mnt/secrets", volumeMount.MountPath)
+				assert.Equal(t, testVolumeName, volumeMount.Name)
+				assert.Equal(t, testVolumePath, volumeMount.MountPath)
 				assert.True(t, volumeMount.ReadOnly)
 
 				// Verify volumes
 				require.Len(t, dep.Spec.Template.Spec.Volumes, 1)
 				volume := dep.Spec.Template.Spec.Volumes[0]
-				assert.Equal(t, "secrets", volume.Name)
+				assert.Equal(t, testVolumeName, volume.Name)
 				require.NotNil(t, volume.CSI)
-				assert.Equal(t, "secrets-store.csi.k8s.io", volume.CSI.Driver)
+				assert.Equal(t, testCSIDriver, volume.CSI.Driver)
 				assert.True(t, *volume.CSI.ReadOnly)
-				assert.Equal(t, "test-spc", volume.CSI.VolumeAttributes["secretProviderClass"])
+				assert.Equal(t, testSPCName, volume.CSI.VolumeAttributes["secretProviderClass"])
 			},
 		},
 		{
@@ -248,8 +260,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 						Labels: map[string]string{
 							"new-label": "value",
 						},
@@ -257,8 +269,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 				},
 				&appsv1.Deployment{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 						Labels: map[string]string{
 							"existing-label": "value",
 						},
@@ -275,16 +287,16 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			mockOwner: &mockSpcOwner{
 				isOwner:         true,
 				shouldReconcile: true,
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantDeployment: true,
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
@@ -297,8 +309,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-spc",
-						Namespace: "test-ns",
+						Name:      testSPCName,
+						Namespace: testNamespace,
 					},
 				},
 			},
@@ -309,13 +321,13 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 				serviceAccountError: util.NewUserError(errors.New("error"), "service account error"),
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantError: true,
 		},
@@ -324,8 +336,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			objects: []client.Object{
 				&secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:       "test-spc",
-						Namespace:  "test-ns",
+						Name:       testSPCName,
+						Namespace:  testNamespace,
 						Generation: 2,
 					},
 				},
@@ -336,13 +348,13 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 				ownerAnnotation: "test-annotation",
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      testOwnerName,
+						Namespace: testNamespace,
 					},
 				},
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantDeployment: true,
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
@@ -367,8 +379,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 
 			req := ctrl.Request{
 				NamespacedName: types.NamespacedName{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      testSPCName,
+					Namespace: testNamespace,
 				},
 			}
 
@@ -384,8 +396,8 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			if tt.wantDeployment {
 				dep := &appsv1.Deployment{}
 				err := client.Get(context.Background(), types.NamespacedName{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      testSPCName,
+					Namespace: testNamespace,
 				}, dep)
 				require.NoError(t, err)
 
@@ -427,7 +439,7 @@ func TestGetCurrentDeployment(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 		},
@@ -455,7 +467,7 @@ func TestGetCurrentDeployment(t *testing.T) {
 
 			dep, err := controller.getCurrentDeployment(context.Background(), types.NamespacedName{
 				Name:      "test-deployment",
-				Namespace: "test-ns",
+				Namespace: testNamespace,
 			})
 
 			if tt.wantError {
@@ -498,13 +510,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-spc",
-					Namespace:  "test-ns",
+					Name:       testSPCName,
+					Namespace:  testNamespace,
 					Generation: 1,
 				},
 			},
@@ -526,13 +538,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			existingDep: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 				Spec: appsv1.DeploymentSpec{
 					Selector: &metav1.LabelSelector{
@@ -544,8 +556,8 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-spc",
-					Namespace:  "test-ns",
+					Name:       testSPCName,
+					Namespace:  testNamespace,
 					Generation: 2,
 				},
 			},
@@ -567,13 +579,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      testSPCName,
+					Namespace: testNamespace,
 				},
 			},
 			owner: &corev1.Pod{
@@ -599,13 +611,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      testSPCName,
+					Namespace: testNamespace,
 				},
 			},
 			owner: &corev1.Pod{
@@ -627,13 +639,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-spc",
-					Namespace:  "test-ns",
+					Name:       testSPCName,
+					Namespace:  testNamespace,
 					Generation: 3,
 				},
 			},
@@ -661,13 +673,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      testSPCName,
+					Namespace: testNamespace,
 				},
 			},
 			owner: &corev1.Pod{

@@ -15,6 +15,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	nicTestNamespace     = "test-ns"
+	nicTestNicName       = "test-nic"
+	nicTestTenantID      = "test-tenant"
+	nicTestCloud         = "AzurePublicCloud"
+	nicTestVaultName     = "test-vault"
+	nicTestCertName      = "test-cert"
+	nicTestCertUri       = "https://test-vault.vault.azure.net/secrets/test-cert"
+	nicDefaultCertPrefix = "keyvault-nginx-"
+)
+
 func TestNicToSpcOpts(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -41,41 +52,41 @@ func TestNicToSpcOpts(t *testing.T) {
 		{
 			name: "valid configuration",
 			conf: &config.Config{
-				NS:       "test-ns",
-				TenantID: "test-tenant",
-				Cloud:    "AzurePublicCloud",
+				NS:       nicTestNamespace,
+				TenantID: nicTestTenantID,
+				Cloud:    nicTestCloud,
 			},
 			nic: &approutingv1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-nic",
+					Name: nicTestNicName,
 				},
 				Spec: approutingv1alpha1.NginxIngressControllerSpec{
 					DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{
-						KeyVaultURI: util.ToPtr("https://test-vault.vault.azure.net/secrets/test-cert"),
+						KeyVaultURI: util.ToPtr(nicTestCertUri),
 					},
 				},
 			},
 			wantOpts: &spcOpts{
 				action:     actionReconcile,
-				name:       "keyvault-nginx-test-nic",
-				namespace:  "test-ns",
-				tenantId:   "test-tenant",
-				cloud:      "AzurePublicCloud",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "keyvault-nginx-test-nic",
+				name:       nicDefaultCertPrefix + nicTestNicName,
+				namespace:  nicTestNamespace,
+				tenantId:   nicTestTenantID,
+				cloud:      nicTestCloud,
+				vaultName:  nicTestVaultName,
+				certName:   nicTestCertName,
+				secretName: nicDefaultCertPrefix + nicTestNicName,
 			},
 		},
 		{
 			name: "invalid keyvault uri",
 			conf: &config.Config{
-				NS:       "test-ns",
-				TenantID: "test-tenant",
-				Cloud:    "AzurePublicCloud",
+				NS:       nicTestNamespace,
+				TenantID: nicTestTenantID,
+				Cloud:    nicTestCloud,
 			},
 			nic: &approutingv1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-nic",
+					Name: nicTestNicName,
 				},
 				Spec: approutingv1alpha1.NginxIngressControllerSpec{
 					DefaultSSLCertificate: &approutingv1alpha1.DefaultSSLCertificate{
@@ -89,21 +100,21 @@ func TestNicToSpcOpts(t *testing.T) {
 		{
 			name: "should not reconcile - cleanup",
 			conf: &config.Config{
-				NS:       "test-ns",
-				TenantID: "test-tenant",
-				Cloud:    "AzurePublicCloud",
+				NS:       nicTestNamespace,
+				TenantID: nicTestTenantID,
+				Cloud:    nicTestCloud,
 			},
 			nic: &approutingv1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-nic",
+					Name: nicTestNicName,
 				},
 			},
 			wantOpts: &spcOpts{
 				action:     actionCleanup,
 				name:       "keyvault-nginx-test-nic",
-				namespace:  "test-ns",
-				tenantId:   "test-tenant",
-				cloud:      "AzurePublicCloud",
+				namespace:  nicTestNamespace,
+				tenantId:   nicTestTenantID,
+				cloud:      nicTestCloud,
 				secretName: "keyvault-nginx-test-nic",
 			},
 		},
@@ -162,10 +173,10 @@ func TestNicDefaultCertName(t *testing.T) {
 			name: "normal name",
 			nic: &approutingv1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-nic",
+					Name: nicTestNicName,
 				},
 			},
-			want: "keyvault-nginx-test-nic",
+			want: nicDefaultCertPrefix + nicTestNicName,
 		},
 		{
 			name: "very long name",
@@ -174,7 +185,7 @@ func TestNicDefaultCertName(t *testing.T) {
 					Name: strings.Repeat("a", tooLongLen),
 				},
 			},
-			want: "keyvault-nginx-" + strings.Repeat("a", 253-len("keyvault-nginx-")),
+			want: nicDefaultCertPrefix + strings.Repeat("a", 253-len(nicDefaultCertPrefix)),
 		},
 	}
 

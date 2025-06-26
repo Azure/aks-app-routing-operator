@@ -21,7 +21,17 @@ import (
 )
 
 const (
-	testClientID = "test-client-id"
+	gwTestClientID       = "test-client-id"
+	gwTestTenantID       = "test-tenant-id"
+	gwTestCloud          = "AzurePublicCloud"
+	gwTestNamespace      = "test-ns"
+	gwTestGatewayName    = "test-gateway"
+	gwTestServiceAccount = "test-sa"
+	gwTestVaultName      = "test-vault"
+	gwTestCertName       = "test-cert"
+	gwTestCertUri        = "https://test-vault.vault.azure.net/secrets/test-cert"
+	gwTestHttpListener   = "http"
+	gwTestHttpsListener  = "https"
 )
 
 func TestGatewayToSpcOpts(t *testing.T) {
@@ -31,10 +41,10 @@ func TestGatewayToSpcOpts(t *testing.T) {
 
 	validServiceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-sa",
-			Namespace: "test-ns",
+			Name:      gwTestServiceAccount,
+			Namespace: gwTestNamespace,
 			Annotations: map[string]string{
-				"azure.workload.identity/client-id": testClientID,
+				"azure.workload.identity/client-id": gwTestClientID,
 			},
 		},
 	}
@@ -55,8 +65,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			conf: nil,
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 			},
 			wantErr:    true,
@@ -74,8 +84,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			conf: &config.Config{},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "some-other-class",
@@ -88,8 +98,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			conf: &config.Config{},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -102,8 +112,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			conf: &config.Config{},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -118,7 +128,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				{
 					action:     actionCleanup,
 					name:       "kv-gw-cert-test-gateway-http",
-					namespace:  "test-ns",
+					namespace:  gwTestNamespace,
 					secretName: "kv-gw-cert-test-gateway-http",
 				},
 			},
@@ -131,8 +141,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -142,7 +152,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -154,26 +164,26 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				{
 					action:     actionReconcile,
 					name:       "kv-gw-cert-test-gateway-https",
-					namespace:  "test-ns",
-					clientId:   testClientID,
-					tenantId:   "test-tenant-id",
-					vaultName:  "test-vault",
-					certName:   "test-cert",
+					namespace:  gwTestNamespace,
+					clientId:   gwTestClientID,
+					tenantId:   gwTestTenantID,
+					vaultName:  gwTestVaultName,
+					certName:   gwTestCertName,
 					secretName: "kv-gw-cert-test-gateway-https",
-					cloud:      "AzurePublicCloud",
+					cloud:      gwTestCloud,
 				},
 			},
 		},
 		{
 			name: "managed gateway with multiple listeners",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
-				Cloud:    "AzurePublicCloud",
+				TenantID: gwTestTenantID,
+				Cloud:    gwTestCloud,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -186,7 +196,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -198,33 +208,33 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				{
 					action:     actionCleanup,
 					name:       "kv-gw-cert-test-gateway-http",
-					namespace:  "test-ns",
+					namespace:  gwTestNamespace,
 					secretName: "kv-gw-cert-test-gateway-http",
-					tenantId:   "test-tenant-id",
-					cloud:      "AzurePublicCloud",
+					tenantId:   gwTestTenantID,
+					cloud:      gwTestCloud,
 				},
 				{
 					action:     actionReconcile,
 					name:       "kv-gw-cert-test-gateway-https",
-					namespace:  "test-ns",
-					clientId:   testClientID,
-					tenantId:   "test-tenant-id",
-					vaultName:  "test-vault",
-					certName:   "test-cert",
+					namespace:  gwTestNamespace,
+					clientId:   gwTestClientID,
+					tenantId:   gwTestTenantID,
+					vaultName:  gwTestVaultName,
+					certName:   gwTestCertName,
 					secretName: "kv-gw-cert-test-gateway-https",
-					cloud:      "AzurePublicCloud",
+					cloud:      gwTestCloud,
 				},
 			},
 		},
 		{
 			name: "missing service account",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
+				TenantID: gwTestTenantID,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -234,7 +244,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -247,12 +257,12 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		{
 			name: "service account without client ID annotation",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
+				TenantID: gwTestTenantID,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -262,7 +272,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -272,8 +282,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			objects: []client.Object{
 				&corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-sa",
-						Namespace: "test-ns",
+						Name:      gwTestServiceAccount,
+						Namespace: gwTestNamespace,
 					},
 				},
 			},
@@ -283,12 +293,12 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		{
 			name: "cert URI without service account",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
+				TenantID: gwTestTenantID,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -314,8 +324,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -324,7 +334,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							Name: "https",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -336,8 +346,8 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				{
 					action:     actionCleanup,
 					name:       "kv-gw-cert-test-gateway-https",
-					namespace:  "test-ns",
-					tenantId:   "test-tenant-id",
+					namespace:  gwTestNamespace,
+					tenantId:   gwTestTenantID,
 					secretName: "kv-gw-cert-test-gateway-https",
 				},
 			},
@@ -346,13 +356,13 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		{
 			name: "malformed certificate URI - invalid URL",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
-				Cloud:    "AzurePublicCloud",
+				TenantID: gwTestTenantID,
+				Cloud:    gwTestCloud,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -362,7 +372,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "not-a-url",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -376,13 +386,13 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		{
 			name: "malformed certificate URI - missing certificate name",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
-				Cloud:    "AzurePublicCloud",
+				TenantID: gwTestTenantID,
+				Cloud:    gwTestCloud,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -392,7 +402,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -406,13 +416,13 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		{
 			name: "valid with custom national cloud",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
+				TenantID: gwTestTenantID,
 				Cloud:    "AzureChinaCloud",
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -422,7 +432,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.cn/secrets/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -434,10 +444,10 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				{
 					action:     actionReconcile,
 					name:       "kv-gw-cert-test-gateway-https",
-					namespace:  "test-ns",
-					clientId:   testClientID,
-					tenantId:   "test-tenant-id",
-					vaultName:  "test-vault",
+					namespace:  gwTestNamespace,
+					clientId:   gwTestClientID,
+					tenantId:   gwTestTenantID,
+					vaultName:  gwTestVaultName,
 					certName:   "test-cert",
 					secretName: "kv-gw-cert-test-gateway-https",
 					cloud:      "AzureChinaCloud",
@@ -447,13 +457,13 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		{
 			name: "verify modify owner updates certificate references",
 			conf: &config.Config{
-				TenantID: "test-tenant-id",
-				Cloud:    "AzurePublicCloud",
+				TenantID: gwTestTenantID,
+				Cloud:    gwTestCloud,
 			},
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
@@ -463,7 +473,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
 								},
 							},
 						},
@@ -475,10 +485,10 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				{
 					action:     actionReconcile,
 					name:       "kv-gw-cert-test-gateway-https",
-					namespace:  "test-ns",
-					clientId:   testClientID,
-					tenantId:   "test-tenant-id",
-					vaultName:  "test-vault",
+					namespace:  gwTestNamespace,
+					clientId:   gwTestClientID,
+					tenantId:   gwTestTenantID,
+					vaultName:  gwTestVaultName,
 					certName:   "test-cert",
 					secretName: "kv-gw-cert-test-gateway-https",
 					cloud:      "AzurePublicCloud",
@@ -734,11 +744,11 @@ func TestGetServiceAccountClientId(t *testing.T) {
 					Name:      "test-sa",
 					Namespace: "test-ns",
 					Annotations: map[string]string{
-						"azure.workload.identity/client-id": testClientID,
+						"azure.workload.identity/client-id": gwTestClientID,
 					},
 				},
 			},
-			wantClientID: testClientID,
+			wantClientID: gwTestClientID,
 		},
 		{
 			name:       "missing service account",
@@ -750,19 +760,19 @@ func TestGetServiceAccountClientId(t *testing.T) {
 			name: "missing annotation",
 			sa: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
 				},
 			},
 			wantErr:    true,
-			wantErrStr: "user-specified service account does not contain WI annotation",
+			wantErrStr: "serviceaccounts \"test-sa\" not found",
 		},
 		{
 			name: "empty annotation",
 			sa: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
+					Name:      gwTestServiceAccount,
+					Namespace: gwTestNamespace,
 					Annotations: map[string]string{
 						"azure.workload.identity/client-id": "",
 					},
@@ -802,10 +812,10 @@ func TestClientIdFromListener(t *testing.T) {
 
 	validServiceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-sa",
-			Namespace: "test-ns",
+			Name:      gwTestServiceAccount,
+			Namespace: gwTestNamespace,
 			Annotations: map[string]string{
-				"azure.workload.identity/client-id": testClientID,
+				"azure.workload.identity/client-id": gwTestClientID,
 			},
 		},
 	}
@@ -829,7 +839,7 @@ func TestClientIdFromListener(t *testing.T) {
 				},
 			},
 			objects:      []client.Object{validServiceAccount},
-			wantClientID: testClientID,
+			wantClientID: gwTestClientID,
 		},
 		{
 			name: "cert URI without service account",
@@ -848,7 +858,7 @@ func TestClientIdFromListener(t *testing.T) {
 			listener: gatewayv1.Listener{
 				TLS: &gatewayv1.GatewayTLSConfig{
 					Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-						util.ServiceAccountTLSOption: "test-sa",
+						util.ServiceAccountTLSOption: gwTestServiceAccount,
 					},
 				},
 			},
@@ -892,8 +902,8 @@ func TestClientIdFromListener(t *testing.T) {
 			objects: []client.Object{
 				&corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-sa",
-						Namespace: "test-ns",
+						Name:      gwTestServiceAccount,
+						Namespace: gwTestNamespace,
 					},
 				},
 			},
@@ -909,7 +919,7 @@ func TestClientIdFromListener(t *testing.T) {
 				WithObjects(tt.objects...).
 				Build()
 
-			got, err := clientIdFromListener(context.Background(), client, "test-ns", tt.listener)
+			got, err := clientIdFromListener(context.Background(), client, gwTestNamespace, tt.listener)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrStr)

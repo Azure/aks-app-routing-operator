@@ -5,6 +5,7 @@ package spc
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -15,6 +16,21 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ingressTestNamespace   = "test-ns"
+	ingressTestIngressName = "test-ingress"
+	ingressTestClientID    = "test-client-id"
+	ingressTestTenantID    = "test-tenant-id"
+	ingressTestCloud       = "AzurePublicCloud"
+	ingressTestChinaCloud  = "AzureChinaCloud"
+	ingressTestVaultName   = "test-vault"
+	ingressTestCertName    = "test-cert"
+	ingressTestHost        = "test.example.com"
+	ingressTestKVUriPublic = "https://test-vault.vault.azure.net/secrets/test-cert"
+	ingressTestKVUriChina  = "https://test-vault.vault.azure.cn/secrets/test-cert"
+	ingressTestInvalidUri  = "invalid-uri"
 )
 
 func TestIngressToSpcOpts(t *testing.T) {
@@ -46,8 +62,8 @@ func TestIngressToSpcOpts(t *testing.T) {
 			conf: &config.Config{},
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
 				},
 			},
 			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
@@ -55,9 +71,9 @@ func TestIngressToSpcOpts(t *testing.T) {
 			}),
 			wantSpcOpts: &spcOpts{
 				action:     actionCleanup,
-				name:       "keyvault-test-ingress",
-				namespace:  "test-ns",
-				secretName: "keyvault-test-ingress",
+				name:       "keyvault-" + ingressTestIngressName,
+				namespace:  ingressTestNamespace,
+				secretName: "keyvault-" + ingressTestIngressName,
 			},
 		},
 		{
@@ -65,8 +81,8 @@ func TestIngressToSpcOpts(t *testing.T) {
 			conf: &config.Config{},
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
 					Annotations: map[string]string{
 						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.net/secrets/test-cert",
 					},
@@ -77,24 +93,24 @@ func TestIngressToSpcOpts(t *testing.T) {
 			}),
 			wantSpcOpts: &spcOpts{
 				action:     actionCleanup,
-				name:       "keyvault-test-ingress",
-				namespace:  "test-ns",
-				secretName: "keyvault-test-ingress",
+				name:       "keyvault-" + ingressTestIngressName,
+				namespace:  ingressTestNamespace,
+				secretName: "keyvault-" + ingressTestIngressName,
 			},
 		},
 		{
 			name: "managed ingress with valid keyvault annotation",
 			conf: &config.Config{
-				MSIClientID: "test-client-id",
-				TenantID:    "test-tenant-id",
-				Cloud:       "AzurePublicCloud",
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
+				Cloud:       ingressTestCloud,
 			},
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
 					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.net/secrets/test-cert",
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
 					},
 				},
 			},
@@ -103,28 +119,28 @@ func TestIngressToSpcOpts(t *testing.T) {
 			}),
 			wantSpcOpts: &spcOpts{
 				action:     actionReconcile,
-				name:       "keyvault-test-ingress",
-				namespace:  "test-ns",
-				clientId:   "test-client-id",
-				tenantId:   "test-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "keyvault-test-ingress",
-				cloud:      "AzurePublicCloud",
+				name:       "keyvault-" + ingressTestIngressName,
+				namespace:  ingressTestNamespace,
+				clientId:   ingressTestClientID,
+				tenantId:   ingressTestTenantID,
+				vaultName:  ingressTestVaultName,
+				certName:   ingressTestCertName,
+				secretName: "keyvault-" + ingressTestIngressName,
+				cloud:      ingressTestCloud,
 			},
 		},
 		{
 			name: "managed ingress with invalid keyvault URI",
 			conf: &config.Config{
-				MSIClientID: "test-client-id",
-				TenantID:    "test-tenant-id",
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
 			},
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
 					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri": "invalid-uri",
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestInvalidUri,
 					},
 				},
 			},
@@ -135,25 +151,18 @@ func TestIngressToSpcOpts(t *testing.T) {
 			wantErrString: "uri path contains too few segments",
 		},
 		{
-			name: "managed ingress with tls cert managed annotation",
+			name: "managed ingress with custom cloud",
 			conf: &config.Config{
-				MSIClientID: "test-client-id",
-				TenantID:    "test-tenant-id",
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
+				Cloud:       ingressTestChinaCloud,
 			},
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
 					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri":     "https://test-vault.vault.azure.net/secrets/test-cert",
-						"kubernetes.azure.com/tls-cert-keyvault-managed": "true",
-					},
-				},
-				Spec: netv1.IngressSpec{
-					Rules: []netv1.IngressRule{
-						{
-							Host: "test.example.com",
-						},
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriChina,
 					},
 				},
 			},
@@ -162,44 +171,14 @@ func TestIngressToSpcOpts(t *testing.T) {
 			}),
 			wantSpcOpts: &spcOpts{
 				action:     actionReconcile,
-				name:       "keyvault-test-ingress",
-				namespace:  "test-ns",
-				clientId:   "test-client-id",
-				tenantId:   "test-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "keyvault-test-ingress",
-			},
-		},
-		{
-			name: "managed ingress with custom cloud and identity configuration",
-			conf: &config.Config{
-				MSIClientID: "custom-client-id",
-				TenantID:    "custom-tenant-id",
-				Cloud:       "AzureChinaCloud",
-			},
-			ingress: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "test-ns",
-					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.cn/secrets/test-cert",
-					},
-				},
-			},
-			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-				return true, nil
-			}),
-			wantSpcOpts: &spcOpts{
-				action:     actionReconcile,
-				name:       "keyvault-test-ingress",
-				namespace:  "test-ns",
-				clientId:   "custom-client-id",
-				tenantId:   "custom-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "keyvault-test-ingress",
-				cloud:      "AzureChinaCloud",
+				name:       "keyvault-" + ingressTestIngressName,
+				namespace:  ingressTestNamespace,
+				clientId:   ingressTestClientID,
+				tenantId:   ingressTestTenantID,
+				vaultName:  ingressTestVaultName,
+				certName:   ingressTestCertName,
+				secretName: "keyvault-" + ingressTestIngressName,
+				cloud:      ingressTestChinaCloud,
 			},
 		},
 	}
@@ -263,7 +242,7 @@ func TestShouldReconcileIngress(t *testing.T) {
 			name: "ingress without annotations",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: ingressTestIngressName,
 				},
 			},
 			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
@@ -275,9 +254,9 @@ func TestShouldReconcileIngress(t *testing.T) {
 			name: "unmanaged ingress with keyvault annotation",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: ingressTestIngressName,
 					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.net/secrets/test-cert",
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
 					},
 				},
 			},
@@ -290,9 +269,9 @@ func TestShouldReconcileIngress(t *testing.T) {
 			name: "managed ingress with keyvault annotation",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: ingressTestIngressName,
 					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.net/secrets/test-cert",
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
 					},
 				},
 			},
@@ -305,7 +284,7 @@ func TestShouldReconcileIngress(t *testing.T) {
 			name: "managed ingress without keyvault annotation",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: ingressTestIngressName,
 					Annotations: map[string]string{
 						"other": "annotation",
 					},
@@ -320,9 +299,9 @@ func TestShouldReconcileIngress(t *testing.T) {
 			name: "error checking if ingress is managed",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: ingressTestIngressName,
 					Annotations: map[string]string{
-						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://test-vault.vault.azure.net/secrets/test-cert",
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
 					},
 				},
 			},
@@ -363,10 +342,10 @@ func TestGetIngressSpcName(t *testing.T) {
 			name: "valid ingress",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: ingressTestIngressName,
 				},
 			},
-			want: "keyvault-test-ingress",
+			want: "keyvault-" + ingressTestIngressName,
 		},
 	}
 
@@ -379,24 +358,30 @@ func TestGetIngressSpcName(t *testing.T) {
 }
 
 func TestGetIngressCertSecretName(t *testing.T) {
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ingressTestIngressName,
+		},
+	}
+
 	tests := []struct {
 		name    string
 		ingress *netv1.Ingress
 		want    string
 	}{
 		{
-			name:    "nil ingress",
-			ingress: nil,
-			want:    "",
+			name:    "normal name",
+			ingress: ingress,
+			want:    "keyvault-" + ingressTestIngressName,
 		},
 		{
-			name: "valid ingress",
+			name: "very long name",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ingress",
+					Name: strings.Repeat("a", 300),
 				},
 			},
-			want: "keyvault-test-ingress",
+			want: "keyvault-" + strings.Repeat("a", 253-len("keyvault-")),
 		},
 	}
 
@@ -404,6 +389,7 @@ func TestGetIngressCertSecretName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getIngressCertSecretName(tt.ingress)
 			assert.Equal(t, tt.want, got)
+			assert.LessOrEqual(t, len(got), 253, "name should not exceed kubernetes name length limit")
 		})
 	}
 }
@@ -422,16 +408,16 @@ func TestAddTlsRef(t *testing.T) {
 				Spec: netv1.IngressSpec{
 					Rules: []netv1.IngressRule{
 						{
-							Host: "test.example.com",
+							Host: ingressTestHost,
 						},
 					},
 				},
 			},
-			secretName: "test-secret",
+			secretName: "keyvault-" + ingressTestIngressName,
 			wantTLS: []netv1.IngressTLS{
 				{
-					SecretName: "test-secret",
-					Hosts:      []string{"test.example.com"},
+					Hosts:      []string{ingressTestHost},
+					SecretName: "keyvault-" + ingressTestIngressName,
 				},
 			},
 		},
@@ -535,14 +521,14 @@ func TestAddTlsRef(t *testing.T) {
 
 func TestModifyOwner(t *testing.T) {
 	conf := &config.Config{
-		MSIClientID: "test-client-id",
-		TenantID:    "test-tenant-id",
-		Cloud:       "AzurePublicCloud",
+		MSIClientID: ingressTestClientID,
+		TenantID:    ingressTestTenantID,
+		Cloud:       ingressTestCloud,
 	}
 	ingress := &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "test-ns",
+			Name:      ingressTestIngressName,
+			Namespace: ingressTestNamespace,
 			Annotations: map[string]string{
 				"kubernetes.azure.com/tls-cert-keyvault-uri":     "https://test-vault.vault.azure.net/secrets/test-cert",
 				"kubernetes.azure.com/tls-cert-keyvault-managed": "true",

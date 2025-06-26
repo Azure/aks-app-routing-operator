@@ -23,6 +23,23 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
+const (
+	spcTestNamespace         = "test-ns"
+	spcTestKind              = "TestKind"
+	spcTestGroup             = "testgroup"
+	spcTestVersion           = "v1"
+	spcTestName              = "test-owner"
+	testNicName              = "test-nic"
+	testGatewayName          = "test-gateway"
+	testListenerName         = "test-listener"
+	testServiceAccount       = "test-sa"
+	testClientID             = "test-client-id"
+	testKVUri                = "https://test-kv.vault.azure.net/secrets/test-cert"
+	testIstioGatewayClass    = "istio"
+	testTLSServiceAccountKey = "kubernetes.azure.com/tls-cert-service-account"
+	testClientIdAnnotation   = "azure.workload.identity/client-id"
+)
+
 type testOwner struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
@@ -50,13 +67,13 @@ func TestSpcOwnerStructIsOwner(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					OwnerReferences: []metav1.OwnerReference{
 						{
-							Kind: "TestKind",
-							Name: "test-owner",
+							Kind: spcTestKind,
+							Name: spcTestName,
 						},
 					},
 				},
 			},
-			kind: "TestKind",
+			kind: spcTestKind,
 			want: true,
 		},
 		{
@@ -66,12 +83,12 @@ func TestSpcOwnerStructIsOwner(t *testing.T) {
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							Kind: "OtherKind",
-							Name: "test-owner",
+							Name: spcTestName,
 						},
 					},
 				},
 			},
-			kind: "TestKind",
+			kind: spcTestKind,
 			want: false,
 		},
 		{
@@ -79,13 +96,13 @@ func TestSpcOwnerStructIsOwner(t *testing.T) {
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{},
 			},
-			kind: "TestKind",
+			kind: spcTestKind,
 			want: false,
 		},
 		{
 			name: "nil spc",
 			spc:  nil,
-			kind: "TestKind",
+			kind: spcTestKind,
 			want: false,
 		},
 	}
@@ -104,9 +121,9 @@ func TestSpcOwnerStructIsOwner(t *testing.T) {
 func TestSpcOwnerStructGetObject(t *testing.T) {
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypeWithName(schema.GroupVersionKind{
-		Group:   "testgroup",
-		Version: "v1",
-		Kind:    "TestOwner",
+		Group:   spcTestGroup,
+		Version: spcTestVersion,
+		Kind:    spcTestKind,
 	}, &testOwner{})
 	require.NoError(t, secv1.AddToScheme(scheme))
 
@@ -123,8 +140,8 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					OwnerReferences: []metav1.OwnerReference{
 						{
-							Kind: "TestKind",
-							Name: "test-owner",
+							Kind: spcTestKind,
+							Name: spcTestName,
 						},
 					},
 				},
@@ -132,15 +149,15 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 			objects: []client.Object{
 				&testOwner{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-owner",
-						Namespace: "test-ns",
+						Name:      spcTestName,
+						Namespace: spcTestNamespace,
 					},
 				},
 			},
 			want: &testOwner{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-owner",
-					Namespace: "test-ns",
+					Name:      spcTestName,
+					Namespace: spcTestNamespace,
 				},
 			},
 		},
@@ -163,8 +180,8 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			owner := spcOwnerStruct[*testOwner]{
-				kind:      "TestKind",
-				namespace: func(obj *testOwner) string { return "test-ns" },
+				kind:      spcTestKind,
+				namespace: func(obj *testOwner) string { return spcTestNamespace },
 			}
 
 			client := fake.NewClientBuilder().
@@ -201,11 +218,11 @@ func TestNicSpcOwner(t *testing.T) {
 			name: "should reconcile - valid config",
 			nic: &v1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-nic",
+					Name: testNicName,
 				},
 				Spec: v1alpha1.NginxIngressControllerSpec{
 					DefaultSSLCertificate: &v1alpha1.DefaultSSLCertificate{
-						KeyVaultURI: util.ToPtr("https://test-kv.vault.azure.net/secrets/test-cert"),
+						KeyVaultURI: util.ToPtr(testKVUri),
 					},
 				},
 			},
@@ -215,7 +232,7 @@ func TestNicSpcOwner(t *testing.T) {
 			name: "should not reconcile - no cert",
 			nic: &v1alpha1.NginxIngressController{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-nic",
+					Name: testNicName,
 				},
 			},
 			wantReconcile: false,
@@ -275,7 +292,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 			name: "should not reconcile - kv not enabled listener",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-gateway",
+					Name: testGatewayName,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "webapprouting.kubernetes.azure.com/gateway-controller-azure-alb-istio",
@@ -292,17 +309,17 @@ func TestGatewaySpcOwner(t *testing.T) {
 			name: "valid service account and listener, managed gateway",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: spcTestNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
-					GatewayClassName: "istio",
+					GatewayClassName: testIstioGatewayClass,
 					Listeners: []gatewayv1.Listener{
 						{
-							Name: "test-listener",
+							Name: testListenerName,
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									testTLSServiceAccountKey: testServiceAccount,
 								},
 							},
 						},
@@ -311,27 +328,27 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-test-listener",
+					Name: "kv-gw-cert-" + testGatewayName + "-" + testListenerName,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
+					Name:      testServiceAccount,
+					Namespace: spcTestNamespace,
 					Annotations: map[string]string{
-						"azure.workload.identity/client-id": "test-client-id",
+						testClientIdAnnotation: testClientID,
 					},
 				},
 			},
 			wantReconcile:   true,
-			wantServiceAcct: "test-sa",
+			wantServiceAcct: testServiceAccount,
 		},
 		{
 			name: "valid service account and listener, unmanaged gateway",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: testNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "notistio",
@@ -353,8 +370,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			name: "missing service account",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: testNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "webapprouting.kubernetes.azure.com/gateway-controller-azure-alb-istio",
@@ -381,8 +398,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			name: "multiple listeners - matching listener has service account",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: testNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "istio",
@@ -411,22 +428,22 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
 					Annotations: map[string]string{
-						"azure.workload.identity/client-id": "test-client-id",
+						"azure.workload.identity/client-id": testClientID,
 					},
 				},
 			},
 			wantReconcile:   true,
-			wantServiceAcct: "test-sa",
+			wantServiceAcct: testServiceAccount,
 		},
 		{
 			name: "multiple listeners - non-matching listener names",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: testNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "istio",
@@ -435,7 +452,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "http",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
 						},
@@ -443,7 +460,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "grpc",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
 						},
@@ -457,10 +474,10 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
 					Annotations: map[string]string{
-						"azure.workload.identity/client-id": "test-client-id",
+						"azure.workload.identity/client-id": testClientID,
 					},
 				},
 			},
@@ -470,8 +487,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			name: "multiple listeners - different service accounts",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: testNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "istio",
@@ -503,9 +520,9 @@ func TestGatewaySpcOwner(t *testing.T) {
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "sa-1",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 					Annotations: map[string]string{
-						"azure.workload.identity/client-id": "client-1",
+						"azure.workload.identity/client-id": testClientID,
 					},
 				},
 			},
@@ -516,8 +533,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			name: "multiple listeners with mixed TLS configuration",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gateway",
-					Namespace: "test-ns",
+					Name:      testGatewayName,
+					Namespace: testNamespace,
 				},
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: "istio",
@@ -529,7 +546,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "https",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert",
 								},
 							},
@@ -548,15 +565,15 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			serviceAccount: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-sa",
-					Namespace: "test-ns",
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
 					Annotations: map[string]string{
-						"azure.workload.identity/client-id": "test-client-id",
+						"azure.workload.identity/client-id": testClientID,
 					},
 				},
 			},
 			wantReconcile:   false,
-			wantServiceAcct: "test-sa",
+			wantServiceAcct: testServiceAccount,
 		},
 	}
 
@@ -611,7 +628,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 					Annotations: map[string]string{
 						"test": "true",
 					},
@@ -625,7 +642,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 					Annotations: map[string]string{
 						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://kv.vault.azure.net/secrets/cert",
 					},
@@ -639,7 +656,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			wantReconcile: false,
@@ -649,7 +666,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-ingress",
-					Namespace: "test-ns",
+					Namespace: testNamespace,
 				},
 			},
 			isManagedErr:  errors.New("test error"),

@@ -6,6 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	parseTestVaultName   = "myvault"
+	parseTestCertName    = "mycert"
+	parseTestVersion     = "abc123"
+	parseTestVaultDomain = "vault.azure.net"
+	parseTestInvalidUri  = "not-a-url"
+)
+
 func TestParseKeyVaultCertURI(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -15,27 +23,27 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 	}{
 		{
 			name:    "valid uri with version",
-			certURI: "https://myvault.vault.azure.net/certificates/mycert/abc123",
+			certURI: "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates/" + parseTestCertName + "/" + parseTestVersion,
 			expected: certReference{
-				vaultName:     "myvault",
-				certName:      "mycert",
-				objectVersion: "abc123",
+				vaultName:     parseTestVaultName,
+				certName:      parseTestCertName,
+				objectVersion: parseTestVersion,
 			},
 			expectError: false,
 		},
 		{
 			name:    "valid uri without version",
-			certURI: "https://myvault.vault.azure.net/certificates/mycert",
+			certURI: "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates/" + parseTestCertName,
 			expected: certReference{
-				vaultName:     "myvault",
-				certName:      "mycert",
+				vaultName:     parseTestVaultName,
+				certName:      parseTestCertName,
 				objectVersion: "",
 			},
 			expectError: false,
 		},
 		{
 			name:    "valid uri with dashes in names",
-			certURI: "https://my-vault-123.vault.azure.net/certificates/my-cert-456",
+			certURI: "https://my-vault-123." + parseTestVaultDomain + "/certificates/my-cert-456",
 			expected: certReference{
 				vaultName:     "my-vault-123",
 				certName:      "my-cert-456",
@@ -45,12 +53,12 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 		},
 		{
 			name:        "invalid uri - malformed url",
-			certURI:     "not-a-url",
+			certURI:     parseTestInvalidUri,
 			expectError: true,
 		},
 		{
 			name:        "invalid uri - missing secret name",
-			certURI:     "https://myvault.vault.azure.net/certificates",
+			certURI:     "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates",
 			expectError: true,
 		},
 		{
@@ -60,7 +68,7 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 		},
 		{
 			name:        "no certificate name",
-			certURI:     "https://myvault.vault.azure.net/certificates/",
+			certURI:     "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates/",
 			expectError: true,
 		},
 	}

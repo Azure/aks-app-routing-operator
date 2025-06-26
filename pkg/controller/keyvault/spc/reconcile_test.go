@@ -31,6 +31,16 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
+const (
+	reconcileTestNamespace  = "test-ns"
+	reconcileTestDeployment = "test-deployment"
+	reconcileTestUID        = "test-uid"
+	reconcileTestSPC        = "test-spc"
+	reconcileTestController = "test-controller"
+	reconcileTestProvider   = "azure"
+	reconcileTestCertUri    = "https://keyvault.vault.azure.net/secrets/certificate"
+)
+
 // Test the Reconcile method with successful case
 func TestReconcileSuccess(t *testing.T) {
 	scheme := runtime.NewScheme()
@@ -40,11 +50,11 @@ func TestReconcileSuccess(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 			Annotations: map[string]string{
-				"kubernetes.azure.com/tls-cert-keyvault-uri": "https://keyvault.vault.azure.net/secrets/certificate",
+				"kubernetes.azure.com/tls-cert-keyvault-uri": reconcileTestCertUri,
 			},
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -60,7 +70,7 @@ func TestReconcileSuccess(t *testing.T) {
 
 	events := record.NewFakeRecorder(10)
 	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
-		name:      controllername.New("test-controller"),
+		name:      controllername.New(reconcileTestController),
 		client:    c,
 		events:    events,
 		config:    &config.Config{},
@@ -84,10 +94,10 @@ func TestReconcileSuccess(t *testing.T) {
 
 	// Verify SPC was created
 	spc := &secv1.SecretProviderClass{}
-	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 	require.NoError(t, err)
 
-	assert.Equal(t, "azure", string(spc.Spec.Provider))
+	assert.Equal(t, reconcileTestProvider, string(spc.Spec.Provider))
 	assert.Equal(t, "true", spc.Spec.Parameters["useVMManagedIdentity"])
 }
 
@@ -106,18 +116,18 @@ func TestCleanupSpcOpt(t *testing.T) {
 			name: "spc with top-level labels is deleted",
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      reconcileTestSPC,
+					Namespace: reconcileTestNamespace,
 					Labels:    manifests.GetTopLevelLabels(),
 				},
 				Spec: secv1.SecretProviderClassSpec{
-					Provider: "azure",
+					Provider: reconcileTestProvider,
 				},
 			},
 			verify: func(t *testing.T, c client.Client) {
 				// Verify SPC was deleted
 				spc := &secv1.SecretProviderClass{}
-				err := c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 				require.True(t, errors.IsNotFound(err), "expected SPC to be deleted")
 			},
 		},
@@ -125,20 +135,20 @@ func TestCleanupSpcOpt(t *testing.T) {
 			name: "spc without top-level labels is not deleted",
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-spc",
-					Namespace: "test-ns",
+					Name:      reconcileTestSPC,
+					Namespace: reconcileTestNamespace,
 					Labels: map[string]string{
 						"custom-label": "value",
 					},
 				},
 				Spec: secv1.SecretProviderClassSpec{
-					Provider: "azure",
+					Provider: reconcileTestProvider,
 				},
 			},
 			verify: func(t *testing.T, c client.Client) {
 				// Verify SPC still exists
 				spc := &secv1.SecretProviderClass{}
-				err := c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 				require.NoError(t, err)
 				assert.Equal(t, "value", spc.Labels["custom-label"])
 			},
@@ -149,7 +159,7 @@ func TestCleanupSpcOpt(t *testing.T) {
 			verify: func(t *testing.T, c client.Client) {
 				// Verify attempting to get SPC returns not found
 				spc := &secv1.SecretProviderClass{}
-				err := c.Get(context.Background(), types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+				err := c.Get(context.Background(), types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 				require.True(t, errors.IsNotFound(err))
 			},
 		},
@@ -170,8 +180,8 @@ func TestCleanupSpcOpt(t *testing.T) {
 
 			opts := spcOpts{
 				action:    actionCleanup,
-				name:      "test-spc",
-				namespace: "test-ns",
+				name:      reconcileTestSPC,
+				namespace: reconcileTestNamespace,
 			}
 
 			err := reconciler.cleanupSpc(context.Background(), logr.Discard(), opts)
@@ -197,9 +207,9 @@ func TestToSpcOptsUserError(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 	}
 
@@ -257,9 +267,9 @@ func TestToSpcOptsError(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 	}
 
@@ -299,7 +309,7 @@ func TestToSpcOptsError(t *testing.T) {
 
 	// Verify no SPC was created
 	spc := &secv1.SecretProviderClass{}
-	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 	require.True(t, errors.IsNotFound(err), "expected SPC to not be created")
 
 	// Verify no events were sent (non-user errors don't generate events)
@@ -315,9 +325,9 @@ func TestReconcileWithObjectUpdate(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -340,8 +350,8 @@ func TestReconcileWithObjectUpdate(t *testing.T) {
 			return func(yield func(spcOpts, error) bool) {
 				opts := spcOpts{
 					action:    actionReconcile,
-					name:      "test-spc",
-					namespace: "test-ns",
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
 					modifyOwner: func(obj client.Object) error {
 						obj.SetAnnotations(map[string]string{"test": "value"})
 						return nil
@@ -382,9 +392,9 @@ func TestReconcileModifyOwnerError(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -408,8 +418,8 @@ func TestReconcileModifyOwnerError(t *testing.T) {
 			return func(yield func(spcOpts, error) bool) {
 				opts := spcOpts{
 					action:    actionReconcile,
-					name:      "test-spc",
-					namespace: "test-ns",
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
 					modifyOwner: func(obj client.Object) error {
 						obj.SetAnnotations(map[string]string{"new": "annotation"})
 						return expectedError
@@ -472,7 +482,7 @@ func TestReconcileObjectNotFound(t *testing.T) {
 	}
 
 	ctx := logr.NewContext(context.Background(), logr.Discard())
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "test-ns", Name: "test-deployment"}}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestDeployment}}
 
 	// Test reconcile for non-existent object
 	beforeErrCount := testutils.GetErrMetricCount(t, reconciler.name)
@@ -499,9 +509,9 @@ func TestReconcileObjectNotFound(t *testing.T) {
 func TestBuildSpc(t *testing.T) {
 	testDeployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -517,8 +527,8 @@ func TestBuildSpc(t *testing.T) {
 		{
 			name: "minimal required fields",
 			opts: spcOpts{
-				name:       "test-spc",
-				namespace:  "test-ns",
+				name:       reconcileTestSPC,
+				namespace:  reconcileTestNamespace,
 				clientId:   "test-client-id",
 				tenantId:   "test-tenant-id",
 				vaultName:  "test-vault",
@@ -540,8 +550,8 @@ func TestBuildSpc(t *testing.T) {
 		{
 			name: "with object version",
 			opts: spcOpts{
-				name:          "test-spc",
-				namespace:     "test-ns",
+				name:          reconcileTestSPC,
+				namespace:     reconcileTestNamespace,
 				clientId:      "test-client-id",
 				tenantId:      "test-tenant-id",
 				vaultName:     "test-vault",
@@ -556,8 +566,8 @@ func TestBuildSpc(t *testing.T) {
 		{
 			name: "with custom cloud",
 			opts: spcOpts{
-				name:       "test-spc",
-				namespace:  "test-ns",
+				name:       reconcileTestSPC,
+				namespace:  reconcileTestNamespace,
 				clientId:   "test-client-id",
 				tenantId:   "test-tenant-id",
 				vaultName:  "test-vault",
@@ -572,8 +582,8 @@ func TestBuildSpc(t *testing.T) {
 		{
 			name: "verify TLS secret type and data keys",
 			opts: spcOpts{
-				name:       "test-spc",
-				namespace:  "test-ns",
+				name:       reconcileTestSPC,
+				namespace:  reconcileTestNamespace,
 				clientId:   "test-client-id",
 				tenantId:   "test-tenant-id",
 				vaultName:  "test-vault",
@@ -594,8 +604,8 @@ func TestBuildSpc(t *testing.T) {
 		{
 			name: "verify owner references",
 			opts: spcOpts{
-				name:       "test-spc",
-				namespace:  "test-ns",
+				name:       reconcileTestSPC,
+				namespace:  reconcileTestNamespace,
 				clientId:   "test-client-id",
 				tenantId:   "test-tenant-id",
 				vaultName:  "test-vault",
@@ -605,8 +615,8 @@ func TestBuildSpc(t *testing.T) {
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
 				require.Len(t, spc.OwnerReferences, 1)
 				owner := spc.OwnerReferences[0]
-				assert.Equal(t, "test-deployment", owner.Name)
-				assert.Equal(t, "test-uid", string(owner.UID))
+				assert.Equal(t, reconcileTestDeployment, owner.Name)
+				assert.Equal(t, reconcileTestUID, string(owner.UID))
 				assert.Equal(t, "Deployment", owner.Kind)
 				assert.Equal(t, "apps/v1", owner.APIVersion)
 				assert.True(t, *owner.Controller)
@@ -637,7 +647,7 @@ func getSpcOpts(ctx context.Context, c client.Client, obj *appsv1.Deployment) it
 
 			opts := spcOpts{
 				action:        actionReconcile,
-				name:          "test-spc",
+				name:          reconcileTestSPC,
 				namespace:     obj.Namespace,
 				clientId:      "test-client-id",
 				tenantId:      "test-tenant-id",
@@ -660,9 +670,9 @@ func TestReconcileMultipleSpcOpts(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -687,7 +697,7 @@ func TestReconcileMultipleSpcOpts(t *testing.T) {
 				opts1 := spcOpts{
 					action:    actionReconcile,
 					name:      "test-spc-1",
-					namespace: "test-ns",
+					namespace: reconcileTestNamespace,
 					modifyOwner: func(obj client.Object) error {
 						annotations := map[string]string{"test1": "value1"}
 						if existing := obj.GetAnnotations(); existing != nil {
@@ -705,7 +715,7 @@ func TestReconcileMultipleSpcOpts(t *testing.T) {
 				opts2 := spcOpts{
 					action:    actionReconcile,
 					name:      "test-spc-2",
-					namespace: "test-ns",
+					namespace: reconcileTestNamespace,
 					modifyOwner: func(obj client.Object) error {
 						annotations := map[string]string{"test2": "value2"}
 						if existing := obj.GetAnnotations(); existing != nil {
@@ -740,6 +750,13 @@ func TestReconcileMultipleSpcOpts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "value1", deployment.Annotations["test1"])
 	assert.Equal(t, "value2", deployment.Annotations["test2"])
+
+	// Verify both SPCs were created
+	spc1 := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-spc-1"}, spc1)
+	require.NoError(t, err)
+	spc2 := &secv1.SecretProviderClass{}
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-spc-2"}, spc2)
 }
 
 // Test reconcile when object is being cleaned up
@@ -752,9 +769,9 @@ func TestReconcileObjectCleanup(t *testing.T) {
 	now := metav1.Now()
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              "test-deployment",
-			Namespace:         "test-ns",
-			UID:               "test-uid",
+			Name:              reconcileTestDeployment,
+			Namespace:         reconcileTestNamespace,
+			UID:               reconcileTestUID,
 			DeletionTimestamp: &now,
 			Finalizers:        []string{"test-finalizer"},
 		},
@@ -766,15 +783,15 @@ func TestReconcileObjectCleanup(t *testing.T) {
 
 	existingSpc := &secv1.SecretProviderClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-spc",
-			Namespace: "test-ns",
+			Name:      reconcileTestSPC,
+			Namespace: reconcileTestNamespace,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: "apps/v1",
 					Kind:       "Deployment",
-					Name:       "test-deployment",
-					UID:        "test-uid",
+					Name:       reconcileTestDeployment,
+					UID:        reconcileTestUID,
 					Controller: util.ToPtr(true),
 				},
 			},
@@ -796,8 +813,8 @@ func TestReconcileObjectCleanup(t *testing.T) {
 			return func(yield func(spcOpts, error) bool) {
 				opts := spcOpts{
 					action:    actionCleanup,
-					name:      "test-spc",
-					namespace: "test-ns",
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
 				}
 				yield(opts, nil)
 			}
@@ -834,9 +851,9 @@ func TestReconcileIngressManagedError(t *testing.T) {
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -899,9 +916,9 @@ func TestReconcileWithTopLevelLabels(t *testing.T) {
 	// Create a deployment with top-level labels
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "test-ns",
-			UID:       "test-uid",
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
 			Labels:    manifests.GetTopLevelLabels(),
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -913,15 +930,15 @@ func TestReconcileWithTopLevelLabels(t *testing.T) {
 	// Create an existing SPC that should be cleaned up
 	existingSpc := &secv1.SecretProviderClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "existing-spc",
-			Namespace: "test-ns",
+			Name:      reconcileTestSPC,
+			Namespace: reconcileTestNamespace,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: "apps/v1",
 					Kind:       "Deployment",
-					Name:       "test-deployment",
-					UID:        "test-uid",
+					Name:       reconcileTestDeployment,
+					UID:        reconcileTestUID,
 					Controller: util.ToPtr(true),
 				},
 			},
@@ -947,8 +964,8 @@ func TestReconcileWithTopLevelLabels(t *testing.T) {
 				// Return cleanup action since this deployment has top-level labels
 				opts := spcOpts{
 					action:    actionCleanup,
-					name:      "existing-spc",
-					namespace: "test-ns",
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
 				}
 				yield(opts, nil)
 			}
@@ -969,7 +986,7 @@ func TestReconcileWithTopLevelLabels(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, reconciler.name, metrics.LabelSuccess), beforeReconcileCount)
 
 	// Verify existing SPC was cleaned up due to deployment having top-level labels
-	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "existing-spc"}, &secv1.SecretProviderClass{})
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, &secv1.SecretProviderClass{})
 	require.True(t, errors.IsNotFound(err), "expected existing SPC to be deleted")
 
 	// Verify no events were recorded (cleanup operations don't generate events)

@@ -128,7 +128,12 @@ func getIngressSpcName(ing *netv1.Ingress) string {
 		return ""
 	}
 
-	return "keyvault-" + ing.Name
+	ret := "keyvault-" + ing.Name
+	if len(ret) > 253 {
+		ret = ret[:253]
+	}
+
+	return ret
 }
 
 func addTlsRef(obj client.Object, secretName string) error {
