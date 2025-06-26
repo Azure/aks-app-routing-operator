@@ -931,6 +931,7 @@ func TestReconcileObjectCleanup(t *testing.T) {
 			Namespace:         reconcileTestNamespace,
 			UID:               reconcileTestUID,
 			DeletionTimestamp: &now,
+			Finalizers:        []string{"test-finalizer"},
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
