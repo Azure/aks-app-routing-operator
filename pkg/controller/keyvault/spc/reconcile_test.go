@@ -37,6 +37,11 @@ const (
 	reconcileTestUID        = "test-uid"
 	reconcileTestSPC        = "test-spc"
 	reconcileTestController = "test-controller"
+	reconcileTestClientId   = "test-client-id"
+	reconcileTestTenantId   = "test-tenant-id"
+	reconcileTestVaultName  = "test-vault"
+	reconcileTestCertName   = "test-cert"
+	reconcileTestSecret     = "test-secret"
 	reconcileTestProvider   = "azure"
 	reconcileTestCertUri    = "https://keyvault.vault.azure.net/secrets/certificate"
 )
@@ -371,7 +376,7 @@ func TestToSpcOptsUserError(t *testing.T) {
 
 	events := record.NewFakeRecorder(10)
 	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
-		name:   controllername.New("test-controller"),
+		name:   controllername.New(reconcileTestController),
 		client: c,
 		events: events,
 		config: &config.Config{},
@@ -399,7 +404,7 @@ func TestToSpcOptsUserError(t *testing.T) {
 
 	// Verify no SPC was created
 	spc := &secv1.SecretProviderClass{}
-	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 	require.True(t, errors.IsNotFound(err), "expected SPC to not be created")
 
 	// Verify warning event was sent to the deployment
@@ -652,7 +657,7 @@ func TestReconcileObjectNotExists(t *testing.T) {
 
 	// Verify no SPC was created
 	spc := &secv1.SecretProviderClass{}
-	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 	require.True(t, errors.IsNotFound(err), "expected no SPC to be created")
 }
 
@@ -680,20 +685,20 @@ func TestBuildSpc(t *testing.T) {
 			opts: spcOpts{
 				name:       reconcileTestSPC,
 				namespace:  reconcileTestNamespace,
-				clientId:   "test-client-id",
-				tenantId:   "test-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "test-secret",
+				clientId:   reconcileTestClientId,
+				tenantId:   reconcileTestTenantId,
+				vaultName:  reconcileTestVaultName,
+				certName:   reconcileTestCertName,
+				secretName: reconcileTestSecret,
 			},
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
-				assert.Equal(t, "test-spc", spc.Name)
-				assert.Equal(t, "test-ns", spc.Namespace)
-				assert.Equal(t, "azure", string(spc.Spec.Provider))
-				assert.Equal(t, "test-vault", spc.Spec.Parameters["keyvaultName"])
+				assert.Equal(t, reconcileTestSPC, spc.Name)
+				assert.Equal(t, reconcileTestNamespace, spc.Namespace)
+				assert.Equal(t, reconcileTestProvider, string(spc.Spec.Provider))
+				assert.Equal(t, reconcileTestVaultName, spc.Spec.Parameters["keyvaultName"])
 				assert.Equal(t, "true", spc.Spec.Parameters["useVMManagedIdentity"])
-				assert.Equal(t, "test-client-id", spc.Spec.Parameters["userAssignedIdentityID"])
-				assert.Equal(t, "test-tenant-id", spc.Spec.Parameters["tenantId"])
+				assert.Equal(t, reconcileTestClientId, spc.Spec.Parameters["userAssignedIdentityID"])
+				assert.Equal(t, reconcileTestTenantId, spc.Spec.Parameters["tenantId"])
 				assert.Empty(t, spc.Spec.Parameters["cloud"])
 				assert.Empty(t, spc.Spec.Parameters["objectVersion"])
 			},
@@ -703,12 +708,12 @@ func TestBuildSpc(t *testing.T) {
 			opts: spcOpts{
 				name:          reconcileTestSPC,
 				namespace:     reconcileTestNamespace,
-				clientId:      "test-client-id",
-				tenantId:      "test-tenant-id",
-				vaultName:     "test-vault",
-				certName:      "test-cert",
+				clientId:      reconcileTestClientId,
+				tenantId:      reconcileTestTenantId,
+				vaultName:     reconcileTestVaultName,
+				certName:      reconcileTestCertName,
 				objectVersion: "1234",
-				secretName:    "test-secret",
+				secretName:    reconcileTestSecret,
 			},
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
 				assert.Contains(t, spc.Spec.Parameters["objects"], `1234`)
@@ -719,11 +724,11 @@ func TestBuildSpc(t *testing.T) {
 			opts: spcOpts{
 				name:       reconcileTestSPC,
 				namespace:  reconcileTestNamespace,
-				clientId:   "test-client-id",
-				tenantId:   "test-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "test-secret",
+				clientId:   reconcileTestClientId,
+				tenantId:   reconcileTestTenantId,
+				vaultName:  reconcileTestVaultName,
+				certName:   reconcileTestCertName,
+				secretName: reconcileTestSecret,
 				cloud:      "AzureChinaCloud",
 			},
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
@@ -735,11 +740,11 @@ func TestBuildSpc(t *testing.T) {
 			opts: spcOpts{
 				name:       reconcileTestSPC,
 				namespace:  reconcileTestNamespace,
-				clientId:   "test-client-id",
-				tenantId:   "test-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "test-secret",
+				clientId:   reconcileTestClientId,
+				tenantId:   reconcileTestTenantId,
+				vaultName:  reconcileTestVaultName,
+				certName:   reconcileTestCertName,
+				secretName: reconcileTestSecret,
 			},
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
 				require.Len(t, spc.Spec.SecretObjects, 1)
@@ -757,11 +762,11 @@ func TestBuildSpc(t *testing.T) {
 			opts: spcOpts{
 				name:       reconcileTestSPC,
 				namespace:  reconcileTestNamespace,
-				clientId:   "test-client-id",
-				tenantId:   "test-tenant-id",
-				vaultName:  "test-vault",
-				certName:   "test-cert",
-				secretName: "test-secret",
+				clientId:   reconcileTestClientId,
+				tenantId:   reconcileTestTenantId,
+				vaultName:  reconcileTestVaultName,
+				certName:   reconcileTestCertName,
+				secretName: reconcileTestSecret,
 			},
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
 				require.Len(t, spc.OwnerReferences, 1)
@@ -800,12 +805,12 @@ func getSpcOpts(ctx context.Context, c client.Client, obj *appsv1.Deployment) it
 				action:        actionReconcile,
 				name:          reconcileTestSPC,
 				namespace:     obj.Namespace,
-				clientId:      "test-client-id",
-				tenantId:      "test-tenant-id",
+				clientId:      reconcileTestClientId,
+				tenantId:      reconcileTestTenantId,
 				vaultName:     certRef.vaultName,
 				certName:      certRef.certName,
 				objectVersion: certRef.objectVersion,
-				secretName:    "test-secret",
+				secretName:    reconcileTestSecret,
 			}
 			yield(opts, nil)
 		}
@@ -860,7 +865,9 @@ func TestReconcileMultipleSpcOpts(t *testing.T) {
 						return nil
 					},
 				}
-				yield(opts1, nil)
+				if !yield(opts1, nil) {
+					return
+				}
 
 				// Second SPC opt for reconciliation
 				opts2 := spcOpts{
@@ -924,7 +931,6 @@ func TestReconcileObjectCleanup(t *testing.T) {
 			Namespace:         reconcileTestNamespace,
 			UID:               reconcileTestUID,
 			DeletionTimestamp: &now,
-			Finalizers:        []string{"test-finalizer"},
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
@@ -1019,7 +1025,7 @@ func TestReconcileIngressManagedError(t *testing.T) {
 
 	events := record.NewFakeRecorder(10)
 	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
-		name:   controllername.New("test-controller"),
+		name:   controllername.New(reconcileTestController),
 		client: c,
 		events: events,
 		config: &config.Config{},
@@ -1050,7 +1056,7 @@ func TestReconcileIngressManagedError(t *testing.T) {
 
 	// Verify no SPC was created
 	spc := &secv1.SecretProviderClass{}
-	err = c.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "test-spc"}, spc)
+	err = c.Get(ctx, types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestSPC}, spc)
 	require.True(t, errors.IsNotFound(err), "expected SPC to not be created")
 
 	// Verify no events were sent (non-user errors don't generate events)
@@ -1095,7 +1101,7 @@ func TestReconcileWithTopLevelLabels(t *testing.T) {
 			},
 		},
 		Spec: secv1.SecretProviderClassSpec{
-			Provider: "azure",
+			Provider: reconcileTestProvider,
 		},
 	}
 
@@ -1106,7 +1112,7 @@ func TestReconcileWithTopLevelLabels(t *testing.T) {
 
 	events := record.NewFakeRecorder(10)
 	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
-		name:   controllername.New("test-controller"),
+		name:   controllername.New(reconcileTestController),
 		client: c,
 		events: events,
 		config: &config.Config{},

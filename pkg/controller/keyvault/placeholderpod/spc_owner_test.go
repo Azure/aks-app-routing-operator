@@ -32,6 +32,7 @@ const (
 	testNicName              = "test-nic"
 	testGatewayName          = "test-gateway"
 	testListenerName         = "test-listener"
+	testIngress              = "test-ingress"
 	testServiceAccount       = "test-sa"
 	testClientID             = "test-client-id"
 	testKVUri                = "https://test-kv.vault.azure.net/secrets/test-cert"
@@ -167,7 +168,7 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					OwnerReferences: []metav1.OwnerReference{
 						{
-							Kind: "TestKind",
+							Kind: spcTestKind,
 							Name: "missing-owner",
 						},
 					},
@@ -298,7 +299,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					GatewayClassName: "webapprouting.kubernetes.azure.com/gateway-controller-azure-alb-istio",
 					Listeners: []gatewayv1.Listener{
 						{
-							Name: "test-listener",
+							Name: testListenerName,
 						},
 					},
 				},
@@ -354,10 +355,10 @@ func TestGatewaySpcOwner(t *testing.T) {
 					GatewayClassName: "notistio",
 					Listeners: []gatewayv1.Listener{
 						{
-							Name: "test-listener",
+							Name: testListenerName,
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
 						},
@@ -377,7 +378,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					GatewayClassName: "webapprouting.kubernetes.azure.com/gateway-controller-azure-alb-istio",
 					Listeners: []gatewayv1.Listener{
 						{
-							Name: "test-listener",
+							Name: testListenerName,
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
 									"kubernetes.azure.com/tls-cert-service-account": "missing-sa",
@@ -411,7 +412,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "https",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									"kubernetes.azure.com/tls-cert-service-account": "test-sa",
+									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
 						},
@@ -627,7 +628,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			name: "managed ingress, no keyvault annotations",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
+					Name:      testIngress,
 					Namespace: testNamespace,
 					Annotations: map[string]string{
 						"test": "true",
@@ -641,7 +642,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			name: "managed ingress, keyvault annotations",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
+					Name:      testIngress,
 					Namespace: testNamespace,
 					Annotations: map[string]string{
 						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://kv.vault.azure.net/secrets/cert",
@@ -655,7 +656,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			name: "should not reconcile unmanaged ingress",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
+					Name:      testIngress,
 					Namespace: testNamespace,
 				},
 			},
@@ -665,7 +666,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			name: "error when checking if ingress is managed",
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
+					Name:      testIngress,
 					Namespace: testNamespace,
 				},
 			},
@@ -711,7 +712,7 @@ func TestSpcOwnerStructGetOwnerAnnotation(t *testing.T) {
 		{
 			name: "returns configured annotation",
 			ownerType: spcOwnerStruct[*testOwner]{
-				kind:                "TestKind",
+				kind:                spcTestKind,
 				ownerNameAnnotation: "test.company.com/owner-annotation",
 			},
 			wantAnnot: "test.company.com/owner-annotation",
@@ -719,14 +720,14 @@ func TestSpcOwnerStructGetOwnerAnnotation(t *testing.T) {
 		{
 			name: "returns empty string when not configured",
 			ownerType: spcOwnerStruct[*testOwner]{
-				kind: "TestKind",
+				kind: spcTestKind,
 			},
 			wantAnnot: "",
 		},
 		{
 			name: "returns kubernetes prefixed annotation",
 			ownerType: spcOwnerStruct[*testOwner]{
-				kind:                "TestKind",
+				kind:                spcTestKind,
 				ownerNameAnnotation: "kubernetes.azure.com/test-owner",
 			},
 			wantAnnot: "kubernetes.azure.com/test-owner",

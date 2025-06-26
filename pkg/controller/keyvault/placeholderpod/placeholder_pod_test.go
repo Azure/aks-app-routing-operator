@@ -28,6 +28,7 @@ import (
 const (
 	testNamespace     = "test-ns"
 	testSPCName       = "test-spc"
+	testDeployment    = "test-deployment"
 	testOwnerName     = "test-owner"
 	testAnnotation    = "test-annotation"
 	testRegistry      = "test.azurecr.io"
@@ -317,7 +318,7 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			mockOwner: &mockSpcOwner{
 				isOwner:             true,
 				shouldReconcile:     true,
-				ownerAnnotation:     "test-annotation",
+				ownerAnnotation:     testAnnotation,
 				serviceAccountError: util.NewUserError(errors.New("error"), "service account error"),
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -345,7 +346,7 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			mockOwner: &mockSpcOwner{
 				isOwner:         true,
 				shouldReconcile: true,
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 				object: &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      testOwnerName,
@@ -438,7 +439,7 @@ func TestGetCurrentDeployment(t *testing.T) {
 			name: "deployment exists",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
@@ -466,7 +467,7 @@ func TestGetCurrentDeployment(t *testing.T) {
 			}
 
 			dep, err := controller.getCurrentDeployment(context.Background(), types.NamespacedName{
-				Name:      "test-deployment",
+				Name:      testDeployment,
 				Namespace: testNamespace,
 			})
 
@@ -509,7 +510,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			name: "builds new deployment with minimal config",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
@@ -522,14 +523,14 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			owner: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-owner",
+					Name: testOwnerName,
 				},
 			},
 			mockOwner: &mockSpcOwner{
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantGeneration: "1",
 		},
@@ -537,13 +538,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			name: "preserves existing labels and adds new ones",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
 			existingDep: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 				Spec: appsv1.DeploymentSpec{
@@ -563,14 +564,14 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			owner: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-owner",
+					Name: testOwnerName,
 				},
 			},
 			mockOwner: &mockSpcOwner{
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantGeneration: "2",
 		},
@@ -578,7 +579,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			name: "configures service account correctly",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
@@ -590,27 +591,27 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			owner: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-owner",
+					Name: testOwnerName,
 				},
 			},
 			mockOwner: &mockSpcOwner{
-				ownerAnnotation:    "test-annotation",
-				serviceAccountName: "test-sa",
+				ownerAnnotation:    testAnnotation,
+				serviceAccountName: testServiceAccount,
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
-			wantServiceAcct: "test-sa",
+			wantServiceAcct: testServiceAccount,
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
 				assert.True(t, *dep.Spec.Template.Spec.AutomountServiceAccountToken)
-				assert.Equal(t, "test-sa", dep.Spec.Template.Spec.ServiceAccountName)
+				assert.Equal(t, testServiceAccount, dep.Spec.Template.Spec.ServiceAccountName)
 			},
 		},
 		{
 			name: "handles service account error",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
@@ -622,15 +623,15 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			owner: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-owner",
+					Name: testOwnerName,
 				},
 			},
 			mockOwner: &mockSpcOwner{
-				ownerAnnotation:     "test-annotation",
+				ownerAnnotation:     testAnnotation,
 				serviceAccountError: util.NewUserError(nil, "service account error"),
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			wantError: true,
 		},
@@ -638,7 +639,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			name: "configures required annotations",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
@@ -651,20 +652,20 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			owner: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-owner",
+					Name: testOwnerName,
 				},
 			},
 			mockOwner: &mockSpcOwner{
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
 				annotations := dep.Spec.Template.Annotations
 				assert.Equal(t, "3", annotations["kubernetes.azure.com/observed-generation"])
 				assert.Equal(t, "hold CSI mount to enable keyvault-to-k8s secret mirroring", annotations["kubernetes.azure.com/purpose"])
-				assert.Equal(t, "test-owner", annotations["test-annotation"])
+				assert.Equal(t, testOwnerName, annotations[testAnnotation])
 				assert.Equal(t, "disabled", annotations["openservicemesh.io/sidecar-injection"])
 			},
 		},
@@ -672,7 +673,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			name: "sets security context and resource limits correctly",
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-deployment",
+					Name:      testDeployment,
 					Namespace: testNamespace,
 				},
 			},
@@ -684,14 +685,14 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			owner: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-owner",
+					Name: testOwnerName,
 				},
 			},
 			mockOwner: &mockSpcOwner{
-				ownerAnnotation: "test-annotation",
+				ownerAnnotation: testAnnotation,
 			},
 			config: &config.Config{
-				Registry: "test.azurecr.io",
+				Registry: testRegistry,
 			},
 			verifyFunc: func(t *testing.T, dep *appsv1.Deployment) {
 				container := dep.Spec.Template.Spec.Containers[0]
