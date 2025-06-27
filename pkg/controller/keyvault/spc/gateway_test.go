@@ -5,6 +5,7 @@ package spc
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -57,6 +58,7 @@ func TestGatewayToSpcOpts(t *testing.T) {
 		wantSpcOpts        []spcOpts
 		wantErr            bool
 		wantErrStr         string
+		wantUserErrStr     string
 		verifyModifyOwner  bool
 		wantCertificateRef *gatewayv1.SecretObjectReference
 	}{
@@ -251,8 +253,9 @@ func TestGatewayToSpcOpts(t *testing.T) {
 					},
 				},
 			},
-			wantErr:    true,
-			wantErrStr: "serviceaccounts \"test-sa\" not found",
+			wantErr:        true,
+			wantErrStr:     "serviceaccounts \"test-sa\" not found",
+			wantUserErrStr: "service account test-sa does not exist in namespace test-ns",
 		},
 		{
 			name: "service account without client ID annotation",
@@ -287,8 +290,9 @@ func TestGatewayToSpcOpts(t *testing.T) {
 					},
 				},
 			},
-			wantErr:    true,
-			wantErrStr: "user-specified service account does not contain WI annotation",
+			wantErr:        true,
+			wantErrStr:     "user-specified service account does not contain WI annotation",
+			wantUserErrStr: "service account test-sa was specified but does not include necessary annotation for workload identity",
 		},
 		{
 			name: "cert URI without service account",
@@ -314,8 +318,9 @@ func TestGatewayToSpcOpts(t *testing.T) {
 					},
 				},
 			},
-			wantErr:    true,
-			wantErrStr: "user specified cert URI but no ServiceAccount in a listener",
+			wantErr:        true,
+			wantErrStr:     "user specified cert URI but no ServiceAccount in a listener",
+			wantUserErrStr: "KeyVault Cert URI provided, but the required ServiceAccount option was not. Please provide a ServiceAccount via the TLS option kubernetes.azure.com/tls-cert-service-account",
 		},
 		{
 			name: "service account without cert URI",
@@ -379,9 +384,10 @@ func TestGatewayToSpcOpts(t *testing.T) {
 					},
 				},
 			},
-			objects:    []client.Object{validServiceAccount},
-			wantErr:    true,
-			wantErrStr: "uri path contains too few segments",
+			objects:        []client.Object{validServiceAccount},
+			wantErr:        true,
+			wantErrStr:     "uri path contains too few segments",
+			wantUserErrStr: "invalid secret uri: not-a-url",
 		},
 		{
 			name: "malformed certificate URI - missing certificate name",
@@ -409,9 +415,10 @@ func TestGatewayToSpcOpts(t *testing.T) {
 					},
 				},
 			},
-			objects:    []client.Object{validServiceAccount},
-			wantErr:    true,
-			wantErrStr: "vault name or secret name is empty",
+			objects:        []client.Object{validServiceAccount},
+			wantErr:        true,
+			wantErrStr:     "vault name or secret name is empty",
+			wantUserErrStr: "invalid certificate uri: https://test-vault.vault.azure.net/secrets/",
 		},
 		{
 			name: "valid with custom national cloud",
@@ -526,8 +533,22 @@ func TestGatewayToSpcOpts(t *testing.T) {
 				require.NotEmpty(t, gotErrs)
 				for _, err := range gotErrs {
 					assert.Contains(t, err.Error(), tt.wantErrStr)
+
+					var userErr util.UserError
+					isUserErr := errors.As(err, &userErr)
+					if tt.wantUserErrStr != "" {
+						assert.True(t, isUserErr, "expected error to be a UserError")
+						assert.Contains(t, userErr.UserMessage, tt.wantUserErrStr)
+					} else {
+						assert.False(t, isUserErr, "expected error not to be a UserError")
+					}
 				}
+
 				return
+			}
+
+			if tt.wantUserErrStr != "" {
+				t.Fatal("test is incorrectly formatted, wantUserErrStr is set but wantErr is false")
 			}
 
 			require.Empty(t, gotErrs)
