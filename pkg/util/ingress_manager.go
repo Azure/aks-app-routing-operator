@@ -1,4 +1,4 @@
-package keyvault
+package util
 
 import netv1 "k8s.io/api/networking/v1"
 
