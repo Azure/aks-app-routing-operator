@@ -321,7 +321,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: testListenerName,
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
-									testTLSServiceAccountKey: testServiceAccount,
+									"kubernetes.azure.com/tls-cert-keyvault-uri": "https://kv.vault.azure.net/secrets/cert-1",
+									testTLSServiceAccountKey:                     testServiceAccount,
 								},
 							},
 						},
@@ -346,6 +347,44 @@ func TestGatewaySpcOwner(t *testing.T) {
 			wantServiceAcct: testServiceAccount,
 		},
 		{
+			name: "valid service account and listener, managed gateway, missing uri",
+			gateway: &gatewayv1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testGatewayName,
+					Namespace: spcTestNamespace,
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: testIstioGatewayClass,
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: testListenerName,
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									testTLSServiceAccountKey: testServiceAccount,
+								},
+							},
+						},
+					},
+				},
+			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "kv-gw-cert-" + testGatewayName + "-" + testListenerName,
+				},
+			},
+			serviceAccount: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceAccount,
+					Namespace: spcTestNamespace,
+					Annotations: map[string]string{
+						testClientIdAnnotation: testClientID,
+					},
+				},
+			},
+			wantReconcile:   false,
+			wantServiceAcct: testServiceAccount,
+		},
+		{
 			name: "valid service account and listener, unmanaged gateway",
 			gateway: &gatewayv1.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
@@ -359,6 +398,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: testListenerName,
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert-1",
 									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
@@ -382,6 +422,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: testListenerName,
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert-1",
 									"kubernetes.azure.com/tls-cert-service-account": "missing-sa",
 								},
 							},
@@ -413,6 +454,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "https",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert",
 									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
@@ -454,6 +496,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "http",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert",
 									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
@@ -462,6 +505,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "grpc",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert",
 									"kubernetes.azure.com/tls-cert-service-account": testServiceAccount,
 								},
 							},
@@ -499,6 +543,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "https-1",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert-1",
 									"kubernetes.azure.com/tls-cert-service-account": "sa-1",
 								},
 							},
@@ -507,6 +552,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 							Name: "https-2",
 							TLS: &gatewayv1.GatewayTLSConfig{
 								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									"kubernetes.azure.com/tls-cert-keyvault-uri":    "https://kv.vault.azure.net/secrets/cert-2",
 									"kubernetes.azure.com/tls-cert-service-account": "sa-2",
 								},
 							},
@@ -574,7 +620,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					},
 				},
 			},
-			wantReconcile:   false,
+			wantReconcile:   true,
 			wantServiceAcct: testServiceAccount,
 		},
 	}

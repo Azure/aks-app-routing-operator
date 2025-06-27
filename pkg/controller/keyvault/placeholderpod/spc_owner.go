@@ -128,7 +128,7 @@ var gatewaySpcOwner = spcOwnerStruct[*gatewayv1.Gateway]{
 				continue
 			}
 
-			return !spcpkg.ListenerIsKvEnabled(listener), nil
+			return spcpkg.ListenerIsKvEnabled(listener), nil
 		}
 
 		return false, nil
