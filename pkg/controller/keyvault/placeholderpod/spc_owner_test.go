@@ -213,7 +213,7 @@ func TestNicSpcOwner(t *testing.T) {
 		spc              *secv1.SecretProviderClass
 		wantReconcile    bool
 		wantServiceAcct  string
-		wantServiceError bool
+		wantServiceError string
 	}{
 		{
 			name: "should reconcile - valid config",
@@ -252,8 +252,9 @@ func TestNicSpcOwner(t *testing.T) {
 			assert.Equal(t, tt.wantReconcile, reconcile)
 
 			sa, err := nicSpcOwner.GetServiceAccountName(context.Background(), client, &secv1.SecretProviderClass{}, tt.nic)
-			if tt.wantServiceError {
+			if tt.wantServiceError != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantServiceError)
 				return
 			}
 			require.NoError(t, err)
@@ -278,7 +279,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 		serviceAccount   *corev1.ServiceAccount
 		wantReconcile    bool
 		wantServiceAcct  string
-		wantServiceError bool
+		wantServiceError string
 	}{
 		{
 			name: "should not reconcile - unmanaged gateway",
@@ -393,7 +394,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					Name: "kv-gw-cert-test-gateway-test-listener",
 				},
 			},
-			wantServiceError: true,
+			wantServiceError: "service account 'missing-sa' not found",
 		},
 		{
 			name: "multiple listeners - matching listener has service account",
@@ -482,7 +483,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 					},
 				},
 			},
-			wantServiceError: true,
+			wantServiceError: "service account 'missing-sa' not found",
 		},
 		{
 			name: "multiple listeners - different service accounts",
@@ -598,8 +599,9 @@ func TestGatewaySpcOwner(t *testing.T) {
 			}
 
 			sa, err := gatewaySpcOwner.GetServiceAccountName(context.Background(), client, tt.spc, tt.gateway)
-			if tt.wantServiceError {
+			if tt.wantServiceError != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantServiceError)
 				return
 			}
 			require.NoError(t, err)
@@ -622,7 +624,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 		isManaged     bool
 		isManagedErr  error
 		wantReconcile bool
-		wantError     bool
+		wantErrorStr  string
 	}{
 		{
 			name: "managed ingress, no keyvault annotations",
@@ -671,7 +673,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 				},
 			},
 			isManagedErr:  errors.New("test error"),
-			wantError:     true,
+			wantErrorStr:  "test error",
 			wantReconcile: false,
 		},
 	}
@@ -682,8 +684,9 @@ func TestGetIngressSpcOwner(t *testing.T) {
 				return tt.isManaged, tt.isManagedErr
 			}))
 			reconcile, err := owner.ShouldReconcile(tt.spc, tt.ingress)
-			if tt.wantError {
+			if tt.wantErrorStr != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrorStr)
 				return
 			}
 			require.NoError(t, err)

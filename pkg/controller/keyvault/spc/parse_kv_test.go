@@ -16,10 +16,10 @@ const (
 
 func TestParseKeyVaultCertURI(t *testing.T) {
 	tests := []struct {
-		name        string
-		certURI     string
-		expected    certReference
-		expectError bool
+		name           string
+		certURI        string
+		expected       certReference
+		expectErrorStr string
 	}{
 		{
 			name:    "valid uri with version",
@@ -29,7 +29,6 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 				certName:      parseTestCertName,
 				objectVersion: parseTestVersion,
 			},
-			expectError: false,
 		},
 		{
 			name:    "valid uri without version",
@@ -39,7 +38,6 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 				certName:      parseTestCertName,
 				objectVersion: "",
 			},
-			expectError: false,
 		},
 		{
 			name:    "valid uri with dashes in names",
@@ -49,27 +47,26 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 				certName:      "my-cert-456",
 				objectVersion: "",
 			},
-			expectError: false,
 		},
 		{
-			name:        "invalid uri - malformed url",
-			certURI:     parseTestInvalidUri,
-			expectError: true,
+			name:           "invalid uri - malformed url",
+			certURI:        parseTestInvalidUri,
+			expectErrorStr: "uri path contains too few segments",
 		},
 		{
-			name:        "invalid uri - missing secret name",
-			certURI:     "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates",
-			expectError: true,
+			name:           "invalid uri - missing secret name",
+			certURI:        "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates",
+			expectErrorStr: "uri path contains too few segments",
 		},
 		{
-			name:        "empty uri",
-			certURI:     "",
-			expectError: true,
+			name:           "empty uri",
+			certURI:        "",
+			expectErrorStr: "uri path contains too few segments",
 		},
 		{
-			name:        "no certificate name",
-			certURI:     "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates/",
-			expectError: true,
+			name:           "no certificate name",
+			certURI:        "https://" + parseTestVaultName + "." + parseTestVaultDomain + "/certificates/",
+			expectErrorStr: "vault name or secret name is empty",
 		},
 	}
 
@@ -77,8 +74,9 @@ func TestParseKeyVaultCertURI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseKeyVaultCertURI(tt.certURI)
 
-			if tt.expectError {
+			if tt.expectErrorStr != "" {
 				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectErrorStr)
 				return
 			}
 

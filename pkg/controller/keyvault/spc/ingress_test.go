@@ -399,7 +399,7 @@ func TestAddTlsRef(t *testing.T) {
 		name       string
 		obj        client.Object
 		secretName string
-		wantErr    bool
+		wantErrStr string
 		wantTLS    []netv1.IngressTLS
 	}{
 		{
@@ -477,7 +477,7 @@ func TestAddTlsRef(t *testing.T) {
 			name:       "non-ingress object",
 			obj:        &corev1.Pod{},
 			secretName: "test-secret",
-			wantErr:    true,
+			wantErrStr: "object is not an Ingress",
 		},
 		{
 			name: "mixed empty and non-empty hosts",
@@ -507,8 +507,9 @@ func TestAddTlsRef(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := addTlsRef(tt.obj, tt.secretName)
-			if tt.wantErr {
+			if tt.wantErrStr != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrStr)
 				return
 			}
 			require.NoError(t, err)

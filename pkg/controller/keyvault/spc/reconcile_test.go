@@ -263,10 +263,10 @@ func TestCleanupSpcOpt(t *testing.T) {
 	require.NoError(t, secv1.AddToScheme(scheme))
 
 	tests := []struct {
-		name    string
-		spc     *secv1.SecretProviderClass
-		wantErr bool
-		verify  func(*testing.T, client.Client)
+		name       string
+		spc        *secv1.SecretProviderClass
+		wantErrStr string
+		verify     func(*testing.T, client.Client)
 	}{
 		{
 			name: "spc with top-level labels is deleted",
@@ -341,8 +341,9 @@ func TestCleanupSpcOpt(t *testing.T) {
 			}
 
 			err := reconciler.cleanupSpc(context.Background(), logr.Discard(), opts)
-			if tt.wantErr {
+			if tt.wantErrStr != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrStr)
 				return
 			}
 			require.NoError(t, err)

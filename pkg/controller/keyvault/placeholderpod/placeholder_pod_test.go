@@ -86,7 +86,7 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 		mockOwner      *mockSpcOwner
 		config         *config.Config
 		wantResult     ctrl.Result
-		wantError      bool
+		wantErrorStr   string
 		wantDeployment bool
 		verifyFunc     func(t *testing.T, dep *appsv1.Deployment)
 	}{
@@ -330,7 +330,7 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			config: &config.Config{
 				Registry: testRegistry,
 			},
-			wantError: true,
+			wantErrorStr: "building deployment spec: error",
 		},
 		{
 			name: "handles generation change",
@@ -387,8 +387,9 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 
 			ctx := logr.NewContext(context.Background(), logr.Discard())
 			result, err := controller.Reconcile(ctx, req)
-			if tt.wantError {
+			if tt.wantErrorStr != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrorStr)
 				return
 			}
 			require.NoError(t, err)
@@ -430,10 +431,10 @@ func TestGetCurrentDeployment(t *testing.T) {
 	require.NoError(t, appsv1.AddToScheme(scheme))
 
 	tests := []struct {
-		name       string
-		deployment *appsv1.Deployment
-		wantNil    bool
-		wantError  bool
+		name         string
+		deployment   *appsv1.Deployment
+		wantNil      bool
+		wantErrorStr string
 	}{
 		{
 			name: "deployment exists",
@@ -471,8 +472,9 @@ func TestGetCurrentDeployment(t *testing.T) {
 				Namespace: testNamespace,
 			})
 
-			if tt.wantError {
+			if tt.wantErrorStr != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrorStr)
 				return
 			}
 			require.NoError(t, err)
@@ -501,7 +503,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		owner           client.Object
 		mockOwner       *mockSpcOwner
 		config          *config.Config
-		wantError       bool
+		wantErrorStr    string
 		wantGeneration  string
 		wantServiceAcct string
 		verifyFunc      func(t *testing.T, dep *appsv1.Deployment)
@@ -628,12 +630,12 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			mockOwner: &mockSpcOwner{
 				ownerAnnotation:     testAnnotation,
-				serviceAccountError: util.NewUserError(nil, "service account error"),
+				serviceAccountError: util.NewUserError(errors.New("service account error"), "service account error"),
 			},
 			config: &config.Config{
 				Registry: testRegistry,
 			},
-			wantError: true,
+			wantErrorStr: "service account error",
 		},
 		{
 			name: "configures required annotations",
@@ -738,8 +740,9 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			}
 
 			err := controller.buildDeploymentSpec(context.Background(), tt.deployment, tt.spc, tt.owner, tt.mockOwner)
-			if tt.wantError {
+			if tt.wantErrorStr != "" {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrorStr)
 				return
 			}
 			require.NoError(t, err)
