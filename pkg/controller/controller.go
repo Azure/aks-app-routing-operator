@@ -9,8 +9,11 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	placeholderpod "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/placeholderpod"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -38,7 +41,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/ingress"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/osm"
 )
 
@@ -100,7 +102,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 
 		cacheOpts.ByObject = map[client.Object]cache.ByObject{
 			&corev1.Event{}: {
-				Field: keyvault.EventMirrorSelector,
+				Field: placeholderpod.EventMirrorSelector,
 			},
 		}
 	}
@@ -163,7 +165,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error
 	}
 
 	if conf.EnableGateway {
-		if err := keyvault.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
+		if err := util.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
 			lgr.Error(err, "adding Gateway Service Account indexer")
 			return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
 		}
@@ -212,27 +214,23 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
 	}
 
-	ingressManager := keyvault.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+	ingressManager := util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 		return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
 	})
 	lgr.Info("setting up keyvault secret provider class reconciler")
-	if err := keyvault.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
+	if err := spc.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
 	}
 	lgr.Info("setting up nginx keyvault secret provider class reconciler")
-	if err := keyvault.NewNginxSecretProviderClassReconciler(mgr, conf); err != nil {
+	if err := spc.NewNginxSecretProviderClassReconciler(mgr, conf); err != nil {
 		return fmt.Errorf("setting up nginx secret provider class reconciler: %w", err)
 	}
 	lgr.Info("setting up keyvault placeholder pod controller")
-	if err := keyvault.NewPlaceholderPodController(mgr, conf, ingressManager); err != nil {
+	if err := placeholderpod.NewPlaceholderPodController(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up placeholder pod controller: %w", err)
 	}
-	lgr.Info("setting up ingress tls reconciler")
-	if err := keyvault.NewIngressTlsReconciler(mgr, conf, ingressManager); err != nil {
-		return fmt.Errorf("setting up ingress tls reconciler: %w", err)
-	}
 	lgr.Info("setting up keyvault event mirror")
-	if err = keyvault.NewEventMirror(mgr, conf); err != nil {
+	if err = placeholderpod.NewEventMirror(mgr, conf); err != nil {
 		return fmt.Errorf("setting up event mirror: %w", err)
 	}
 
@@ -246,7 +244,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 
 	if conf.EnableGateway {
 		lgr.Info("setting up gateway reconcilers")
-		if err := keyvault.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
+		if err := spc.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
 			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
 		}
 	}

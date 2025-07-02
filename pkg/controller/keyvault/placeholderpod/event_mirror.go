@@ -114,7 +114,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	// Get the owner (ingress)
-	ingressName := pod.Annotations["kubernetes.azure.com/ingress-owner"]
+	ingressName := pod.Annotations[ingressOwnerAnnotation]
 	if ingressName == "" {
 		logger.Info("ignoring event, pod has no ingress owner")
 		return result, nil

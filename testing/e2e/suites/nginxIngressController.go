@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
@@ -430,7 +430,7 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("checking if associated SPC is created")
 				spc := &secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      keyvault.DefaultNginxCertName(testNIC),
+						Name:      spc.NicDefaultSecretName(testNIC),
 						Namespace: "app-routing-system",
 					},
 				}
