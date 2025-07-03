@@ -66,6 +66,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		ClusterPrincipalId:  p.Cluster.GetPrincipalId(),
 		ClusterClientId:     p.Cluster.GetClientId(),
 		ClusterOptions:      p.Cluster.GetOptions(),
+		ClusterOidcUrl:      p.Cluster.GetOidcUrl(),
 		ContainerRegistry:   containerRegistry,
 		Zones:               zones,
 		PrivateZones:        privateZones,
@@ -120,7 +121,7 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 
 	return Provisioned{
 		Name:              l.Name,
-		Cluster:           clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId, l.ClusterClientId, l.ClusterOptions),
+		Cluster:           clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId, l.ClusterClientId, l.ClusterOidcUrl, l.ClusterOptions),
 		ContainerRegistry: clients.LoadAcr(l.ContainerRegistry),
 		Zones:             zs,
 		PrivateZones:      pzs,
