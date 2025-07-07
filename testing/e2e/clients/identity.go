@@ -7,19 +7,33 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/go-autorest/autorest/azure"
 )
 
-// ManagedIdentity represents an Azure Managed Identity
-type ManagedIdentity struct {
+// managedIdentity represents an Azure Managed Identity
+type managedIdentity struct {
 	name           string
 	resourceGroup  string
 	subscriptionID string
-	location       string
 	clientID       string
+	principalID    string
+	id             string
+}
+
+// LoadManagedIdentity loads a managed identity from its ID and client ID
+func LoadManagedIdentity(id azure.Resource, clientID, principalID string) *managedIdentity {
+	return &managedIdentity{
+		id:             id.String(),
+		clientID:       clientID,
+		name:           id.ResourceName,
+		resourceGroup:  id.ResourceGroup,
+		principalID:    principalID,
+		subscriptionID: id.SubscriptionID,
+	}
 }
 
 // NewManagedIdentity creates a new ManagedIdentity client
-func NewManagedIdentity(ctx context.Context, subscriptionID, resourceGroup, name, location string) (*ManagedIdentity, error) {
+func NewManagedIdentity(ctx context.Context, subscriptionID, resourceGroup, name, location string) (*managedIdentity, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "subscriptionID", subscriptionID, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to create managed identity")
@@ -46,20 +60,27 @@ func NewManagedIdentity(ctx context.Context, subscriptionID, resourceGroup, name
 	if resp.ID == nil {
 		return nil, fmt.Errorf("managed identity ID is nil")
 	}
+
 	if resp.Properties.ClientID == nil {
 		return nil, fmt.Errorf("managed identity client ID is nil")
 	}
 
-	return &ManagedIdentity{
+	if resp.Properties.PrincipalID == nil {
+		return nil, fmt.Errorf("managed identity principal ID is nil")
+	}
+
+	return &managedIdentity{
 		name:           name,
 		resourceGroup:  resourceGroup,
 		subscriptionID: subscriptionID,
-		location:       location,
 		clientID:       *resp.Properties.ClientID,
+		id:             *resp.ID,
+		principalID:    *resp.Properties.PrincipalID,
 	}, nil
 }
 
-func (m *ManagedIdentity) FederateServiceAccount(ctx context.Context, name, oidcUrl, sa, namespace string) error {
+// FederateServiceAccount creates a federated identity credential for a service account in a cluster
+func (m *managedIdentity) FederateServiceAccount(ctx context.Context, name, oidcUrl, sa, namespace string) error {
 	lgr := logger.FromContext(ctx).With("name", name, "oidcUrl", oidcUrl, "sa", sa, "namespace", namespace)
 	ctx = logger.WithContext(ctx, lgr)
 	lgr.Info("starting to federate service account")
@@ -89,7 +110,17 @@ func (m *ManagedIdentity) FederateServiceAccount(ctx context.Context, name, oidc
 	return nil
 }
 
+// GetId returns the ID of the managed identity
+func (m *managedIdentity) GetId() string {
+	return m.id
+}
+
 // GetClientID returns the client ID of the managed identity
-func (m *ManagedIdentity) GetClientID() string {
+func (m *managedIdentity) GetClientID() string {
 	return m.clientID
+}
+
+// GetPrincipalID returns the principal ID of the managed identity
+func (m *managedIdentity) GetPrincipalID() string {
+	return m.principalID
 }

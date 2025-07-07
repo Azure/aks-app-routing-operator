@@ -52,6 +52,12 @@ type cluster interface {
 	Identifier
 }
 
+type managedIdentity interface {
+	GetId() string
+	GetClientID() string
+	GetPrincipalID() string
+}
+
 type containerRegistry interface {
 	GetName() string
 	BuildAndPush(ctx context.Context, imageName, dockerfilePath, dockerFileName string) error
@@ -100,6 +106,7 @@ type Provisioned struct {
 	Name              string
 	Cluster           cluster
 	ContainerRegistry containerRegistry
+	ManagedIdentity   managedIdentity
 	Zones             []WithCert[Zone]
 	PrivateZones      []WithCert[PrivateZone]
 	KeyVault          keyVault
@@ -128,6 +135,9 @@ type LoadableProvisioned struct {
 	Cluster                                                                                   azure.Resource
 	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId, ClusterOidcUrl string
 	ClusterOptions                                                                            map[string]struct{}
+	ManagedIdentity                                                                           azure.Resource
+	ManagedIdentityClientId                                                                   string
+	ManagedIdentityPrincipalId                                                                string
 	ContainerRegistry                                                                         azure.Resource
 	Zones                                                                                     []withLoadableCert[LoadableZone]
 	PrivateZones                                                                              []withLoadableCert[azure.Resource]

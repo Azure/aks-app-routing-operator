@@ -87,6 +87,15 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		return nil
 	})
 
+	resEg.Go(func() error {
+		ret.ManagedIdentity, err = clients.NewManagedIdentity(ctx, subscriptionId, i.ResourceGroup, "mi"+i.Suffix, i.Location)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating managed identity: %w", err))
+		}
+
+		return nil
+	})
+
 	kvDone := make(chan struct{})
 	resEg.Go(func() error {
 		defer close(kvDone)
@@ -165,10 +174,16 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.PrivateDnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
+
+				clusterPrincipalId := ret.Cluster.GetPrincipalId()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, clusterPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for cluster: %w", role.Name, err))
+				}
+
+				managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, pz.Zone.GetId(), managedIdentityPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity: %w", role.Name, err))
 				}
 
 				vnet, err := ret.Cluster.GetVnetId(ctx)
@@ -192,10 +207,16 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.DnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
+
+				clusterPrincipalId := ret.Cluster.GetPrincipalId()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, clusterPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for cluster: %w", role.Name, err))
+				}
+
+				managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity: %w", role.Name, err))
 				}
 
 				return nil
@@ -204,9 +225,9 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	}
 
 	permEg.Go(func() error {
-		principalId := ret.Cluster.GetPrincipalId()
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
+		principalId := ret.Cluster.GetPrincipalId()
 		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, principalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
@@ -215,12 +236,19 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	})
 
 	permEg.Go(func() error {
-		principalId := ret.Cluster.GetPrincipalId()
-		if err := ret.KeyVault.AddAccessPolicy(ctx, principalId, armkeyvault.Permissions{
+		permissions := armkeyvault.Permissions{
 			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
 			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
-		}); err != nil {
-			return logger.Error(lgr, fmt.Errorf("adding access policy: %w", err))
+		}
+
+		clusterPrincipalId := ret.Cluster.GetPrincipalId()
+		if err := ret.KeyVault.AddAccessPolicy(ctx, clusterPrincipalId, permissions); err != nil {
+			return logger.Error(lgr, fmt.Errorf("adding access policy for cluster: %w", err))
+		}
+
+		managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+		if err := ret.KeyVault.AddAccessPolicy(ctx, managedIdentityPrincipalId, permissions); err != nil {
+			return logger.Error(lgr, fmt.Errorf("adding access policy for managed identity: %w", err))
 		}
 
 		return nil
