@@ -17,7 +17,7 @@ jobs:
   unit-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@09d2acae674a48949e3602304ab46fd20ae0c42f # v4.1.7
       with:
         ref: ${{ inputs.checkout_ref }}
 
