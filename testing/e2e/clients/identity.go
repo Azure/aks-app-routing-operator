@@ -32,7 +32,7 @@ func LoadManagedIdentity(id azure.Resource, clientID, principalID string) *manag
 	}
 }
 
-// NewManagedIdentity creates a new ManagedIdentity client
+// NewManagedIdentity creates a new ManagedIdentity
 func NewManagedIdentity(ctx context.Context, subscriptionID, resourceGroup, name, location string) (*managedIdentity, error) {
 	lgr := logger.FromContext(ctx).With("name", name, "resourceGroup", resourceGroup, "subscriptionID", subscriptionID, "location", location)
 	ctx = logger.WithContext(ctx, lgr)
