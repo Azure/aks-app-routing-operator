@@ -27,6 +27,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.4.
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.4.0/go.mod h1:StGsLbuJh06Bd8IBfnAlIFV3fLb+gkczONWf15hpX2E=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.0.0 h1:pPvTJ1dY0sA35JOeFq6TsY2xj6Z85Yo23Pj4wCCvu4o=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.0.0/go.mod h1:mLfWfj8v3jfWKsL9G4eoBoXVcsqcIUTapmdKy7uGOp0=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.2.0 h1:z4YeiSXxnUI+PqB46Yj6MZA3nwb1CcJIkEMDrzUd8Cs=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.2.0/go.mod h1:rko9SzMxcMk0NJsNAxALEGaTYyy79bNRwxgJfrH0Spw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0 h1:QM6sE5k2ZT/vI5BEe0r7mqjsUSnhVBFbOsVkEuaEfiA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0/go.mod h1:243D9iHbcQXoFUtgHJwL7gl2zx1aDuDMjvBZVGr2uW0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.3.0 h1:yzrctSl9GMIQ5lHu7jc8olOsGjWDCsBpJhWqfGa/YIM=
@@ -55,10 +57,6 @@ github.com/Azure/go-autorest/logger v0.2.1 h1:IG7i4p/mDa2Ce4TRyAO8IHnVhAVF3RFU+Z
 github.com/Azure/go-autorest/logger v0.2.1/go.mod h1:T9E3cAhj2VqvPOtCYAvby9aBXkZmbF5NWuPV8+WeEW8=
 github.com/Azure/go-autorest/tracing v0.6.0 h1:TYi4+3m5t6K48TGI9AUdb+IzbnSxvnvUMfuitfgcfuo=
 github.com/Azure/go-autorest/tracing v0.6.0/go.mod h1:+vhtPC754Xsa23ID7GlGsrdKBpUA79WCAKPPZVC2DeU=
-github.com/Azure/redact v0.0.6 h1:LzIBeeyT2NvLuQtQVJhvJ1gJD+Pwu7R1ybaI1IoFb8w=
-github.com/Azure/redact v0.0.6/go.mod h1:W/1Xl16d2tU2FscjSK/VqcC18GCF/Oarw9AFjlUyRlQ=
-github.com/Azure/secrets-store-csi-driver-provider-azure v1.5.2 h1:yKh/vEjO3OjDrZUlVhUOkm7iGDNpBTOfKiFb5iTuzMY=
-github.com/Azure/secrets-store-csi-driver-provider-azure v1.5.2/go.mod h1:iMohyEfgCy0o+E34oKymQoM/BHBY73xtzqvWXneyZz4=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.3.2 h1:kYRSnvJju5gYVyhkij+RTJ/VR6QIUaCfWeaFm2ycsjQ=

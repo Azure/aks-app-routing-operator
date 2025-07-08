@@ -12,14 +12,13 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.4.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates v1.3.0
 	github.com/Azure/go-autorest/autorest v0.11.29
 	github.com/Azure/go-autorest/autorest/to v0.4.0
-	github.com/Azure/redact v0.0.6
-	github.com/Azure/secrets-store-csi-driver-provider-azure v1.5.2
 	github.com/go-logr/logr v1.4.2
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.6.0
@@ -36,7 +35,6 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/sync v0.13.0
-	google.golang.org/protobuf v1.36.5
 	k8s.io/api v0.31.1
 	k8s.io/apiextensions-apiserver v0.31.1
 	k8s.io/apimachinery v0.31.1
@@ -163,6 +161,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/grpc v1.71.0 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

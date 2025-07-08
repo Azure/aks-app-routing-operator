@@ -58,23 +58,32 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		return LoadableProvisioned{}, fmt.Errorf("parsing resource group resource id: %w", err)
 	}
 
+	managedIdentity, err := azure.ParseResourceID(p.ManagedIdentity.GetId())
+	if err != nil {
+		return LoadableProvisioned{}, fmt.Errorf("parsing managed identity resource id: %w", err)
+	}
+
 	return LoadableProvisioned{
-		Name:                p.Name,
-		Cluster:             cluster,
-		ClusterLocation:     p.Cluster.GetLocation(),
-		ClusterDnsServiceIp: p.Cluster.GetDnsServiceIp(),
-		ClusterPrincipalId:  p.Cluster.GetPrincipalId(),
-		ClusterClientId:     p.Cluster.GetClientId(),
-		ClusterOptions:      p.Cluster.GetOptions(),
-		ContainerRegistry:   containerRegistry,
-		Zones:               zones,
-		PrivateZones:        privateZones,
-		KeyVault:            keyVault,
-		ResourceGroup:       *resourceGroup,
-		SubscriptionId:      p.SubscriptionId,
-		TenantId:            p.TenantId,
-		E2eImage:            p.E2eImage,
-		OperatorImage:       p.OperatorImage,
+		Name:                       p.Name,
+		Cluster:                    cluster,
+		ClusterLocation:            p.Cluster.GetLocation(),
+		ClusterDnsServiceIp:        p.Cluster.GetDnsServiceIp(),
+		ClusterPrincipalId:         p.Cluster.GetPrincipalId(),
+		ClusterClientId:            p.Cluster.GetClientId(),
+		ClusterOptions:             p.Cluster.GetOptions(),
+		ClusterOidcUrl:             p.Cluster.GetOidcUrl(),
+		ManagedIdentity:            managedIdentity,
+		ManagedIdentityClientId:    p.ManagedIdentity.GetClientID(),
+		ManagedIdentityPrincipalId: p.ManagedIdentity.GetPrincipalID(),
+		ContainerRegistry:          containerRegistry,
+		Zones:                      zones,
+		PrivateZones:               privateZones,
+		KeyVault:                   keyVault,
+		ResourceGroup:              *resourceGroup,
+		SubscriptionId:             p.SubscriptionId,
+		TenantId:                   p.TenantId,
+		E2eImage:                   p.E2eImage,
+		OperatorImage:              p.OperatorImage,
 	}, nil
 }
 
@@ -120,8 +129,9 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 
 	return Provisioned{
 		Name:              l.Name,
-		Cluster:           clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId, l.ClusterClientId, l.ClusterOptions),
+		Cluster:           clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId, l.ClusterClientId, l.ClusterOidcUrl, l.ClusterOptions),
 		ContainerRegistry: clients.LoadAcr(l.ContainerRegistry),
+		ManagedIdentity:   clients.LoadManagedIdentity(l.ManagedIdentity, l.ManagedIdentityClientId, l.ManagedIdentityPrincipalId),
 		Zones:             zs,
 		PrivateZones:      pzs,
 		KeyVault:          clients.LoadAkv(l.KeyVault),
