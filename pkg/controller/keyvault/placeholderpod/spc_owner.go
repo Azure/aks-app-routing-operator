@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	spcpkg "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,7 +17,10 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-const ingressOwnerAnnotation = "kubernetes.azure.com/ingress-owner"
+const (
+	ingressOwnerAnnotation             = "kubernetes.azure.com/ingress-owner"
+	ingressServiceAccountTLSAnnotation = util.ServiceAccountTLSOption
+)
 
 var spcOwnerNotFoundErr = errors.New("no SecretProviderClass owner found")
 
@@ -95,7 +100,7 @@ var nicSpcOwner = spcOwnerStruct[*v1alpha1.NginxIngressController]{
 	},
 }
 
-func getIngressSpcOwner(ingressManager util.IngressManager) spcOwnerStruct[*netv1.Ingress] {
+func getIngressSpcOwner(ingressManager util.IngressManager, cfg *config.Config) spcOwnerStruct[*netv1.Ingress] {
 	return spcOwnerStruct[*netv1.Ingress]{
 		kind:                "Ingress",
 		ownerNameAnnotation: ingressOwnerAnnotation,
@@ -108,8 +113,23 @@ func getIngressSpcOwner(ingressManager util.IngressManager) spcOwnerStruct[*netv
 
 			return managed, nil
 		},
-		getServiceAccountName: func(_ context.Context, _ client.Client, _ *secv1.SecretProviderClass, _ *netv1.Ingress) (string, error) {
-			return "", nil // Ingress does not use Workload Identity (yet)
+		getServiceAccountName: func(ctx context.Context, cl client.Client, spc *secv1.SecretProviderClass, ing *netv1.Ingress) (string, error) {
+			if cfg == nil || !cfg.EnabledWorkloadIdentity {
+				return "", nil
+			}
+
+			if ing == nil || ing.Annotations == nil || strings.ToLower(ing.Annotations[ingressServiceAccountTLSAnnotation]) != "true" {
+				return "", nil // Ingress does not use Workload Identity
+			}
+
+			sa := ing.Annotations[ingressServiceAccountTLSAnnotation]
+
+			// validate that the workload identity client id exists
+			if _, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, cl, sa, ing.Namespace); err != nil {
+				return "", err
+			}
+
+			return sa, nil
 		},
 	}
 }
