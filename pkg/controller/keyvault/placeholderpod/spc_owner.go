@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -118,11 +117,14 @@ func getIngressSpcOwner(ingressManager util.IngressManager, cfg *config.Config) 
 				return "", nil
 			}
 
-			if ing == nil || ing.Annotations == nil || strings.ToLower(ing.Annotations[ingressServiceAccountTLSAnnotation]) != "true" {
+			if ing == nil || ing.Annotations == nil {
 				return "", nil // Ingress does not use Workload Identity
 			}
 
 			sa := ing.Annotations[ingressServiceAccountTLSAnnotation]
+			if sa == "" {
+				return "", nil // no service account specified, doesn't use Workload Identity
+			}
 
 			// validate that the workload identity client id exists
 			if _, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, cl, sa, ing.Namespace); err != nil {
