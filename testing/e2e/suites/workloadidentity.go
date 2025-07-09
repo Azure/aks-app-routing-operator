@@ -71,23 +71,19 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					return fmt.Errorf("waiting for private NIC to be ready: %w", err)
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, singleNamespacer{namespace: "wi-ns"}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ns := ingress.GetNamespace()
 					sa := &corev1.ServiceAccount{
 						ObjectMeta: metav1.ObjectMeta{
-							GenerateName: "wi-",
+							GenerateName: "wi-sa",
 							Namespace:    ns,
 							Annotations: map[string]string{
 								"azure.workload.identity/client-id": in.ManagedIdentity.GetClientID(),
 							},
 						},
 					}
-					if err := cl.Create(ctx, sa); err != nil {
+					if err := upsert(ctx, cl, sa); err != nil {
 						return fmt.Errorf("creating service account: %w", err)
-					}
-
-					if err := in.ManagedIdentity.FederateServiceAccount(ctx, ns+sa.GetName(), in.Cluster.GetOidcUrl(), sa.Name, ns); err != nil {
-						return fmt.Errorf("federating service account: %w", err)
 					}
 
 					ingress.Spec.IngressClassName = util.ToPtr(wiNic.Spec.IngressClassName)
@@ -102,4 +98,22 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 			},
 		},
 	}
+}
+
+type singleNamespacer struct {
+	namespace string
+}
+
+func (s singleNamespacer) getNamespace(ctx context.Context, cl client.Client, key string) (*corev1.Namespace, error) {
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: s.namespace,
+		},
+	}
+
+	if err := upsert(ctx, cl, ns); err != nil {
+		return nil, fmt.Errorf("upserting namespace %s: %w", s.namespace, err)
+	}
+
+	return ns, nil
 }

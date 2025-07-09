@@ -320,7 +320,7 @@ func nicTests(in infra.Provisioned) []test {
 					return errors.New("private nginx annotations not found")
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {
@@ -378,7 +378,7 @@ func nicTests(in infra.Provisioned) []test {
 					}
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {
@@ -448,7 +448,7 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("finding nginx lb service: %w", err)
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
 				}, to.Ptr(service.Name)); err != nil {

@@ -27,22 +27,6 @@ var (
 	nsMutex = sync.RWMutex{}
 )
 
-func getNamespace(ctx context.Context, cl client.Client, namespaces map[string]*corev1.Namespace, key string) (*corev1.Namespace, error) {
-	// multiple goroutines access the same map at the same time which is not safe
-	nsMutex.Lock()
-	if val, ok := namespaces[key]; !ok || val == nil {
-		namespaces[key] = manifests.UncollisionedNs()
-	}
-	ns := namespaces[key]
-	nsMutex.Unlock()
-
-	if err := upsert(ctx, cl, ns); err != nil {
-		return nil, fmt.Errorf("upserting ns: %w", err)
-	}
-
-	return ns, nil
-}
-
 func basicSuite(in infra.Provisioned) []test {
 	return []test{
 		{
@@ -53,7 +37,7 @@ func basicSuite(in infra.Provisioned) []test {
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				if err := clientServerTest(ctx, config, operator, basicNs, in, nil, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: basicNs}, in, nil, nil); err != nil {
 					return err
 				}
 
@@ -68,7 +52,7 @@ func basicSuite(in infra.Provisioned) []test {
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				if err := clientServerTest(ctx, config, operator, basicNs, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: basicNs}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress = nil
 					annotations := service.GetAnnotations()
 					annotations["kubernetes.azure.com/ingress-host"] = z.GetName()
@@ -89,15 +73,42 @@ func basicSuite(in infra.Provisioned) []test {
 // modifier is a function that can be used to modify the ingress and service
 type modifier func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error
 
+// namespacer returns the namespace that should be used
+type namespacer interface {
+	getNamespace(ctx context.Context, cl client.Client, key string) (*corev1.Namespace, error)
+}
+
+type uniqueNamespaceNamespacer struct {
+	namespaces map[string]*corev1.Namespace
+}
+
+func (u uniqueNamespaceNamespacer) getNamespace(ctx context.Context, cl client.Client, key string) (*corev1.Namespace, error) {
+	// multiple goroutines access the same map at the same time which is not safe
+	nsMutex.Lock()
+
+	if u.namespaces == nil {
+		u.namespaces = make(map[string]*corev1.Namespace)
+	}
+
+	if val, ok := u.namespaces[key]; !ok || val == nil {
+		u.namespaces[key] = manifests.UncollisionedNs()
+	}
+	ns := u.namespaces[key]
+	nsMutex.Unlock()
+
+	if err := upsert(ctx, cl, ns); err != nil {
+		return nil, fmt.Errorf("upserting ns: %w", err)
+	}
+
+	return ns, nil
+}
+
 // clientServerTest is a test that deploys a client and server application and ensures the client can reach the server.
 // This is the standard test used to check traffic flow is working.
-var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, mod modifier, serviceName *string) error {
+var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespacer namespacer, infra infra.Provisioned, mod modifier, serviceName *string) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting test")
 
-	if namespaces == nil {
-		namespaces = make(map[string]*corev1.Namespace)
-	}
 	if serviceName == nil {
 		serviceName = to.Ptr("nginx")
 	}
@@ -111,14 +122,14 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toZoners(ctx, c, namespaces, infra.Zones[0])
+		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0])
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zs, err := toZoners(ctx, c, namespaces, z)
+			zs, err := toZoners(ctx, c, namespacer, z)
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -128,14 +139,14 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zs, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
+			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp())
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -158,7 +169,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr := logger.FromContext(ctx).With("zone", zone.GetName())
 			ctx := logger.WithContext(ctx, lgr)
 
-			ns, err := getNamespace(ctx, c, namespaces, zone.GetName())
+			ns, err := namespacer.getNamespace(ctx, c, zone.GetName())
 			if err != nil {
 				return fmt.Errorf("getting namespace: %w", err)
 			}
@@ -196,12 +207,12 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	return nil
 }
 
-func toZoners(ctx context.Context, cl client.Client, namespaces map[string]*corev1.Namespace, z infra.WithCert[infra.Zone]) ([]zoner, error) {
+func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.Zone]) ([]zoner, error) {
 	name := z.Zone.GetName()
 	nameserver := z.Zone.GetNameservers()[0]
 	certName := z.Cert.GetName()
 	certId := z.Cert.GetId()
-	ns, err := getNamespace(ctx, cl, namespaces, name)
+	ns, err := namespacer.getNamespace(ctx, cl, name)
 	if err != nil {
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
@@ -226,11 +237,11 @@ func toZoners(ctx context.Context, cl client.Client, namespaces map[string]*core
 	}, nil
 }
 
-func toPrivateZoners(ctx context.Context, cl client.Client, namespaces map[string]*corev1.Namespace, z infra.WithCert[infra.PrivateZone], nameserver string) ([]zoner, error) {
+func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.PrivateZone], nameserver string) ([]zoner, error) {
 	name := z.Zone.GetName()
 	certName := z.Cert.GetName()
 	certId := z.Cert.GetId()
-	ns, err := getNamespace(ctx, cl, namespaces, name)
+	ns, err := namespacer.getNamespace(ctx, cl, name)
 	if err != nil {
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
