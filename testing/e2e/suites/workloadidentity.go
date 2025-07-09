@@ -109,6 +109,10 @@ func (s singleNamespacer) getNamespace(ctx context.Context, cl client.Client, ke
 		ObjectMeta: metav1.ObjectMeta{
 			Name: s.namespace,
 		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
 	}
 
 	if err := upsert(ctx, cl, ns); err != nil {
