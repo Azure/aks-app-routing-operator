@@ -184,11 +184,9 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		return fmt.Errorf("determining default IngressClass controller class: %w", err)
 	}
 
-	if conf.EnabledWorkloadIdentity {
-		lgr.Info("setting up ExternalDNS controller")
-		if err := dns.NewExternalDns(mgr, conf); err != nil {
-			return fmt.Errorf("setting up external dns controller: %w", err)
-		}
+	lgr.Info("setting up ExternalDNS controller")
+	if err := dns.NewExternalDns(mgr, conf); err != nil {
+		return fmt.Errorf("setting up external dns controller: %w", err)
 	}
 
 	lgr.Info("setting up Nginx Ingress Controller reconciler")
