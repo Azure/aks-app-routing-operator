@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	ingressOwnerAnnotation             = "kubernetes.azure.com/ingress-owner"
-	ingressServiceAccountTLSAnnotation = util.ServiceAccountTLSOption
+	ingressOwnerAnnotation = "kubernetes.azure.com/ingress-owner"
 )
 
 var spcOwnerNotFoundErr = errors.New("no SecretProviderClass owner found")
@@ -121,7 +120,7 @@ func getIngressSpcOwner(ingressManager util.IngressManager, cfg *config.Config) 
 				return "", nil // Ingress does not use Workload Identity
 			}
 
-			sa := ing.Annotations[ingressServiceAccountTLSAnnotation]
+			sa := ing.Annotations[spcpkg.IngressServiceAccountTLSAnnotation]
 			if sa == "" {
 				return "", nil // no service account specified, doesn't use Workload Identity
 			}
