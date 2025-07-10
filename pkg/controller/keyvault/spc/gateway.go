@@ -66,12 +66,13 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 		for index, listener := range gw.Spec.Listeners {
 			name := GetGatewayListenerSpcName(gw.Name, string(listener.Name))
 			opts := spcOpts{
-				action:     actionReconcile,
-				name:       name,
-				namespace:  gw.Namespace,
-				tenantId:   conf.TenantID,
-				secretName: name,
-				cloud:      conf.Cloud,
+				action:           actionReconcile,
+				name:             name,
+				namespace:        gw.Namespace,
+				tenantId:         conf.TenantID,
+				secretName:       name,
+				cloud:            conf.Cloud,
+				workloadIdentity: true,
 			}
 
 			if !ListenerIsKvEnabled(listener) {

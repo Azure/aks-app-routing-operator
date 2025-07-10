@@ -93,6 +93,7 @@ func ingressToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 			}
 
 			opts.clientId = clientId
+			opts.workloadIdentity = true
 		}
 
 		opts.vaultName = certRef.vaultName
