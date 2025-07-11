@@ -4,6 +4,7 @@
 package spc
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -188,7 +190,9 @@ func TestIngressToSpcOpts(t *testing.T) {
 			var gotOpts []spcOpts
 			var gotErrs []error
 
-			for opts, err := range ingressToSpcOpts(tt.conf, tt.ingress, tt.ingressManager) {
+			client := fake.NewClientBuilder().Build()
+
+			for opts, err := range ingressToSpcOpts(context.Background(), client, tt.conf, tt.ingress, tt.ingressManager) {
 				gotOpts = append(gotOpts, opts)
 				gotErrs = append(gotErrs, err)
 			}
@@ -521,6 +525,8 @@ func TestAddTlsRef(t *testing.T) {
 }
 
 func TestModifyOwner(t *testing.T) {
+	client := fake.NewClientBuilder().Build()
+
 	conf := &config.Config{
 		MSIClientID: ingressTestClientID,
 		TenantID:    ingressTestTenantID,
@@ -547,7 +553,7 @@ func TestModifyOwner(t *testing.T) {
 		return true, nil
 	})
 
-	ingressOpts := ingressToSpcOpts(conf, ingress, ingressManager)
+	ingressOpts := ingressToSpcOpts(context.Background(), client, conf, ingress, ingressManager)
 	for opts, err := range ingressOpts {
 		require.NoError(t, err)
 		require.NotNil(t, opts.modifyOwner)

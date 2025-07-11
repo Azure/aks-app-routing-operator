@@ -183,7 +183,7 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			owner := spcOwnerStruct[*testOwner]{
 				kind:      spcTestKind,
-				namespace: func(obj *testOwner) string { return spcTestNamespace },
+				namespace: func(obj *secv1.SecretProviderClass) string { return spcTestNamespace },
 			}
 
 			client := fake.NewClientBuilder().
@@ -261,7 +261,7 @@ func TestNicSpcOwner(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantServiceAcct, sa)
 			assert.Equal(t, nicSpcOwner.kind, "NginxIngressController")
-			assert.Equal(t, nicSpcOwner.namespace(tt.nic), "")
+			assert.Equal(t, nicSpcOwner.namespace(&secv1.SecretProviderClass{}), "")
 			assert.Equal(t, nicSpcOwner.ownerNameAnnotation, "kubernetes.azure.com/nginx-ingress-controller-owner")
 		})
 	}
@@ -332,7 +332,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-" + testGatewayName + "-" + testListenerName,
+					Name:      "kv-gw-cert-" + testGatewayName + "-" + testListenerName,
+					Namespace: spcTestNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -468,7 +469,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-https",
+					Name:      "kv-gw-cert-test-gateway-https",
+					Namespace: testNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -563,7 +565,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-https-1",
+					Name:      "kv-gw-cert-test-gateway-https-1",
+					Namespace: testNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -609,7 +612,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-https",
+					Name:      "kv-gw-cert-test-gateway-https",
+					Namespace: testNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -655,7 +659,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 			assert.Equal(t, tt.wantServiceAcct, sa)
 			assert.Equal(t, gatewaySpcOwner.kind, "Gateway")
 			assert.Equal(t, gatewaySpcOwner.ownerNameAnnotation, "kubernetes.azure.com/gateway-owner")
-			assert.Equal(t, gatewaySpcOwner.namespace(tt.gateway), tt.gateway.Namespace)
+			assert.Equal(t, gatewaySpcOwner.namespace(tt.spc), tt.gateway.Namespace)
 		})
 	}
 }
@@ -685,6 +689,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					},
 				},
 			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
+					Namespace: testNamespace,
+				},
+			},
 			isManaged:     true,
 			wantReconcile: false,
 		},
@@ -699,6 +709,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					},
 				},
 			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
+					Namespace: testNamespace,
+				},
+			},
 			isManaged:     true,
 			wantReconcile: true,
 		},
@@ -710,6 +726,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
+					Namespace: testNamespace,
+				},
+			},
 			wantReconcile: false,
 		},
 		{
@@ -717,6 +739,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testIngress,
+					Namespace: testNamespace,
+				},
+			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
 					Namespace: testNamespace,
 				},
 			},
@@ -741,7 +769,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			assert.Equal(t, tt.wantReconcile, reconcile)
 
 			// Test that namespace function works
-			assert.Equal(t, tt.ingress.Namespace, owner.namespace(tt.ingress))
+			assert.Equal(t, tt.ingress.Namespace, owner.namespace(tt.spc))
 
 			// Test service account name is empty (not implemented yet)
 			sa, err := owner.GetServiceAccountName(context.Background(), nil, tt.spc, tt.ingress)
@@ -749,7 +777,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			assert.Empty(t, sa)
 			assert.Equal(t, owner.kind, "Ingress")
 			assert.Equal(t, owner.ownerNameAnnotation, ingressOwnerAnnotation)
-			assert.Equal(t, owner.namespace(tt.ingress), tt.ingress.Namespace)
+			assert.Equal(t, owner.namespace(tt.spc), tt.ingress.Namespace)
 		})
 	}
 }
