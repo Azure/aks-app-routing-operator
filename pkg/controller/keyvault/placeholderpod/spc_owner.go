@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	spcpkg "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,7 +16,9 @@ import (
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
-const ingressOwnerAnnotation = "kubernetes.azure.com/ingress-owner"
+const (
+	ingressOwnerAnnotation = "kubernetes.azure.com/ingress-owner"
+)
 
 var spcOwnerNotFoundErr = errors.New("no SecretProviderClass owner found")
 
@@ -39,7 +42,7 @@ type spcOwnerStruct[objectType client.Object] struct {
 	// ownerNameAnnotation is the annotation key used to store the owner name in the SecretProviderClass
 	ownerNameAnnotation string
 	// namespace returns the namespace of the owner object, or "" if not cluster-scoped
-	namespace func(obj objectType) string
+	namespace func(spc *secv1.SecretProviderClass) string
 	// shouldReconcile returns true if the SecretProviderClass should be reconciled for the given object
 	shouldReconcile func(spc *secv1.SecretProviderClass, obj objectType) (bool, error)
 	// getServiceAccountName returns the service account name that should be used for Workload Identity. Returns "", nil if not applicable.
@@ -62,7 +65,7 @@ func (s spcOwnerStruct[objectType]) GetOwnerAnnotation() string {
 func (s spcOwnerStruct[objectType]) GetObject(ctx context.Context, cl client.Client, spc *secv1.SecretProviderClass) (client.Object, error) {
 	obj := util.NewObject[objectType]()
 	obj.SetName(util.FindOwnerKind(spc.OwnerReferences, s.kind))
-	obj.SetNamespace(s.namespace(obj))
+	obj.SetNamespace(s.namespace(spc))
 
 	if err := cl.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -86,7 +89,7 @@ func (s spcOwnerStruct[objectType]) GetServiceAccountName(ctx context.Context, c
 var nicSpcOwner = spcOwnerStruct[*v1alpha1.NginxIngressController]{
 	kind:                "NginxIngressController",
 	ownerNameAnnotation: "kubernetes.azure.com/nginx-ingress-controller-owner",
-	namespace:           func(_ *v1alpha1.NginxIngressController) string { return "" }, // NginxIngressController is cluster-scoped
+	namespace:           func(spc *secv1.SecretProviderClass) string { return "" }, // NginxIngressController is cluster-scoped
 	shouldReconcile: func(spc *secv1.SecretProviderClass, obj *v1alpha1.NginxIngressController) (bool, error) {
 		return spcpkg.ShouldReconcileNic(obj), nil
 	},
@@ -95,11 +98,11 @@ var nicSpcOwner = spcOwnerStruct[*v1alpha1.NginxIngressController]{
 	},
 }
 
-func getIngressSpcOwner(ingressManager util.IngressManager) spcOwnerStruct[*netv1.Ingress] {
+func getIngressSpcOwner(ingressManager util.IngressManager, cfg *config.Config) spcOwnerStruct[*netv1.Ingress] {
 	return spcOwnerStruct[*netv1.Ingress]{
 		kind:                "Ingress",
 		ownerNameAnnotation: ingressOwnerAnnotation,
-		namespace:           func(ing *netv1.Ingress) string { return ing.Namespace },
+		namespace:           func(spc *secv1.SecretProviderClass) string { return spc.Namespace },
 		shouldReconcile: func(spc *secv1.SecretProviderClass, ing *netv1.Ingress) (bool, error) {
 			managed, err := spcpkg.ShouldReconcileIngress(ingressManager, ing)
 			if err != nil {
@@ -108,8 +111,26 @@ func getIngressSpcOwner(ingressManager util.IngressManager) spcOwnerStruct[*netv
 
 			return managed, nil
 		},
-		getServiceAccountName: func(_ context.Context, _ client.Client, _ *secv1.SecretProviderClass, _ *netv1.Ingress) (string, error) {
-			return "", nil // Ingress does not use Workload Identity (yet)
+		getServiceAccountName: func(ctx context.Context, cl client.Client, spc *secv1.SecretProviderClass, ing *netv1.Ingress) (string, error) {
+			if cfg == nil || !cfg.EnabledWorkloadIdentity {
+				return "", nil
+			}
+
+			if ing == nil || ing.Annotations == nil {
+				return "", nil // Ingress does not use Workload Identity
+			}
+
+			sa := ing.Annotations[spcpkg.IngressServiceAccountTLSAnnotation]
+			if sa == "" {
+				return "", nil // no service account specified, doesn't use Workload Identity
+			}
+
+			// validate that the workload identity client id exists
+			if _, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, cl, sa, ing.Namespace); err != nil {
+				return "", err
+			}
+
+			return sa, nil
 		},
 	}
 }
@@ -117,7 +138,7 @@ func getIngressSpcOwner(ingressManager util.IngressManager) spcOwnerStruct[*netv
 var gatewaySpcOwner = spcOwnerStruct[*gatewayv1.Gateway]{
 	kind:                "Gateway",
 	ownerNameAnnotation: "kubernetes.azure.com/gateway-owner",
-	namespace:           func(gw *gatewayv1.Gateway) string { return gw.Namespace },
+	namespace:           func(spc *secv1.SecretProviderClass) string { return spc.Namespace },
 	shouldReconcile: func(spc *secv1.SecretProviderClass, gw *gatewayv1.Gateway) (bool, error) {
 		if !spcpkg.IsManagedGateway(gw) {
 			return false, nil

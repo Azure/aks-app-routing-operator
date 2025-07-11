@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,7 +183,7 @@ func TestSpcOwnerStructGetObject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			owner := spcOwnerStruct[*testOwner]{
 				kind:      spcTestKind,
-				namespace: func(obj *testOwner) string { return spcTestNamespace },
+				namespace: func(obj *secv1.SecretProviderClass) string { return spcTestNamespace },
 			}
 
 			client := fake.NewClientBuilder().
@@ -260,7 +261,7 @@ func TestNicSpcOwner(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantServiceAcct, sa)
 			assert.Equal(t, nicSpcOwner.kind, "NginxIngressController")
-			assert.Equal(t, nicSpcOwner.namespace(tt.nic), "")
+			assert.Equal(t, nicSpcOwner.namespace(&secv1.SecretProviderClass{}), "")
 			assert.Equal(t, nicSpcOwner.ownerNameAnnotation, "kubernetes.azure.com/nginx-ingress-controller-owner")
 		})
 	}
@@ -331,7 +332,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-" + testGatewayName + "-" + testListenerName,
+					Name:      "kv-gw-cert-" + testGatewayName + "-" + testListenerName,
+					Namespace: spcTestNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -467,7 +469,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-https",
+					Name:      "kv-gw-cert-test-gateway-https",
+					Namespace: testNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -562,7 +565,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-https-1",
+					Name:      "kv-gw-cert-test-gateway-https-1",
+					Namespace: testNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -608,7 +612,8 @@ func TestGatewaySpcOwner(t *testing.T) {
 			},
 			spc: &secv1.SecretProviderClass{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "kv-gw-cert-test-gateway-https",
+					Name:      "kv-gw-cert-test-gateway-https",
+					Namespace: testNamespace,
 				},
 			},
 			serviceAccount: &corev1.ServiceAccount{
@@ -654,7 +659,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 			assert.Equal(t, tt.wantServiceAcct, sa)
 			assert.Equal(t, gatewaySpcOwner.kind, "Gateway")
 			assert.Equal(t, gatewaySpcOwner.ownerNameAnnotation, "kubernetes.azure.com/gateway-owner")
-			assert.Equal(t, gatewaySpcOwner.namespace(tt.gateway), tt.gateway.Namespace)
+			assert.Equal(t, gatewaySpcOwner.namespace(tt.spc), tt.gateway.Namespace)
 		})
 	}
 }
@@ -662,6 +667,7 @@ func TestGatewaySpcOwner(t *testing.T) {
 func TestGetIngressSpcOwner(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
 
 	tests := []struct {
 		name          string
@@ -683,6 +689,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					},
 				},
 			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
+					Namespace: testNamespace,
+				},
+			},
 			isManaged:     true,
 			wantReconcile: false,
 		},
@@ -697,6 +709,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					},
 				},
 			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
+					Namespace: testNamespace,
+				},
+			},
 			isManaged:     true,
 			wantReconcile: true,
 		},
@@ -705,6 +723,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			ingress: &netv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testIngress,
+					Namespace: testNamespace,
+				},
+			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
 					Namespace: testNamespace,
 				},
 			},
@@ -718,6 +742,12 @@ func TestGetIngressSpcOwner(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
+			spc: &secv1.SecretProviderClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSPCName,
+					Namespace: testNamespace,
+				},
+			},
 			isManagedErr:  errors.New("test error"),
 			wantErrorStr:  "test error",
 			wantReconcile: false,
@@ -728,7 +758,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			owner := getIngressSpcOwner(util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
 				return tt.isManaged, tt.isManagedErr
-			}))
+			}), &config.Config{})
 			reconcile, err := owner.ShouldReconcile(tt.spc, tt.ingress)
 			if tt.wantErrorStr != "" {
 				require.Error(t, err)
@@ -739,7 +769,7 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			assert.Equal(t, tt.wantReconcile, reconcile)
 
 			// Test that namespace function works
-			assert.Equal(t, tt.ingress.Namespace, owner.namespace(tt.ingress))
+			assert.Equal(t, tt.ingress.Namespace, owner.namespace(tt.spc))
 
 			// Test service account name is empty (not implemented yet)
 			sa, err := owner.GetServiceAccountName(context.Background(), nil, tt.spc, tt.ingress)
@@ -747,7 +777,228 @@ func TestGetIngressSpcOwner(t *testing.T) {
 			assert.Empty(t, sa)
 			assert.Equal(t, owner.kind, "Ingress")
 			assert.Equal(t, owner.ownerNameAnnotation, ingressOwnerAnnotation)
-			assert.Equal(t, owner.namespace(tt.ingress), tt.ingress.Namespace)
+			assert.Equal(t, owner.namespace(tt.spc), tt.ingress.Namespace)
+		})
+	}
+}
+
+func TestGetIngressSpcOwnerServiceAccountName(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	validServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testServiceAccount,
+			Namespace: testNamespace,
+			Annotations: map[string]string{
+				testClientIdAnnotation: testClientID,
+			},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		config          *config.Config
+		ingress         *netv1.Ingress
+		serviceAccount  *corev1.ServiceAccount
+		wantServiceAcct string
+		wantErr         bool
+		wantErrStr      string
+	}{
+		{
+			name: "workload identity disabled",
+			config: &config.Config{
+				EnabledWorkloadIdentity: false,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: testServiceAccount,
+					},
+				},
+			},
+			wantServiceAcct: "",
+		},
+		{
+			name:   "nil config",
+			config: nil,
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: testServiceAccount,
+					},
+				},
+			},
+			wantServiceAcct: "",
+		},
+		{
+			name: "workload identity enabled, no service account annotation",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": "https://kv.vault.azure.net/secrets/cert",
+					},
+				},
+			},
+			wantServiceAcct: "",
+		},
+		{
+			name: "workload identity enabled, empty service account annotation",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: "",
+					},
+				},
+			},
+			wantServiceAcct: "",
+		},
+		{
+			name: "workload identity enabled, nil annotations",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+				},
+			},
+			wantServiceAcct: "",
+		},
+		{
+			name: "workload identity enabled, nil ingress",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress:         nil,
+			wantServiceAcct: "",
+		},
+		{
+			name: "workload identity enabled, valid service account",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: testServiceAccount,
+					},
+				},
+			},
+			serviceAccount:  validServiceAccount,
+			wantServiceAcct: testServiceAccount,
+		},
+		{
+			name: "workload identity enabled, service account not found",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: "non-existent-sa",
+					},
+				},
+			},
+			wantErr:    true,
+			wantErrStr: "serviceaccounts \"non-existent-sa\" not found",
+		},
+		{
+			name: "workload identity enabled, service account without client ID annotation",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: testServiceAccount,
+					},
+				},
+			},
+			serviceAccount: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
+				},
+			},
+			wantErr:    true,
+			wantErrStr: "user-specified service account does not contain WI annotation",
+		},
+		{
+			name: "workload identity enabled, service account with empty client ID annotation",
+			config: &config.Config{
+				EnabledWorkloadIdentity: true,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIngress,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						util.ServiceAccountTLSOption: testServiceAccount,
+					},
+				},
+			},
+			serviceAccount: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						testClientIdAnnotation: "",
+					},
+				},
+			},
+			wantErr:    true,
+			wantErrStr: "user-specified service account does not contain WI annotation",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			if tt.serviceAccount != nil {
+				objects = append(objects, tt.serviceAccount)
+			}
+
+			client := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objects...).
+				Build()
+
+			owner := getIngressSpcOwner(util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}), tt.config)
+
+			sa, err := owner.GetServiceAccountName(context.Background(), client, &secv1.SecretProviderClass{}, tt.ingress)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrStr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantServiceAcct, sa)
 		})
 	}
 }

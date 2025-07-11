@@ -779,6 +779,71 @@ func TestBuildSpc(t *testing.T) {
 				assert.True(t, *owner.Controller)
 			},
 		},
+		{
+			name: "workload identity enabled",
+			opts: spcOpts{
+				name:             reconcileTestSPC,
+				namespace:        reconcileTestNamespace,
+				clientId:         reconcileTestClientId,
+				tenantId:         reconcileTestTenantId,
+				vaultName:        reconcileTestVaultName,
+				certName:         reconcileTestCertName,
+				secretName:       reconcileTestSecret,
+				workloadIdentity: true,
+			},
+			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
+				// When workload identity is enabled, clientID should be used instead of userAssignedIdentityID
+				assert.Equal(t, reconcileTestClientId, spc.Spec.Parameters["clientID"])
+				assert.Empty(t, spc.Spec.Parameters["userAssignedIdentityID"])
+				assert.Empty(t, spc.Spec.Parameters["useVMManagedIdentity"])
+			},
+		},
+		{
+			name: "workload identity disabled (default behavior)",
+			opts: spcOpts{
+				name:             reconcileTestSPC,
+				namespace:        reconcileTestNamespace,
+				clientId:         reconcileTestClientId,
+				tenantId:         reconcileTestTenantId,
+				vaultName:        reconcileTestVaultName,
+				certName:         reconcileTestCertName,
+				secretName:       reconcileTestSecret,
+				workloadIdentity: false,
+			},
+			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
+				// When workload identity is disabled, userAssignedIdentityID and useVMManagedIdentity should be used
+				assert.Equal(t, reconcileTestClientId, spc.Spec.Parameters["userAssignedIdentityID"])
+				assert.Equal(t, "true", spc.Spec.Parameters["useVMManagedIdentity"])
+				assert.Empty(t, spc.Spec.Parameters["clientID"])
+			},
+		},
+		{
+			name: "workload identity with object version and custom cloud",
+			opts: spcOpts{
+				name:             reconcileTestSPC,
+				namespace:        reconcileTestNamespace,
+				clientId:         reconcileTestClientId,
+				tenantId:         reconcileTestTenantId,
+				vaultName:        reconcileTestVaultName,
+				certName:         reconcileTestCertName,
+				objectVersion:    "v2",
+				secretName:       reconcileTestSecret,
+				cloud:            "AzureChinaCloud",
+				workloadIdentity: true,
+			},
+			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
+				// Verify workload identity parameters
+				assert.Equal(t, reconcileTestClientId, spc.Spec.Parameters["clientID"])
+				assert.Empty(t, spc.Spec.Parameters["userAssignedIdentityID"])
+				assert.Empty(t, spc.Spec.Parameters["useVMManagedIdentity"])
+
+				// Verify other parameters still work with workload identity
+				assert.Equal(t, "AzureChinaCloud", spc.Spec.Parameters["cloud"])
+				assert.Contains(t, spc.Spec.Parameters["objects"], "v2")
+				assert.Equal(t, reconcileTestVaultName, spc.Spec.Parameters["keyvaultName"])
+				assert.Equal(t, reconcileTestTenantId, spc.Spec.Parameters["tenantId"])
+			},
+		},
 	}
 
 	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{}

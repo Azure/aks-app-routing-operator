@@ -51,6 +51,7 @@ func init() {
 	flag.BoolVar(&Flags.DisableExpensiveCache, "disable-expensive-cache", false, "disable the cache for expensive resources that aren't core to App Routing like Pods and Events")
 	flag.BoolVar(&Flags.EnableManagedCertificates, "enable-managed-certificates", false, "enable the managed certificates feature")
 	flag.BoolVar(&Flags.EnableInternalLogging, "enable-internal-logging", false, "enable internal logging for internal customers, includes things like json format and additional fields in logs")
+	flag.BoolVar(&Flags.EnabledWorkloadIdentity, "enable-workload-identity", false, "enable workload identity allows users to use workload identity to authenticate to Azure resources instead of using the addon managed identity")
 }
 
 func (c *Config) Validate() error {

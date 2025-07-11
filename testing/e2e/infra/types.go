@@ -56,6 +56,7 @@ type managedIdentity interface {
 	GetId() string
 	GetClientID() string
 	GetPrincipalID() string
+	FederateServiceAccount(ctx context.Context, name, oidcUrl, sa, namespace string) error
 }
 
 type containerRegistry interface {

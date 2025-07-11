@@ -80,4 +80,5 @@ type Config struct {
 	DisableExpensiveCache               bool
 	EnableManagedCertificates           bool
 	EnableInternalLogging               bool
+	EnabledWorkloadIdentity             bool
 }

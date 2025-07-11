@@ -49,7 +49,7 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 		return nil
 	}
 
-	spcOwnerTypes := []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager)}
+	spcOwnerTypes := []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager, conf)}
 	if conf.EnableGateway {
 		spcOwnerTypes = append(spcOwnerTypes, gatewaySpcOwner)
 	}
@@ -118,6 +118,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	for _, o := range p.spcOwnerTypes {
 		if o.IsOwner(spc) {
 			ownerType = o
+			break
 		}
 	}
 	if ownerType == nil {
@@ -128,7 +129,7 @@ func (p *PlaceholderPodController) Reconcile(ctx context.Context, req ctrl.Reque
 	ownerObj, err := ownerType.GetObject(ctx, p.client, spc)
 	if err != nil {
 		if errors.Is(err, spcOwnerNotFoundErr) {
-			logger.Info("no SPC owner found, skipping reconciliation")
+			logger.Info("no SPC owner found from k8s, skipping reconciliation")
 			return ctrl.Result{}, nil
 		}
 

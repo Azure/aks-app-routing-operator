@@ -57,6 +57,9 @@ type spcOpts struct {
 	// cloud is the cloud environment to use, if empty, the default Azure cloud will be used
 	cloud string
 
+	// workloadIdentity indicates whether the SPC should use workload identity or not
+	workloadIdentity bool
+
 	// if non-nil, the owner object will be updated
 	modifyOwner func(obj client.Object) error
 }
@@ -202,14 +205,27 @@ func (s *secretProviderClassReconciler[objectType]) buildSpc(obj client.Object, 
 		p["objectVersion"] = opts.objectVersion
 	}
 
-	params, err := json.Marshal(p)
+	objectParams, err := json.Marshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling parameters: %w", err)
 	}
 
-	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(params)}})
+	objects, err := json.Marshal(map[string]interface{}{"array": []string{string(objectParams)}})
 	if err != nil {
 		return nil, fmt.Errorf("marshalling objects: %w", err)
+	}
+
+	params := map[string]string{
+		"keyvaultName": opts.vaultName,
+		"tenantId":     opts.tenantId,
+		"objects":      string(objects),
+	}
+	if opts.workloadIdentity {
+		params["clientID"] = opts.clientId
+	} else {
+		params["userAssignedIdentityID"] = opts.clientId
+		params["useVMManagedIdentity"] = "true"
+
 	}
 
 	spc := &secv1.SecretProviderClass{
@@ -222,7 +238,6 @@ func (s *secretProviderClassReconciler[objectType]) buildSpc(obj client.Object, 
 			Namespace: opts.namespace,
 			Labels:    manifests.GetTopLevelLabels(),
 			OwnerReferences: []metav1.OwnerReference{{
-				// todo: verify that the api version here is okay
 				APIVersion: obj.GetObjectKind().GroupVersionKind().GroupVersion().String(),
 				Controller: util.ToPtr(true),
 				Kind:       obj.GetObjectKind().GroupVersionKind().Kind,
@@ -247,13 +262,7 @@ func (s *secretProviderClassReconciler[objectType]) buildSpc(obj client.Object, 
 				},
 			}},
 			// https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/getting-started/usage/#create-your-own-secretproviderclass-object
-			Parameters: map[string]string{
-				"keyvaultName":           opts.vaultName,
-				"useVMManagedIdentity":   "true",
-				"userAssignedIdentityID": opts.clientId,
-				"tenantId":               opts.tenantId,
-				"objects":                string(objects),
-			},
+			Parameters: params,
 		},
 	}
 

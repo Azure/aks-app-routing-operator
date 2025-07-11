@@ -27,8 +27,8 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 
 	spcReconciler := &secretProviderClassReconciler[*netv1.Ingress]{
 		name: ingressSecretProviderControllerName,
-		toSpcOpts: func(_ context.Context, _ client.Client, ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
-			return ingressToSpcOpts(conf, ing, ingressManager)
+		toSpcOpts: func(ctx context.Context, cl client.Client, ing *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return ingressToSpcOpts(ctx, cl, conf, ing, ingressManager)
 		},
 		client: manager.GetClient(),
 		events: manager.GetEventRecorderFor("aks-app-routing-operator"),
@@ -44,7 +44,7 @@ func NewIngressSecretProviderClassReconciler(manager ctrl.Manager, conf *config.
 	).Complete(spcReconciler)
 }
 
-func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager util.IngressManager) iter.Seq2[spcOpts, error] {
+func ingressToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config, ing *netv1.Ingress, ingressManager util.IngressManager) iter.Seq2[spcOpts, error] {
 	return func(yield func(spcOpts, error) bool) {
 		if conf == nil {
 			yield(spcOpts{}, errors.New("config is nil"))
@@ -83,6 +83,17 @@ func ingressToSpcOpts(conf *config.Config, ing *netv1.Ingress, ingressManager ut
 		if err != nil {
 			yield(spcOpts{}, util.NewUserError(err, fmt.Sprintf("invalid Keyvault certificate URI: %s", uri)))
 			return
+		}
+
+		if sa := ing.Annotations[IngressServiceAccountTLSAnnotation]; sa != "" {
+			clientId, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, cl, sa, ing.Namespace)
+			if err != nil {
+				yield(opts, err)
+				return
+			}
+
+			opts.clientId = clientId
+			opts.workloadIdentity = true
 		}
 
 		opts.vaultName = certRef.vaultName

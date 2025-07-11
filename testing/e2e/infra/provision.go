@@ -254,6 +254,14 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		return nil
 	})
 
+	permEg.Go(func() error {
+		if err := ret.ManagedIdentity.FederateServiceAccount(ctx, ret.ResourceGroup.GetName(), ret.Cluster.GetOidcUrl(), "wi-sa", "wi-ns"); err != nil {
+			return logger.Error(lgr, fmt.Errorf("federating service principal: %w", err))
+		}
+
+		return nil
+	})
+
 	if err := permEg.Wait(); err != nil {
 		return Provisioned{}, logger.Error(lgr, err)
 	}

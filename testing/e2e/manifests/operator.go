@@ -136,6 +136,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--disable-expensive-cache")
 	}
 
+	if o.Version >= OperatorVersionLatest {
+		ret = append(ret, "--enable-workload-identity")
+	}
+
 	var zones []string
 	switch o.Zones.Public {
 	case DnsZoneCountMultiple:
