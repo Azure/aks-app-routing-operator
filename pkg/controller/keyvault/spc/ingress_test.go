@@ -16,31 +16,58 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
-	ingressTestNamespace   = "test-ns"
-	ingressTestIngressName = "test-ingress"
-	ingressTestClientID    = "test-client-id"
-	ingressTestTenantID    = "test-tenant-id"
-	ingressTestCloud       = "AzurePublicCloud"
-	ingressTestChinaCloud  = "AzureChinaCloud"
-	ingressTestVaultName   = "test-vault"
-	ingressTestCertName    = "test-cert"
-	ingressTestHost        = "test.example.com"
-	ingressTestKVUriPublic = "https://test-vault.vault.azure.net/secrets/test-cert"
-	ingressTestKVUriChina  = "https://test-vault.vault.azure.cn/secrets/test-cert"
-	ingressTestInvalidUri  = "invalid-uri"
+	ingressTestNamespace      = "test-ns"
+	ingressTestIngressName    = "test-ingress"
+	ingressTestClientID       = "test-client-id"
+	ingressTestTenantID       = "test-tenant-id"
+	ingressTestCloud          = "AzurePublicCloud"
+	ingressTestChinaCloud     = "AzureChinaCloud"
+	ingressTestVaultName      = "test-vault"
+	ingressTestCertName       = "test-cert"
+	ingressTestHost           = "test.example.com"
+	ingressTestKVUriPublic    = "https://test-vault.vault.azure.net/secrets/test-cert"
+	ingressTestKVUriChina     = "https://test-vault.vault.azure.cn/secrets/test-cert"
+	ingressTestInvalidUri     = "invalid-uri"
+	ingressTestServiceAccount = "test-service-account"
+	ingressTestWIClientID     = "test-workload-identity-client-id"
 )
 
 func TestIngressToSpcOpts(t *testing.T) {
+	// Set up scheme for fake client
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+
+	// Create test service accounts
+	validServiceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ingressTestServiceAccount,
+			Namespace: ingressTestNamespace,
+			Annotations: map[string]string{
+				"azure.workload.identity/client-id": ingressTestWIClientID,
+			},
+		},
+	}
+
+	serviceAccountWithoutAnnotation := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ingressTestServiceAccount,
+			Namespace: ingressTestNamespace,
+		},
+	}
+
 	tests := []struct {
 		name           string
 		conf           *config.Config
 		ingress        *netv1.Ingress
 		ingressManager util.IngressManager
+		serviceAccount *corev1.ServiceAccount
 		wantSpcOpts    *spcOpts
 		wantErr        bool
 		wantErrString  string
@@ -183,6 +210,119 @@ func TestIngressToSpcOpts(t *testing.T) {
 				cloud:      ingressTestChinaCloud,
 			},
 		},
+		{
+			name: "managed ingress with workload identity service account",
+			conf: &config.Config{
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
+				Cloud:       ingressTestCloud,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
+						IngressServiceAccountTLSAnnotation:           ingressTestServiceAccount,
+					},
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}),
+			serviceAccount: validServiceAccount,
+			wantSpcOpts: &spcOpts{
+				action:           actionReconcile,
+				name:             "keyvault-" + ingressTestIngressName,
+				namespace:        ingressTestNamespace,
+				clientId:         ingressTestWIClientID,
+				tenantId:         ingressTestTenantID,
+				vaultName:        ingressTestVaultName,
+				certName:         ingressTestCertName,
+				secretName:       "keyvault-" + ingressTestIngressName,
+				cloud:            ingressTestCloud,
+				workloadIdentity: true,
+			},
+		},
+		{
+			name: "managed ingress with empty workload identity service account",
+			conf: &config.Config{
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
+				Cloud:       ingressTestCloud,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
+						IngressServiceAccountTLSAnnotation:           "",
+					},
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}),
+			wantSpcOpts: &spcOpts{
+				action:     actionReconcile,
+				name:       "keyvault-" + ingressTestIngressName,
+				namespace:  ingressTestNamespace,
+				clientId:   ingressTestClientID,
+				tenantId:   ingressTestTenantID,
+				vaultName:  ingressTestVaultName,
+				certName:   ingressTestCertName,
+				secretName: "keyvault-" + ingressTestIngressName,
+				cloud:      ingressTestCloud,
+			},
+		},
+		{
+			name: "managed ingress with workload identity service account not found",
+			conf: &config.Config{
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
+				Cloud:       ingressTestCloud,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
+						IngressServiceAccountTLSAnnotation:           "non-existent-sa",
+					},
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}),
+			wantErr:       true,
+			wantErrString: "serviceaccounts \"non-existent-sa\" not found",
+		},
+		{
+			name: "managed ingress with workload identity service account without client ID annotation",
+			conf: &config.Config{
+				MSIClientID: ingressTestClientID,
+				TenantID:    ingressTestTenantID,
+				Cloud:       ingressTestCloud,
+			},
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
+					Annotations: map[string]string{
+						"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
+						IngressServiceAccountTLSAnnotation:           ingressTestServiceAccount,
+					},
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}),
+			serviceAccount: serviceAccountWithoutAnnotation,
+			wantErr:        true,
+			wantErrString:  "user-specified service account does not contain WI annotation",
+		},
 	}
 
 	for _, tt := range tests {
@@ -190,7 +330,12 @@ func TestIngressToSpcOpts(t *testing.T) {
 			var gotOpts []spcOpts
 			var gotErrs []error
 
-			client := fake.NewClientBuilder().Build()
+			// Create client with service account if provided
+			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			if tt.serviceAccount != nil {
+				clientBuilder = clientBuilder.WithObjects(tt.serviceAccount)
+			}
+			client := clientBuilder.Build()
 
 			for opts, err := range ingressToSpcOpts(context.Background(), client, tt.conf, tt.ingress, tt.ingressManager) {
 				gotOpts = append(gotOpts, opts)
