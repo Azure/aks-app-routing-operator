@@ -37,7 +37,7 @@ func basicSuite(in infra.Provisioned) []test {
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: basicNs}, in, nil, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: basicNs}, in, nil, nil, getZoners); err != nil {
 					return err
 				}
 
@@ -60,7 +60,7 @@ func basicSuite(in infra.Provisioned) []test {
 					service.SetAnnotations(annotations)
 
 					return nil
-				}, nil); err != nil {
+				}, nil, getZoners); err != nil {
 					return err
 				}
 
@@ -103,35 +103,21 @@ func (u uniqueNamespaceNamespacer) getNamespace(ctx context.Context, cl client.C
 	return ns, nil
 }
 
-// clientServerTest is a test that deploys a client and server application and ensures the client can reach the server.
-// This is the standard test used to check traffic flow is working.
-var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespacer namespacer, infra infra.Provisioned, mod modifier, serviceName *string) error {
-	lgr := logger.FromContext(ctx)
-	lgr.Info("starting test")
-
-	if serviceName == nil {
-		serviceName = to.Ptr("nginx")
-	}
-
-	c, err := client.New(config, client.Options{})
-	if err != nil {
-		return fmt.Errorf("creating client: %w", err)
-	}
-
+func getZoners(ctx context.Context, c client.Client, namespacer namespacer, operator manifests.OperatorConfig, infra infra.Provisioned, serviceName *string) ([]zoner, error) {
 	var zoners []zoner
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
 		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0])
 		if err != nil {
-			return fmt.Errorf("converting to zoners: %w", err)
+			return nil, fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
 			zs, err := toZoners(ctx, c, namespacer, z)
 			if err != nil {
-				return fmt.Errorf("converting to zoners: %w", err)
+				return nil, fmt.Errorf("converting to zoners: %w", err)
 			}
 			zoners = append(zoners, zs...)
 		}
@@ -141,14 +127,14 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	case manifests.DnsZoneCountOne:
 		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
-			return fmt.Errorf("converting to zoners: %w", err)
+			return nil, fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
 			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp())
 			if err != nil {
-				return fmt.Errorf("converting to zoners: %w", err)
+				return nil, fmt.Errorf("converting to zoners: %w", err)
 			}
 			zoners = append(zoners, zs...)
 		}
@@ -162,7 +148,28 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 		})
 	}
 
+	return zoners, nil
+}
+
+// clientServerTest is a test that deploys a client and server application and ensures the client can reach the server.
+// This is the standard test used to check traffic flow is working.
+var clientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespacer namespacer, infra infra.Provisioned, mod modifier, serviceName *string,
+	getZoners func(ctx context.Context, c client.Client, namespacer namespacer, operator manifests.OperatorConfig, infra infra.Provisioned, serviceName *string) ([]zoner, error),
+) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting test")
+
+	if serviceName == nil {
+		serviceName = to.Ptr("nginx")
+	}
+
+	c, err := client.New(config, client.Options{})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
 	var eg errgroup.Group
+	zoners, err := getZoners(ctx, c, namespacer, operator, infra, serviceName)
 	for _, zone := range zoners {
 		zone := zone
 		eg.Go(func() error {

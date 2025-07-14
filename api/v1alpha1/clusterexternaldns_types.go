@@ -41,7 +41,7 @@ func (c *ClusterExternalDNS) SetCondition(condition metav1.Condition) {
 
 // ClusterExternalDNSSpec allows users to specify desired the state of a cluster-scoped ExternalDNS deployment.
 type ClusterExternalDNSSpec struct {
-	// ResourceName is the name that will be used for the ExternalDNS deployment and related resources. Will default to the name of the ClusterExternalDNS resource if not specified.
+	// ResourceName is the name that will be used for the ExternalDNS deployment and related resources
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253

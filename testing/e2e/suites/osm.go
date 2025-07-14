@@ -46,7 +46,7 @@ func osmSuite(in infra.Provisioned) []test {
 					return nil
 				}
 
-				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, osmAnnotationsModifier, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, osmAnnotationsModifier, nil, getZoners); err != nil {
 					return err
 				}
 
@@ -54,7 +54,7 @@ func osmSuite(in infra.Provisioned) []test {
 					return err
 				}
 
-				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, osmAnnotationsModifier, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, osmAnnotationsModifier, nil, getZoners); err != nil {
 					return err
 				}
 
@@ -77,7 +77,7 @@ func osmSuite(in infra.Provisioned) []test {
 
 					return nil
 				}
-				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, applyOsmSvcAnnotations, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, applyOsmSvcAnnotations, nil, getZoners); err != nil {
 					return err
 				}
 
@@ -85,7 +85,7 @@ func osmSuite(in infra.Provisioned) []test {
 					return err
 				}
 
-				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, applyOsmSvcAnnotations, nil); err != nil {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: osmNs}, in, applyOsmSvcAnnotations, nil, getZoners); err != nil {
 					return err
 				}
 

@@ -97,8 +97,7 @@ spec:
                 type: object
               resourceName:
                 description: ResourceName is the name that will be used for the ExternalDNS
-                  deployment and related resources. Will default to the name of the
-                  ClusterExternalDNS resource if not specified.
+                  deployment and related resources
                 maxLength: 253
                 minLength: 1
                 pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$

@@ -44,6 +44,8 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nginx ingress controller: %w", err)
 				}
 
+				dnsZone := in.ManagedIdentityZone
+
 				var service v1alpha1.ManagedObjectReference
 				lgr.Info("waiting for service associated with NIC to be ready")
 				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
@@ -86,10 +88,37 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 						return fmt.Errorf("creating service account: %w", err)
 					}
 
+					clusterExternalDns := &v1alpha1.ClusterExternalDNS{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "wi",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "ClusterExternalDNS",
+						},
+						Spec: v1alpha1.ClusterExternalDNSSpec{
+							ResourceName:       "wi-cluster-external-dns",
+							DNSZoneResourceIDs: []string{dnsZone.Zone.GetId()},
+							ResourceTypes:      []string{"ingress"},
+							Identity: v1alpha1.ExternalDNSIdentity{
+								ServiceAccount: sa.Name,
+							},
+							ResourceNamespace: ns,
+						},
+					}
+					if err := upsert(ctx, cl, clusterExternalDns); err != nil {
+						return fmt.Errorf("upserting cluster external dns: %w", err)
+					}
+
 					ingress.Spec.IngressClassName = util.ToPtr(wiNic.Spec.IngressClassName)
 					ingress.Annotations["kubernetes.azure.com/tls-cert-service-account"] = sa.GetName()
 					return nil
-				}, util.ToPtr(service.Name)); err != nil {
+				}, util.ToPtr(service.Name), func(ctx context.Context, c client.Client, namespacer namespacer, operator manifests.OperatorConfig, infra infra.Provisioned, serviceName *string) ([]zoner, error) {
+					zs, err := toZoners(ctx, cl, namespacer, infra.ManagedIdentityZone)
+					if err != nil {
+						return nil, fmt.Errorf("getting zoners: %w", err)
+					}
+					return zs, nil
+				}); err != nil {
 					return err
 				}
 
