@@ -104,8 +104,10 @@ spec:
                 pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                 type: string
               resourceNamespace:
-                description: ResourceNamespace is the namespace where the ExternalDNS
-                  resources will be deployed by app routing.
+                default: app-routing-system
+                description: |-
+                  ResourceNamespace is the namespace where the ExternalDNS resources will be deployed by app routing. This is the namespace where
+                  the ServiceAccount must already exist in.
                 maxLength: 253
                 minLength: 1
                 pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$

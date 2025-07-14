@@ -76,11 +76,13 @@ type ClusterExternalDNSSpec struct {
 	// +kubebuilder:validation:Required
 	Identity ExternalDNSIdentity `json:"identity"`
 
-	// ResourceNamespace is the namespace where the ExternalDNS resources will be deployed by app routing.
+	// ResourceNamespace is the namespace where the ExternalDNS resources will be deployed by app routing. This is the namespace where
+	// the ServiceAccount must already exist in.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
+	// +kubebuilder:default:="app-routing-system"
 	ResourceNamespace string `json:"resourceNamespace"`
 
 	// Filters contains optional filters that the ExternalDNS controller should use to determine which resources to manage.

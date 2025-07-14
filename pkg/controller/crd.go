@@ -73,10 +73,11 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 
 func shouldLoadCRD(cfg *config.Config, filename string) bool {
 	switch filename {
-	case externalDnsCrdFilename:
-		return cfg.EnableGateway
+	// namespaced ExternalDNS CRD not used yet
+	// case externalDnsCrdFilename:
+	// return cfg.EnableGateway
 	case clusterExternalDnsCrdFilename:
-		return cfg.EnableGateway
+		return cfg.EnabledWorkloadIdentity
 	case managedCertificateCrdFilename:
 		return cfg.EnableManagedCertificates
 

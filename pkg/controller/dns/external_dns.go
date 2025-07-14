@@ -68,6 +68,12 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 		return err
 	}
 
+	if conf.EnabledWorkloadIdentity {
+		if err := NewClusterExternalDNSController(manager, conf); err != nil {
+			return fmt.Errorf("adding cluster external dns controller: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -112,11 +118,10 @@ func publicConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig, 
 			ClientId:           conf.MSIClientID,
 			Namespace:          conf.NS,
 			IdentityType:       manifests.IdentityTypeMSI,
-			ResourceTypes:      map[manifests.ResourceType]struct{}{manifests.ResourceTypeIngress: struct{}{}},
+			ResourceTypes:      map[manifests.ResourceType]struct{}{manifests.ResourceTypeIngress: {}},
 			DnsZoneresourceIDs: util.Keys(conf.PublicZoneConfig.ZoneIds),
 			Provider:           to.Ptr(manifests.PublicProvider),
 		})
-
 	if err != nil {
 		return nil, err
 	}
@@ -131,12 +136,11 @@ func privateConfigForIngress(conf *config.Config) (*manifests.ExternalDnsConfig,
 			ClientId:           conf.MSIClientID,
 			Namespace:          conf.NS,
 			IdentityType:       manifests.IdentityTypeMSI,
-			ResourceTypes:      map[manifests.ResourceType]struct{}{manifests.ResourceTypeIngress: struct{}{}},
+			ResourceTypes:      map[manifests.ResourceType]struct{}{manifests.ResourceTypeIngress: {}},
 			DnsZoneresourceIDs: util.Keys(conf.PrivateZoneConfig.ZoneIds),
 			Provider:           to.Ptr(manifests.PrivateProvider),
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
