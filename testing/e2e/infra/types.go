@@ -104,18 +104,19 @@ type WithCert[T any] struct {
 }
 
 type Provisioned struct {
-	Name              string
-	Cluster           cluster
-	ContainerRegistry containerRegistry
-	ManagedIdentity   managedIdentity
-	Zones             []WithCert[Zone]
-	PrivateZones      []WithCert[PrivateZone]
-	KeyVault          keyVault
-	ResourceGroup     resourceGroup
-	SubscriptionId    string
-	TenantId          string
-	E2eImage          string
-	OperatorImage     string
+	Name                string
+	Cluster             cluster
+	ContainerRegistry   containerRegistry
+	ManagedIdentity     managedIdentity
+	ManagedIdentityZone WithCert[Zone]
+	Zones               []WithCert[Zone]
+	PrivateZones        []WithCert[PrivateZone]
+	KeyVault            keyVault
+	ResourceGroup       resourceGroup
+	SubscriptionId      string
+	TenantId            string
+	E2eImage            string
+	OperatorImage       string
 }
 
 type LoadableZone struct {
@@ -139,6 +140,7 @@ type LoadableProvisioned struct {
 	ManagedIdentity                                                                           azure.Resource
 	ManagedIdentityClientId                                                                   string
 	ManagedIdentityPrincipalId                                                                string
+	ManagedIdentityZone                                                                       withLoadableCert[LoadableZone]
 	ContainerRegistry                                                                         azure.Resource
 	Zones                                                                                     []withLoadableCert[LoadableZone]
 	PrivateZones                                                                              []withLoadableCert[azure.Resource]
