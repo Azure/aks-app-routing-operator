@@ -93,7 +93,8 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 							Name: "wi",
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "ClusterExternalDNS",
+							Kind:       "ClusterExternalDNS",
+							APIVersion: v1alpha1.GroupVersion.String(),
 						},
 						Spec: v1alpha1.ClusterExternalDNSSpec{
 							ResourceName:       "wi-cluster-external-dns",
