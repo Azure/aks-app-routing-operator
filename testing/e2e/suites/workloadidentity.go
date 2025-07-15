@@ -77,8 +77,8 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					ns := ingress.GetNamespace()
 					sa := &corev1.ServiceAccount{
 						ObjectMeta: metav1.ObjectMeta{
-							GenerateName: "wi-sa",
-							Namespace:    ns,
+							Name:      "wi-sa",
+							Namespace: ns,
 							Annotations: map[string]string{
 								"azure.workload.identity/client-id": in.ManagedIdentity.GetClientID(),
 							},
