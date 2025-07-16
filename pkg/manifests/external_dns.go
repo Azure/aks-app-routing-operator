@@ -554,6 +554,10 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	podLabels["app"] = externalDnsConfig.resourceName
 	podLabels["checksum/configmap"] = configMapHash[:16]
 
+	if externalDnsConfig.identityType == IdentityTypeWorkloadIdentity {
+		podLabels["azure.workload.identity/use"] = "true"
+	}
+
 	serviceAccount := externalDnsConfig.serviceAccountName
 
 	deploymentArgs := []string{

@@ -82,6 +82,9 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 							Annotations: map[string]string{
 								"azure.workload.identity/client-id": in.ManagedIdentity.GetClientID(),
 							},
+							Labels: map[string]string{
+								"azure.workload.identity/use": "true",
+							},
 						},
 					}
 					if err := upsert(ctx, cl, sa); err != nil {
