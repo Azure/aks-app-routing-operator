@@ -122,7 +122,7 @@ var happyPathPublicDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
 						Args: []string{
 							"--provider=azure",
 							"--interval=3m0s",
@@ -303,7 +303,7 @@ var happyPathPrivateDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
 						Args: []string{
 							"--provider=azure-private-dns",
 							"--interval=3m0s",
@@ -382,7 +382,7 @@ var clusterHappyPathPublicDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
 						Args: []string{
 							"--provider=azure",
 							"--interval=3m0s",
@@ -562,7 +562,7 @@ var clusterHappyPathPrivateDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
 						Args: []string{
 							"--provider=azure-private-dns",
 							"--interval=3m0s",
