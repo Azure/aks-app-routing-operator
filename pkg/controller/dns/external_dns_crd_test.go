@@ -326,7 +326,6 @@ func checkUserErrors(tc dnsTestCase, recorder *record.FakeRecorder, t *testing.T
 	if len(recorder.Events) > 0 {
 		t.Errorf("expected no events, got %s", <-recorder.Events)
 	}
-
 }
 
 func checkTestResources(tc dnsTestCase, k8sclient client.Client, t *testing.T) {
