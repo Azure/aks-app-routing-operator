@@ -86,6 +86,10 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 								"azure.workload.identity/use": "true",
 							},
 						},
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ServiceAccount",
+							APIVersion: "v1",
+						},
 					}
 					if err := upsert(ctx, cl, sa); err != nil {
 						return fmt.Errorf("creating service account: %w", err)
