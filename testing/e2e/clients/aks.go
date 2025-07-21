@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
@@ -159,6 +159,11 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 			},
 			OidcIssuerProfile: &armcontainerservice.ManagedClusterOIDCIssuerProfile{
 				Enabled: to.Ptr(true),
+			},
+			SecurityProfile: &armcontainerservice.ManagedClusterSecurityProfile{
+				WorkloadIdentity: &armcontainerservice.ManagedClusterSecurityProfileWorkloadIdentity{
+					Enabled: to.Ptr(true),
+				},
 			},
 		},
 	}
