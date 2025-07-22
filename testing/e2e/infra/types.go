@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
@@ -104,18 +104,19 @@ type WithCert[T any] struct {
 }
 
 type Provisioned struct {
-	Name              string
-	Cluster           cluster
-	ContainerRegistry containerRegistry
-	ManagedIdentity   managedIdentity
-	Zones             []WithCert[Zone]
-	PrivateZones      []WithCert[PrivateZone]
-	KeyVault          keyVault
-	ResourceGroup     resourceGroup
-	SubscriptionId    string
-	TenantId          string
-	E2eImage          string
-	OperatorImage     string
+	Name                string
+	Cluster             cluster
+	ContainerRegistry   containerRegistry
+	ManagedIdentity     managedIdentity
+	ManagedIdentityZone WithCert[Zone]
+	Zones               []WithCert[Zone]
+	PrivateZones        []WithCert[PrivateZone]
+	KeyVault            keyVault
+	ResourceGroup       resourceGroup
+	SubscriptionId      string
+	TenantId            string
+	E2eImage            string
+	OperatorImage       string
 }
 
 type LoadableZone struct {
@@ -139,6 +140,7 @@ type LoadableProvisioned struct {
 	ManagedIdentity                                                                           azure.Resource
 	ManagedIdentityClientId                                                                   string
 	ManagedIdentityPrincipalId                                                                string
+	ManagedIdentityZone                                                                       withLoadableCert[LoadableZone]
 	ContainerRegistry                                                                         azure.Resource
 	Zones                                                                                     []withLoadableCert[LoadableZone]
 	PrivateZones                                                                              []withLoadableCert[azure.Resource]

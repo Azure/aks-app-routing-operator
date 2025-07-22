@@ -323,7 +323,7 @@ func nicTests(in infra.Provisioned) []test {
 				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
 					return nil
-				}, to.Ptr(service.Name)); err != nil {
+				}, to.Ptr(service.Name), getZoners); err != nil {
 					return err
 				}
 
@@ -381,7 +381,7 @@ func nicTests(in infra.Provisioned) []test {
 				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
-				}, to.Ptr(service.Name)); err != nil {
+				}, to.Ptr(service.Name), getZoners); err != nil {
 					return err
 				}
 
@@ -451,7 +451,7 @@ func nicTests(in infra.Provisioned) []test {
 				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
-				}, to.Ptr(service.Name)); err != nil {
+				}, to.Ptr(service.Name), getZoners); err != nil {
 					return err
 				}
 

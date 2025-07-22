@@ -112,6 +112,7 @@ spec:
       labels:
         app: crd-test-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
+        azure.workload.identity/use: "true"
         checksum/configmap: e363a30964578be3
         kubernetes.azure.com/managedby: aks
     spec:

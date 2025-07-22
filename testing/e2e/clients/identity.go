@@ -98,7 +98,7 @@ func (m *managedIdentity) FederateServiceAccount(ctx context.Context, name, oidc
 	_, err = client.CreateOrUpdate(ctx, m.resourceGroup, m.name, name, armmsi.FederatedIdentityCredential{
 		Properties: &armmsi.FederatedIdentityCredentialProperties{
 			Issuer:    to.Ptr(oidcUrl),
-			Subject:   to.Ptr(fmt.Sprintf("system:serviceaccount:\"%s\":\"%s\"", namespace, sa)),
+			Subject:   to.Ptr(fmt.Sprintf("system:serviceaccount:%s:%s", namespace, sa)),
 			Audiences: []*string{to.Ptr("api://AzureADTokenExchange")},
 		},
 		Name: to.Ptr(name),

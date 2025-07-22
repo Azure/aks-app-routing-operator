@@ -37,10 +37,10 @@ var (
 )
 
 var (
-	gatewayEnabledManagedCertificateDisabled  = &config.Config{EnableGateway: true, CrdPath: validCrdPath}
-	gatewayDisabledManagedCertificateDisabled = &config.Config{EnableGateway: false, CrdPath: validCrdPath}
-	gatewayEnabledManagedCertificateEnabled   = &config.Config{EnableGateway: true, EnableManagedCertificates: true, CrdPath: validCrdPath}
-	gatewayDisabledManagedCertificateEnabled  = &config.Config{EnableGateway: false, EnableManagedCertificates: true, CrdPath: validCrdPath}
+	workloadIdentityEnabledManagedCertificateDisabled  = &config.Config{EnabledWorkloadIdentity: true, CrdPath: validCrdPath}
+	workloadIdentityDisabledManagedCertificateDisabled = &config.Config{EnabledWorkloadIdentity: false, CrdPath: validCrdPath}
+	workloadIdentityEnabledManagedCertificateEnabled   = &config.Config{EnabledWorkloadIdentity: true, EnableManagedCertificates: true, CrdPath: validCrdPath}
+	workloadIdentityDisabledManagedCertificateEnabled  = &config.Config{EnabledWorkloadIdentity: false, EnableManagedCertificates: true, CrdPath: validCrdPath}
 )
 
 func TestLoadCRDs(t *testing.T) {
@@ -85,10 +85,10 @@ func TestLoadCRDs(t *testing.T) {
 		cfg              *config.Config
 		expectedCRDNames []string
 	}{
-		{name: "gateway enabled, managed certificate disabled", cfg: gatewayEnabledManagedCertificateDisabled, expectedCRDNames: slices.Concat(nginxCrds, externalDnsCrds)},
-		{name: "gateway disabled, managed certificate disabled", cfg: gatewayDisabledManagedCertificateDisabled, expectedCRDNames: nginxCrds},
-		{name: "gateway enabled, managed certificate enabled", cfg: gatewayEnabledManagedCertificateEnabled, expectedCRDNames: slices.Concat(nginxCrds, externalDnsCrds, managedCertificateCrds)},
-		{name: "gateway disabled, managed certificate enabled", cfg: gatewayDisabledManagedCertificateEnabled, expectedCRDNames: slices.Concat(nginxCrds, managedCertificateCrds)},
+		{name: "workload identity enabled, managed certificate disabled", cfg: workloadIdentityEnabledManagedCertificateDisabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName})},
+		{name: "workload identity disabled, managed certificate disabled", cfg: workloadIdentityDisabledManagedCertificateDisabled, expectedCRDNames: nginxCrds},
+		{name: "workload identity enabled, managed certificate enabled", cfg: workloadIdentityEnabledManagedCertificateEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName}, managedCertificateCrds)},
+		{name: "workload identity disabled, managed certificate enabled", cfg: workloadIdentityDisabledManagedCertificateEnabled, expectedCRDNames: slices.Concat(nginxCrds, managedCertificateCrds)},
 	}
 
 	for _, tc := range cases {
@@ -134,14 +134,14 @@ func TestShouldLoadCRD(t *testing.T) {
 		filename string
 		expected bool
 	}{
-		{name: "external dns crd with gateway enabled", cfg: gatewayEnabledManagedCertificateDisabled, filename: externalDnsCrdFilename, expected: true},
-		{name: "external dns crd with gateway disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: externalDnsCrdFilename, expected: false},
-		{name: "cluster external dns crd with gateway enabled", cfg: gatewayEnabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: true},
-		{name: "cluster external dns crd with gateway disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
-		{name: "other crd with gateway enabled", cfg: gatewayEnabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
-		{name: "other crd with gateway disabled", cfg: gatewayDisabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
-		{name: "managed certificate crd with managed certificates enabled", cfg: gatewayEnabledManagedCertificateEnabled, filename: managedCertificateCrdFilename, expected: true},
-		{name: "managed certificate crd with managed certificates disabled", cfg: gatewayDisabledManagedCertificateDisabled, filename: managedCertificateCrdFilename, expected: false},
+		{name: "external dns crd with workload identity enabled", cfg: workloadIdentityEnabledManagedCertificateDisabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "external dns crd with workload identity disabled", cfg: workloadIdentityDisabledManagedCertificateDisabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "cluster external dns crd with workload identity enabled", cfg: workloadIdentityEnabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: true},
+		{name: "cluster external dns crd with workload identity disabled", cfg: workloadIdentityDisabledManagedCertificateDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
+		{name: "other crd with workload identity enabled", cfg: workloadIdentityEnabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
+		{name: "other crd with workload identity disabled", cfg: workloadIdentityDisabledManagedCertificateEnabled, filename: "other.crd.yaml", expected: true},
+		{name: "managed certificate crd with managed certificates enabled", cfg: workloadIdentityEnabledManagedCertificateEnabled, filename: managedCertificateCrdFilename, expected: true},
+		{name: "managed certificate crd with managed certificates disabled", cfg: workloadIdentityDisabledManagedCertificateDisabled, filename: managedCertificateCrdFilename, expected: false},
 	}
 
 	for _, tc := range cases {
