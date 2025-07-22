@@ -165,6 +165,11 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 			return logger.Error(lgr, fmt.Errorf("creating managed identity zone: %w", err))
 		}
 
+		pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, "private-mi-zone"+i.Suffix)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating private managed identity zone: %w", err))
+		}
+
 		<-kvDone
 
 		cert, err := ret.KeyVault.CreateCertificate(ctx, "mi-zone", z.GetName(), []string{z.GetName()})
@@ -172,9 +177,18 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 			return logger.Error(lgr, fmt.Errorf("creating managed identity zone certificate: %w", err))
 		}
 
+		privateCert, err := ret.KeyVault.CreateCertificate(ctx, "private-mi-zone", pz.GetName(), []string{pz.GetName()})
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating private managed identity zone certificate: %w", err))
+		}
+
 		ret.ManagedIdentityZone = WithCert[Zone]{
 			Zone: z,
 			Cert: cert,
+		}
+		ret.ManagedIdentityPrivateZone = WithCert[PrivateZone]{
+			Zone: pz,
+			Cert: privateCert,
 		}
 		return nil
 	})
@@ -254,6 +268,24 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
 		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity zone: %w", role.Name, err))
+		}
+
+		pdns, err := ret.ManagedIdentityPrivateZone.Zone.GetDnsZone(ctx)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("getting private managed identity zone dns: %w", err))
+		}
+
+		privateRole := clients.PrivateDnsContributorRole
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *pdns.ID, managedIdentityPrincipalId, privateRole); err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating %s role assignment for private managed identity zone: %w", privateRole.Name, err))
+		}
+
+		vnet, err := ret.Cluster.GetVnetId(ctx)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("getting vnet id: %w", err))
+		}
+		if err := ret.ManagedIdentityPrivateZone.Zone.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", ret.ManagedIdentityPrivateZone.Zone.GetName(), i.Suffix), vnet); err != nil {
+			return logger.Error(lgr, fmt.Errorf("linking vnet: %w", err))
 		}
 
 		return nil

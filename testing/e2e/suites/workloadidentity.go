@@ -44,8 +44,6 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting nginx ingress controller: %w", err)
 				}
 
-				dnsZone := in.ManagedIdentityZone
-
 				var service v1alpha1.ManagedObjectReference
 				lgr.Info("waiting for service associated with NIC to be ready")
 				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
@@ -105,7 +103,7 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 						},
 						Spec: v1alpha1.ClusterExternalDNSSpec{
 							ResourceName:       "wi-cluster-external-dns",
-							DNSZoneResourceIDs: []string{dnsZone.Zone.GetId()},
+							DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
 							ResourceTypes:      []string{"ingress"},
 							Identity: v1alpha1.ExternalDNSIdentity{
 								ServiceAccount: sa.Name,
@@ -117,6 +115,28 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 						return fmt.Errorf("upserting cluster external dns: %w", err)
 					}
 
+					privateClusterExternalDns := &v1alpha1.ClusterExternalDNS{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "private-wi",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterExternalDNS",
+							APIVersion: v1alpha1.GroupVersion.String(),
+						},
+						Spec: v1alpha1.ClusterExternalDNSSpec{
+							ResourceName:       "wi-private-cluster-external-dns",
+							DNSZoneResourceIDs: []string{in.ManagedIdentityPrivateZone.Zone.GetId()},
+							ResourceTypes:      []string{"ingress"},
+							Identity: v1alpha1.ExternalDNSIdentity{
+								ServiceAccount: sa.Name,
+							},
+							ResourceNamespace: ns,
+						},
+					}
+					if err := upsert(ctx, cl, privateClusterExternalDns); err != nil {
+						return fmt.Errorf("upserting private cluster external dns: %w", err)
+					}
+
 					ingress.Spec.IngressClassName = util.ToPtr(wiNic.Spec.IngressClassName)
 					ingress.Annotations["kubernetes.azure.com/tls-cert-service-account"] = sa.GetName()
 					return nil
@@ -125,7 +145,13 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					if err != nil {
 						return nil, fmt.Errorf("getting zoners: %w", err)
 					}
-					return zs, nil
+
+					pzs, err := toPrivateZoners(ctx, cl, namespacer, infra.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp())
+					if err != nil {
+						return nil, fmt.Errorf("getting private zoners: %w", err)
+					}
+
+					return append(zs, pzs...), nil
 				}); err != nil {
 					return err
 				}

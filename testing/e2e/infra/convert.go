@@ -60,6 +60,15 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		CertName: p.ManagedIdentityZone.Cert.GetName(),
 		CertId:   p.ManagedIdentityZone.Cert.GetId(),
 	}
+	managedIdentityPrivateZoneId, err := azure.ParseResourceID(p.ManagedIdentityPrivateZone.Zone.GetId())
+	if err != nil {
+		return LoadableProvisioned{}, fmt.Errorf("parsing managed identity private zone resource id: %w", err)
+	}
+	managedIdentityPrivateZone := withLoadableCert[azure.Resource]{
+		Zone:     managedIdentityPrivateZoneId,
+		CertName: p.ManagedIdentityPrivateZone.Cert.GetName(),
+		CertId:   p.ManagedIdentityPrivateZone.Cert.GetId(),
+	}
 
 	keyVault, err := azure.ParseResourceID(p.KeyVault.GetId())
 	if err != nil {
@@ -89,6 +98,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		ManagedIdentityClientId:    p.ManagedIdentity.GetClientID(),
 		ManagedIdentityPrincipalId: p.ManagedIdentity.GetPrincipalID(),
 		ManagedIdentityZone:        managedIdentityZone,
+		ManagedIdentityPrivateZone: managedIdentityPrivateZone,
 		ContainerRegistry:          containerRegistry,
 		Zones:                      zones,
 		PrivateZones:               privateZones,
@@ -146,19 +156,25 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 		Cert: clients.LoadCert(l.ManagedIdentityZone.CertName, l.ManagedIdentityZone.CertId),
 	}
 
+	managedIdentityPrivateZone := WithCert[PrivateZone]{
+		Zone: clients.LoadPrivateZone(l.ManagedIdentityPrivateZone.Zone),
+		Cert: clients.LoadCert(l.ManagedIdentityPrivateZone.CertName, l.ManagedIdentityPrivateZone.CertId),
+	}
+
 	return Provisioned{
-		Name:                l.Name,
-		Cluster:             clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId, l.ClusterClientId, l.ClusterOidcUrl, l.ClusterOptions),
-		ContainerRegistry:   clients.LoadAcr(l.ContainerRegistry),
-		ManagedIdentity:     clients.LoadManagedIdentity(l.ManagedIdentity, l.ManagedIdentityClientId, l.ManagedIdentityPrincipalId),
-		ManagedIdentityZone: managedIdentityZone,
-		Zones:               zs,
-		PrivateZones:        pzs,
-		KeyVault:            clients.LoadAkv(l.KeyVault),
-		ResourceGroup:       clients.LoadRg(l.ResourceGroup),
-		SubscriptionId:      l.SubscriptionId,
-		TenantId:            l.TenantId,
-		E2eImage:            l.E2eImage,
-		OperatorImage:       l.OperatorImage,
+		Name:                       l.Name,
+		Cluster:                    clients.LoadAks(l.Cluster, l.ClusterDnsServiceIp, l.ClusterLocation, l.ClusterPrincipalId, l.ClusterClientId, l.ClusterOidcUrl, l.ClusterOptions),
+		ContainerRegistry:          clients.LoadAcr(l.ContainerRegistry),
+		ManagedIdentity:            clients.LoadManagedIdentity(l.ManagedIdentity, l.ManagedIdentityClientId, l.ManagedIdentityPrincipalId),
+		ManagedIdentityZone:        managedIdentityZone,
+		ManagedIdentityPrivateZone: managedIdentityPrivateZone,
+		Zones:                      zs,
+		PrivateZones:               pzs,
+		KeyVault:                   clients.LoadAkv(l.KeyVault),
+		ResourceGroup:              clients.LoadRg(l.ResourceGroup),
+		SubscriptionId:             l.SubscriptionId,
+		TenantId:                   l.TenantId,
+		E2eImage:                   l.E2eImage,
+		OperatorImage:              l.OperatorImage,
 	}, nil
 }
