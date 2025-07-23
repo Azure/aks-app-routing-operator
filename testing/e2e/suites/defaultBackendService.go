@@ -97,7 +97,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
 
-				if err := defaultBackendClientServerTest(ctx, config, operator, dbBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+				if err := defaultBackendClientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: dbBasicNS}, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
 					return err
 				}
 
@@ -156,7 +156,7 @@ func defaultBackendTests(in infra.Provisioned) []test {
 					return fmt.Errorf("getting nginx load balancer service: %w", err)
 				}
 
-				if err := defaultBackendClientServerTest(ctx, config, operator, ceBasicNS, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
+				if err := defaultBackendClientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{namespaces: ceBasicNS}, in, to.Ptr(service.Name), c, ingressClassName, nic); err != nil {
 					return err
 				}
 
@@ -167,19 +167,16 @@ func defaultBackendTests(in infra.Provisioned) []test {
 	}
 }
 
-var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespaces map[string]*corev1.Namespace, infra infra.Provisioned, serviceName *string, c client.Client, ingressClassName string, nic *v1alpha1.NginxIngressController) error {
+var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig, namespacer namespacer, infra infra.Provisioned, serviceName *string, c client.Client, ingressClassName string, nic *v1alpha1.NginxIngressController) error {
 	lgr := logger.FromContext(ctx)
 	lgr.Info("starting defaultBackendClientServer test")
 
-	if namespaces == nil {
-		namespaces = make(map[string]*corev1.Namespace)
-	}
 	if serviceName == nil || *serviceName == "" {
 		lgr.Info("Using controller name prefix for service name")
 		serviceName = to.Ptr(nic.Spec.ControllerNamePrefix)
 	}
 
-	ns, err := getNamespace(ctx, c, namespaces, infra.Zones[0].Zone.GetName())
+	ns, err := namespacer.getNamespace(ctx, c, infra.Zones[0].Zone.GetName())
 	if err := upsert(ctx, c, ns); err != nil {
 		return fmt.Errorf("initial ns upsert: %w", err)
 	}
@@ -188,14 +185,14 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toZoners(ctx, c, namespaces, infra.Zones[0])
+		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0])
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zs, err := toZoners(ctx, c, namespaces, z)
+			zs, err := toZoners(ctx, c, namespacer, z)
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -205,14 +202,14 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toPrivateZoners(ctx, c, namespaces, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zs, err := toPrivateZoners(ctx, c, namespaces, z, infra.Cluster.GetDnsServiceIp())
+			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp())
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -235,7 +232,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr := logger.FromContext(ctx).With("zone", zone.GetName())
 			ctx := logger.WithContext(ctx, lgr)
 
-			ns, err = getNamespace(ctx, c, namespaces, zone.GetName())
+			ns, err = namespacer.getNamespace(ctx, c, zone.GetName())
 			if err != nil {
 				return fmt.Errorf("getting namespace: %w", err)
 			}

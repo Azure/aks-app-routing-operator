@@ -87,6 +87,15 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		return nil
 	})
 
+	resEg.Go(func() error {
+		ret.ManagedIdentity, err = clients.NewManagedIdentity(ctx, subscriptionId, i.ResourceGroup, "mi"+i.Suffix, i.Location)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating managed identity: %w", err))
+		}
+
+		return nil
+	})
+
 	kvDone := make(chan struct{})
 	resEg.Go(func() error {
 		defer close(kvDone)
@@ -150,6 +159,40 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		}(idx)
 	}
 
+	resEg.Go(func() error {
+		z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, "mi-zone"+i.Suffix)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating managed identity zone: %w", err))
+		}
+
+		pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, "private-mi-zone"+i.Suffix)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating private managed identity zone: %w", err))
+		}
+
+		<-kvDone
+
+		cert, err := ret.KeyVault.CreateCertificate(ctx, "mi-zone", z.GetName(), []string{z.GetName()})
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating managed identity zone certificate: %w", err))
+		}
+
+		privateCert, err := ret.KeyVault.CreateCertificate(ctx, "private-mi-zone", pz.GetName(), []string{pz.GetName()})
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating private managed identity zone certificate: %w", err))
+		}
+
+		ret.ManagedIdentityZone = WithCert[Zone]{
+			Zone: z,
+			Cert: cert,
+		}
+		ret.ManagedIdentityPrivateZone = WithCert[PrivateZone]{
+			Zone: pz,
+			Cert: privateCert,
+		}
+		return nil
+	})
+
 	if err := resEg.Wait(); err != nil {
 		return Provisioned{}, logger.Error(lgr, err)
 	}
@@ -165,10 +208,16 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.PrivateDnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
+
+				clusterPrincipalId := ret.Cluster.GetPrincipalId()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, clusterPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for cluster: %w", role.Name, err))
+				}
+
+				managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, pz.Zone.GetId(), managedIdentityPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity: %w", role.Name, err))
 				}
 
 				vnet, err := ret.Cluster.GetVnetId(ctx)
@@ -192,10 +241,16 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 					return logger.Error(lgr, fmt.Errorf("getting dns: %w", err))
 				}
 
-				principalId := ret.Cluster.GetPrincipalId()
 				role := clients.DnsContributorRole
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, principalId, role); err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
+
+				clusterPrincipalId := ret.Cluster.GetPrincipalId()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, clusterPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for cluster: %w", role.Name, err))
+				}
+
+				managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity: %w", role.Name, err))
 				}
 
 				return nil
@@ -204,9 +259,42 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	}
 
 	permEg.Go(func() error {
-		principalId := ret.Cluster.GetPrincipalId()
+		dns, err := ret.ManagedIdentityZone.Zone.GetDnsZone(ctx)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("getting managed identity zone dns: %w", err))
+		}
+
+		role := clients.DnsContributorRole
+		managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity zone: %w", role.Name, err))
+		}
+
+		pdns, err := ret.ManagedIdentityPrivateZone.Zone.GetDnsZone(ctx)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("getting private managed identity zone dns: %w", err))
+		}
+
+		privateRole := clients.PrivateDnsContributorRole
+		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *pdns.ID, managedIdentityPrincipalId, privateRole); err != nil {
+			return logger.Error(lgr, fmt.Errorf("creating %s role assignment for private managed identity zone: %w", privateRole.Name, err))
+		}
+
+		vnet, err := ret.Cluster.GetVnetId(ctx)
+		if err != nil {
+			return logger.Error(lgr, fmt.Errorf("getting vnet id: %w", err))
+		}
+		if err := ret.ManagedIdentityPrivateZone.Zone.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", ret.ManagedIdentityPrivateZone.Zone.GetName(), i.Suffix), vnet); err != nil {
+			return logger.Error(lgr, fmt.Errorf("linking vnet: %w", err))
+		}
+
+		return nil
+	})
+
+	permEg.Go(func() error {
 		role := clients.AcrPullRole
 		scope := ret.ContainerRegistry.GetId()
+		principalId := ret.Cluster.GetPrincipalId()
 		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, scope, principalId, role); err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating %s role assignment: %w", role.Name, err))
 		}
@@ -215,12 +303,27 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	})
 
 	permEg.Go(func() error {
-		principalId := ret.Cluster.GetPrincipalId()
-		if err := ret.KeyVault.AddAccessPolicy(ctx, principalId, armkeyvault.Permissions{
+		permissions := armkeyvault.Permissions{
 			Certificates: []*armkeyvault.CertificatePermissions{to.Ptr(armkeyvault.CertificatePermissionsGet)},
 			Secrets:      []*armkeyvault.SecretPermissions{to.Ptr(armkeyvault.SecretPermissionsGet)},
-		}); err != nil {
-			return logger.Error(lgr, fmt.Errorf("adding access policy: %w", err))
+		}
+
+		clusterPrincipalId := ret.Cluster.GetPrincipalId()
+		if err := ret.KeyVault.AddAccessPolicy(ctx, clusterPrincipalId, permissions); err != nil {
+			return logger.Error(lgr, fmt.Errorf("adding access policy for cluster: %w", err))
+		}
+
+		managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+		if err := ret.KeyVault.AddAccessPolicy(ctx, managedIdentityPrincipalId, permissions); err != nil {
+			return logger.Error(lgr, fmt.Errorf("adding access policy for managed identity: %w", err))
+		}
+
+		return nil
+	})
+
+	permEg.Go(func() error {
+		if err := ret.ManagedIdentity.FederateServiceAccount(ctx, ret.ResourceGroup.GetName(), ret.Cluster.GetOidcUrl(), "wi-sa", "wi-ns"); err != nil {
+			return logger.Error(lgr, fmt.Errorf("federating service principal: %w", err))
 		}
 
 		return nil

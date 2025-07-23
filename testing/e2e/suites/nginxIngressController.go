@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
@@ -320,10 +320,10 @@ func nicTests(in infra.Provisioned) []test {
 					return errors.New("private nginx annotations not found")
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(privateNic.Spec.IngressClassName)
 					return nil
-				}, to.Ptr(service.Name)); err != nil {
+				}, to.Ptr(service.Name), getZoners); err != nil {
 					return err
 				}
 
@@ -378,10 +378,10 @@ func nicTests(in infra.Provisioned) []test {
 					}
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
-				}, to.Ptr(service.Name)); err != nil {
+				}, to.Ptr(service.Name), getZoners); err != nil {
 					return err
 				}
 
@@ -430,7 +430,7 @@ func nicTests(in infra.Provisioned) []test {
 				lgr.Info("checking if associated SPC is created")
 				spc := &secv1.SecretProviderClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      keyvault.DefaultNginxCertName(testNIC),
+						Name:      spc.NicDefaultSecretName(testNIC),
 						Namespace: "app-routing-system",
 					},
 				}
@@ -448,10 +448,10 @@ func nicTests(in infra.Provisioned) []test {
 					return fmt.Errorf("finding nginx lb service: %w", err)
 				}
 
-				if err := clientServerTest(ctx, config, operator, nil, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+				if err := clientServerTest(ctx, config, operator, uniqueNamespaceNamespacer{}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
 					ingress.Spec.IngressClassName = to.Ptr(testNIC.Spec.IngressClassName)
 					return nil
-				}, to.Ptr(service.Name)); err != nil {
+				}, to.Ptr(service.Name), getZoners); err != nil {
 					return err
 				}
 

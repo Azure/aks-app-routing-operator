@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
@@ -48,7 +48,15 @@ type cluster interface {
 	GetDnsServiceIp() string
 	GetCluster(ctx context.Context) (*armcontainerservice.ManagedCluster, error)
 	GetOptions() map[string]struct{}
+	GetOidcUrl() string
 	Identifier
+}
+
+type managedIdentity interface {
+	GetId() string
+	GetClientID() string
+	GetPrincipalID() string
+	FederateServiceAccount(ctx context.Context, name, oidcUrl, sa, namespace string) error
 }
 
 type containerRegistry interface {
@@ -96,17 +104,20 @@ type WithCert[T any] struct {
 }
 
 type Provisioned struct {
-	Name              string
-	Cluster           cluster
-	ContainerRegistry containerRegistry
-	Zones             []WithCert[Zone]
-	PrivateZones      []WithCert[PrivateZone]
-	KeyVault          keyVault
-	ResourceGroup     resourceGroup
-	SubscriptionId    string
-	TenantId          string
-	E2eImage          string
-	OperatorImage     string
+	Name                       string
+	Cluster                    cluster
+	ContainerRegistry          containerRegistry
+	ManagedIdentity            managedIdentity
+	ManagedIdentityZone        WithCert[Zone]
+	ManagedIdentityPrivateZone WithCert[PrivateZone]
+	Zones                      []WithCert[Zone]
+	PrivateZones               []WithCert[PrivateZone]
+	KeyVault                   keyVault
+	ResourceGroup              resourceGroup
+	SubscriptionId             string
+	TenantId                   string
+	E2eImage                   string
+	OperatorImage              string
 }
 
 type LoadableZone struct {
@@ -123,17 +134,22 @@ type withLoadableCert[T any] struct {
 // LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.
 // Ensure that all fields are exported so that they can properly be serialized/deserialized.
 type LoadableProvisioned struct {
-	Name                                                                      string
-	Cluster                                                                   azure.Resource
-	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId string
-	ClusterOptions                                                            map[string]struct{}
-	ContainerRegistry                                                         azure.Resource
-	Zones                                                                     []withLoadableCert[LoadableZone]
-	PrivateZones                                                              []withLoadableCert[azure.Resource]
-	KeyVault                                                                  azure.Resource
-	ResourceGroup                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
-	SubscriptionId                                                            string
-	TenantId                                                                  string
-	E2eImage                                                                  string
-	OperatorImage                                                             string
+	Name                                                                                      string
+	Cluster                                                                                   azure.Resource
+	ClusterLocation, ClusterDnsServiceIp, ClusterPrincipalId, ClusterClientId, ClusterOidcUrl string
+	ClusterOptions                                                                            map[string]struct{}
+	ManagedIdentity                                                                           azure.Resource
+	ManagedIdentityClientId                                                                   string
+	ManagedIdentityPrincipalId                                                                string
+	ManagedIdentityZone                                                                       withLoadableCert[LoadableZone]
+	ManagedIdentityPrivateZone                                                                withLoadableCert[azure.Resource]
+	ContainerRegistry                                                                         azure.Resource
+	Zones                                                                                     []withLoadableCert[LoadableZone]
+	PrivateZones                                                                              []withLoadableCert[azure.Resource]
+	KeyVault                                                                                  azure.Resource
+	ResourceGroup                                                                             arm.ResourceID // rg id is a little weird and can't be correctly parsed by azure.Resource so we have to use arm.ResourceID
+	SubscriptionId                                                                            string
+	TenantId                                                                                  string
+	E2eImage                                                                                  string
+	OperatorImage                                                                             string
 }

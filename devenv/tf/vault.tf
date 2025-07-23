@@ -40,6 +40,20 @@ resource "azurerm_key_vault_access_policy" "allowclusteraccess" {
   ]
 }
 
+resource "azurerm_key_vault_access_policy" "allowworkloadidentityaccess" {
+  key_vault_id = azurerm_key_vault.keyvault.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_user_assigned_identity.wi_dev.principal_id
+
+  certificate_permissions = [
+    "Get",
+  ]
+
+  secret_permissions = [
+    "Get",
+  ]
+}
+
 resource "azurerm_key_vault_certificate" "testcert-private" {
   for_each = { for i,d in azurerm_private_dns_zone.dnszone : i => d }
   name         = "generated-cert-private-${index(tolist(var.privatezones) , each.key)}"

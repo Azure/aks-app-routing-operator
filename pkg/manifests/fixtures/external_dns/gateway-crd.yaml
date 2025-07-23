@@ -112,6 +112,7 @@ spec:
       labels:
         app: crd-test-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
+        azure.workload.identity/use: "true"
         checksum/configmap: e363a30964578be3
         kubernetes.azure.com/managedby: aks
     spec:
@@ -150,7 +151,7 @@ spec:
         - --source=gateway-httproute
         - --domain-filter=test-one.com
         - --domain-filter=test-two.com
-        image: /oss/v2/kubernetes/external-dns:v0.15.0
+        image: /oss/v2/kubernetes/external-dns:v0.17.0
         livenessProbe:
           failureThreshold: 3
           httpGet:

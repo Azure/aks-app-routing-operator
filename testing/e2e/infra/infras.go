@@ -25,7 +25,7 @@ var Infras = infras{
 		ResourceGroup: uniqueResourceGroup(),
 		Location:      getLocation(),
 		Suffix:        uuid.New().String(),
-		McOpts:        []clients.McOpt{clients.OsmClusterOpt, clients.VmCountOpt(7)}, // requires more VMs than other infras
+		McOpts:        []clients.McOpt{clients.OsmClusterOpt, clients.VmCountOpt(8)}, // requires more VMs than other infras
 	},
 	// TODO: add back when service principal cluster is supported
 	//{

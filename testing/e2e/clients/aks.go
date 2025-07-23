@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
@@ -36,6 +36,7 @@ type aks struct {
 	location                            string
 	principalId                         string
 	clientId                            string
+	oidcUrl                             string
 	options                             map[string]struct{}
 }
 
@@ -102,7 +103,7 @@ func VmCountOpt(count int32) McOpt {
 	}
 }
 
-func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId string, options map[string]struct{}) *aks {
+func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId, oidcUrl string, options map[string]struct{}) *aks {
 	return &aks{
 		name:           id.ResourceName,
 		subscriptionId: id.SubscriptionID,
@@ -112,6 +113,7 @@ func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId st
 		dnsServiceIp:   dnsServiceIp,
 		location:       location,
 		principalId:    principalId,
+		oidcUrl:        oidcUrl,
 		options:        options,
 	}
 }
@@ -157,6 +159,11 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 			},
 			OidcIssuerProfile: &armcontainerservice.ManagedClusterOIDCIssuerProfile{
 				Enabled: to.Ptr(true),
+			},
+			SecurityProfile: &armcontainerservice.ManagedClusterSecurityProfile{
+				WorkloadIdentity: &armcontainerservice.ManagedClusterSecurityProfileWorkloadIdentity{
+					Enabled: to.Ptr(true),
+				},
 			},
 		},
 	}
@@ -211,6 +218,14 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		return nil, fmt.Errorf("dns service ip is nil")
 	}
 
+	if result.Properties.OidcIssuerProfile == nil {
+		return nil, fmt.Errorf("oidc issuer profile is nil")
+	}
+
+	if result.Properties.OidcIssuerProfile.IssuerURL == nil {
+		return nil, fmt.Errorf("oidc issuer url is nil")
+	}
+
 	// validate MSI when not using Service Principal
 	var identity *armcontainerservice.UserAssignedIdentity
 	var principalID, clientID string
@@ -247,6 +262,7 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		location:       location,
 		principalId:    principalID,
 		clientId:       clientID,
+		oidcUrl:        *result.Properties.OidcIssuerProfile.IssuerURL,
 		options:        options,
 	}
 
@@ -564,6 +580,10 @@ func (a *aks) GetDnsServiceIp() string {
 
 func (a *aks) GetClientId() string {
 	return a.clientId
+}
+
+func (a *aks) GetOidcUrl() string {
+	return a.oidcUrl
 }
 
 func (a *aks) GetOptions() map[string]struct{} {

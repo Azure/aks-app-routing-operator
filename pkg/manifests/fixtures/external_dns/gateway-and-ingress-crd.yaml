@@ -121,6 +121,7 @@ spec:
       labels:
         app: test-dns-config-private-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
+        azure.workload.identity/use: "true"
         checksum/configmap: 10d3362c74fab97c
         kubernetes.azure.com/managedby: aks
     spec:
@@ -158,7 +159,7 @@ spec:
         - --source=ingress
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
-        image: /oss/v2/kubernetes/external-dns:v0.15.0
+        image: /oss/v2/kubernetes/external-dns:v0.17.0
         livenessProbe:
           failureThreshold: 3
           httpGet:

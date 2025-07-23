@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -580,7 +580,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		}
 
 		if cert.Secret == nil && cert.KeyVaultURI != nil {
-			nginxIng.DefaultSSLCertificate = config.DefaultNs + "/" + keyvault.DefaultNginxCertName(nic)
+			nginxIng.DefaultSSLCertificate = config.DefaultNs + "/" + spc.NicDefaultSecretName(nic)
 		}
 
 		if cert.ForceSSLRedirect {

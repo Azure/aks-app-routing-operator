@@ -554,6 +554,10 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	podLabels["app"] = externalDnsConfig.resourceName
 	podLabels["checksum/configmap"] = configMapHash[:16]
 
+	if externalDnsConfig.identityType == IdentityTypeWorkloadIdentity {
+		podLabels["azure.workload.identity/use"] = "true"
+	}
+
 	serviceAccount := externalDnsConfig.serviceAccountName
 
 	deploymentArgs := []string{
@@ -601,7 +605,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.15.0"),
+						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
 						Args:  deploymentArgs,
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",

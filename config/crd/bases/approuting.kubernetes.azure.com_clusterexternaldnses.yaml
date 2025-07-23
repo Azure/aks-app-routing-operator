@@ -97,15 +97,16 @@ spec:
                 type: object
               resourceName:
                 description: ResourceName is the name that will be used for the ExternalDNS
-                  deployment and related resources. Will default to the name of the
-                  ClusterExternalDNS resource if not specified.
+                  deployment and related resources
                 maxLength: 253
                 minLength: 1
                 pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                 type: string
               resourceNamespace:
-                description: ResourceNamespace is the namespace where the ExternalDNS
-                  resources will be deployed by app routing.
+                default: app-routing-system
+                description: |-
+                  ResourceNamespace is the namespace where the ExternalDNS resources will be deployed by app routing. This is the namespace where the ServiceAccount in Identity must exist.
+                  the ServiceAccount must already exist in.
                 maxLength: 253
                 minLength: 1
                 pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
