@@ -78,7 +78,6 @@ type Config struct {
 	CrdPath                             string
 	EnableGateway                       bool
 	DisableExpensiveCache               bool
-	EnableManagedCertificates           bool
 	EnableInternalLogging               bool
 	EnabledWorkloadIdentity             bool
 }
