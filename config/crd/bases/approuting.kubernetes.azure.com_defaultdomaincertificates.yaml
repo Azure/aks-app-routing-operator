@@ -41,14 +41,27 @@ spec:
             description: DefaultDomainCertificateSpec defines the desired state of
               DefaultDomainCertificate.
             properties:
-              foo:
-                description: Foo is an example field of DefaultDomainCertificate.
-                  Edit defaultdomaincertificate_types.go to remove/update
-                type: string
+              target:
+                description: Target is where the default domain certificate should
+                  be applied
+                properties:
+                  secret:
+                    description: Secret is the name of the Secret that should contain
+                      the certificate. The default domain certificate will be reconciled
+                      in this Secret in the same namespace as the DefaultDomainCertificate
+                      resource.
+                    type: string
+                type: object
             type: object
           status:
             description: DefaultDomainCertificateStatus defines the observed state
               of DefaultDomainCertificate.
+            properties:
+              expirationTime:
+                description: ExpirationTime is the time when the default domain certificate
+                  will expire. The certificate will be autorenewed before this time.
+                format: date-time
+                type: string
             type: object
         type: object
     served: true

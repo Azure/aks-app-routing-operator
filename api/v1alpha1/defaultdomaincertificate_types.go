@@ -4,22 +4,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+func init() {
+	SchemeBuilder.Register(&DefaultDomainCertificate{}, &DefaultDomainCertificateList{})
+}
 
 // DefaultDomainCertificateSpec defines the desired state of DefaultDomainCertificate.
 type DefaultDomainCertificateSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Target is where the default domain certificate should be applied
+	Target DefaultDomainCertificateTarget `json:"target,omitempty"`
+}
 
-	// Foo is an example field of DefaultDomainCertificate. Edit defaultdomaincertificate_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+type DefaultDomainCertificateTarget struct {
+	// Secret is the name of the Secret that should contain the certificate. The default domain certificate will be reconciled in this Secret in the same namespace as the DefaultDomainCertificate resource.
+	// +kubebuilder:validation:Optional
+	Secret *string `json:"secret,omitempty"`
 }
 
 // DefaultDomainCertificateStatus defines the observed state of DefaultDomainCertificate.
 type DefaultDomainCertificateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ExpirationTime is the time when the default domain certificate will expire. The certificate will be autorenewed before this time.
+	ExpirationTime *metav1.Time `json:"expirationTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -41,8 +45,4 @@ type DefaultDomainCertificateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DefaultDomainCertificate `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&DefaultDomainCertificate{}, &DefaultDomainCertificateList{})
 }
