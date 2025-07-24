@@ -17,8 +17,9 @@ import (
 
 var (
 	// should match the names in root config/crd/bases directory
-	externalDnsCrdFilename        = "approuting.kubernetes.azure.com_externaldnses.yaml"
-	clusterExternalDnsCrdFilename = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
+	externalDnsCrdFilename            = "approuting.kubernetes.azure.com_externaldnses.yaml"
+	clusterExternalDnsCrdFilename     = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
+	nginxIngresscontrollerCrdFilename = "approuting.kubernetes.azure.com_nginxingresscontrollers.yaml"
 )
 
 // loadCRDs loads the CRDs from the specified path into the cluster
@@ -72,15 +73,16 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 
 func shouldLoadCRD(cfg *config.Config, filename string) bool {
 	switch filename {
+	case nginxIngresscontrollerCrdFilename:
+		return true
+
 	// namespaced ExternalDNS CRD not used yet
 	case externalDnsCrdFilename:
 		return false
 	case clusterExternalDnsCrdFilename:
 		return cfg.EnabledWorkloadIdentity
-	case externalDnsCrdFilename:
-		return false
 
 	default:
-		return true
+		return false
 	}
 }
