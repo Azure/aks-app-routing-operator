@@ -19,7 +19,6 @@ var (
 	// should match the names in root config/crd/bases directory
 	externalDnsCrdFilename        = "approuting.kubernetes.azure.com_externaldnses.yaml"
 	clusterExternalDnsCrdFilename = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
-	managedCertificateCrdFilename = "approuting.kubernetes.azure.com_managedcertificates.yaml"
 )
 
 // loadCRDs loads the CRDs from the specified path into the cluster
@@ -78,8 +77,8 @@ func shouldLoadCRD(cfg *config.Config, filename string) bool {
 		return false
 	case clusterExternalDnsCrdFilename:
 		return cfg.EnabledWorkloadIdentity
-	case managedCertificateCrdFilename:
-		return cfg.EnableManagedCertificates
+	case externalDnsCrdFilename:
+		return false
 
 	default:
 		return true
