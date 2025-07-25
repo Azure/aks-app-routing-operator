@@ -138,6 +138,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version >= OperatorVersionLatest {
 		ret = append(ret, "--enable-workload-identity")
+		ret = append(ret, "--enable-default-domain")
 	}
 
 	var zones []string
