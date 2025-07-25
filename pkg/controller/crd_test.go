@@ -21,6 +21,7 @@ const (
 	clusterExternalDnsCrdName = "clusterexternaldnses.approuting.kubernetes.azure.com"
 	externalDnsCrdName        = "externaldnses.approuting.kubernetes.azure.com"
 	managedCertificateCrdName = "managedcertificates.approuting.kubernetes.azure.com"
+	defaultDomainCertCrdName  = "defaultdomaincertificates.approuting.kubernetes.azure.com"
 
 	validCrdPath        = "../../config/crd/bases/"
 	validCrdName        = nginxCrdName
@@ -31,14 +32,19 @@ const (
 )
 
 var (
-	nginxCrds              = []string{nginxCrdName}
-	externalDnsCrds        = []string{externalDnsCrdName, clusterExternalDnsCrdName}
-	managedCertificateCrds = []string{managedCertificateCrdName}
+	nginxCrds                 = []string{nginxCrdName}
+	externalDnsCrds           = []string{externalDnsCrdName, clusterExternalDnsCrdName}
+	managedCertificateCrds    = []string{managedCertificateCrdName}
+	defaultDomainCertificates = []string{defaultDomainCertCrdName}
 )
 
 var (
 	workloadIdentityEnabled  = &config.Config{EnabledWorkloadIdentity: true, CrdPath: validCrdPath}
 	workloadIdentityDisabled = &config.Config{EnabledWorkloadIdentity: false, CrdPath: validCrdPath}
+	defaultDomainEnabled     = &config.Config{EnableDefaultDomain: true, CrdPath: validCrdPath}
+	defaultDomainDisabled    = &config.Config{EnableDefaultDomain: false, CrdPath: validCrdPath}
+	allFeaturesEnabled       = &config.Config{EnabledWorkloadIdentity: true, EnableDefaultDomain: true, CrdPath: validCrdPath}
+	allFeaturesDisabled      = &config.Config{EnabledWorkloadIdentity: false, EnableDefaultDomain: false, CrdPath: validCrdPath}
 )
 
 func TestLoadCRDs(t *testing.T) {
@@ -85,6 +91,10 @@ func TestLoadCRDs(t *testing.T) {
 	}{
 		{name: "workload identity enabled", cfg: workloadIdentityEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName})},
 		{name: "workload identity disabled", cfg: workloadIdentityDisabled, expectedCRDNames: nginxCrds},
+		{name: "default domain enabled", cfg: defaultDomainEnabled, expectedCRDNames: slices.Concat(nginxCrds, defaultDomainCertificates)},
+		{name: "default domain disabled", cfg: defaultDomainDisabled, expectedCRDNames: nginxCrds},
+		{name: "all features enabled", cfg: allFeaturesEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName}, defaultDomainCertificates)},
+		{name: "all features disabled", cfg: allFeaturesDisabled, expectedCRDNames: nginxCrds},
 	}
 
 	for _, tc := range cases {
@@ -114,8 +124,9 @@ func TestShouldLoadCRD(t *testing.T) {
 	crdFiles, err := os.ReadDir(validCrdPath)
 	require.NoError(t, err, "expected no error reading crd directory")
 	seen := map[string]bool{
-		externalDnsCrdFilename:        false,
-		clusterExternalDnsCrdFilename: false,
+		externalDnsCrdFilename:              false,
+		clusterExternalDnsCrdFilename:       false,
+		defaultDomainCertificateCrdFilename: false,
 	}
 	for _, file := range crdFiles {
 		seen[file.Name()] = true
@@ -134,10 +145,16 @@ func TestShouldLoadCRD(t *testing.T) {
 		{name: "external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: externalDnsCrdFilename, expected: false},
 		{name: "cluster external dns crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: clusterExternalDnsCrdFilename, expected: true},
 		{name: "cluster external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
-		{name: "other crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: "other.crd.yaml", expected: false},
-		{name: "other crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: "other.crd.yaml", expected: false},
 		{name: "nginx ingress controller crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
 		{name: "nginx ingress controller crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
+		{name: "default domain certificate crd with default domain enabled", cfg: defaultDomainEnabled, filename: defaultDomainCertificateCrdFilename, expected: true},
+		{name: "default domain certificate crd with default domain disabled", cfg: defaultDomainDisabled, filename: defaultDomainCertificateCrdFilename, expected: false},
+		{name: "default domain certificate crd with all features enabled", cfg: allFeaturesEnabled, filename: defaultDomainCertificateCrdFilename, expected: true},
+		{name: "default domain certificate crd with all features disabled", cfg: allFeaturesDisabled, filename: defaultDomainCertificateCrdFilename, expected: false},
+		{name: "other crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: "other.crd.yaml", expected: false},
+		{name: "other crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: "other.crd.yaml", expected: false},
+		{name: "other crd with default domain enabled", cfg: defaultDomainEnabled, filename: "other.crd.yaml", expected: false},
+		{name: "other crd with default domain disabled", cfg: defaultDomainDisabled, filename: "other.crd.yaml", expected: false},
 	}
 
 	for _, tc := range cases {

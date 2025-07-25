@@ -17,9 +17,10 @@ import (
 
 const (
 	// should match the names in root config/crd/bases directory
-	externalDnsCrdFilename            = "approuting.kubernetes.azure.com_externaldnses.yaml"
-	clusterExternalDnsCrdFilename     = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
-	nginxIngresscontrollerCrdFilename = "approuting.kubernetes.azure.com_nginxingresscontrollers.yaml"
+	externalDnsCrdFilename              = "approuting.kubernetes.azure.com_externaldnses.yaml"
+	clusterExternalDnsCrdFilename       = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
+	nginxIngresscontrollerCrdFilename   = "approuting.kubernetes.azure.com_nginxingresscontrollers.yaml"
+	defaultDomainCertificateCrdFilename = "approuting.kubernetes.azure.com_defaultdomaincertificates.yaml"
 )
 
 // loadCRDs loads the CRDs from the specified path into the cluster
@@ -81,6 +82,9 @@ func shouldLoadCRD(cfg *config.Config, filename string) bool {
 		return false
 	case clusterExternalDnsCrdFilename:
 		return cfg.EnabledWorkloadIdentity
+
+	case defaultDomainCertificateCrdFilename:
+		return cfg.EnableDefaultDomain
 
 	default:
 		return false

@@ -51,6 +51,7 @@ func init() {
 	flag.BoolVar(&Flags.DisableExpensiveCache, "disable-expensive-cache", false, "disable the cache for expensive resources that aren't core to App Routing like Pods and Events")
 	flag.BoolVar(&Flags.EnableInternalLogging, "enable-internal-logging", false, "enable internal logging for internal customers, includes things like json format and additional fields in logs")
 	flag.BoolVar(&Flags.EnabledWorkloadIdentity, "enable-workload-identity", false, "enable workload identity allows users to use workload identity to authenticate to Azure resources instead of using the addon managed identity")
+	flag.BoolVar(&Flags.EnableDefaultDomain, "enable-default-domain", false, "enable default domain feature including the Default Domain Certificate Controller and CRD")
 }
 
 func (c *Config) Validate() error {
