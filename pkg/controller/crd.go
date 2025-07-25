@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var (
+const (
 	// should match the names in root config/crd/bases directory
 	externalDnsCrdFilename            = "approuting.kubernetes.azure.com_externaldnses.yaml"
 	clusterExternalDnsCrdFilename     = "approuting.kubernetes.azure.com_clusterexternaldnses.yaml"
