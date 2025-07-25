@@ -26,7 +26,7 @@ const (
 	validCrdName        = nginxCrdName
 	validCrdPathWithDir = "../../config/crd/"
 
-	nonCrdManifestsPath = "../manifests/fixtures/nginx/default_version"
+	nonCrdManifestsPath = "./testutils/testcrds/"
 	nonExistentFilePath = "./this/does/not/exist"
 )
 
@@ -60,7 +60,7 @@ func TestLoadCRDs(t *testing.T) {
 		cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 		err := loadCRDs(cl, &config.Config{CrdPath: nonCrdManifestsPath}, logr.Discard())
 		require.Error(t, err, "expected error loading invalid crds")
-		require.True(t, strings.Contains(err.Error(), "unmarshalling crd file"), "expected error to be about umarshalling crd")
+		require.True(t, strings.Contains(err.Error(), "unmarshalling crd file"), "expected error to be about unmarshalling crd, instead was "+err.Error())
 	})
 
 	t.Run("non-existent crd path", func(t *testing.T) {
@@ -134,8 +134,10 @@ func TestShouldLoadCRD(t *testing.T) {
 		{name: "external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: externalDnsCrdFilename, expected: false},
 		{name: "cluster external dns crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: clusterExternalDnsCrdFilename, expected: true},
 		{name: "cluster external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
-		{name: "other crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: "other.crd.yaml", expected: true},
-		{name: "other crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: "other.crd.yaml", expected: true},
+		{name: "other crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: "other.crd.yaml", expected: false},
+		{name: "other crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: "other.crd.yaml", expected: false},
+		{name: "nginx ingress controller crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
+		{name: "nginx ingress controller crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
 	}
 
 	for _, tc := range cases {
