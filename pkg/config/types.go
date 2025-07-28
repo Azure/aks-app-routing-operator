@@ -81,5 +81,6 @@ type Config struct {
 	EnableInternalLogging               bool
 	EnabledWorkloadIdentity             bool
 
-	EnableDefaultDomain bool
+	EnableDefaultDomain   bool
+	DefaultDomainCertPath string
 }
