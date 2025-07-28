@@ -110,7 +110,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: "target.secret: Too long: may not be longer than 63",
+						expectedError: "target.secret: Too long: may not be more than 63",
 					},
 				}
 
