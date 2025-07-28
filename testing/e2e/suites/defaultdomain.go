@@ -36,6 +36,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
+				namespace := "kube-system" // we know this exists
+
 				cases := []struct {
 					name          string
 					defaultDomain *v1alpha1.DefaultDomainCertificate
@@ -46,7 +48,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "missing-target",
-								Namespace: "namespace",
+								Namespace: namespace,
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{},
 						},
@@ -57,7 +59,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "target-without-secret",
-								Namespace: "namespace",
+								Namespace: namespace,
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{},
@@ -70,7 +72,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "invalid-secret-name",
-								Namespace: "namespace",
+								Namespace: namespace,
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -85,7 +87,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "invalid-secret-name-caps",
-								Namespace: "namespace",
+								Namespace: namespace,
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -100,7 +102,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "long-secret-name",
-								Namespace: "namespace",
+								Namespace: namespace,
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
