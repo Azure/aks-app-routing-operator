@@ -22,8 +22,9 @@ func TestStore_AddFile(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(testContent), 0o644)
 	require.NoError(t, err)
 
-	// Create store
-	store := New(logr.Discard())
+	// Create store without periodic refresh
+	ctx := context.Background()
+	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
 
 	// Test adding file
 	err = store.AddFile("test", testFile)
@@ -47,7 +48,8 @@ func TestStore_RemoveFile(t *testing.T) {
 	err := os.WriteFile(testFile, []byte("content"), 0o644)
 	require.NoError(t, err)
 
-	store := New(logr.Discard())
+	ctx := context.Background()
+	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
 
 	// Add and then remove file
 	err = store.AddFile("test", testFile)
@@ -60,7 +62,7 @@ func TestStore_RemoveFile(t *testing.T) {
 	assert.False(t, exists)
 }
 
-func TestStore_GetFile(t *testing.T) {
+func TestStore_GetContent(t *testing.T) {
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, "test.txt")
 	testContent := "test content"
@@ -68,18 +70,18 @@ func TestStore_GetFile(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(testContent), 0o644)
 	require.NoError(t, err)
 
-	store := New(logr.Discard())
+	ctx := context.Background()
+	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
 	err = store.AddFile("test", testFile)
 	require.NoError(t, err)
 
-	// Test GetFile
-	fileStore, exists := store.GetFile("test")
+	// Test GetContent
+	content, exists := store.GetContent("test")
 	require.True(t, exists)
-	assert.Equal(t, testFile, fileStore.Path)
-	assert.Equal(t, testContent, string(fileStore.Content))
+	assert.Equal(t, testContent, string(content))
 
 	// Test non-existent file
-	_, exists = store.GetFile("nonexistent")
+	_, exists = store.GetContent("nonexistent")
 	assert.False(t, exists)
 }
 
@@ -93,15 +95,13 @@ func TestStore_PeriodicRefresh(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(originalContent), 0o644)
 	require.NoError(t, err)
 
-	store := New(logr.Discard())
-	err = store.AddFile("test", testFile)
-	require.NoError(t, err)
-
 	// Start periodic refresh with short interval
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store.StartPeriodicRefresh(ctx, 50*time.Millisecond)
+	store := New(logr.Discard(), ctx, 50*time.Millisecond)
+	err = store.AddFile("test", testFile)
+	require.NoError(t, err)
 
 	// Wait a bit, then update file
 	time.Sleep(10 * time.Millisecond)
@@ -122,7 +122,8 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	err := os.WriteFile(testFile, []byte("initial"), 0o644)
 	require.NoError(t, err)
 
-	store := New(logr.Discard())
+	ctx := context.Background()
+	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
 	err = store.AddFile("test", testFile)
 	require.NoError(t, err)
 
@@ -141,7 +142,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	// Goroutine 2: Keep reading (testing concurrent reads)
 	go func() {
 		for i := 0; i < 100; i++ {
-			store.GetFile("test")
+			store.GetContent("test")
 			time.Sleep(time.Millisecond)
 		}
 		done <- true
@@ -155,4 +156,36 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	content, exists := store.GetContent("test")
 	assert.True(t, exists)
 	assert.NotEmpty(t, content)
+}
+
+func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.txt")
+	testContent := "test content"
+
+	// Create test file
+	err := os.WriteFile(testFile, []byte(testContent), 0o644)
+	require.NoError(t, err)
+
+	// Start periodic refresh with short interval
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := New(logr.Discard(), ctx, 50*time.Millisecond)
+	err = store.AddFile("test", testFile)
+	require.NoError(t, err)
+
+	// Verify file is in store
+	_, exists := store.GetContent("test")
+	assert.True(t, exists)
+
+	// Delete the file from filesystem
+	err = os.Remove(testFile)
+	require.NoError(t, err)
+
+	// Wait for periodic refresh to remove the file from store
+	assert.Eventually(t, func() bool {
+		_, exists := store.GetContent("test")
+		return !exists
+	}, 200*time.Millisecond, 10*time.Millisecond)
 }

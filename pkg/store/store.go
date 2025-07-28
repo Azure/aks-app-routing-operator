@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -22,9 +21,7 @@ type StoredFile struct {
 type Store interface {
 	AddFile(key, path string) error
 	RemoveFile(key string)
-	GetFile(key string) (*StoredFile, bool)
 	GetContent(key string) ([]byte, bool)
-	StartPeriodicRefresh(ctx context.Context, interval time.Duration) error
 }
 
 type store struct {
@@ -34,13 +31,19 @@ type store struct {
 	logger        logr.Logger
 }
 
-// New creates a new file store instance
-func New(logger logr.Logger) Store {
-	return &store{
+// New creates a new file store instance and starts periodic refresh
+func New(logger logr.Logger, ctx context.Context, refreshInterval time.Duration) Store {
+	s := &store{
 		mu:     &sync.RWMutex{},
 		files:  make(map[string]*StoredFile),
 		logger: logger,
 	}
+
+	if refreshInterval > 0 {
+		s.startPeriodicRefresh(ctx, refreshInterval)
+	}
+
+	return s
 }
 
 // AddFile adds a local file to the store for tracking
@@ -79,8 +82,8 @@ func (s *store) RemoveFile(key string) {
 	}
 }
 
-// GetFile returns the FileStore entry for the given key
-func (s *store) GetFile(key string) (*StoredFile, bool) {
+// GetContent returns just the content bytes for the given key
+func (s *store) GetContent(key string) ([]byte, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -90,19 +93,7 @@ func (s *store) GetFile(key string) (*StoredFile, bool) {
 	}
 
 	// Return a copy to avoid external modifications
-	return &StoredFile{
-		Path:    file.Path,
-		Content: append([]byte(nil), file.Content...),
-	}, true
-}
-
-// GetContent returns just the content bytes for the given key
-func (s *store) GetContent(key string) ([]byte, bool) {
-	file, exists := s.GetFile(key)
-	if !exists {
-		return nil, false
-	}
-	return file.Content, true
+	return append([]byte(nil), file.Content...), true
 }
 
 // refreshFileInternal performs the actual refresh logic (must be called with lock held)
@@ -110,8 +101,9 @@ func (s *store) refreshFileInternal(key string, file *StoredFile) error {
 	// Check if file still exists
 	_, err := os.Stat(file.Path)
 	if os.IsNotExist(err) {
-		s.logger.Info("File no longer exists", "key", key, "path", file.Path)
-		return fmt.Errorf("file no longer exists: %s: %w", file.Path, err)
+		s.logger.Info("File no longer exists, removing from store", "key", key, "path", file.Path)
+		delete(s.files, key)
+		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to stat file %s: %w", file.Path, err)
@@ -135,11 +127,11 @@ func (s *store) refreshFileInternal(key string, file *StoredFile) error {
 	return nil
 }
 
-// StartPeriodicRefresh starts a goroutine that periodically refreshes all files
-func (s *store) StartPeriodicRefresh(ctx context.Context, interval time.Duration) error {
+// startPeriodicRefresh starts a goroutine that periodically refreshes all files
+func (s *store) startPeriodicRefresh(ctx context.Context, interval time.Duration) {
 	if s.refreshTicker != nil {
 		s.logger.Info("Periodic refresh already running")
-		return errors.New("periodic refresh already started")
+		return
 	}
 
 	s.refreshTicker = time.NewTicker(interval)
@@ -159,8 +151,6 @@ func (s *store) StartPeriodicRefresh(ctx context.Context, interval time.Duration
 			}
 		}
 	}()
-
-	return nil
 }
 
 // refreshAll refreshes all files in the store
