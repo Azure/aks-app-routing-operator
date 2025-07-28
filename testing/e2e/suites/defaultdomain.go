@@ -39,6 +39,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				cases := []struct {
 					name          string
 					defaultDomain *v1alpha1.DefaultDomainCertificate
+					expectedError string
 				}{
 					{
 						name: "missing target",
@@ -48,6 +49,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{},
 						},
+						expectedError: "target: Required value",
 					},
 					{
 						name: "target without secret",
@@ -59,6 +61,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 								Target: v1alpha1.DefaultDomainCertificateTarget{},
 							},
 						},
+						expectedError: "Too few properties: minimum 1",
 					},
 					{
 						name: "target with secret name with invalid characters",
@@ -72,12 +75,13 @@ func defaultDomainTests(in infra.Provisioned) []test {
 								},
 							},
 						},
+						expectedError: "target.secret: Invalid value",
 					},
 					{
-						name: "target with secret name with other characters",
+						name: "target with secret name with capital characters",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "invalid-secret-name",
+								Name: "invalid-secret-name-caps",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -85,12 +89,13 @@ func defaultDomainTests(in infra.Provisioned) []test {
 								},
 							},
 						},
+						expectedError: "target.secret: Invalid value",
 					},
 					{
 						name: "target with long secret name",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "loong-secret-name",
+								Name: "long-secret-name",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -98,14 +103,22 @@ func defaultDomainTests(in infra.Provisioned) []test {
 								},
 							},
 						},
+						expectedError: "target.secret: Too long: may not be longer than 63",
 					},
 				}
 
 				for _, tc := range cases {
 					lgr.Info("Running test case", "name", tc.name)
-					if err := cl.Create(ctx, tc.defaultDomain); err == nil {
+					err := cl.Create(ctx, tc.defaultDomain)
+					if err == nil {
 						return fmt.Errorf("expected error creating DefaultDomainCertificate %s, but got none", tc.name)
 					}
+
+					if !strings.Contains(err.Error(), tc.expectedError) {
+						return fmt.Errorf("test case %s: expected error containing %q, but got %q", tc.name, tc.expectedError, err.Error())
+					}
+
+					lgr.Info("Test case passed", "name", tc.name, "error", err.Error())
 				}
 
 				return nil
