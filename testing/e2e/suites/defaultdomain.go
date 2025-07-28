@@ -65,7 +65,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 								Target: v1alpha1.DefaultDomainCertificateTarget{},
 							},
 						},
-						expectedError: "Too few properties: minimum 1",
+						expectedError: "spec.target: Invalid value: 0: spec.target in body should have at least 1 properties",
 					},
 					{
 						name: "target with secret name with invalid characters",
