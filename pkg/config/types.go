@@ -80,5 +80,6 @@ type Config struct {
 	DisableExpensiveCache               bool
 	EnableInternalLogging               bool
 	EnabledWorkloadIdentity             bool
-	EnableDefaultDomain                 bool
+
+	EnableDefaultDomain bool
 }
