@@ -52,7 +52,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{},
 						},
-						expectedError: "target: Required value",
+						expectedError: "spec.target: Invalid value: 0: spec.target in body should have at least 1 properties",
 					},
 					{
 						name: "target without secret",
