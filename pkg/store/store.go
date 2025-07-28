@@ -31,7 +31,6 @@ type store struct {
 	mu            *sync.RWMutex
 	files         map[string]*StoredFile
 	refreshTicker *time.Ticker
-	stopCh        chan struct{}
 	logger        logr.Logger
 }
 
@@ -40,7 +39,6 @@ func New(logger logr.Logger) Store {
 	return &store{
 		mu:     &sync.RWMutex{},
 		files:  make(map[string]*StoredFile),
-		stopCh: make(chan struct{}),
 		logger: logger,
 	}
 }
@@ -137,21 +135,6 @@ func (s *store) refreshFileInternal(key string, file *StoredFile) error {
 	return nil
 }
 
-// refreshAll refreshes all files in the store
-func (s *store) refreshAll() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var result *multierror.Error
-	for key, file := range s.files {
-		if err := s.refreshFileInternal(key, file); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to refresh %s: %w", key, err))
-		}
-	}
-
-	return result.ErrorOrNil()
-}
-
 // StartPeriodicRefresh starts a goroutine that periodically refreshes all files
 func (s *store) StartPeriodicRefresh(ctx context.Context, interval time.Duration) error {
 	if s.refreshTicker != nil {
@@ -168,9 +151,6 @@ func (s *store) StartPeriodicRefresh(ctx context.Context, interval time.Duration
 			case <-ctx.Done():
 				s.logger.Info("Stopping periodic refresh due to context cancellation")
 				return
-			case <-s.stopCh:
-				s.logger.Info("Stopping periodic refresh due to stop signal")
-				return
 			case <-s.refreshTicker.C:
 				s.logger.V(1).Info("Performing periodic refresh")
 				if err := s.refreshAll(); err != nil {
@@ -181,4 +161,19 @@ func (s *store) StartPeriodicRefresh(ctx context.Context, interval time.Duration
 	}()
 
 	return nil
+}
+
+// refreshAll refreshes all files in the store
+func (s *store) refreshAll() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var result *multierror.Error
+	for key, file := range s.files {
+		if err := s.refreshFileInternal(key, file); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to refresh %s: %w", key, err))
+		}
+	}
+
+	return result.ErrorOrNil()
 }
