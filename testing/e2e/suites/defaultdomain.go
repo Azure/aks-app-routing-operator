@@ -45,7 +45,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						name: "missing target",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "missing-target",
+								Name:      "missing-target",
+								Namespace: "namespace",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{},
 						},
@@ -55,7 +56,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						name: "target without secret",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "target-without-secret",
+								Name:      "target-without-secret",
+								Namespace: "namespace",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{},
@@ -67,7 +69,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						name: "target with secret name with invalid characters",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "invalid-secret-name",
+								Name:      "invalid-secret-name",
+								Namespace: "namespace",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -81,7 +84,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						name: "target with secret name with capital characters",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "invalid-secret-name-caps",
+								Name:      "invalid-secret-name-caps",
+								Namespace: "namespace",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -95,7 +99,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						name: "target with long secret name",
 						defaultDomain: &v1alpha1.DefaultDomainCertificate{
 							ObjectMeta: metav1.ObjectMeta{
-								Name: "long-secret-name",
+								Name:      "long-secret-name",
+								Namespace: "namespace",
 							},
 							Spec: v1alpha1.DefaultDomainCertificateSpec{
 								Target: v1alpha1.DefaultDomainCertificateTarget{
