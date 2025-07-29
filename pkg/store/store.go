@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
-	"github.com/hashicorp/go-multierror"
+)
+
+// Operation constants for rotation events
+const (
+	OperationUpdated = "updated"
+	OperationRemoved = "removed"
 )
 
 // storedFile represents a file entry in the store
@@ -17,33 +22,51 @@ type storedFile struct {
 	Content []byte
 }
 
-// Store manages local files with periodic refresh capabilities
+// RotationEvent represents a file rotation/change event
+type RotationEvent struct {
+	Path      string
+	Operation string // OperationUpdated, OperationRemoved (not "added")
+}
+
+// Store manages local files with filesystem watching capabilities
 type Store interface {
 	AddFile(path string) error
-	RemoveFile(path string)
 	GetContent(path string) ([]byte, bool)
+	RotationEvents() <-chan RotationEvent
+	Errors() <-chan error
 }
 
 type store struct {
-	mu            *sync.RWMutex
-	files         map[string]*storedFile
-	refreshTicker *time.Ticker
-	logger        logr.Logger
+	mu         *sync.RWMutex
+	files      map[string]*storedFile
+	watcher    *fsnotify.Watcher
+	ctx        context.Context
+	logger     logr.Logger
+	rotationCh chan RotationEvent
+	errorCh    chan error
 }
 
-// New creates a new file store instance and starts periodic refresh
-func New(logger logr.Logger, ctx context.Context, refreshInterval time.Duration) Store {
+// New creates a new file store instance with filesystem watching
+func New(logger logr.Logger, ctx context.Context) (Store, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create filesystem watcher: %w", err)
+	}
+
 	s := &store{
-		mu:     &sync.RWMutex{},
-		files:  make(map[string]*storedFile),
-		logger: logger,
+		mu:         &sync.RWMutex{},
+		files:      make(map[string]*storedFile),
+		watcher:    watcher,
+		ctx:        ctx,
+		logger:     logger,
+		rotationCh: make(chan RotationEvent, 100), // Buffered to prevent blocking
+		errorCh:    make(chan error, 100),         // Buffered to prevent blocking
 	}
 
-	if refreshInterval > 0 {
-		s.startPeriodicRefresh(ctx, refreshInterval)
-	}
+	// Start watching for filesystem events
+	s.startWatching()
 
-	return s
+	return s, nil
 }
 
 // AddFile adds a local file to the store for tracking
@@ -56,10 +79,20 @@ func (s *store) AddFile(path string) error {
 		return fmt.Errorf("file does not exist: %s", path)
 	}
 
+	// Check if file is already being watched
+	if _, exists := s.files[path]; exists {
+		return fmt.Errorf("file already exists in store: %s", path)
+	}
+
 	// Read initial content
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
+	// Add to watcher
+	if err := s.watcher.Add(path); err != nil {
+		return fmt.Errorf("failed to add file to watcher %s: %w", path, err)
 	}
 
 	s.files[path] = &storedFile{
@@ -68,18 +101,10 @@ func (s *store) AddFile(path string) error {
 	}
 
 	s.logger.Info("Added file to store", "path", path, "size", len(content))
+
+	// Note: No rotation event sent for "added" - only for "updated" and "removed"
+
 	return nil
-}
-
-// RemoveFile removes a file from the store
-func (s *store) RemoveFile(path string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.files[path]; exists {
-		delete(s.files, path)
-		s.logger.Info("Removed file from store", "path", path)
-	}
 }
 
 // GetContent returns just the content bytes for the given path
@@ -96,23 +121,127 @@ func (s *store) GetContent(path string) ([]byte, bool) {
 	return append([]byte(nil), file.Content...), true
 }
 
-// refreshFileInternal performs the actual refresh logic (must be called with lock held)
-func (s *store) refreshFileInternal(path string, file *storedFile) error {
-	// Check if file still exists
-	_, err := os.Stat(file.Path)
-	if os.IsNotExist(err) {
+// RotationEvents returns a read-only channel for rotation events
+func (s *store) RotationEvents() <-chan RotationEvent {
+	return s.rotationCh
+}
+
+// Errors returns a read-only channel for errors
+func (s *store) Errors() <-chan error {
+	return s.errorCh
+}
+
+// startWatching starts a goroutine that handles filesystem events
+func (s *store) startWatching() {
+	go func() {
+		s.logger.Info("Starting filesystem watcher")
+
+		// Ensure cleanup when goroutine exits
+		defer func() {
+			s.logger.Info("Cleaning up filesystem watcher resources")
+			close(s.rotationCh)
+			close(s.errorCh)
+			s.watcher.Close()
+		}()
+
+		for {
+			select {
+			case <-s.ctx.Done():
+				s.logger.Info("Stopping filesystem watcher due to context cancellation")
+				return
+			case event, ok := <-s.watcher.Events:
+				if !ok {
+					s.logger.Info("Filesystem watcher events channel closed")
+					return
+				}
+				s.handleFileEvent(event)
+			case err, ok := <-s.watcher.Errors:
+				if !ok {
+					s.logger.Info("Filesystem watcher errors channel closed")
+					return
+				}
+				s.logger.Error(err, "Filesystem watcher error")
+
+				// Send error to error channel
+				select {
+				case s.errorCh <- err:
+				default:
+					s.logger.Info("Error channel full, dropping error")
+				}
+			}
+		}
+	}()
+}
+
+// handleFileEvent processes a filesystem event
+func (s *store) handleFileEvent(event fsnotify.Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path := event.Name
+
+	// Check if this file is being tracked
+	file, exists := s.files[path]
+	if !exists {
+		return
+	}
+
+	s.logger.Info("File event received", "path", path, "op", event.Op.String())
+
+	// Handle different event types
+	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+		// File was deleted or renamed
 		s.logger.Info("File no longer exists, removing from store", "path", path)
+		delete(s.files, path)
+
+		// Send rotation event for file removal
+		select {
+		case s.rotationCh <- RotationEvent{Path: path, Operation: OperationRemoved}:
+		default:
+			s.logger.Info("Rotation channel full, dropping event", "path", path, "operation", OperationRemoved)
+		}
+		return
+	}
+
+	if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+		// File was modified or created, reload content
+		if err := s.refreshFileContent(path, file); err != nil {
+			s.logger.Error(err, "Failed to refresh file content", "path", path)
+
+			// Send error to error channel
+			select {
+			case s.errorCh <- err:
+			default:
+				s.logger.Info("Error channel full, dropping error")
+			}
+		} else {
+			// Send rotation event for file update
+			select {
+			case s.rotationCh <- RotationEvent{Path: path, Operation: OperationUpdated}:
+			default:
+				s.logger.Info("Rotation channel full, dropping event", "path", path, "operation", OperationUpdated)
+			}
+		}
+	}
+}
+
+// refreshFileContent reloads the content of a specific file (must be called with lock held)
+func (s *store) refreshFileContent(path string, file *storedFile) error {
+	// Check if file still exists
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		s.logger.Info("File no longer exists during refresh, removing from store", "path", path)
 		delete(s.files, path)
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", file.Path, err)
+		return fmt.Errorf("failed to stat file %s: %w", path, err)
 	}
 
 	// Read updated content
-	content, err := os.ReadFile(file.Path)
+	content, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to read updated file %s: %w", file.Path, err)
+		return fmt.Errorf("failed to read updated file %s: %w", path, err)
 	}
 
 	oldSize := len(file.Content)
@@ -124,45 +253,4 @@ func (s *store) refreshFileInternal(path string, file *storedFile) error {
 		"newSize", len(content))
 
 	return nil
-}
-
-// startPeriodicRefresh starts a goroutine that periodically refreshes all files
-func (s *store) startPeriodicRefresh(ctx context.Context, interval time.Duration) {
-	if s.refreshTicker != nil {
-		s.logger.Info("Periodic refresh already running")
-		return
-	}
-
-	s.refreshTicker = time.NewTicker(interval)
-	s.logger.Info("Starting periodic file refresh", "interval", interval)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				s.logger.Info("Stopping periodic refresh due to context cancellation")
-				return
-			case <-s.refreshTicker.C:
-				s.logger.Info("Performing periodic refresh")
-				if err := s.refreshAll(); err != nil {
-					s.logger.Error(err, "Error during periodic refresh")
-				}
-			}
-		}
-	}()
-}
-
-// refreshAll refreshes all files in the store
-func (s *store) refreshAll() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var result *multierror.Error
-	for key, file := range s.files {
-		if err := s.refreshFileInternal(key, file); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to refresh %s: %w", key, err))
-		}
-	}
-
-	return result.ErrorOrNil()
 }

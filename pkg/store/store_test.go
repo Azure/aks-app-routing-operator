@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,9 +24,10 @@ func TestStore_AddFile(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(testContent), 0o644)
 	require.NoError(t, err)
 
-	// Create store without periodic refresh
+	// Create store with fsnotify
 	ctx := context.Background()
-	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
 
 	// Test adding file
 	err = store.AddFile(testFile)
@@ -39,27 +42,11 @@ func TestStore_AddFile(t *testing.T) {
 	err = store.AddFile("/path/that/does/not/exist")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "file does not exist")
-}
 
-func TestStore_RemoveFile(t *testing.T) {
-	tempDir := t.TempDir()
-	testFile := filepath.Join(tempDir, "test.txt")
-
-	err := os.WriteFile(testFile, []byte("content"), 0o644)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
-
-	// Add and then remove file
+	// Test adding the same file again
 	err = store.AddFile(testFile)
-	require.NoError(t, err)
-
-	store.RemoveFile(testFile)
-
-	// Verify file was removed
-	_, exists := store.GetContent(testFile)
-	assert.False(t, exists)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
 }
 
 func TestStore_GetContent(t *testing.T) {
@@ -71,7 +58,9 @@ func TestStore_GetContent(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
 	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
@@ -85,7 +74,7 @@ func TestStore_GetContent(t *testing.T) {
 	assert.False(t, exists)
 }
 
-func TestStore_PeriodicRefresh(t *testing.T) {
+func TestStore_FileWatcher(t *testing.T) {
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, "test.txt")
 	originalContent := "original"
@@ -95,11 +84,13 @@ func TestStore_PeriodicRefresh(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(originalContent), 0o644)
 	require.NoError(t, err)
 
-	// Start periodic refresh with short interval
+	// Create store with fsnotify
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store := New(logr.Discard(), ctx, 50*time.Millisecond)
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
 	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
@@ -113,7 +104,7 @@ func TestStore_PeriodicRefresh(t *testing.T) {
 	err = os.WriteFile(testFile, []byte(updatedContent), 0o644)
 	require.NoError(t, err)
 
-	// Wait for periodic refresh to pick up the change
+	// Wait for fsnotify to pick up the change
 	assert.Eventually(t, func() bool {
 		content, exists := store.GetContent(testFile)
 		return exists && string(content) == updatedContent
@@ -124,42 +115,84 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, "test.txt")
 
+	// Create test file
 	err := os.WriteFile(testFile, []byte("initial"), 0o644)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
+	// Add the file to the store
 	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
-	// Test concurrent read/write access
-	done := make(chan bool, 2)
+	// Test concurrent read access
+	done := make(chan bool, 4)
 
-	// Goroutine 1: Keep reading
+	// Counter to track successful operations
+	readCount := int64(0)
+
+	// Goroutine 1: Concurrent reads
 	go func() {
-		for i := 0; i < 100; i++ {
-			store.GetContent(testFile)
-			time.Sleep(time.Millisecond)
+		for i := 0; i < 200; i++ {
+			content, exists := store.GetContent(testFile)
+			if exists && len(content) > 0 {
+				atomic.AddInt64(&readCount, 1)
+			}
+			time.Sleep(time.Microsecond * 100)
 		}
 		done <- true
 	}()
 
-	// Goroutine 2: Keep reading (testing concurrent reads)
+	// Goroutine 2: More concurrent reads
 	go func() {
-		for i := 0; i < 100; i++ {
-			store.GetContent(testFile)
-			time.Sleep(time.Millisecond)
+		for i := 0; i < 200; i++ {
+			content, exists := store.GetContent(testFile)
+			if exists && len(content) > 0 {
+				atomic.AddInt64(&readCount, 1)
+			}
+			time.Sleep(time.Microsecond * 100)
 		}
 		done <- true
 	}()
 
-	// Wait for both goroutines to complete
+	// Goroutine 3: Concurrent file updates (via filesystem)
+	go func() {
+		for i := 0; i < 100; i++ {
+			content := fmt.Sprintf("updated-%d", i)
+			os.WriteFile(testFile, []byte(content), 0o644)
+			time.Sleep(time.Millisecond * 2)
+		}
+		done <- true
+	}()
+
+	// Goroutine 4: More concurrent reads
+	go func() {
+		for i := 0; i < 200; i++ {
+			content, exists := store.GetContent(testFile)
+			if exists && len(content) > 0 {
+				atomic.AddInt64(&readCount, 1)
+			}
+			time.Sleep(time.Microsecond * 100)
+		}
+		done <- true
+	}()
+
+	// Wait for all goroutines to complete
+	<-done
+	<-done
 	<-done
 	<-done
 
-	// Should not panic or cause race conditions
+	// Test should complete without panics or race conditions
+	t.Logf("Completed test with %d read operations", atomic.LoadInt64(&readCount))
+
+	// Verify store is still functional after concurrent access
 	content, exists := store.GetContent(testFile)
-	assert.True(t, exists)
+	require.True(t, exists)
 	assert.NotEmpty(t, content)
 }
 
@@ -172,11 +205,13 @@ func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(testContent), 0o644)
 	require.NoError(t, err)
 
-	// Start periodic refresh with short interval
+	// Create store with fsnotify
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store := New(logr.Discard(), ctx, 50*time.Millisecond)
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
 	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
@@ -188,9 +223,168 @@ func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
 	err = os.Remove(testFile)
 	require.NoError(t, err)
 
-	// Wait for periodic refresh to remove the file from store
+	// Wait for fsnotify to remove the file from store
 	assert.Eventually(t, func() bool {
 		_, exists := store.GetContent(testFile)
 		return !exists
 	}, 200*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestStore_RotationEvents(t *testing.T) {
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.txt")
+	originalContent := "original"
+	updatedContent := "updated"
+
+	// Create test file
+	err := os.WriteFile(testFile, []byte(originalContent), 0o644)
+	require.NoError(t, err)
+
+	// Create store with fsnotify
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
+	// Get channels
+	rotationEvents := store.RotationEvents()
+	errorEvents := store.Errors()
+
+	// Test adding file - no event should be generated for "added"
+	err = store.AddFile(testFile)
+	require.NoError(t, err)
+
+	// Should NOT receive an "added" event (only "updated" and "removed" are sent)
+	select {
+	case event := <-rotationEvents:
+		t.Fatalf("Unexpected rotation event for file addition: %+v", event)
+	case <-time.After(50 * time.Millisecond):
+		// Expected - no event for "added"
+	}
+
+	// Update file and check for rotation event
+	time.Sleep(10 * time.Millisecond)
+	err = os.WriteFile(testFile, []byte(updatedContent), 0o644)
+	require.NoError(t, err)
+
+	// Should receive "updated" event
+	select {
+	case event := <-rotationEvents:
+		assert.Equal(t, testFile, event.Path)
+		assert.Equal(t, OperationUpdated, event.Operation)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Expected rotation event for file update")
+	}
+
+	// Wait a bit to ensure all fsnotify events are processed
+	time.Sleep(50 * time.Millisecond)
+
+	// Consume any additional events that might have been generated by the file write
+	// (some filesystems generate multiple events for a single write)
+	for {
+		select {
+		case <-rotationEvents:
+			// Consume extra events
+		default:
+			// No more events, break out of loop
+			goto checkExternalDelete
+		}
+	}
+
+checkExternalDelete:
+	// Delete file externally (not through store) and check for rotation event
+	err = os.Remove(testFile)
+	require.NoError(t, err)
+
+	// Should receive "removed" event from fsnotify
+	select {
+	case event := <-rotationEvents:
+		assert.Equal(t, testFile, event.Path)
+		assert.Equal(t, OperationRemoved, event.Operation)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Expected rotation event for external file deletion")
+	}
+
+	// Ensure no errors occurred
+	select {
+	case err := <-errorEvents:
+		t.Fatalf("Unexpected error: %v", err)
+	default:
+		// No error, as expected
+	}
+}
+
+func TestStore_FileDeletedExternally(t *testing.T) {
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.txt")
+	testContent := "test content"
+
+	// Create test file
+	err := os.WriteFile(testFile, []byte(testContent), 0o644)
+	require.NoError(t, err)
+
+	// Create store with fsnotify
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
+	// Get rotation events channel
+	rotationEvents := store.RotationEvents()
+
+	err = store.AddFile(testFile)
+	require.NoError(t, err)
+
+	// No "added" event should be generated (only "updated" and "removed")
+	select {
+	case event := <-rotationEvents:
+		t.Fatalf("Unexpected rotation event for file addition: %+v", event)
+	case <-time.After(50 * time.Millisecond):
+		// Expected - no event for "added"
+	}
+
+	// Delete the file externally (not through store)
+	err = os.Remove(testFile)
+	require.NoError(t, err)
+
+	// Should receive "removed" event from fsnotify
+	select {
+	case event := <-rotationEvents:
+		assert.Equal(t, testFile, event.Path)
+		assert.Equal(t, OperationRemoved, event.Operation)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Expected rotation event for external file deletion")
+	}
+
+	// Verify file was removed from store
+	assert.Eventually(t, func() bool {
+		_, exists := store.GetContent(testFile)
+		return !exists
+	}, 200*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestStore_ChannelAccessors(t *testing.T) {
+	ctx := context.Background()
+	store, err := New(logr.Discard(), ctx)
+	require.NoError(t, err)
+
+	// Test that channel accessors return non-nil channels
+	rotationCh := store.RotationEvents()
+	assert.NotNil(t, rotationCh)
+
+	errorCh := store.Errors()
+	assert.NotNil(t, errorCh)
+
+	// Channels should be read-only (this is enforced by the type system)
+	// Just verify we can select on them
+	select {
+	case <-rotationCh:
+		// Channel is empty, as expected
+	case <-errorCh:
+		// Channel is empty, as expected
+	default:
+		// Expected behavior - no events yet
+	}
 }

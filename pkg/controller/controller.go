@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	placeholderpod "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/placeholderpod"
@@ -52,11 +51,6 @@ const (
 	nicIngressClassIndex     = "spec.ingressClassName"
 	gatewayListenerIndexName = "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"
 )
-
-// controller runtime resync interval is 10 hours. Refreshing the store more frequently guarantees that we'll catch that.
-// Don't need to immediately reflect rotated cert since controller won't reconcile until the next resync. Rotations
-// aren't a customer initiated action so there's no confusion.
-var storeRefreshInterval = 5 * time.Minute
 
 func init() {
 	registerSchemes(scheme)
@@ -131,6 +125,22 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("creating manager: %w", err)
 	}
 
+	storeLog := m.GetLogger().WithName("store")
+	store, err := store.New(storeLog, context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("creating store: %w", err)
+	}
+
+	if conf.EnableDefaultDomain {
+		store.AddFile(conf.DefaultDomainCertPath)
+
+		// validate that the default domain cert path exists
+		_, ok := store.GetContent(conf.DefaultDomainCertPath)
+		if !ok {
+			return nil, fmt.Errorf("default domain cert %s was not loaded to store", conf.DefaultDomainCertPath)
+		}
+	}
+
 	setupLog := m.GetLogger().WithName("setup")
 	if err := setupProbes(conf, m, setupLog); err != nil {
 		setupLog.Error(err, "failed to set up probes")
@@ -152,18 +162,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	if err := setupIndexers(m, setupLog, conf); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
 		return nil, fmt.Errorf("setting up indexers: %w", err)
-	}
-
-	storeLog := m.GetLogger().WithName("store")
-	store := store.New(storeLog, context.Background(), storeRefreshInterval)
-	if conf.EnableDefaultDomain {
-		store.AddFile(conf.DefaultDomainCertPath)
-
-		// validate that the default domain cert path exists
-		_, ok := store.GetContent(conf.DefaultDomainCertPath)
-		if !ok {
-			return nil, fmt.Errorf("default domain cert %s was not loaded to store", conf.DefaultDomainCertPath)
-		}
 	}
 
 	if err := setupControllers(m, conf, setupLog, cl); err != nil {
