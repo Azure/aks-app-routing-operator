@@ -53,7 +53,10 @@ const (
 	gatewayListenerIndexName = "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"
 )
 
-var storeRefreshInterval = 1 * time.Hour // controller runtime resync interval is 10 hours. Refreshing the store more frequently guarantees that we'll catch that
+// controller runtime resync interval is 10 hours. Refreshing the store more frequently guarantees that we'll catch that.
+// Don't need to immediately reflect rotated cert since controller won't reconcile until the next resync. Rotations
+// aren't a customer initiated action so there's no confusion.
+var storeRefreshInterval = 5 * time.Minute
 
 func init() {
 	registerSchemes(scheme)

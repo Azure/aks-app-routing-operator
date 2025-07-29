@@ -143,7 +143,7 @@ func (s *store) startPeriodicRefresh(ctx context.Context, interval time.Duration
 				s.logger.Info("Stopping periodic refresh due to context cancellation")
 				return
 			case <-s.refreshTicker.C:
-				s.logger.V(1).Info("Performing periodic refresh")
+				s.logger.Info("Performing periodic refresh")
 				if err := s.refreshAll(); err != nil {
 					s.logger.Error(err, "Error during periodic refresh")
 				}
