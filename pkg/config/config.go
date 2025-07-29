@@ -115,10 +115,8 @@ func (c *Config) Validate() error {
 		return errors.New("--default-domain-cert-path is not allowed when --enable-default-domain is not set")
 	}
 
-	if c.EnableDefaultDomain {
-		if c.DefaultDomainCertPath == "" {
-			return errors.New("--default-domain-cert-path is required when --enable-default-domain is set")
-		}
+	if c.EnableDefaultDomain && c.DefaultDomainCertPath == "" {
+		return errors.New("--default-domain-cert-path is required when --enable-default-domain is set")
 	}
 
 	return nil
