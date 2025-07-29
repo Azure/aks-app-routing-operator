@@ -35,6 +35,10 @@ var (
 	SingleStackIPFamilyPolicy = corev1.IPFamilyPolicySingleStack
 )
 
+const (
+	pathToDefaultDomainCert = "/path/to/default/domain/cert"
+)
+
 // OperatorVersion is an enum for the different versions of the operator
 type OperatorVersion uint
 
@@ -139,6 +143,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	if o.Version >= OperatorVersionLatest {
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
+		ret = append(ret, "default-domain-cert-path", pathToDefaultDomainCert)
 	}
 
 	var zones []string
@@ -296,6 +301,43 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		clusterRoleBinding,
 		podDisrutptionBudget,
 	}...)
+
+	if cfg.Version == OperatorVersionLatest {
+		subPath := "hello"
+		defaultDomainSecret := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Secret",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default-domain-cert",
+				Namespace: operatorNs,
+			},
+			Data: map[string][]byte{
+				subPath: []byte("world"), // Placeholder for actual cert data in future iterations
+			},
+		}
+		ret = append(ret, defaultDomainSecret)
+
+		defaultDomainVolumeName := "default-domain-cert"
+		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+			{
+				Name:      defaultDomainVolumeName,
+				MountPath: pathToDefaultDomainCert,
+				SubPath:   subPath,
+			},
+		}
+		baseDeployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+			{
+				Name: defaultDomainVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: defaultDomainSecret.GetName(),
+					},
+				},
+			},
+		}
+	}
 
 	// edit and select relevant manifest config by version
 	switch cfg.Version {
