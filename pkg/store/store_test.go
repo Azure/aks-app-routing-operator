@@ -103,6 +103,11 @@ func TestStore_PeriodicRefresh(t *testing.T) {
 	err = store.AddFile("test", testFile)
 	require.NoError(t, err)
 
+	// Ensure file is in store
+	content, exists := store.GetContent("test")
+	require.True(t, exists)
+	assert.Equal(t, originalContent, string(content))
+
 	// Wait a bit, then update file
 	time.Sleep(10 * time.Millisecond)
 	err = os.WriteFile(testFile, []byte(updatedContent), 0o644)
