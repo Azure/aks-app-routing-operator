@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// StoredFile represents a file entry in the store
-type StoredFile struct {
+// storedFile represents a file entry in the store
+type storedFile struct {
 	Path    string
 	Content []byte
 }
@@ -26,7 +26,7 @@ type Store interface {
 
 type store struct {
 	mu            *sync.RWMutex
-	files         map[string]*StoredFile
+	files         map[string]*storedFile
 	refreshTicker *time.Ticker
 	logger        logr.Logger
 }
@@ -35,7 +35,7 @@ type store struct {
 func New(logger logr.Logger, ctx context.Context, refreshInterval time.Duration) Store {
 	s := &store{
 		mu:     &sync.RWMutex{},
-		files:  make(map[string]*StoredFile),
+		files:  make(map[string]*storedFile),
 		logger: logger,
 	}
 
@@ -62,7 +62,7 @@ func (s *store) AddFile(path string) error {
 		return fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
-	s.files[path] = &StoredFile{
+	s.files[path] = &storedFile{
 		Path:    path,
 		Content: content,
 	}
@@ -97,7 +97,7 @@ func (s *store) GetContent(path string) ([]byte, bool) {
 }
 
 // refreshFileInternal performs the actual refresh logic (must be called with lock held)
-func (s *store) refreshFileInternal(path string, file *StoredFile) error {
+func (s *store) refreshFileInternal(path string, file *storedFile) error {
 	// Check if file still exists
 	_, err := os.Stat(file.Path)
 	if os.IsNotExist(err) {
