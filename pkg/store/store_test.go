@@ -27,16 +27,16 @@ func TestStore_AddFile(t *testing.T) {
 	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
 
 	// Test adding file
-	err = store.AddFile("test", testFile)
+	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
 	// Verify file was added
-	content, exists := store.GetContent("test")
+	content, exists := store.GetContent(testFile)
 	assert.True(t, exists)
 	assert.Equal(t, testContent, string(content))
 
 	// Test adding non-existent file
-	err = store.AddFile("nonexistent", "/path/that/does/not/exist")
+	err = store.AddFile("/path/that/does/not/exist")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "file does not exist")
 }
@@ -52,13 +52,13 @@ func TestStore_RemoveFile(t *testing.T) {
 	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
 
 	// Add and then remove file
-	err = store.AddFile("test", testFile)
+	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
-	store.RemoveFile("test")
+	store.RemoveFile(testFile)
 
 	// Verify file was removed
-	_, exists := store.GetContent("test")
+	_, exists := store.GetContent(testFile)
 	assert.False(t, exists)
 }
 
@@ -72,16 +72,16 @@ func TestStore_GetContent(t *testing.T) {
 
 	ctx := context.Background()
 	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
-	err = store.AddFile("test", testFile)
+	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
 	// Test GetContent
-	content, exists := store.GetContent("test")
+	content, exists := store.GetContent(testFile)
 	require.True(t, exists)
 	assert.Equal(t, testContent, string(content))
 
 	// Test non-existent file
-	_, exists = store.GetContent("nonexistent")
+	_, exists = store.GetContent("/nonexistent/path")
 	assert.False(t, exists)
 }
 
@@ -100,11 +100,11 @@ func TestStore_PeriodicRefresh(t *testing.T) {
 	defer cancel()
 
 	store := New(logr.Discard(), ctx, 50*time.Millisecond)
-	err = store.AddFile("test", testFile)
+	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
 	// Ensure file is in store
-	content, exists := store.GetContent("test")
+	content, exists := store.GetContent(testFile)
 	require.True(t, exists)
 	assert.Equal(t, originalContent, string(content))
 
@@ -115,7 +115,7 @@ func TestStore_PeriodicRefresh(t *testing.T) {
 
 	// Wait for periodic refresh to pick up the change
 	assert.Eventually(t, func() bool {
-		content, exists := store.GetContent("test")
+		content, exists := store.GetContent(testFile)
 		return exists && string(content) == updatedContent
 	}, 200*time.Millisecond, 10*time.Millisecond)
 }
@@ -129,7 +129,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 
 	ctx := context.Background()
 	store := New(logr.Discard(), ctx, 0) // 0 interval disables periodic refresh
-	err = store.AddFile("test", testFile)
+	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
 	// Test concurrent read/write access
@@ -138,7 +138,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	// Goroutine 1: Keep reading
 	go func() {
 		for i := 0; i < 100; i++ {
-			store.GetContent("test")
+			store.GetContent(testFile)
 			time.Sleep(time.Millisecond)
 		}
 		done <- true
@@ -147,7 +147,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	// Goroutine 2: Keep reading (testing concurrent reads)
 	go func() {
 		for i := 0; i < 100; i++ {
-			store.GetContent("test")
+			store.GetContent(testFile)
 			time.Sleep(time.Millisecond)
 		}
 		done <- true
@@ -158,7 +158,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	<-done
 
 	// Should not panic or cause race conditions
-	content, exists := store.GetContent("test")
+	content, exists := store.GetContent(testFile)
 	assert.True(t, exists)
 	assert.NotEmpty(t, content)
 }
@@ -177,11 +177,11 @@ func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
 	defer cancel()
 
 	store := New(logr.Discard(), ctx, 50*time.Millisecond)
-	err = store.AddFile("test", testFile)
+	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
 	// Verify file is in store
-	_, exists := store.GetContent("test")
+	_, exists := store.GetContent(testFile)
 	assert.True(t, exists)
 
 	// Delete the file from filesystem
@@ -190,7 +190,7 @@ func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
 
 	// Wait for periodic refresh to remove the file from store
 	assert.Eventually(t, func() bool {
-		_, exists := store.GetContent("test")
+		_, exists := store.GetContent(testFile)
 		return !exists
 	}, 200*time.Millisecond, 10*time.Millisecond)
 }

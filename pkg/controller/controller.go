@@ -7,12 +7,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	placeholderpod "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/placeholderpod"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
+	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
@@ -50,6 +52,8 @@ const (
 	nicIngressClassIndex     = "spec.ingressClassName"
 	gatewayListenerIndexName = "spec.listeners.tls.options.kubernetes.azure.com/tls-cert-service-account"
 )
+
+var storeRefreshInterval = 1 * time.Hour // controller runtime resync interval is 10 hours. Refreshing the store more frequently guarantees that we'll catch that
 
 func init() {
 	registerSchemes(scheme)
@@ -145,6 +149,18 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	if err := setupIndexers(m, setupLog, conf); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
 		return nil, fmt.Errorf("setting up indexers: %w", err)
+	}
+
+	storeLog := m.GetLogger().WithName("store")
+	store := store.New(storeLog, context.Background(), storeRefreshInterval)
+	if conf.EnableDefaultDomain {
+		store.AddFile(conf.DefaultDomainCertPath)
+
+		// validate that the default domain cert path exists and is TLS cert
+		cert, ok := store.GetContent(conf.DefaultDomainCertPath)
+		if !ok {
+			return nil, fmt.Errorf("default domain cert %s was not loaded to store", conf.DefaultDomainCertPath)
+		}
 	}
 
 	if err := setupControllers(m, conf, setupLog, cl); err != nil {

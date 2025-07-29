@@ -19,9 +19,9 @@ type StoredFile struct {
 
 // Store manages local files with periodic refresh capabilities
 type Store interface {
-	AddFile(key, path string) error
-	RemoveFile(key string)
-	GetContent(key string) ([]byte, bool)
+	AddFile(path string) error
+	RemoveFile(path string)
+	GetContent(path string) ([]byte, bool)
 }
 
 type store struct {
@@ -47,7 +47,7 @@ func New(logger logr.Logger, ctx context.Context, refreshInterval time.Duration)
 }
 
 // AddFile adds a local file to the store for tracking
-func (s *store) AddFile(key, path string) error {
+func (s *store) AddFile(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -62,32 +62,32 @@ func (s *store) AddFile(key, path string) error {
 		return fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
-	s.files[key] = &StoredFile{
+	s.files[path] = &StoredFile{
 		Path:    path,
 		Content: content,
 	}
 
-	s.logger.Info("Added file to store", "key", key, "path", path, "size", len(content))
+	s.logger.Info("Added file to store", "path", path, "size", len(content))
 	return nil
 }
 
 // RemoveFile removes a file from the store
-func (s *store) RemoveFile(key string) {
+func (s *store) RemoveFile(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.files[key]; exists {
-		delete(s.files, key)
-		s.logger.Info("Removed file from store", "key", key)
+	if _, exists := s.files[path]; exists {
+		delete(s.files, path)
+		s.logger.Info("Removed file from store", "path", path)
 	}
 }
 
-// GetContent returns just the content bytes for the given key
-func (s *store) GetContent(key string) ([]byte, bool) {
+// GetContent returns just the content bytes for the given path
+func (s *store) GetContent(path string) ([]byte, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	file, exists := s.files[key]
+	file, exists := s.files[path]
 	if !exists {
 		return nil, false
 	}
@@ -97,12 +97,12 @@ func (s *store) GetContent(key string) ([]byte, bool) {
 }
 
 // refreshFileInternal performs the actual refresh logic (must be called with lock held)
-func (s *store) refreshFileInternal(key string, file *StoredFile) error {
+func (s *store) refreshFileInternal(path string, file *StoredFile) error {
 	// Check if file still exists
 	_, err := os.Stat(file.Path)
 	if os.IsNotExist(err) {
-		s.logger.Info("File no longer exists, removing from store", "key", key, "path", file.Path)
-		delete(s.files, key)
+		s.logger.Info("File no longer exists, removing from store", "path", path)
+		delete(s.files, path)
 		return nil
 	}
 	if err != nil {
@@ -119,8 +119,7 @@ func (s *store) refreshFileInternal(key string, file *StoredFile) error {
 	file.Content = content
 
 	s.logger.Info("Refreshed file content",
-		"key", key,
-		"path", file.Path,
+		"path", path,
 		"oldSize", oldSize,
 		"newSize", len(content))
 
