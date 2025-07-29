@@ -196,7 +196,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	assert.NotEmpty(t, content)
 }
 
-func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
+func TestStore_FileDeletedExternallyGeneratesError(t *testing.T) {
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, "test.txt")
 	testContent := "test content"
@@ -212,6 +212,9 @@ func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
 	store, err := New(logr.Discard(), ctx)
 	require.NoError(t, err)
 
+	// Get error events channel
+	errorEvents := store.Errors()
+
 	err = store.AddFile(testFile)
 	require.NoError(t, err)
 
@@ -223,11 +226,18 @@ func TestStore_RefreshDeletesNonExistentFiles(t *testing.T) {
 	err = os.Remove(testFile)
 	require.NoError(t, err)
 
-	// Wait for fsnotify to remove the file from store
-	assert.Eventually(t, func() bool {
-		_, exists := store.GetContent(testFile)
-		return !exists
-	}, 200*time.Millisecond, 10*time.Millisecond)
+	// Should receive error instead of removing file from store
+	select {
+	case err := <-errorEvents:
+		assert.Contains(t, err.Error(), "file was deleted or renamed")
+		assert.Contains(t, err.Error(), testFile)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Expected error for external file deletion")
+	}
+
+	// File should still exist in store even after external deletion
+	_, exists = store.GetContent(testFile)
+	assert.True(t, exists, "File should still exist in store even after external deletion")
 }
 
 func TestStore_RotationEvents(t *testing.T) {
@@ -272,7 +282,6 @@ func TestStore_RotationEvents(t *testing.T) {
 	select {
 	case event := <-rotationEvents:
 		assert.Equal(t, testFile, event.Path)
-		assert.Equal(t, OperationUpdated, event.Operation)
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("Expected rotation event for file update")
 	}
@@ -293,25 +302,25 @@ func TestStore_RotationEvents(t *testing.T) {
 	}
 
 checkExternalDelete:
-	// Delete file externally (not through store) and check for rotation event
+	// Delete file externally (not through store) and check for error
 	err = os.Remove(testFile)
 	require.NoError(t, err)
 
-	// Should receive "removed" event from fsnotify
-	select {
-	case event := <-rotationEvents:
-		assert.Equal(t, testFile, event.Path)
-		assert.Equal(t, OperationRemoved, event.Operation)
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("Expected rotation event for external file deletion")
-	}
-
-	// Ensure no errors occurred
+	// Should receive error instead of rotation event
 	select {
 	case err := <-errorEvents:
-		t.Fatalf("Unexpected error: %v", err)
+		assert.Contains(t, err.Error(), "file was deleted or renamed")
+		assert.Contains(t, err.Error(), testFile)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Expected error for external file deletion")
+	}
+
+	// Ensure no rotation events occurred for deletion
+	select {
+	case event := <-rotationEvents:
+		t.Fatalf("Unexpected rotation event for file deletion: %+v", event)
 	default:
-		// No error, as expected
+		// No rotation event, as expected
 	}
 }
 
@@ -333,6 +342,7 @@ func TestStore_FileDeletedExternally(t *testing.T) {
 
 	// Get rotation events channel
 	rotationEvents := store.RotationEvents()
+	errorEvents := store.Errors()
 
 	err = store.AddFile(testFile)
 	require.NoError(t, err)
@@ -349,20 +359,19 @@ func TestStore_FileDeletedExternally(t *testing.T) {
 	err = os.Remove(testFile)
 	require.NoError(t, err)
 
-	// Should receive "removed" event from fsnotify
+	// Should receive error instead of rotation event
 	select {
-	case event := <-rotationEvents:
-		assert.Equal(t, testFile, event.Path)
-		assert.Equal(t, OperationRemoved, event.Operation)
+	case err := <-errorEvents:
+		assert.Contains(t, err.Error(), "file was deleted or renamed")
+		assert.Contains(t, err.Error(), testFile)
 	case <-time.After(200 * time.Millisecond):
-		t.Fatal("Expected rotation event for external file deletion")
+		t.Fatal("Expected error for external file deletion")
 	}
 
-	// Verify file was removed from store
-	assert.Eventually(t, func() bool {
-		_, exists := store.GetContent(testFile)
-		return !exists
-	}, 200*time.Millisecond, 10*time.Millisecond)
+	// Files are no longer removed from store when deleted externally
+	// The file entry remains in the store, but will return errors on access
+	_, exists := store.GetContent(testFile)
+	assert.True(t, exists, "File should still exist in store even after external deletion")
 }
 
 func TestStore_ChannelAccessors(t *testing.T) {

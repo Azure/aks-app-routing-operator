@@ -10,12 +10,6 @@ import (
 	"github.com/go-logr/logr"
 )
 
-// Operation constants for rotation events
-const (
-	OperationUpdated = "updated"
-	OperationRemoved = "removed"
-)
-
 // storedFile represents a file entry in the store
 type storedFile struct {
 	Path    string
@@ -24,8 +18,7 @@ type storedFile struct {
 
 // RotationEvent represents a file rotation/change event
 type RotationEvent struct {
-	Path      string
-	Operation string // OperationUpdated, OperationRemoved (not "added")
+	Path string
 }
 
 // Store manages local files with filesystem watching capabilities
@@ -190,15 +183,15 @@ func (s *store) handleFileEvent(event fsnotify.Event) {
 
 	// Handle different event types
 	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-		// File was deleted or renamed
-		s.logger.Info("File no longer exists, removing from store", "path", path)
-		delete(s.files, path)
+		// File was deleted or renamed - return error
+		err := fmt.Errorf("file was deleted or renamed: %s", path)
+		s.logger.Error(err, "File no longer exists")
 
-		// Send rotation event for file removal
+		// Send error to error channel
 		select {
-		case s.rotationCh <- RotationEvent{Path: path, Operation: OperationRemoved}:
+		case s.errorCh <- err:
 		default:
-			s.logger.Info("Rotation channel full, dropping event", "path", path, "operation", OperationRemoved)
+			s.logger.Info("Error channel full, dropping error")
 		}
 		return
 	}
@@ -217,9 +210,9 @@ func (s *store) handleFileEvent(event fsnotify.Event) {
 		} else {
 			// Send rotation event for file update
 			select {
-			case s.rotationCh <- RotationEvent{Path: path, Operation: OperationUpdated}:
+			case s.rotationCh <- RotationEvent{Path: path}:
 			default:
-				s.logger.Info("Rotation channel full, dropping event", "path", path, "operation", OperationUpdated)
+				s.logger.Info("Rotation channel full, dropping event", "path", path)
 			}
 		}
 	}
@@ -230,9 +223,7 @@ func (s *store) refreshFileContent(path string, file *storedFile) error {
 	// Check if file still exists
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
-		s.logger.Info("File no longer exists during refresh, removing from store", "path", path)
-		delete(s.files, path)
-		return nil
+		return fmt.Errorf("file no longer exists: %s", path)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to stat file %s: %w", path, err)
