@@ -156,8 +156,8 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	if conf.EnableDefaultDomain {
 		store.AddFile(conf.DefaultDomainCertPath)
 
-		// validate that the default domain cert path exists and is TLS cert
-		cert, ok := store.GetContent(conf.DefaultDomainCertPath)
+		// validate that the default domain cert path exists
+		_, ok := store.GetContent(conf.DefaultDomainCertPath)
 		if !ok {
 			return nil, fmt.Errorf("default domain cert %s was not loaded to store", conf.DefaultDomainCertPath)
 		}
