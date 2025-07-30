@@ -34,10 +34,19 @@ type defaultDomainCertControllerReconciler struct {
 func NewReconciler(conf *config.Config, mgr ctrl.Manager, store store.Store) error {
 	metrics.InitControllerMetrics(name)
 
+	if err := store.AddFile(conf.DefaultDomainCertPath); err != nil {
+		return fmt.Errorf("adding default domain cert %s to store: %w", conf.DefaultDomainCertPath, err)
+	}
+
+	if err := store.AddFile(conf.DefaultDomainKeyPath); err != nil {
+		return fmt.Errorf("adding default domain key %s to store: %w", conf.DefaultDomainKeyPath, err)
+	}
+
 	reconciler := &defaultDomainCertControllerReconciler{
 		client: mgr.GetClient(),
 		events: mgr.GetEventRecorderFor("aks-app-routing-operator"),
 		conf:   conf,
+		store:  store,
 	}
 
 	if err := name.AddToController(
@@ -83,7 +92,13 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	ctx = log.IntoContext(ctx, lgr)
 
 	lgr.Info("upserting Secret for DefaultDomainCertificate")
-	secret := d.getSecret(&defaultDomainCertificate)
+	secret, err := d.getSecret(&defaultDomainCertificate)
+	if err != nil {
+		err := fmt.Errorf("getting Secret for DefaultDomainCertificate: %w", err)
+		lgr.Error(err, "failed to get Secret for DefaultDomainCertificate")
+		return ctrl.Result{}, err
+	}
+
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
 		lgr.Error(err, "failed to upsert Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err
@@ -92,7 +107,16 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	return ctrl.Result{}, nil
 }
 
-func (d *defaultDomainCertControllerReconciler) getSecret(defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) *corev1.Secret {
+func (d *defaultDomainCertControllerReconciler) getSecret(defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
+	crt, ok := d.store.GetContent(d.conf.DefaultDomainCertPath)
+	if crt == nil || !ok {
+		return nil, errors.New("failed to get certificate from store")
+	}
+	key, ok := d.store.GetContent(d.conf.DefaultDomainKeyPath)
+	if key == nil || !ok {
+		return nil, errors.New("failed to get key from store")
+	}
+
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      *defaultDomainCertificate.Spec.Target.Secret,
@@ -100,13 +124,13 @@ func (d *defaultDomainCertControllerReconciler) getSecret(defaultDomainCertifica
 			Labels:    manifests.GetTopLevelLabels(),
 		},
 		Data: map[string][]byte{
-			"tls.crt": []byte("dummy-cert"),
-			"tls.key": []byte("dummy-key"),
+			"tls.crt": crt,
+			"tls.key": key,
 		},
 	}
 
 	owner := manifests.GetOwnerRefs(defaultDomainCertificate, true)
 	secret.SetOwnerReferences(owner)
 
-	return secret
+	return secret, nil
 }

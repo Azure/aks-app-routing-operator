@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/defaultdomaincert"
 	placeholderpod "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/placeholderpod"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
@@ -131,16 +132,6 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("creating store: %w", err)
 	}
 
-	if conf.EnableDefaultDomain {
-		store.AddFile(conf.DefaultDomainCertPath)
-
-		// validate that the default domain cert path exists
-		_, ok := store.GetContent(conf.DefaultDomainCertPath)
-		if !ok {
-			return nil, fmt.Errorf("default domain cert %s was not loaded to store", conf.DefaultDomainCertPath)
-		}
-	}
-
 	setupLog := m.GetLogger().WithName("setup")
 	if err := setupProbes(conf, m, setupLog); err != nil {
 		setupLog.Error(err, "failed to set up probes")
@@ -164,7 +155,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("setting up indexers: %w", err)
 	}
 
-	if err := setupControllers(m, conf, setupLog, cl); err != nil {
+	if err := setupControllers(m, conf, setupLog, cl, store); err != nil {
 		setupLog.Error(err, "unable to setup controllers")
 		return nil, fmt.Errorf("setting up controllers: %w", err)
 	}
@@ -192,7 +183,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error
 	return nil
 }
 
-func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl client.Client) error {
+func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl client.Client, store store.Store) error {
 	lgr.Info("setting up controllers")
 
 	lgr.Info("determining default IngressClass controller class")
@@ -263,6 +254,13 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		lgr.Info("setting up gateway reconcilers")
 		if err := spc.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
 			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
+		}
+	}
+
+	if conf.EnableDefaultDomain {
+		lgr.Info("setting up default domain reconcilers")
+		if err := defaultdomaincert.NewReconciler(conf, mgr, store); err != nil {
+			return fmt.Errorf("setting up default domain reconciler: %w", err)
 		}
 	}
 
