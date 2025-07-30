@@ -54,6 +54,7 @@ func init() {
 
 	// Default domain flags
 	flag.BoolVar(&Flags.EnableDefaultDomain, "enable-default-domain", false, "enable default domain feature including the Default Domain Certificate Controller and CRD")
+	flag.StringVar(&Flags.DefaultDomainCertPath, "default-domain-cert-path", "", "path to the default domain certificate")
 }
 
 func (c *Config) Validate() error {
@@ -108,6 +109,14 @@ func (c *Config) Validate() error {
 	}
 	if !crdPathStat.IsDir() {
 		return fmt.Errorf("crd path %s is not a directory", c.CrdPath)
+	}
+
+	if !c.EnableDefaultDomain && c.DefaultDomainCertPath != "" {
+		return errors.New("--default-domain-cert-path is not allowed when --enable-default-domain is not set")
+	}
+
+	if c.EnableDefaultDomain && c.DefaultDomainCertPath == "" {
+		return errors.New("--default-domain-cert-path is required when --enable-default-domain is set")
 	}
 
 	return nil

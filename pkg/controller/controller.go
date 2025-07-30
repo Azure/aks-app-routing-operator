@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/nginxingress"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
+	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
@@ -122,6 +123,22 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating manager: %w", err)
+	}
+
+	storeLog := m.GetLogger().WithName("store")
+	store, err := store.New(storeLog, context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("creating store: %w", err)
+	}
+
+	if conf.EnableDefaultDomain {
+		store.AddFile(conf.DefaultDomainCertPath)
+
+		// validate that the default domain cert path exists
+		_, ok := store.GetContent(conf.DefaultDomainCertPath)
+		if !ok {
+			return nil, fmt.Errorf("default domain cert %s was not loaded to store", conf.DefaultDomainCertPath)
+		}
 	}
 
 	setupLog := m.GetLogger().WithName("setup")

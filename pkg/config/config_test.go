@@ -274,6 +274,84 @@ var validateTestCases = []struct {
 		Error:   "while parsing dns zone resource ID invalid: parsing failed for invalid. Invalid resource Id format",
 		DnsZone: "invalid,dns,zone",
 	},
+	{
+		Name: "valid-enable-default-domain-with-cert-path",
+		Conf: &Config{
+			DefaultController:        Standard,
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
+			OperatorDeployment:       "app-routing-operator",
+			CrdPath:                  validCrdPath,
+			EnableDefaultDomain:      true,
+			DefaultDomainCertPath:    "./test_default_domain_cert_path.txt",
+		},
+	},
+	{
+		Name: "invalid-enable-default-domain-missing-cert-path",
+		Conf: &Config{
+			DefaultController:        Standard,
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
+			OperatorDeployment:       "app-routing-operator",
+			CrdPath:                  validCrdPath,
+			EnableDefaultDomain:      true,
+			DefaultDomainCertPath:    "",
+		},
+		Error: "--default-domain-cert-path is required when --enable-default-domain is set",
+	},
+	{
+		Name: "invalid-default-domain-cert-path-without-enable",
+		Conf: &Config{
+			DefaultController:        Standard,
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
+			OperatorDeployment:       "app-routing-operator",
+			CrdPath:                  validCrdPath,
+			EnableDefaultDomain:      false,
+			DefaultDomainCertPath:    "./test_default_domain_cert_path.txt",
+		},
+		Error: "--default-domain-cert-path is not allowed when --enable-default-domain is not set",
+	},
+	{
+		Name: "valid-disable-default-domain-no-cert-path",
+		Conf: &Config{
+			DefaultController:        Standard,
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
+			OperatorDeployment:       "app-routing-operator",
+			CrdPath:                  validCrdPath,
+			EnableDefaultDomain:      false,
+			DefaultDomainCertPath:    "",
+		},
+	},
 }
 
 func TestConfigValidate(t *testing.T) {
@@ -391,5 +469,4 @@ func TestConfigParse(t *testing.T) {
 			}
 		})
 	}
-
 }
