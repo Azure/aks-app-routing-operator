@@ -67,9 +67,13 @@ func (s *store) AddFile(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	_, err := os.Stat(path)
 	// Check if file exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", path)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to stat file %s: %w", path, err)
 	}
 
 	// Check if file is already being watched
