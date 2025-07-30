@@ -123,6 +123,7 @@ func (d *defaultDomainCertControllerReconciler) getSecret(defaultDomainCertifica
 			Namespace: defaultDomainCertificate.Namespace,
 			Labels:    manifests.GetTopLevelLabels(),
 		},
+		Type: corev1.SecretTypeTLS,
 		Data: map[string][]byte{
 			"tls.crt": crt,
 			"tls.key": key,
