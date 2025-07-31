@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -369,6 +370,62 @@ func TestReconcile_FailedToUpsertSecret(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to patch secret")
 	assert.Equal(t, ctrl.Result{}, result)
+}
+
+func TestReconcile_FailedToUpsertSecret_RecordsEvent(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	// Create a client that will fail on Patch operations (which Upsert uses)
+	client := &ErrorClient{
+		Client:     fake.NewClientBuilder().WithScheme(scheme).WithObjects(ddc).Build(),
+		PatchError: errors.New("failed to patch secret"),
+	}
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	// Use a fake event recorder to capture events
+	fakeRecorder := &record.FakeRecorder{Events: make(chan string, 10)}
+
+	reconciler := &defaultDomainCertControllerReconciler{
+		client: client,
+		events: fakeRecorder,
+		conf: &config.Config{
+			DefaultDomainCertPath: testCertPath,
+			DefaultDomainKeyPath:  testKeyPath,
+		},
+		store: mockStore,
+	}
+
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "test-ddc",
+			Namespace: testNamespace,
+		},
+	}
+
+	ctx := context.Background()
+	result, err := reconciler.Reconcile(ctx, req)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to patch secret")
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Verify that the warning event was recorded
+	select {
+	case event := <-fakeRecorder.Events:
+		assert.Contains(t, event, "Warning")
+		assert.Contains(t, event, "EnsuringCertificateSecretFailed")
+		assert.Contains(t, event, "Failed to ensure Secret for DefaultDomainCertificate")
+		assert.Contains(t, event, "failed to patch secret")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected event was not recorded within timeout")
+	}
 }
 
 func TestGetSecret_SuccessfulSecretCreation(t *testing.T) {

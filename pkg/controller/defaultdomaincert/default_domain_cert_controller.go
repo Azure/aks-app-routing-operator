@@ -100,6 +100,8 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	}
 
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
+		d.events.Eventf(&defaultDomainCertificate, corev1.EventTypeWarning, "EnsuringCertificateSecretFailed", "Failed to ensure Secret for DefaultDomainCertificate: %s", err.Error())
+
 		lgr.Error(err, "failed to upsert Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err
 	}
