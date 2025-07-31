@@ -152,7 +152,19 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
-				namespace := "default-domain"
+				namespace := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-domain",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Namespace",
+						APIVersion: corev1.SchemeGroupVersion.String(),
+					},
+				}
+				if err := util.Upsert(ctx, cl, namespace); err != nil {
+					return fmt.Errorf("upserting namespace: %w", err)
+				}
+
 				secretTarget := "test-secret-target"
 				ddc := &v1alpha1.DefaultDomainCertificate{
 					TypeMeta: metav1.TypeMeta{
@@ -161,7 +173,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-ddc",
-						Namespace: namespace,
+						Namespace: namespace.GetName(),
 					},
 					Spec: v1alpha1.DefaultDomainCertificateSpec{
 						Target: v1alpha1.DefaultDomainCertificateTarget{
@@ -202,7 +214,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				secret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secretTarget,
-						Namespace: namespace,
+						Namespace: namespace.GetName(),
 					},
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Secret",
