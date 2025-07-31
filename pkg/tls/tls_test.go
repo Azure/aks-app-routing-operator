@@ -109,6 +109,10 @@ func TestParseTLSCertificate_ExpiredCertificate(t *testing.T) {
 	if info == nil {
 		t.Fatal("Expected certificate info, got nil")
 	}
+
+	if !now.After(info.NotAfter) {
+		t.Error("Expected certificate to be expired")
+	}
 }
 
 func TestParseTLSCertificate_InvalidCertPEM(t *testing.T) {
