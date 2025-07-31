@@ -180,6 +180,7 @@ func TestReconcile_SuccessfulReconciliation(t *testing.T) {
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(ddc).
+		WithStatusSubresource(ddc).
 		Build()
 
 	mockStore := newMockStore()
@@ -603,6 +604,7 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(ddc, existingSecret).
+		WithStatusSubresource(ddc).
 		Build()
 
 	mockStore := newMockStore()
@@ -778,7 +780,11 @@ func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 	ddc.Generation = 1
 
-	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ddc).Build()
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ddc).
+		WithStatusSubresource(ddc).
+		Build()
 	reconciler := createTestReconciler(client, mockStore)
 
 	ctx := context.Background()
