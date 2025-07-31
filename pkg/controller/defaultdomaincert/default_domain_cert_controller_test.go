@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
@@ -213,6 +214,10 @@ func TestReconcile_SuccessfulReconciliation(t *testing.T) {
 	assert.Equal(t, ddc.Name, secret.OwnerReferences[0].Name)
 	assert.Equal(t, ddc.UID, secret.OwnerReferences[0].UID)
 	assert.True(t, *secret.OwnerReferences[0].Controller)
+
+	// Verify DefaultDomainCertificate status was updated
+	require.NoError(t, client.Get(ctx, types.NamespacedName{Name: ddc.Name, Namespace: ddc.Namespace}, ddc))
+	assert.Equal(t, metav1.ConditionTrue, ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable).Status)
 }
 
 func TestReconcile_DefaultDomainCertificateNotFound(t *testing.T) {
@@ -702,4 +707,159 @@ func TestGetSecret_SpecialCharactersInContent(t *testing.T) {
 
 	assert.Equal(t, []byte(specialCertContent), secret.Data["tls.crt"])
 	assert.Equal(t, []byte(specialKeyContent), secret.Data["tls.key"])
+}
+
+func TestReconcile_StatusUpdateFails(t *testing.T) {
+	// Test that error is returned when status update fails
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	baseClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ddc).Build()
+
+	// Create error client that fails on status updates
+	errorClient := &ErrorClient{
+		Client: baseClient,
+		// Allow Get and Create/Update for secret to succeed, but fail status update
+	}
+
+	// We need a custom client that wraps the status client specifically
+	statusClient := &StatusErrorClient{
+		Client:            errorClient,
+		StatusUpdateError: errors.New("status update failed"),
+	}
+
+	reconciler := createTestReconciler(statusClient, mockStore)
+
+	ctx := context.Background()
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      ddc.Name,
+			Namespace: ddc.Namespace,
+		},
+	}
+
+	result, err := reconciler.Reconcile(ctx, req)
+
+	// Should return error when status update fails
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "status update failed")
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Verify that the secret was still created successfully
+	secret := &corev1.Secret{}
+	err = baseClient.Get(ctx, types.NamespacedName{
+		Name:      testSecretName,
+		Namespace: testNamespace,
+	}, secret)
+	require.NoError(t, err)
+}
+
+func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
+	// Test multiple reconciles to ensure status conditions are updated correctly
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+	ddc.Generation = 1
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ddc).Build()
+	reconciler := createTestReconciler(client, mockStore)
+
+	ctx := context.Background()
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      ddc.Name,
+			Namespace: ddc.Namespace,
+		},
+	}
+
+	// First reconcile
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Get the updated object
+	updatedDDC := &approutingv1alpha1.DefaultDomainCertificate{}
+	err = client.Get(ctx, types.NamespacedName{
+		Name:      ddc.Name,
+		Namespace: ddc.Namespace,
+	}, updatedDDC)
+	require.NoError(t, err)
+
+	firstCondition := updatedDDC.GetCondition(approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+	require.NotNil(t, firstCondition)
+	firstLastTransitionTime := firstCondition.LastTransitionTime
+
+	// Update generation to simulate a change
+	updatedDDC.Generation = 2
+	err = client.Update(ctx, updatedDDC)
+	require.NoError(t, err)
+
+	// Second reconcile
+	result, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Get the updated object again
+	finalDDC := &approutingv1alpha1.DefaultDomainCertificate{}
+	err = client.Get(ctx, types.NamespacedName{
+		Name:      ddc.Name,
+		Namespace: ddc.Namespace,
+	}, finalDDC)
+	require.NoError(t, err)
+
+	secondCondition := finalDDC.GetCondition(approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+	require.NotNil(t, secondCondition)
+
+	// ObservedGeneration should be updated
+	assert.Equal(t, int64(2), secondCondition.ObservedGeneration)
+
+	// LastTransitionTime should be updated since generation changed
+	assert.True(t, secondCondition.LastTransitionTime.After(firstLastTransitionTime.Time) ||
+		secondCondition.LastTransitionTime.Equal(&firstLastTransitionTime))
+}
+
+// StatusErrorClient wraps a client to inject errors specifically for status updates
+type StatusErrorClient struct {
+	client.Client
+	StatusUpdateError error
+}
+
+func (s *StatusErrorClient) Status() client.StatusWriter {
+	return &StatusErrorWriter{
+		StatusWriter: s.Client.Status(),
+		UpdateError:  s.StatusUpdateError,
+	}
+}
+
+// StatusErrorWriter wraps a status writer to inject update errors
+type StatusErrorWriter struct {
+	client.StatusWriter
+	UpdateError error
+}
+
+func (s *StatusErrorWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+	if s.UpdateError != nil {
+		return s.UpdateError
+	}
+	return s.StatusWriter.Update(ctx, obj, opts...)
+}
+
+func (s *StatusErrorWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+	if s.UpdateError != nil {
+		return s.UpdateError
+	}
+	return s.StatusWriter.Patch(ctx, obj, patch, opts...)
 }

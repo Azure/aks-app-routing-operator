@@ -101,8 +101,19 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
 		d.events.Eventf(&defaultDomainCertificate, corev1.EventTypeWarning, "EnsuringCertificateSecretFailed", "Failed to ensure Secret for DefaultDomainCertificate: %s", err.Error())
-
 		lgr.Error(err, "failed to upsert Secret for DefaultDomainCertificate")
+		return ctrl.Result{}, err
+	}
+
+	// Update the status of the DefaultDomainCertificate
+	defaultDomainCertificate.SetCondition(metav1.Condition{
+		Type:    approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable,
+		Status:  metav1.ConditionTrue,
+		Reason:  "CertificateSecretEnsured",
+		Message: fmt.Sprintf("Secret %s/%s successfully ensured for DefaultDomainCertificate", secret.Namespace, secret.Name),
+	})
+	if err := d.client.Status().Update(ctx, &defaultDomainCertificate); err != nil {
+		lgr.Error(err, "failed to update status for DefaultDomainCertificate")
 		return ctrl.Result{}, err
 	}
 
