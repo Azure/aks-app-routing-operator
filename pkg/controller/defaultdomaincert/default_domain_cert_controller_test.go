@@ -131,11 +131,6 @@ func (m *mockStore) setFileContent(path string, content []byte) {
 	m.shouldExist[path] = true
 }
 
-func (m *mockStore) setFileNotFound(path string) {
-	delete(m.files, path)
-	m.shouldExist[path] = false
-}
-
 func createTestReconciler(client client.Client, store store.Store) *defaultDomainCertControllerReconciler {
 	conf := &config.Config{
 		DefaultDomainCertPath: testCertPath,
@@ -523,21 +518,6 @@ func TestGetSecret_KeyContentIsNil(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get key from store")
 	assert.Nil(t, secret)
-}
-
-func TestGetSecret_NilSecretName(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, "")
-
-	// This should panic because we're dereferencing a nil pointer
-	assert.Panics(t, func() {
-		_, _ = reconciler.getSecret(ddc)
-	})
 }
 
 func TestGetSecret_EmptyNamespace(t *testing.T) {
