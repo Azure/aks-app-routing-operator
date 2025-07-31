@@ -158,6 +158,10 @@ func createTestDefaultDomainCertificate(name, namespace, secretName string) *app
 			Name:      name,
 			Namespace: namespace,
 		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefaultDomainCertificate",
+			APIVersion: approutingv1alpha1.GroupVersion.String(),
+		},
 		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
 			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
 				Secret: secretPtr,

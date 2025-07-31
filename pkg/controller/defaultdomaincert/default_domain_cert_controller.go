@@ -71,8 +71,8 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 		lgr.Info("reconcile finished", "latency", time.Since(start))
 	}()
 
-	var defaultDomainCertificate approutingv1alpha1.DefaultDomainCertificate
-	if err := d.client.Get(ctx, req.NamespacedName, &defaultDomainCertificate); err != nil {
+	defaultDomainCertificate := &approutingv1alpha1.DefaultDomainCertificate{}
+	if err := d.client.Get(ctx, req.NamespacedName, defaultDomainCertificate); err != nil {
 		if apierrors.IsNotFound(err) { // object was deleted
 			lgr.Info("DefaultDomainCertificate not found")
 			return ctrl.Result{}, nil
@@ -92,7 +92,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	ctx = log.IntoContext(ctx, lgr)
 
 	lgr.Info("upserting Secret for DefaultDomainCertificate")
-	secret, err := d.getSecret(&defaultDomainCertificate)
+	secret, err := d.getSecret(defaultDomainCertificate)
 	if err != nil {
 		err := fmt.Errorf("getting Secret for DefaultDomainCertificate: %w", err)
 		lgr.Error(err, "failed to get Secret for DefaultDomainCertificate")
@@ -100,7 +100,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	}
 
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
-		d.events.Eventf(&defaultDomainCertificate, corev1.EventTypeWarning, "EnsuringCertificateSecretFailed", "Failed to ensure Secret for DefaultDomainCertificate: %s", err.Error())
+		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "EnsuringCertificateSecretFailed", "Failed to ensure Secret for DefaultDomainCertificate: %s", err.Error())
 		lgr.Error(err, "failed to upsert Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err
 	}
@@ -112,7 +112,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 		Reason:  "CertificateSecretEnsured",
 		Message: fmt.Sprintf("Secret %s/%s successfully ensured for DefaultDomainCertificate", secret.Namespace, secret.Name),
 	})
-	if err := d.client.Status().Update(ctx, &defaultDomainCertificate); err != nil {
+	if err := d.client.Status().Update(ctx, defaultDomainCertificate); err != nil {
 		lgr.Error(err, "failed to update status for DefaultDomainCertificate")
 		return ctrl.Result{}, err
 	}
