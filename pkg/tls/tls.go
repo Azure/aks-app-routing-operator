@@ -15,7 +15,6 @@ type CertificateInfo struct {
 	NotBefore time.Time
 	NotAfter  time.Time
 	DNSNames  []string
-	IsExpired bool
 }
 
 // ParseTLSCertificate parses and validates a TLS certificate from PEM-encoded cert and key data
@@ -48,14 +47,12 @@ func ParseTLSCertificate(certPEM, keyPEM []byte) (*CertificateInfo, error) {
 	}
 
 	// Create certificate info
-	now := time.Now()
 	info := &CertificateInfo{
 		Subject:   cert.Subject.String(),
 		Issuer:    cert.Issuer.String(),
 		NotBefore: cert.NotBefore,
 		NotAfter:  cert.NotAfter,
 		DNSNames:  cert.DNSNames,
-		IsExpired: now.After(cert.NotAfter),
 	}
 
 	return info, nil
