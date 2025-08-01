@@ -92,15 +92,15 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	ctx = log.IntoContext(ctx, lgr)
 
 	lgr.Info("upserting Secret for DefaultDomainCertificate")
-	secret, err := d.getSecret(defaultDomainCertificate)
+	secret, err := d.generateSecret(defaultDomainCertificate)
 	if err != nil {
-		err := fmt.Errorf("getting Secret for DefaultDomainCertificate: %w", err)
-		lgr.Error(err, "failed to get Secret for DefaultDomainCertificate")
+		err := fmt.Errorf("generating Secret for DefaultDomainCertificate: %w", err)
+		lgr.Error(err, "failed to generate Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err
 	}
 
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
-		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "EnsuringCertificateSecretFailed", "Failed to ensure Secret for DefaultDomainCertificate: %s", err.Error())
+		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "ApplyingCertificateSecretFailed", "Failed to apply Secret for DefaultDomainCertificate: %s", err.Error())
 		lgr.Error(err, "failed to upsert Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err
 	}
@@ -109,8 +109,8 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	defaultDomainCertificate.SetCondition(metav1.Condition{
 		Type:    approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable,
 		Status:  metav1.ConditionTrue,
-		Reason:  "CertificateSecretEnsured",
-		Message: fmt.Sprintf("Secret %s/%s successfully ensured for DefaultDomainCertificate", secret.Namespace, secret.Name),
+		Reason:  "CertificateSecretApplied",
+		Message: fmt.Sprintf("Secret %s/%s successfully applied for DefaultDomainCertificate", secret.Namespace, secret.Name),
 	})
 	if err := d.client.Status().Update(ctx, defaultDomainCertificate); err != nil {
 		lgr.Error(err, "failed to update status for DefaultDomainCertificate")
@@ -120,7 +120,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	return ctrl.Result{}, nil
 }
 
-func (d *defaultDomainCertControllerReconciler) getSecret(defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
+func (d *defaultDomainCertControllerReconciler) generateSecret(defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
 	crt, ok := d.store.GetContent(d.conf.DefaultDomainCertPath)
 	if crt == nil || !ok {
 		return nil, errors.New("failed to get certificate from store")

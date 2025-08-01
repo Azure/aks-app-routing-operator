@@ -338,7 +338,7 @@ func TestReconcile_FailedToGetSecret(t *testing.T) {
 	result, err := reconciler.Reconcile(ctx, req)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting Secret for DefaultDomainCertificate")
+	assert.Contains(t, err.Error(), "generating Secret for DefaultDomainCertificate")
 	assert.Contains(t, err.Error(), "failed to get certificate from store")
 	assert.Equal(t, ctrl.Result{}, result)
 }
@@ -425,160 +425,12 @@ func TestReconcile_FailedToUpsertSecret_RecordsEvent(t *testing.T) {
 	select {
 	case event := <-fakeRecorder.Events:
 		assert.Contains(t, event, "Warning")
-		assert.Contains(t, event, "EnsuringCertificateSecretFailed")
-		assert.Contains(t, event, "Failed to ensure Secret for DefaultDomainCertificate")
+		assert.Contains(t, event, "ApplyingCertificateSecretFailed")
+		assert.Contains(t, event, "Failed to apply Secret for DefaultDomainCertificate")
 		assert.Contains(t, event, "failed to patch secret")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected event was not recorded within timeout")
 	}
-}
-
-func TestGetSecret_SuccessfulSecretCreation(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-	ddc.UID = "test-uid"
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	assert.Equal(t, testSecretName, secret.Name)
-	assert.Equal(t, testNamespace, secret.Namespace)
-	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
-	assert.Equal(t, []byte(testCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(testKeyContent), secret.Data["tls.key"])
-	assert.Equal(t, manifests.GetTopLevelLabels(), secret.Labels)
-
-	// Verify owner references
-	assert.Len(t, secret.OwnerReferences, 1)
-	assert.Equal(t, ddc.Name, secret.OwnerReferences[0].Name)
-	assert.Equal(t, ddc.UID, secret.OwnerReferences[0].UID)
-	assert.True(t, *secret.OwnerReferences[0].Controller)
-}
-
-func TestGetSecret_CertificateNotFoundInStore(t *testing.T) {
-	mockStore := newMockStore()
-	// Only set key content, not cert content
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get certificate from store")
-	assert.Nil(t, secret)
-}
-
-func TestGetSecret_KeyNotFoundInStore(t *testing.T) {
-	mockStore := newMockStore()
-	// Only set cert content, not key content
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get key from store")
-	assert.Nil(t, secret)
-}
-
-func TestGetSecret_CertificateContentIsNil(t *testing.T) {
-	mockStore := newMockStore()
-	// Set files to exist but with nil content
-	mockStore.files[testCertPath] = nil
-	mockStore.shouldExist[testCertPath] = true
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get certificate from store")
-	assert.Nil(t, secret)
-}
-
-func TestGetSecret_KeyContentIsNil(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	// Set key file to exist but with nil content
-	mockStore.files[testKeyPath] = nil
-	mockStore.shouldExist[testKeyPath] = true
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get key from store")
-	assert.Nil(t, secret)
-}
-
-func TestGetSecret_EmptyNamespace(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", "", testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	assert.Equal(t, testSecretName, secret.Name)
-	assert.Equal(t, "", secret.Namespace)
-}
-
-func TestNewReconciler_AddCertFileError(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.addFileErr = errors.New("failed to add cert file")
-
-	conf := &config.Config{
-		DefaultDomainCertPath: testCertPath,
-		DefaultDomainKeyPath:  testKeyPath,
-	}
-
-	err := NewReconciler(conf, &testutils.FakeManager{}, mockStore)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "adding default domain cert")
-	assert.Contains(t, err.Error(), "failed to add cert file")
-}
-
-func TestNewReconciler_AddKeyFileError(t *testing.T) {
-	mockStore := newMockStore()
-	// Set specific error for the key file (second AddFile call)
-	mockStore.addFileKeyErr = errors.New("failed to add key file")
-
-	conf := &config.Config{
-		DefaultDomainCertPath: testCertPath,
-		DefaultDomainKeyPath:  testKeyPath,
-	}
-
-	err := NewReconciler(conf, &testutils.FakeManager{}, mockStore)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "adding default domain key")
-	assert.Contains(t, err.Error(), "failed to add key file")
 }
 
 func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
@@ -636,83 +488,6 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
 	assert.Equal(t, []byte(testCertContent), secret.Data["tls.crt"])
 	assert.Equal(t, []byte(testKeyContent), secret.Data["tls.key"])
-}
-
-func TestGetSecret_ValidatesOwnerReferences(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-	ddc.UID = "test-uid-12345"
-	// Set TypeMeta properly so GetOwnerRefs can extract the GVK
-	ddc.TypeMeta = metav1.TypeMeta{
-		APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
-		Kind:       "DefaultDomainCertificate",
-	}
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	// Verify owner references are set correctly
-	require.Len(t, secret.OwnerReferences, 1)
-	ownerRef := secret.OwnerReferences[0]
-	assert.Equal(t, "approuting.kubernetes.azure.com/v1alpha1", ownerRef.APIVersion)
-	assert.Equal(t, "DefaultDomainCertificate", ownerRef.Kind)
-	assert.Equal(t, ddc.Name, ownerRef.Name)
-	assert.Equal(t, ddc.UID, ownerRef.UID)
-	assert.True(t, *ownerRef.Controller)
-	// Note: BlockOwnerDeletion is not set by GetOwnerRefs function
-	assert.Nil(t, ownerRef.BlockOwnerDeletion)
-}
-
-func TestGetSecret_LargeFileContent(t *testing.T) {
-	// Test with larger certificate/key content to ensure no size limitations
-	largeCertContent := strings.Repeat("LARGE CERT CONTENT ", 1000)
-	largeKeyContent := strings.Repeat("LARGE KEY CONTENT ", 1000)
-
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(largeCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(largeKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	assert.Equal(t, []byte(largeCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(largeKeyContent), secret.Data["tls.key"])
-	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
-}
-
-func TestGetSecret_SpecialCharactersInContent(t *testing.T) {
-	// Test with special characters, unicode, etc.
-	specialCertContent := "-----BEGIN CERTIFICATE-----\n测试特殊字符\n🔒🔑\n-----END CERTIFICATE-----"
-	specialKeyContent := "-----BEGIN PRIVATE KEY-----\nñáéíóú\n\x00\x01\x02\n-----END PRIVATE KEY-----"
-
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(specialCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(specialKeyContent))
-
-	reconciler := createTestReconciler(nil, mockStore)
-
-	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
-
-	secret, err := reconciler.getSecret(ddc)
-
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	assert.Equal(t, []byte(specialCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(specialKeyContent), secret.Data["tls.key"])
 }
 
 func TestReconcile_StatusUpdateFails(t *testing.T) {
@@ -839,6 +614,231 @@ func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 	// LastTransitionTime should be updated since generation changed
 	assert.True(t, secondCondition.LastTransitionTime.After(firstLastTransitionTime.Time) ||
 		secondCondition.LastTransitionTime.Equal(&firstLastTransitionTime))
+}
+
+func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+	ddc.UID = "test-uid"
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.NoError(t, err)
+	require.NotNil(t, secret)
+
+	assert.Equal(t, testSecretName, secret.Name)
+	assert.Equal(t, testNamespace, secret.Namespace)
+	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
+	assert.Equal(t, []byte(testCertContent), secret.Data["tls.crt"])
+	assert.Equal(t, []byte(testKeyContent), secret.Data["tls.key"])
+	assert.Equal(t, manifests.GetTopLevelLabels(), secret.Labels)
+
+	// Verify owner references
+	assert.Len(t, secret.OwnerReferences, 1)
+	assert.Equal(t, ddc.Name, secret.OwnerReferences[0].Name)
+	assert.Equal(t, ddc.UID, secret.OwnerReferences[0].UID)
+	assert.True(t, *secret.OwnerReferences[0].Controller)
+}
+
+func TestGenerateSecret_CertificateNotFoundInStore(t *testing.T) {
+	mockStore := newMockStore()
+	// Only set key content, not cert content
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get certificate from store")
+	assert.Nil(t, secret)
+}
+
+func TestGenerateSecret_KeyNotFoundInStore(t *testing.T) {
+	mockStore := newMockStore()
+	// Only set cert content, not key content
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get key from store")
+	assert.Nil(t, secret)
+}
+
+func TestGenerateSecret_CertificateContentIsNil(t *testing.T) {
+	mockStore := newMockStore()
+	// Set files to exist but with nil content
+	mockStore.files[testCertPath] = nil
+	mockStore.shouldExist[testCertPath] = true
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get certificate from store")
+	assert.Nil(t, secret)
+}
+
+func TestGenerateSecret_KeyContentIsNil(t *testing.T) {
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	// Set key file to exist but with nil content
+	mockStore.files[testKeyPath] = nil
+	mockStore.shouldExist[testKeyPath] = true
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get key from store")
+	assert.Nil(t, secret)
+}
+
+func TestGenerateSecret_EmptyNamespace(t *testing.T) {
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", "", testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.NoError(t, err)
+	require.NotNil(t, secret)
+
+	assert.Equal(t, testSecretName, secret.Name)
+	assert.Equal(t, "", secret.Namespace)
+}
+
+func TestGenerateSecret_ValidatesOwnerReferences(t *testing.T) {
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+	ddc.UID = "test-uid-12345"
+	// Set TypeMeta properly so GetOwnerRefs can extract the GVK
+	ddc.TypeMeta = metav1.TypeMeta{
+		APIVersion: "approuting.kubernetes.azure.com/v1alpha1",
+		Kind:       "DefaultDomainCertificate",
+	}
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.NoError(t, err)
+	require.NotNil(t, secret)
+
+	// Verify owner references are set correctly
+	require.Len(t, secret.OwnerReferences, 1)
+	ownerRef := secret.OwnerReferences[0]
+	assert.Equal(t, "approuting.kubernetes.azure.com/v1alpha1", ownerRef.APIVersion)
+	assert.Equal(t, "DefaultDomainCertificate", ownerRef.Kind)
+	assert.Equal(t, ddc.Name, ownerRef.Name)
+	assert.Equal(t, ddc.UID, ownerRef.UID)
+	assert.True(t, *ownerRef.Controller)
+	// Note: BlockOwnerDeletion is not set by GetOwnerRefs function
+	assert.Nil(t, ownerRef.BlockOwnerDeletion)
+}
+
+func TestGenerateSecret_LargeFileContent(t *testing.T) {
+	// Test with larger certificate/key content to ensure no size limitations
+	largeCertContent := strings.Repeat("LARGE CERT CONTENT ", 1000)
+	largeKeyContent := strings.Repeat("LARGE KEY CONTENT ", 1000)
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(largeCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(largeKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.NoError(t, err)
+	require.NotNil(t, secret)
+
+	assert.Equal(t, []byte(largeCertContent), secret.Data["tls.crt"])
+	assert.Equal(t, []byte(largeKeyContent), secret.Data["tls.key"])
+	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
+}
+
+func TestGenerateSecret_SpecialCharactersInContent(t *testing.T) {
+	// Test with special characters, unicode, etc.
+	specialCertContent := "-----BEGIN CERTIFICATE-----\n测试特殊字符\n🔒🔑\n-----END CERTIFICATE-----"
+	specialKeyContent := "-----BEGIN PRIVATE KEY-----\nñáéíóú\n\x00\x01\x02\n-----END PRIVATE KEY-----"
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(specialCertContent))
+	mockStore.setFileContent(testKeyPath, []byte(specialKeyContent))
+
+	reconciler := createTestReconciler(nil, mockStore)
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	secret, err := reconciler.generateSecret(ddc)
+
+	require.NoError(t, err)
+	require.NotNil(t, secret)
+
+	assert.Equal(t, []byte(specialCertContent), secret.Data["tls.crt"])
+	assert.Equal(t, []byte(specialKeyContent), secret.Data["tls.key"])
+}
+
+func TestNewReconciler_AddCertFileError(t *testing.T) {
+	mockStore := newMockStore()
+	mockStore.addFileErr = errors.New("failed to add cert file")
+
+	conf := &config.Config{
+		DefaultDomainCertPath: testCertPath,
+		DefaultDomainKeyPath:  testKeyPath,
+	}
+
+	err := NewReconciler(conf, &testutils.FakeManager{}, mockStore)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "adding default domain cert")
+	assert.Contains(t, err.Error(), "failed to add cert file")
+}
+
+func TestNewReconciler_AddKeyFileError(t *testing.T) {
+	mockStore := newMockStore()
+	// Set specific error for the key file (second AddFile call)
+	mockStore.addFileKeyErr = errors.New("failed to add key file")
+
+	conf := &config.Config{
+		DefaultDomainCertPath: testCertPath,
+		DefaultDomainKeyPath:  testKeyPath,
+	}
+
+	err := NewReconciler(conf, &testutils.FakeManager{}, mockStore)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "adding default domain key")
+	assert.Contains(t, err.Error(), "failed to add key file")
 }
 
 // StatusErrorClient wraps a client to inject errors specifically for status updates
