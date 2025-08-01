@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -128,6 +130,109 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					lgr.Info("Test case passed", "name", tc.name, "error", err.Error())
 				}
 
+				return nil
+			},
+		},
+		{
+			name: "default domain happy path",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("Running default domain happy path")
+
+				scheme := runtime.NewScheme()
+				v1alpha1.AddToScheme(scheme)
+				corev1.AddToScheme(scheme)
+				cl, err := client.New(config, client.Options{Scheme: scheme})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
+				}
+
+				namespace := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default-domain",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Namespace",
+						APIVersion: corev1.SchemeGroupVersion.String(),
+					},
+				}
+				if err := util.Upsert(ctx, cl, namespace); err != nil {
+					return fmt.Errorf("upserting namespace: %w", err)
+				}
+
+				secretTarget := "test-secret-target"
+				ddc := &v1alpha1.DefaultDomainCertificate{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "DefaultDomainCertificate",
+						APIVersion: v1alpha1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-ddc",
+						Namespace: namespace.GetName(),
+					},
+					Spec: v1alpha1.DefaultDomainCertificateSpec{
+						Target: v1alpha1.DefaultDomainCertificateTarget{
+							Secret: util.ToPtr(secretTarget),
+						},
+					},
+				}
+
+				if err := util.Upsert(ctx, cl, ddc); err != nil {
+					return fmt.Errorf("upserting DefaultDomainCertificate: %w", err)
+				}
+
+				lgr.Info("DefaultDomainCertificate created", "name", ddc.Name)
+				lgr.Info("Waiting for DefaultDomainCertificate to be available")
+
+				start := time.Now()
+				timeout := 30 * time.Second
+				sleep := 5 * time.Second
+				for {
+					if err := cl.Get(ctx, client.ObjectKeyFromObject(ddc), ddc); err != nil {
+						return fmt.Errorf("getting DefaultDomainCertificate: %w", err)
+					}
+
+					available := ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+					if available != nil && available.Status == metav1.ConditionTrue {
+						lgr.Info("DefaultDomainCertificate is available", "name", ddc.Name)
+						break
+					}
+
+					if time.Since(start) > timeout {
+						return fmt.Errorf("timed out waiting for DefaultDomainCertificate to be available")
+					}
+
+					lgr.Info("DefaultDomainCertificate not available yet, waiting", "elapsed", time.Since(start))
+					time.Sleep(sleep)
+				}
+
+				secret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secretTarget,
+						Namespace: namespace.GetName(),
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Secret",
+						APIVersion: corev1.SchemeGroupVersion.String(),
+					},
+				}
+				if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+					return fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
+				}
+
+				if _, ok := secret.Data["tls.crt"]; !ok {
+					return fmt.Errorf("Secret %s/%s does not contain tls.crt data", secret.Namespace, secret.Name)
+				}
+				if _, ok := secret.Data["tls.key"]; !ok {
+					return fmt.Errorf("Secret %s/%s does not contain tls.key data", secret.Namespace, secret.Name)
+				}
+
+				lgr.Info("DefaultDomainCertificate happy path test completed successfully")
 				return nil
 			},
 		},
