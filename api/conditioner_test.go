@@ -19,8 +19,8 @@ func (f *fakeConditioner) GetCondition(t string) *metav1.Condition {
 
 func (f *fakeConditioner) GetConditions() *[]metav1.Condition {
 	return &f.conditions
-
 }
+
 func (f *fakeConditioner) GetGeneration() int64 {
 	return f.generation
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,8 +109,12 @@ func TestSetup(t *testing.T) {
 	mgr, err := manager.New(testRestConfig, manager.Options{
 		Scheme: s,
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "failed to create manager")
+
+	store, err := store.New(logr.Discard(), context.Background())
+	require.NoError(t, err, "failed to create store")
+
 	require.NoError(t, setupIndexers(mgr, logr.Discard(), testConfig))
-	require.NoError(t, setupControllers(mgr, testConfig, logr.Discard(), controllerruntimefake.NewFakeClient()))
+	require.NoError(t, setupControllers(mgr, testConfig, logr.Discard(), controllerruntimefake.NewFakeClient(), store))
 	require.NoError(t, setupProbes(testConfig, mgr, logr.Discard()))
 }

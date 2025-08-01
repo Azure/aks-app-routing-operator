@@ -1,7 +1,14 @@
 package manifests
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"math"
+	"math/big"
+	"net"
 	"strings"
 	"time"
 
@@ -37,7 +44,61 @@ var (
 
 const (
 	pathToDefaultDomainCert = "/path/to/default/domain/cert"
+	pathToDefaultDomainKey  = "/path/to/default/domain/key"
 )
+
+// generateSelfSignedCert generates a self-signed TLS certificate and private key for testing
+func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
+	// Generate a private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create certificate template
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization:  []string{"Test Organization"},
+			Country:       []string{"US"},
+			Province:      []string{""},
+			Locality:      []string{"San Francisco"},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
+		},
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().Add(365 * 24 * time.Hour), // Valid for 1 year
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		DNSNames:    []string{"localhost", "*.example.com", "example.com"},
+	}
+
+	// Create the certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Encode certificate to PEM
+	certPEM = pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
+
+	// Encode private key to PEM
+	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keyPEM = pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privateKeyDER,
+	})
+
+	return certPEM, keyPEM, nil
+}
 
 // OperatorVersion is an enum for the different versions of the operator
 type OperatorVersion uint
@@ -143,7 +204,8 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	if o.Version >= OperatorVersionLatest {
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
-		ret = append(ret, "--default-domain-cert-path", pathToDefaultDomainCert)
+		ret = append(ret, "--default-domain-cert-path", pathToDefaultDomainCert+"/tls.crt")
+		ret = append(ret, "--default-domain-key-path", pathToDefaultDomainCert+"/tls.key")
 	}
 
 	var zones []string
@@ -303,7 +365,12 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}...)
 
 	if cfg.Version == OperatorVersionLatest {
-		subPath := "hello"
+		// Generate self-signed certificate for testing
+		certPEM, keyPEM, err := generateSelfSignedCert()
+		if err != nil {
+			panic("failed to generate self-signed certificate: " + err.Error())
+		}
+
 		defaultDomainSecret := &corev1.Secret{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -314,7 +381,8 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 				Namespace: operatorNs,
 			},
 			Data: map[string][]byte{
-				subPath: []byte("world"), // Placeholder for actual cert data in future iterations
+				"tls.crt": certPEM,
+				"tls.key": keyPEM,
 			},
 		}
 		ret = append(ret, defaultDomainSecret)
@@ -324,7 +392,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 			{
 				Name:      defaultDomainVolumeName,
 				MountPath: pathToDefaultDomainCert,
-				SubPath:   subPath,
 			},
 		}
 		baseDeployment.Spec.Template.Spec.Volumes = []corev1.Volume{

@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"github.com/Azure/aks-app-routing-operator/api"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -31,7 +33,22 @@ type DefaultDomainCertificateTarget struct {
 type DefaultDomainCertificateStatus struct {
 	// ExpirationTime is the time when the default domain certificate will expire. The certificate will be autorenewed before this time.
 	ExpirationTime *metav1.Time `json:"expirationTime,omitempty"`
+
+	// Conditions is an array of current observed conditions for the DefaultDomainCertificate.
+	// Conditions can include:
+	// - "Available": Indicates if the default domain certificate target is populated and ready to be used.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+const (
+	// DefaultDomainCertificateConditionTypeAvailable indicates whether the default domain certificate is available.
+	DefaultDomainCertificateConditionTypeAvailable = "Available"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -43,6 +60,18 @@ type DefaultDomainCertificate struct {
 
 	Spec   DefaultDomainCertificateSpec   `json:"spec,omitempty"`
 	Status DefaultDomainCertificateStatus `json:"status,omitempty"`
+}
+
+func (d *DefaultDomainCertificate) GetConditions() *[]metav1.Condition {
+	return &d.Status.Conditions
+}
+
+func (d *DefaultDomainCertificate) GetCondition(t string) *metav1.Condition {
+	return meta.FindStatusCondition(d.Status.Conditions, t)
+}
+
+func (d *DefaultDomainCertificate) SetCondition(c metav1.Condition) {
+	api.VerifyAndSetCondition(d, c)
 }
 
 // +kubebuilder:object:root=true
