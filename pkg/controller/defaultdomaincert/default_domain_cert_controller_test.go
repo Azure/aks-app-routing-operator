@@ -2,7 +2,13 @@ package defaultdomaincert
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
@@ -71,13 +77,63 @@ func (e *ErrorClient) Delete(ctx context.Context, obj client.Object, opts ...cli
 }
 
 const (
-	testNamespace   = "test-namespace"
-	testSecretName  = "test-secret"
-	testCertPath    = "/path/to/cert.crt"
-	testKeyPath     = "/path/to/key.key"
-	testCertContent = "-----BEGIN CERTIFICATE-----\nMIIC...test cert content...\n-----END CERTIFICATE-----"
-	testKeyContent  = "-----BEGIN PRIVATE KEY-----\nMIIE...test key content...\n-----END PRIVATE KEY-----"
+	testNamespace  = "test-namespace"
+	testSecretName = "test-secret"
+	testCertPath   = "/path/to/cert.crt"
+	testKeyPath    = "/path/to/key.key"
 )
+
+func generateTestCertificate(t *testing.T) ([]byte, []byte) {
+	// Generate a private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate private key: %v", err)
+	}
+
+	subject := pkix.Name{
+		Country:      []string{"US"},
+		Organization: []string{"Test Org"},
+		CommonName:   "test.example.com",
+	}
+
+	// Create certificate template
+	template := x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               subject,
+		Issuer:                subject,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(1, 0, 0), // Valid for 1 year
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"example.com", "www.example.com"},
+	}
+
+	// Create the certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("Failed to create certificate: %v", err)
+	}
+
+	// Encode certificate to PEM
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
+
+	// Encode private key to PEM
+	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("Failed to marshal private key: %v", err)
+	}
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privateKeyDER,
+	})
+
+	return certPEM, keyPEM
+}
 
 // mockStore implements the store.Store interface for testing
 type mockStore struct {
@@ -183,9 +239,11 @@ func TestReconcile_SuccessfulReconciliation(t *testing.T) {
 		WithStatusSubresource(ddc).
 		Build()
 
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(client, mockStore)
 
@@ -210,8 +268,8 @@ func TestReconcile_SuccessfulReconciliation(t *testing.T) {
 	assert.Equal(t, testSecretName, secret.Name)
 	assert.Equal(t, testNamespace, secret.Namespace)
 	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
-	assert.Equal(t, []byte(testCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(testKeyContent), secret.Data["tls.key"])
+	assert.Equal(t, []byte(cert), secret.Data["tls.crt"])
+	assert.Equal(t, []byte(key), secret.Data["tls.key"])
 	assert.Equal(t, manifests.GetTopLevelLabels(), secret.Labels)
 
 	// Verify owner references
@@ -321,9 +379,11 @@ func TestReconcile_FailedToGetSecret(t *testing.T) {
 		WithObjects(ddc).
 		Build()
 
+	_, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
 	// Don't set cert content, should cause error
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(client, mockStore)
 
@@ -338,8 +398,7 @@ func TestReconcile_FailedToGetSecret(t *testing.T) {
 	result, err := reconciler.Reconcile(ctx, req)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "generating Secret for DefaultDomainCertificate")
-	assert.Contains(t, err.Error(), "failed to get certificate from store")
+	assert.Contains(t, err.Error(), "generating Secret for DefaultDomainCertificate: getting and verifying cert and key: failed to get default domain cert from store")
 	assert.Equal(t, ctrl.Result{}, result)
 }
 
@@ -356,9 +415,11 @@ func TestReconcile_FailedToUpsertSecret(t *testing.T) {
 		PatchError: errors.New("failed to patch secret"),
 	}
 
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(client, mockStore)
 
@@ -390,9 +451,11 @@ func TestReconcile_FailedToUpsertSecret_RecordsEvent(t *testing.T) {
 		PatchError: errors.New("failed to patch secret"),
 	}
 
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	// Use a fake event recorder to capture events
 	fakeRecorder := &record.FakeRecorder{Events: make(chan string, 10)}
@@ -459,9 +522,11 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 		WithStatusSubresource(ddc).
 		Build()
 
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(client, mockStore)
 
@@ -486,15 +551,17 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 	assert.Equal(t, testSecretName, secret.Name)
 	assert.Equal(t, testNamespace, secret.Namespace)
 	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
-	assert.Equal(t, []byte(testCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(testKeyContent), secret.Data["tls.key"])
+	assert.Equal(t, []byte(cert), secret.Data["tls.crt"])
+	assert.Equal(t, []byte(key), secret.Data["tls.key"])
 }
 
 func TestReconcile_StatusUpdateFails(t *testing.T) {
 	// Test that error is returned when status update fails
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
@@ -544,9 +611,11 @@ func TestReconcile_StatusUpdateFails(t *testing.T) {
 
 func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 	// Test multiple reconciles to ensure status conditions are updated correctly
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
@@ -617,9 +686,11 @@ func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 }
 
 func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(nil, mockStore)
 
@@ -634,8 +705,8 @@ func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
 	assert.Equal(t, testSecretName, secret.Name)
 	assert.Equal(t, testNamespace, secret.Namespace)
 	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
-	assert.Equal(t, []byte(testCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(testKeyContent), secret.Data["tls.key"])
+	assert.Equal(t, []byte(cert), secret.Data["tls.crt"])
+	assert.Equal(t, []byte(key), secret.Data["tls.key"])
 	assert.Equal(t, manifests.GetTopLevelLabels(), secret.Labels)
 
 	// Verify owner references
@@ -646,9 +717,11 @@ func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
 }
 
 func TestGenerateSecret_CertificateNotFoundInStore(t *testing.T) {
+	_, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
 	// Only set key content, not cert content
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(nil, mockStore)
 
@@ -657,14 +730,16 @@ func TestGenerateSecret_CertificateNotFoundInStore(t *testing.T) {
 	secret, err := reconciler.generateSecret(ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get certificate from store")
+	assert.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain cert from store")
 	assert.Nil(t, secret)
 }
 
 func TestGenerateSecret_KeyNotFoundInStore(t *testing.T) {
+	cert, _ := generateTestCertificate(t)
+
 	mockStore := newMockStore()
 	// Only set cert content, not key content
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
 
 	reconciler := createTestReconciler(nil, mockStore)
 
@@ -673,16 +748,18 @@ func TestGenerateSecret_KeyNotFoundInStore(t *testing.T) {
 	secret, err := reconciler.generateSecret(ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get key from store")
+	assert.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain key from store")
 	assert.Nil(t, secret)
 }
 
 func TestGenerateSecret_CertificateContentIsNil(t *testing.T) {
+	_, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
 	// Set files to exist but with nil content
 	mockStore.files[testCertPath] = nil
 	mockStore.shouldExist[testCertPath] = true
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(nil, mockStore)
 
@@ -691,13 +768,15 @@ func TestGenerateSecret_CertificateContentIsNil(t *testing.T) {
 	secret, err := reconciler.generateSecret(ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get certificate from store")
+	assert.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain cert from store")
 	assert.Nil(t, secret)
 }
 
 func TestGenerateSecret_KeyContentIsNil(t *testing.T) {
+	cert, _ := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
 	// Set key file to exist but with nil content
 	mockStore.files[testKeyPath] = nil
 	mockStore.shouldExist[testKeyPath] = true
@@ -709,14 +788,16 @@ func TestGenerateSecret_KeyContentIsNil(t *testing.T) {
 	secret, err := reconciler.generateSecret(ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get key from store")
-	assert.Nil(t, secret)
+	require.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain key from store")
+	require.Nil(t, secret)
 }
 
 func TestGenerateSecret_EmptyNamespace(t *testing.T) {
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(nil, mockStore)
 
@@ -732,9 +813,11 @@ func TestGenerateSecret_EmptyNamespace(t *testing.T) {
 }
 
 func TestGenerateSecret_ValidatesOwnerReferences(t *testing.T) {
+	cert, key := generateTestCertificate(t)
+
 	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(testCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(testKeyContent))
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
 
 	reconciler := createTestReconciler(nil, mockStore)
 
@@ -778,12 +861,8 @@ func TestGenerateSecret_LargeFileContent(t *testing.T) {
 
 	secret, err := reconciler.generateSecret(ddc)
 
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	assert.Equal(t, []byte(largeCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(largeKeyContent), secret.Data["tls.key"])
-	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
+	require.Contains(t, err.Error(), "getting and verifying cert and key: validating cert and key: failed to decode PEM certificate block")
+	require.Nil(t, secret)
 }
 
 func TestGenerateSecret_SpecialCharactersInContent(t *testing.T) {
@@ -801,11 +880,8 @@ func TestGenerateSecret_SpecialCharactersInContent(t *testing.T) {
 
 	secret, err := reconciler.generateSecret(ddc)
 
-	require.NoError(t, err)
-	require.NotNil(t, secret)
-
-	assert.Equal(t, []byte(specialCertContent), secret.Data["tls.crt"])
-	assert.Equal(t, []byte(specialKeyContent), secret.Data["tls.key"])
+	require.Contains(t, err.Error(), "getting and verifying cert and key: validating cert and key: failed to decode PEM certificate block")
+	require.Nil(t, secret)
 }
 
 func TestNewReconciler_AddCertFileError(t *testing.T) {
@@ -872,4 +948,57 @@ func (s *StatusErrorWriter) Patch(ctx context.Context, obj client.Object, patch 
 		return s.UpdateError
 	}
 	return s.StatusWriter.Patch(ctx, obj, patch, opts...)
+}
+
+func TestGetAndVerifyCertAndKeySuccess(t *testing.T) {
+	cert, key := generateTestCertificate(t)
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
+	reconciler := createTestReconciler(nil, mockStore)
+
+	certContent, keyContent, err := reconciler.getAndVerifyCertAndKey()
+	require.NoError(t, err)
+	require.NotNil(t, certContent)
+	require.NotNil(t, keyContent)
+	assert.Equal(t, []byte(cert), certContent)
+	assert.Equal(t, []byte(key), keyContent)
+}
+
+func TestGetAndVerifyCertAndKeyNonCert(t *testing.T) {
+	cert, key := generateTestCertificate(t)
+	cert = []byte("non-cert content")
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	mockStore.setFileContent(testKeyPath, []byte(key))
+	reconciler := createTestReconciler(nil, mockStore)
+
+	_, _, err := reconciler.getAndVerifyCertAndKey()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode PEM certificate block")
+}
+
+func TestGetAndVerifyCertAndKeyMissingKey(t *testing.T) {
+	cert, _ := generateTestCertificate(t)
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testCertPath, []byte(cert))
+	reconciler := createTestReconciler(nil, mockStore)
+
+	_, _, err := reconciler.getAndVerifyCertAndKey()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get default domain key from store")
+}
+
+func TestGetAndVerifyCertAndKeyMissingCert(t *testing.T) {
+	_, key := generateTestCertificate(t)
+
+	mockStore := newMockStore()
+	mockStore.setFileContent(testKeyPath, []byte(key))
+	reconciler := createTestReconciler(nil, mockStore)
+	_, _, err := reconciler.getAndVerifyCertAndKey()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get default domain cert from store")
 }
