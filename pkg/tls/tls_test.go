@@ -13,7 +13,7 @@ import (
 )
 
 // generateTestCertificate creates a test certificate and private key for testing
-func generateTestCertificate(t *testing.T, notBefore, notAfter time.Time, dnsNames []string) ([]byte, []byte) {
+func generateTestCertificate(t *testing.T, notBefore, notAfter time.Time, dnsNames []string, subject, issuer pkix.Name) ([]byte, []byte) {
 	// Generate a private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -22,15 +22,9 @@ func generateTestCertificate(t *testing.T, notBefore, notAfter time.Time, dnsNam
 
 	// Create certificate template
 	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization:  []string{"Test Org"},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"San Francisco"},
-			StreetAddress: []string{""},
-			PostalCode:    []string{""},
-		},
+		SerialNumber:          big.NewInt(1),
+		Subject:               subject,
+		Issuer:                issuer,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
@@ -65,13 +59,49 @@ func generateTestCertificate(t *testing.T, notBefore, notAfter time.Time, dnsNam
 	return certPEM, keyPEM
 }
 
+// getDefaultSubject returns a default subject for test certificates
+func getDefaultSubject() pkix.Name {
+	return pkix.Name{
+		Organization:  []string{"Test Org"},
+		Country:       []string{"US"},
+		Province:      []string{""},
+		Locality:      []string{"San Francisco"},
+		StreetAddress: []string{""},
+		PostalCode:    []string{""},
+	}
+}
+
+// getDefaultIssuer returns a default issuer for test certificates
+func getDefaultIssuer() pkix.Name {
+	return pkix.Name{
+		Organization: []string{"Test CA"},
+		Country:      []string{"US"},
+		Province:     []string{""},
+		Locality:     []string{"San Francisco"},
+		CommonName:   "Test CA",
+	}
+}
+
 func TestParseTLSCertificate_Valid(t *testing.T) {
 	now := time.Now()
 	notBefore := now.Add(-24 * time.Hour)
 	notAfter := now.Add(24 * time.Hour)
 	dnsNames := []string{"example.com", "www.example.com"}
 
-	certPEM, keyPEM := generateTestCertificate(t, notBefore, notAfter, dnsNames)
+	expectedSubject := pkix.Name{
+		Organization:  []string{"Test Organization"},
+		Country:       []string{"US"},
+		Province:      []string{"California"},
+		Locality:      []string{"San Francisco"},
+		StreetAddress: []string{"123 Test St"},
+		PostalCode:    []string{"94105"},
+		CommonName:    "example.com",
+	}
+
+	// For self-signed certificates, issuer will be the same as subject
+	expectedIssuer := expectedSubject
+
+	certPEM, keyPEM := generateTestCertificate(t, notBefore, notAfter, dnsNames, expectedSubject, expectedIssuer)
 
 	info, err := ParseTLSCertificate(certPEM, keyPEM)
 	if err != nil {
@@ -84,6 +114,16 @@ func TestParseTLSCertificate_Valid(t *testing.T) {
 
 	if len(info.DNSNames) != 2 {
 		t.Errorf("Expected 2 DNS names, got %d", len(info.DNSNames))
+	}
+
+	// Test subject field parsing
+	if info.Subject != expectedSubject.String() {
+		t.Errorf("Subject mismatch: expected %s, got %s", expectedSubject.String(), info.Subject)
+	}
+
+	// Test issuer field parsing (should be same as subject for self-signed cert)
+	if info.Issuer != expectedIssuer.String() {
+		t.Errorf("Issuer mismatch: expected %s, got %s", expectedIssuer.String(), info.Issuer)
 	}
 
 	if info.NotBefore.UTC().Truncate(time.Second) != notBefore.UTC().Truncate(time.Second) {
@@ -100,7 +140,7 @@ func TestParseTLSCertificate_ExpiredCertificate(t *testing.T) {
 	notBefore := now.Add(-48 * time.Hour)
 	notAfter := now.Add(-24 * time.Hour) // Expired yesterday
 
-	certPEM, keyPEM := generateTestCertificate(t, notBefore, notAfter, []string{"example.com"})
+	certPEM, keyPEM := generateTestCertificate(t, notBefore, notAfter, []string{"example.com"}, getDefaultSubject(), getDefaultIssuer())
 
 	info, err := ParseTLSCertificate(certPEM, keyPEM)
 	if err != nil {
@@ -118,7 +158,7 @@ func TestParseTLSCertificate_ExpiredCertificate(t *testing.T) {
 
 func TestParseTLSCertificate_InvalidCertPEM(t *testing.T) {
 	invalidCertPEM := []byte("invalid certificate")
-	_, keyPEM := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"})
+	_, keyPEM := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"}, getDefaultSubject(), getDefaultIssuer())
 
 	_, err := ParseTLSCertificate(invalidCertPEM, keyPEM)
 	if err == nil {
@@ -132,7 +172,7 @@ func TestParseTLSCertificate_InvalidCertPEM(t *testing.T) {
 }
 
 func TestParseTLSCertificate_InvalidKeyPEM(t *testing.T) {
-	certPEM, _ := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"})
+	certPEM, _ := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"}, getDefaultSubject(), getDefaultIssuer())
 	invalidKeyPEM := []byte("invalid key")
 
 	_, err := ParseTLSCertificate(certPEM, invalidKeyPEM)
@@ -148,8 +188,8 @@ func TestParseTLSCertificate_InvalidKeyPEM(t *testing.T) {
 
 func TestParseTLSCertificate_MismatchedKeyPair(t *testing.T) {
 	// Generate two separate certificate/key pairs
-	certPEM1, _ := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"})
-	_, keyPEM2 := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"other.com"})
+	certPEM1, _ := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"}, getDefaultSubject(), getDefaultIssuer())
+	_, keyPEM2 := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"other.com"}, getDefaultSubject(), getDefaultIssuer())
 
 	_, err := ParseTLSCertificate(certPEM1, keyPEM2)
 	if err == nil {
@@ -159,5 +199,44 @@ func TestParseTLSCertificate_MismatchedKeyPair(t *testing.T) {
 	expectedErrPrefix := "certificate and key do not match:"
 	if !strings.Contains(err.Error(), expectedErrPrefix) {
 		t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrPrefix, err.Error())
+	}
+}
+
+func TestParseTLSCertificate_SubjectIssuerParsing(t *testing.T) {
+	now := time.Now()
+	notBefore := now.Add(-24 * time.Hour)
+	notAfter := now.Add(24 * time.Hour)
+
+	testSubject := pkix.Name{
+		Organization:       []string{"Acme Corp"},
+		OrganizationalUnit: []string{"Engineering", "Security"},
+		Country:            []string{"CA"},
+		Province:           []string{"Ontario"},
+		Locality:           []string{"Toronto"},
+		StreetAddress:      []string{"456 Business Ave"},
+		PostalCode:         []string{"M5V 3A8"},
+		CommonName:         "test.acme.com",
+	}
+
+	testIssuer := testSubject // Self-signed
+
+	certPEM, keyPEM := generateTestCertificate(t, notBefore, notAfter, []string{"test.acme.com"}, testSubject, testIssuer)
+
+	info, err := ParseTLSCertificate(certPEM, keyPEM)
+	if err != nil {
+		t.Fatalf("ParseTLSCertificate failed: %v", err)
+	}
+
+	// Verify subject parsing contains expected components
+	expectedComponents := []string{"CN=test.acme.com", "O=Acme Corp", "L=Toronto", "ST=Ontario", "C=CA", "POSTALCODE=M5V 3A8", "STREET=456 Business Ave", "OU=Engineering", "OU=Security"}
+	for _, component := range expectedComponents {
+		if !strings.Contains(info.Subject, component) {
+			t.Errorf("Subject missing expected component %s, got: %s", component, info.Subject)
+		}
+	}
+
+	// Verify issuer parsing (should be same as subject for self-signed cert)
+	if info.Subject != info.Issuer {
+		t.Error("Expected subject and issuer to be the same for self-signed certificate")
 	}
 }
