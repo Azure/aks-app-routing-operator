@@ -7,6 +7,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 )
@@ -123,6 +124,11 @@ func TestParseTLSCertificate_InvalidCertPEM(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for invalid certificate PEM")
 	}
+
+	expectedErrMsg := "failed to decode PEM certificate block"
+	if err.Error() != expectedErrMsg {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrMsg, err.Error())
+	}
 }
 
 func TestParseTLSCertificate_InvalidKeyPEM(t *testing.T) {
@@ -132,5 +138,26 @@ func TestParseTLSCertificate_InvalidKeyPEM(t *testing.T) {
 	_, err := ParseTLSCertificate(certPEM, invalidKeyPEM)
 	if err == nil {
 		t.Fatal("Expected error for invalid key PEM")
+	}
+
+	expectedErrMsg := "failed to decode PEM key block"
+	if err.Error() != expectedErrMsg {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrMsg, err.Error())
+	}
+}
+
+func TestParseTLSCertificate_MismatchedKeyPair(t *testing.T) {
+	// Generate two separate certificate/key pairs
+	certPEM1, _ := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"example.com"})
+	_, keyPEM2 := generateTestCertificate(t, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), []string{"other.com"})
+
+	_, err := ParseTLSCertificate(certPEM1, keyPEM2)
+	if err == nil {
+		t.Fatal("Expected error for mismatched certificate and key")
+	}
+
+	expectedErrPrefix := "certificate and key do not match:"
+	if !strings.Contains(err.Error(), expectedErrPrefix) {
+		t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrPrefix, err.Error())
 	}
 }
