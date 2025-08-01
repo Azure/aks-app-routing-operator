@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/tls"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
@@ -225,11 +226,18 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
 				}
 
-				if _, ok := secret.Data["tls.crt"]; !ok {
+				tlsCert, ok := secret.Data["tls.crt"]
+				if !ok {
 					return fmt.Errorf("Secret %s/%s does not contain tls.crt data", secret.Namespace, secret.Name)
 				}
-				if _, ok := secret.Data["tls.key"]; !ok {
+				tlsKey, ok := secret.Data["tls.key"]
+				if !ok {
 					return fmt.Errorf("Secret %s/%s does not contain tls.key data", secret.Namespace, secret.Name)
+				}
+
+				lgr.Info("Validating Certificate and Key")
+				if _, err := tls.ParseTLSCertificate(tlsCert, tlsKey); err != nil {
+					return fmt.Errorf("parsing and verifying TLS certificate: %w", err)
 				}
 
 				lgr.Info("DefaultDomainCertificate happy path test completed successfully")
