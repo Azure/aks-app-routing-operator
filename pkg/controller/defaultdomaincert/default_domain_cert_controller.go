@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/store"
+	"github.com/Azure/aks-app-routing-operator/pkg/tls"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,6 +48,10 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager, store store.Store) err
 		events: mgr.GetEventRecorderFor("aks-app-routing-operator"),
 		conf:   conf,
 		store:  store,
+	}
+
+	if _, _, err := reconciler.getAndVerifyCertAndKey(); err != nil {
+		return fmt.Errorf("verifying cert and key: %w", err)
 	}
 
 	if err := name.AddToController(
@@ -121,13 +126,9 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 }
 
 func (d *defaultDomainCertControllerReconciler) generateSecret(defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
-	crt, ok := d.store.GetContent(d.conf.DefaultDomainCertPath)
-	if crt == nil || !ok {
-		return nil, errors.New("failed to get certificate from store")
-	}
-	key, ok := d.store.GetContent(d.conf.DefaultDomainKeyPath)
-	if key == nil || !ok {
-		return nil, errors.New("failed to get key from store")
+	cert, key, err := d.getAndVerifyCertAndKey()
+	if err != nil {
+		return nil, fmt.Errorf("getting and verifying cert and key: %w", err)
 	}
 
 	secret := &corev1.Secret{
@@ -142,7 +143,7 @@ func (d *defaultDomainCertControllerReconciler) generateSecret(defaultDomainCert
 		},
 		Type: corev1.SecretTypeTLS,
 		Data: map[string][]byte{
-			"tls.crt": crt,
+			"tls.crt": cert,
 			"tls.key": key,
 		},
 	}
@@ -151,4 +152,22 @@ func (d *defaultDomainCertControllerReconciler) generateSecret(defaultDomainCert
 	secret.SetOwnerReferences(owner)
 
 	return secret, nil
+}
+
+func (d *defaultDomainCertControllerReconciler) getAndVerifyCertAndKey() ([]byte, []byte, error) {
+	key, ok := d.store.GetContent(d.conf.DefaultDomainKeyPath)
+	if key == nil || !ok {
+		return nil, nil, fmt.Errorf("failed to get default domain key from store")
+	}
+
+	cert, ok := d.store.GetContent(d.conf.DefaultDomainCertPath)
+	if cert == nil || !ok {
+		return nil, nil, fmt.Errorf("failed to get default domain cert from store")
+	}
+
+	if _, err := tls.ParseTLSCertificate(cert, key); err != nil {
+		return nil, nil, fmt.Errorf("validating cert and key: %w", err)
+	}
+
+	return cert, key, nil
 }
