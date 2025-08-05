@@ -1,7 +1,0 @@
-{
-	"files.associations": {
-		// test files embedded in e2e with a main method, can't be suffixed with .go because Go will complain about main
-		"*.golang": "go"
-	},
-	"makefile.configureOnOpen": false
-}
