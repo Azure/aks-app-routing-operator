@@ -100,6 +100,23 @@ func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
 	return certPEM, keyPEM, nil
 }
 
+func CreateDefaultDomainSecret(certPEM, keyPEM []byte) *corev1.Secret {
+	return &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default-domain-cert",
+			Namespace: operatorNs,
+		},
+		Data: map[string][]byte{
+			"tls.crt": certPEM,
+			"tls.key": keyPEM,
+		},
+	}
+}
+
 // OperatorVersion is an enum for the different versions of the operator
 type OperatorVersion uint
 
@@ -371,20 +388,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 			panic("failed to generate self-signed certificate: " + err.Error())
 		}
 
-		defaultDomainSecret := &corev1.Secret{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1",
-				Kind:       "Secret",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default-domain-cert",
-				Namespace: operatorNs,
-			},
-			Data: map[string][]byte{
-				"tls.crt": certPEM,
-				"tls.key": keyPEM,
-			},
-		}
+		defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
 		ret = append(ret, defaultDomainSecret)
 
 		defaultDomainVolumeName := "default-domain-cert"
