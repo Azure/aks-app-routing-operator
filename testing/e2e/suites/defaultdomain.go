@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -242,51 +243,74 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				}
 
 				lgr.Info("Validating Rotation Story")
-				certPEM, keyPEM, err := manifests.GenerateSelfSignedCert()
+				newCert, newKey, err := manifests.GenerateSelfSignedCert()
 				if err != nil {
 					return fmt.Errorf("generating self-signed cert: %w", err)
 				}
 
-				dds := manifests.CreateDefaultDomainSecret(certPEM, keyPEM)
+				dds := manifests.CreateDefaultDomainSecret(newCert, newKey)
 				if err := util.Upsert(ctx, cl, dds); err != nil {
 					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
 				}
 
-				rotatedSecret := &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      secretTarget,
-						Namespace: namespace.GetName(),
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Secret",
-						APIVersion: corev1.SchemeGroupVersion.String(),
-					},
-				}
-				if err := cl.Get(ctx, client.ObjectKeyFromObject(rotatedSecret), rotatedSecret); err != nil {
-					return fmt.Errorf("getting Secret %s/%s: %w", rotatedSecret.Namespace, rotatedSecret.Name, err)
+				// Retry waiting for certificate rotation with timeout
+				if err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
+					rotatedSecret := &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      secretTarget,
+							Namespace: namespace.GetName(),
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "Secret",
+							APIVersion: corev1.SchemeGroupVersion.String(),
+						},
+					}
+					if err := cl.Get(ctx, client.ObjectKeyFromObject(rotatedSecret), rotatedSecret); err != nil {
+						lgr.Info("failed to get rotated secret, retrying", "error", err.Error())
+						return false, nil // Retry on error
+					}
+
+					rotatedCert, ok := rotatedSecret.Data["tls.crt"]
+					if !ok {
+						lgr.Info("rotated secret does not contain tls.crt data, retrying")
+						return false, nil // Retry
+					}
+					rotatedKey, ok := rotatedSecret.Data["tls.key"]
+					if !ok {
+						lgr.Info("rotated secret does not contain tls.key data, retrying")
+						return false, nil // Retry
+					}
+
+					// Check if certificate matches the new one
+					if !bytes.Equal(rotatedCert, newCert) {
+						lgr.Info("rotated certificate does not match the upserted certificate yet, retrying")
+						return false, nil // Retry
+					}
+					if bytes.Equal(rotatedCert, tlsCert) {
+						lgr.Info("rotated certificate is still the same as the original, retrying")
+						return false, nil // Retry
+					}
+
+					// Check if key matches the new one
+					if !bytes.Equal(rotatedKey, newKey) {
+						lgr.Info("rotated key does not match the upserted key yet, retrying")
+						return false, nil // Retry
+					}
+					if bytes.Equal(rotatedKey, tlsKey) {
+						lgr.Info("rotated key is still the same as the original, retrying")
+						return false, nil // Retry
+					}
+
+					lgr.Info("Validating Rotated Certificate and Key")
+					if _, err := tls.ParseTLSCertificate(rotatedCert, rotatedKey); err != nil {
+						lgr.Info("failed to parse rotated TLS certificate, retrying", "error", err.Error())
+						return false, nil // Retry
+					}
+				}); err != nil {
+					return fmt.Errorf("waiting for certificate rotation: %w", err)
 				}
 
-				rotatedCert, ok := rotatedSecret.Data["tls.crt"]
-				if !ok {
-					return fmt.Errorf("Secret %s/%s does not contain tls.crt data", rotatedSecret.Namespace, rotatedSecret.Name)
-				} else if !bytes.Equal(rotatedCert, certPEM) {
-					return fmt.Errorf("rotated certificate does not match the upserted certificate")
-				} else if bytes.Equal(rotatedCert, tlsCert) {
-					return fmt.Errorf("rotated certificate is the same as the original")
-				}
-				rotatedKey, ok := rotatedSecret.Data["tls.key"]
-				if !ok {
-					return fmt.Errorf("Secret %s/%s does not contain tls.key data", rotatedSecret.Namespace, rotatedSecret.Name)
-				} else if !bytes.Equal(rotatedKey, keyPEM) {
-					return fmt.Errorf("rotated key does not match the upserted key")
-				} else if bytes.Equal(rotatedKey, tlsKey) {
-					return fmt.Errorf("rotated key is the same as the original")
-				}
-
-				lgr.Info("Validating Rotated Certificate and Key")
-				if _, err := tls.ParseTLSCertificate(rotatedCert, rotatedKey); err != nil {
-					return fmt.Errorf("parsing and verifying TLS certificate: %w", err)
-				}
+				lgr.Info("Certificate rotation validation successful")
 
 				lgr.Info("DefaultDomainCertificate happy path test completed successfully")
 				return nil
