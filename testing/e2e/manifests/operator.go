@@ -47,8 +47,8 @@ const (
 	pathToDefaultDomainKey  = "/path/to/default/domain/key"
 )
 
-// generateSelfSignedCert generates a self-signed TLS certificate and private key for testing
-func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
+// GenerateSelfSignedCert generates a self-signed TLS certificate and private key for testing
+func GenerateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
 	// Generate a private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -383,7 +383,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 
 	if cfg.Version == OperatorVersionLatest {
 		// Generate self-signed certificate for testing
-		certPEM, keyPEM, err := generateSelfSignedCert()
+		certPEM, keyPEM, err := GenerateSelfSignedCert()
 		if err != nil {
 			panic("failed to generate self-signed certificate: " + err.Error())
 		}
