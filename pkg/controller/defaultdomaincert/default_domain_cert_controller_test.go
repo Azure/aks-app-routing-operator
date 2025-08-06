@@ -1096,7 +1096,7 @@ func TestSendRotationEvents_CertificateFileRotation(t *testing.T) {
 
 	// Verify that reconcile requests were added to the queue for both DDCs
 	assert.Eventually(t, func() bool {
-		return len(queue.requests) >= 2
+		return queue.Len() >= 2
 	}, 1*time.Second, 50*time.Millisecond, "Expected 2 reconcile requests to be queued")
 
 	// Check that the correct requests were queued
@@ -1105,7 +1105,8 @@ func TestSendRotationEvents_CertificateFileRotation(t *testing.T) {
 		{Name: "test-cert-2", Namespace: testNamespace}: false,
 	}
 
-	for _, req := range queue.requests {
+	requests := queue.GetRequests()
+	for _, req := range requests {
 		if _, exists := expectedRequests[req.NamespacedName]; exists {
 			expectedRequests[req.NamespacedName] = true
 		}
@@ -1176,12 +1177,13 @@ func TestSendRotationEvents_KeyFileRotation(t *testing.T) {
 
 	// Verify that a reconcile request was added to the queue
 	assert.Eventually(t, func() bool {
-		return len(queue.requests) >= 1
+		return queue.Len() >= 1
 	}, 1*time.Second, 50*time.Millisecond, "Expected 1 reconcile request to be queued")
 
 	// Check that the correct request was queued
-	assert.Equal(t, "test-cert", queue.requests[0].NamespacedName.Name)
-	assert.Equal(t, testNamespace, queue.requests[0].NamespacedName.Namespace)
+	requests := queue.GetRequests()
+	assert.Equal(t, "test-cert", requests[0].NamespacedName.Name)
+	assert.Equal(t, testNamespace, requests[0].NamespacedName.Namespace)
 
 	// Cancel context and verify goroutine exits
 	cancel()
@@ -1244,7 +1246,7 @@ func TestSendRotationEvents_NonCertificateFileIgnored(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify that no reconcile requests were added to the queue
-	assert.Empty(t, queue.requests, "Expected no reconcile requests for non-certificate files")
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests for non-certificate files")
 
 	// Cancel context and verify goroutine exits
 	cancel()
@@ -1293,7 +1295,7 @@ func TestSendRotationEvents_ListError(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify that no reconcile requests were added (due to list error)
-	assert.Empty(t, queue.requests, "Expected no reconcile requests when list fails")
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests when list fails")
 
 	// Cancel context and verify goroutine exits
 	cancel()
@@ -1342,7 +1344,7 @@ func TestSendRotationEvents_ContextCancellation(t *testing.T) {
 	}
 
 	// Verify no requests were queued
-	assert.Empty(t, queue.requests, "Expected no reconcile requests after context cancellation")
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests after context cancellation")
 }
 
 func TestSendRotationEvents_EmptyDDCList(t *testing.T) {
@@ -1377,7 +1379,7 @@ func TestSendRotationEvents_EmptyDDCList(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify that no reconcile requests were added (no DDCs exist)
-	assert.Empty(t, queue.requests, "Expected no reconcile requests when no DDCs exist")
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests when no DDCs exist")
 
 	// Cancel context and verify goroutine exits
 	cancel()
@@ -1441,4 +1443,14 @@ func (m *mockWorkQueue) Forget(item reconcile.Request) {}
 
 func (m *mockWorkQueue) NumRequeues(item reconcile.Request) int {
 	return 0
+}
+
+// GetRequests returns a copy of all requests for testing
+func (m *mockWorkQueue) GetRequests() []reconcile.Request {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Return a copy to avoid race conditions
+	result := make([]reconcile.Request, len(m.requests))
+	copy(result, m.requests)
+	return result
 }
