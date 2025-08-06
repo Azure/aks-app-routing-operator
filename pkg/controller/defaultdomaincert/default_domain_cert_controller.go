@@ -17,10 +17,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var name = controllername.New("default", "domain", "cert", "reconciler")
@@ -57,7 +61,8 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager, store store.Store) err
 	if err := name.AddToController(
 		ctrl.NewControllerManagedBy(mgr).
 			For(&approutingv1alpha1.DefaultDomainCertificate{}).
-			Owns(&corev1.Secret{}),
+			Owns(&corev1.Secret{}).
+			WatchesRawSource(source.Func(reconciler.sendRotationEvents)),
 		mgr.GetLogger(),
 	).Complete(reconciler); err != nil {
 		return fmt.Errorf("building the controller: %w", err)
@@ -170,4 +175,48 @@ func (d *defaultDomainCertControllerReconciler) getAndVerifyCertAndKey() ([]byte
 	}
 
 	return cert, key, nil
+}
+
+// sendRotationEvents listens for store rotation events and triggers reconciles
+// for all DefaultDomainCertificate resources when certificate files are rotated
+func (d *defaultDomainCertControllerReconciler) sendRotationEvents(ctx context.Context, queue workqueue.TypedRateLimitingInterface[ctrl.Request]) error {
+	go func() {
+		logger := log.FromContext(ctx)
+		logger = logger.WithName("rotation-watcher")
+		logger.Info("starting rotation event watcher")
+		defer func() {
+			logger.Info("rotation event watcher stopped")
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event := <-d.store.RotationEvents():
+				if event.Path != d.conf.DefaultDomainCertPath && event.Path != d.conf.DefaultDomainKeyPath {
+					logger.Info("non-certificate file rotated " + event.Path)
+					continue
+				}
+
+				ddcList := &approutingv1alpha1.DefaultDomainCertificateList{}
+				if err := d.client.List(ctx, ddcList); err != nil {
+					// an error here is not ideal but if we are failing to list or failing to requeue controller runtime
+					// resync period of 10 hours will catch it
+					logger.Error(err, "failed to list DefaultDomainCertificate resources")
+					continue
+				}
+
+				for _, ddc := range ddcList.Items {
+					queue.Add(reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Name:      ddc.Name,
+							Namespace: ddc.Namespace,
+						},
+					})
+				}
+			}
+		}
+	}()
+
+	return nil
 }
