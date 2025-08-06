@@ -10,6 +10,7 @@ import (
 	"errors"
 	"math/big"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/store"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // ErrorClient wraps a client to inject errors for testing
@@ -186,6 +189,33 @@ func (m *mockStore) Errors() <-chan error {
 func (m *mockStore) setFileContent(path string, content []byte) {
 	m.files[path] = content
 	m.shouldExist[path] = true
+}
+
+// mockStoreWithRotationEvents extends mockStore to support rotation events
+type mockStoreWithRotationEvents struct {
+	*mockStore
+	rotationCh chan store.RotationEvent
+	errorCh    chan error
+}
+
+func newMockStoreWithRotationEvents() *mockStoreWithRotationEvents {
+	return &mockStoreWithRotationEvents{
+		mockStore:  newMockStore(),
+		rotationCh: make(chan store.RotationEvent, 10),
+		errorCh:    make(chan error, 10),
+	}
+}
+
+func (m *mockStoreWithRotationEvents) RotationEvents() <-chan store.RotationEvent {
+	return m.rotationCh
+}
+
+func (m *mockStoreWithRotationEvents) Errors() <-chan error {
+	return m.errorCh
+}
+
+func (m *mockStoreWithRotationEvents) sendRotationEvent(path string) {
+	m.rotationCh <- store.RotationEvent{Path: path}
 }
 
 func createTestReconciler(client client.Client, store store.Store) *defaultDomainCertControllerReconciler {
@@ -1001,4 +1031,426 @@ func TestGetAndVerifyCertAndKeyMissingCert(t *testing.T) {
 	_, _, err := reconciler.getAndVerifyCertAndKey()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get default domain cert from store")
+}
+
+func TestSendRotationEvents_CertificateFileRotation(t *testing.T) {
+	// Create fake client with scheme
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+
+	// Create test DefaultDomainCertificate resources
+	ddc1 := &approutingv1alpha1.DefaultDomainCertificate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cert-1",
+			Namespace: testNamespace,
+		},
+		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
+			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
+				Secret: util.ToPtr("test-secret-1"),
+			},
+		},
+	}
+
+	ddc2 := &approutingv1alpha1.DefaultDomainCertificate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cert-2",
+			Namespace: testNamespace,
+		},
+		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
+			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
+				Secret: util.ToPtr("test-secret-2"),
+			},
+		},
+	}
+
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ddc1, ddc2).
+		Build()
+
+	store := newMockStoreWithRotationEvents()
+	reconciler := createTestReconciler(client, store)
+
+	// Create a test context and work queue
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create a mock queue to capture reconcile requests
+	queue := &mockWorkQueue{}
+
+	// Start sendRotationEvents in a goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		err := reconciler.sendRotationEvents(ctx, queue)
+		errCh <- err
+	}()
+
+	// Give the goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Send a rotation event for the certificate file
+	store.sendRotationEvent(testCertPath)
+
+	// Wait for the event to be processed
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that reconcile requests were added to the queue for both DDCs
+	assert.Eventually(t, func() bool {
+		return queue.Len() >= 2
+	}, 1*time.Second, 50*time.Millisecond, "Expected 2 reconcile requests to be queued")
+
+	// Check that the correct requests were queued
+	expectedRequests := map[types.NamespacedName]bool{
+		{Name: "test-cert-1", Namespace: testNamespace}: false,
+		{Name: "test-cert-2", Namespace: testNamespace}: false,
+	}
+
+	requests := queue.GetRequests()
+	for _, req := range requests {
+		if _, exists := expectedRequests[req.NamespacedName]; exists {
+			expectedRequests[req.NamespacedName] = true
+		}
+	}
+
+	for name, found := range expectedRequests {
+		assert.True(t, found, "Expected reconcile request for %s to be queued", name)
+	}
+
+	// Cancel context and verify goroutine exits
+	cancel()
+	select {
+	case err := <-errCh:
+		// Expected - goroutine should exit when context is cancelled
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
+	}
+}
+
+func TestSendRotationEvents_KeyFileRotation(t *testing.T) {
+	// Create fake client with scheme
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+
+	// Create test DefaultDomainCertificate resource
+	ddc := &approutingv1alpha1.DefaultDomainCertificate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cert",
+			Namespace: testNamespace,
+		},
+		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
+			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
+				Secret: util.ToPtr("test-secret"),
+			},
+		},
+	}
+
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ddc).
+		Build()
+
+	store := newMockStoreWithRotationEvents()
+	reconciler := createTestReconciler(client, store)
+
+	// Create a test context and work queue
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	queue := &mockWorkQueue{}
+
+	// Start sendRotationEvents in a goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		err := reconciler.sendRotationEvents(ctx, queue)
+		errCh <- err
+	}()
+
+	// Give the goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Send a rotation event for the key file
+	store.sendRotationEvent(testKeyPath)
+
+	// Wait for the event to be processed
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that a reconcile request was added to the queue
+	assert.Eventually(t, func() bool {
+		return queue.Len() >= 1
+	}, 1*time.Second, 50*time.Millisecond, "Expected 1 reconcile request to be queued")
+
+	// Check that the correct request was queued
+	requests := queue.GetRequests()
+	assert.Equal(t, "test-cert", requests[0].NamespacedName.Name)
+	assert.Equal(t, testNamespace, requests[0].NamespacedName.Namespace)
+
+	// Cancel context and verify goroutine exits
+	cancel()
+	select {
+	case err := <-errCh:
+		// Expected - goroutine should exit when context is cancelled
+		assert.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
+	}
+}
+
+func TestSendRotationEvents_NonCertificateFileIgnored(t *testing.T) {
+	// Create fake client with scheme
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+
+	// Create test DefaultDomainCertificate resource
+	ddc := &approutingv1alpha1.DefaultDomainCertificate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cert",
+			Namespace: testNamespace,
+		},
+		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
+			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
+				Secret: util.ToPtr("test-secret"),
+			},
+		},
+	}
+
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ddc).
+		Build()
+
+	store := newMockStoreWithRotationEvents()
+	reconciler := createTestReconciler(client, store)
+
+	// Create a test context and work queue
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	queue := &mockWorkQueue{}
+
+	// Start sendRotationEvents in a goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		err := reconciler.sendRotationEvents(ctx, queue)
+		errCh <- err
+	}()
+
+	// Give the goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Send rotation events for non-certificate files
+	store.sendRotationEvent("/some/other/file.txt")
+	store.sendRotationEvent("/path/to/config.yaml")
+
+	// Wait a moment to ensure events are processed
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify that no reconcile requests were added to the queue
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests for non-certificate files")
+
+	// Cancel context and verify goroutine exits
+	cancel()
+	select {
+	case err := <-errCh:
+		// Expected - goroutine should exit when context is cancelled
+		assert.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
+	}
+}
+
+func TestSendRotationEvents_ListError(t *testing.T) {
+	// Create a fake client that will return an error when listing DDCs
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+
+	client := &ErrorClient{
+		Client:   fake.NewClientBuilder().WithScheme(scheme).Build(),
+		GetError: errors.New("list error"),
+	}
+
+	store := newMockStoreWithRotationEvents()
+	reconciler := createTestReconciler(client, store)
+
+	// Create a test context and work queue
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	queue := &mockWorkQueue{}
+
+	// Start sendRotationEvents in a goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		err := reconciler.sendRotationEvents(ctx, queue)
+		errCh <- err
+	}()
+
+	// Give the goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Send a rotation event for the certificate file
+	store.sendRotationEvent(testCertPath)
+
+	// Wait for the event to be processed
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify that no reconcile requests were added (due to list error)
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests when list fails")
+
+	// Cancel context and verify goroutine exits
+	cancel()
+	select {
+	case err := <-errCh:
+		// Expected - goroutine should exit when context is cancelled
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
+	}
+}
+
+func TestSendRotationEvents_ContextCancellation(t *testing.T) {
+	// Create fake client with scheme
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	store := newMockStoreWithRotationEvents()
+	reconciler := createTestReconciler(client, store)
+
+	// Create a test context and work queue
+	ctx, cancel := context.WithCancel(context.Background())
+	queue := &mockWorkQueue{}
+
+	// Start sendRotationEvents in a goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		err := reconciler.sendRotationEvents(ctx, queue)
+		errCh <- err
+	}()
+
+	// Give the goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel the context immediately
+	cancel()
+
+	// Verify that the goroutine exits gracefully
+	select {
+	case err := <-errCh:
+		// Expected - goroutine should exit when context is cancelled
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
+	}
+
+	// Verify no requests were queued
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests after context cancellation")
+}
+
+func TestSendRotationEvents_EmptyDDCList(t *testing.T) {
+	// Create fake client with no DDCs
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	store := newMockStoreWithRotationEvents()
+	reconciler := createTestReconciler(client, store)
+
+	// Create a test context and work queue
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	queue := &mockWorkQueue{}
+
+	// Start sendRotationEvents in a goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		err := reconciler.sendRotationEvents(ctx, queue)
+		errCh <- err
+	}()
+
+	// Give the goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Send a rotation event for the certificate file
+	store.sendRotationEvent(testCertPath)
+
+	// Wait for the event to be processed
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that no reconcile requests were added (no DDCs exist)
+	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests when no DDCs exist")
+
+	// Cancel context and verify goroutine exits
+	cancel()
+	select {
+	case err := <-errCh:
+		// Expected - goroutine should exit when context is cancelled
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
+	}
+}
+
+// mockWorkQueue implements workqueue.TypedRateLimitingInterface for testing
+type mockWorkQueue struct {
+	requests []reconcile.Request
+	mu       sync.Mutex
+}
+
+func (m *mockWorkQueue) Add(item reconcile.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requests = append(m.requests, item)
+}
+
+func (m *mockWorkQueue) Len() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.requests)
+}
+
+func (m *mockWorkQueue) Get() (item reconcile.Request, shutdown bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.requests) == 0 {
+		return reconcile.Request{}, false
+	}
+	item = m.requests[0]
+	m.requests = m.requests[1:]
+	return item, false
+}
+
+func (m *mockWorkQueue) Done(item reconcile.Request) {}
+
+func (m *mockWorkQueue) ShutDown() {}
+
+func (m *mockWorkQueue) ShutDownWithDrain() {}
+
+func (m *mockWorkQueue) ShuttingDown() bool {
+	return false
+}
+
+func (m *mockWorkQueue) AddAfter(item reconcile.Request, duration time.Duration) {
+	m.Add(item)
+}
+
+func (m *mockWorkQueue) AddRateLimited(item reconcile.Request) {
+	m.Add(item)
+}
+
+func (m *mockWorkQueue) Forget(item reconcile.Request) {}
+
+func (m *mockWorkQueue) NumRequeues(item reconcile.Request) int {
+	return 0
+}
+
+// GetRequests returns a copy of all requests for testing
+func (m *mockWorkQueue) GetRequests() []reconcile.Request {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Return a copy to avoid race conditions
+	result := make([]reconcile.Request, len(m.requests))
+	copy(result, m.requests)
+	return result
 }
