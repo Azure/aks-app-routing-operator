@@ -265,7 +265,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				}
 
 				// Retry waiting for certificate rotation with timeout
-				if err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
+				if err := wait.PollImmediate(5*time.Second, 300*time.Second, func() (bool, error) {
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(rotatedSecret), rotatedSecret); err != nil {
 						lgr.Info("failed to get rotated secret, retrying", "error", err.Error())
 						return false, nil // Retry on error

@@ -213,6 +213,7 @@ func (d *defaultDomainCertControllerReconciler) sendRotationEvents(ctx context.C
 							Namespace: ddc.Namespace,
 						},
 					})
+					logger.Info("requeueing DefaultDomainCertificate for rotation event", "name", ddc.Name, "namespace", ddc.Namespace)
 				}
 			}
 		}
