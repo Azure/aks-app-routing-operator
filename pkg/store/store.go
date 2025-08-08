@@ -187,17 +187,19 @@ func (s *store) handleFileEvent(event fsnotify.Event) {
 
 	// Handle different event types
 	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+		// https://ahmet.im/blog/kubernetes-inotify/#impact this is complicated with Kubernetes secrets
+
 		// For Kubernetes secret mounts, REMOVE events are part of the rotation process
 		// Check if the file still exists (it might be a symlink update)
 		if _, err := os.Stat(path); err == nil {
 			// File still exists, this is likely a K8s secret rotation
 			// Re-add the file to the watcher and refresh content
 			s.logger.Info("File removed but still exists, likely K8s secret rotation", "path", path)
-			
+
 			// Re-add to watcher (the old watch was removed)
 			if err := s.watcher.Add(path); err != nil {
 				s.logger.Error(err, "Failed to re-add file to watcher after rotation", "path", path)
-				
+
 				// Send error to error channel
 				select {
 				case s.errorCh <- fmt.Errorf("failed to re-add file to watcher after rotation %s: %w", path, err):
