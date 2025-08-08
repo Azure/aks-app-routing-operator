@@ -397,3 +397,191 @@ func TestStore_ChannelAccessors(t *testing.T) {
 		// Expected behavior - no events yet
 	}
 }
+
+func TestStore_KubernetesSecretRotation(t *testing.T) {
+	// Create a temporary directory to simulate K8s secret mount
+	tmpDir := t.TempDir()
+
+	// Create initial secret file
+	secretFile := filepath.Join(tmpDir, "tls.crt")
+	initialContent := []byte("initial-cert-content")
+	err := os.WriteFile(secretFile, initialContent, 0644)
+	require.NoError(t, err)
+
+	// Create store and add the file
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger := logr.Discard()
+	store, err := New(logger, ctx)
+	require.NoError(t, err)
+
+	err = store.AddFile(secretFile)
+	require.NoError(t, err)
+
+	// Verify initial content
+	content, exists := store.GetContent(secretFile)
+	require.True(t, exists)
+	require.Equal(t, initialContent, content)
+
+	// Simulate Kubernetes secret rotation:
+	// 1. Remove the file (this sends a REMOVE event)
+	err = os.Remove(secretFile)
+	require.NoError(t, err)
+
+	// 2. Create new file with updated content (simulating symlink update)
+	newContent := []byte("rotated-cert-content")
+	err = os.WriteFile(secretFile, newContent, 0644)
+	require.NoError(t, err)
+
+	// Wait for rotation event
+	var rotationEvent RotationEvent
+	select {
+	case rotationEvent = <-store.RotationEvents():
+		assert.Equal(t, secretFile, rotationEvent.Path)
+	case err := <-store.Errors():
+		t.Fatalf("Unexpected error during rotation: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("No rotation event received within timeout")
+	}
+
+	// Verify content was updated
+	content, exists = store.GetContent(secretFile)
+	require.True(t, exists)
+	require.Equal(t, newContent, content)
+}
+
+func TestStore_RealFileDeletion(t *testing.T) {
+	// Create a temporary file
+	tmpFile, err := os.CreateTemp("", "test-file")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name()) // Cleanup in case test fails
+
+	tmpFile.WriteString("test content")
+	tmpFile.Close()
+
+	// Create store and add the file
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger := logr.Discard()
+	store, err := New(logger, ctx)
+	require.NoError(t, err)
+
+	err = store.AddFile(tmpFile.Name())
+	require.NoError(t, err)
+
+	// Remove the file permanently (don't recreate it)
+	err = os.Remove(tmpFile.Name())
+	require.NoError(t, err)
+
+	// Should receive an error since file is permanently gone
+	select {
+	case err := <-store.Errors():
+		assert.Contains(t, err.Error(), "file was deleted or renamed")
+	case event := <-store.RotationEvents():
+		t.Fatalf("Unexpected rotation event for permanently deleted file: %v", event)
+	case <-time.After(2 * time.Second):
+		t.Fatal("No error received for permanently deleted file")
+	}
+
+	// File should still be tracked (old behavior - don't remove from tracking)
+	_, exists := store.GetContent(tmpFile.Name())
+	assert.True(t, exists)
+}
+
+func TestStore_MultipleKubernetesSecretRotations(t *testing.T) {
+	// Create a temporary directory to simulate K8s secret mount
+	tmpDir := t.TempDir()
+
+	// Create initial secret file
+	secretFile := filepath.Join(tmpDir, "tls.key")
+	initialContent := []byte("initial-key-content")
+	err := os.WriteFile(secretFile, initialContent, 0644)
+	require.NoError(t, err)
+
+	// Create store and add the file
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	logger := logr.Discard()
+	store, err := New(logger, ctx)
+	require.NoError(t, err)
+
+	err = store.AddFile(secretFile)
+	require.NoError(t, err)
+
+	// Perform multiple rotations
+	for i := 1; i <= 3; i++ {
+		// Remove the file
+		err = os.Remove(secretFile)
+		require.NoError(t, err)
+
+		// Create new file with updated content
+		newContent := []byte(fmt.Sprintf("rotated-key-content-%d", i))
+		err = os.WriteFile(secretFile, newContent, 0644)
+		require.NoError(t, err)
+
+		// Wait for rotation event
+		select {
+		case rotationEvent := <-store.RotationEvents():
+			assert.Equal(t, secretFile, rotationEvent.Path)
+		case err := <-store.Errors():
+			t.Fatalf("Unexpected error during rotation %d: %v", i, err)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("No rotation event received for rotation %d within timeout", i)
+		}
+
+		// Verify content was updated
+		content, exists := store.GetContent(secretFile)
+		require.True(t, exists)
+		require.Equal(t, newContent, content)
+	}
+}
+
+func TestStore_KubernetesSecretRotationWithWatcherError(t *testing.T) {
+	// Create a temporary directory to simulate K8s secret mount
+	tmpDir := t.TempDir()
+
+	// Create initial secret file
+	secretFile := filepath.Join(tmpDir, "tls.crt")
+	initialContent := []byte("initial-cert-content")
+	err := os.WriteFile(secretFile, initialContent, 0644)
+	require.NoError(t, err)
+
+	// Create store and add the file
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger := logr.Discard()
+	store, err := New(logger, ctx)
+	require.NoError(t, err)
+
+	err = store.AddFile(secretFile)
+	require.NoError(t, err)
+
+	// Remove the file
+	err = os.Remove(secretFile)
+	require.NoError(t, err)
+
+	// Create new file but in a way that might cause watcher issues
+	// (simulating edge cases in K8s secret rotation)
+	newContent := []byte("rotated-cert-content")
+	err = os.WriteFile(secretFile, newContent, 0644)
+	require.NoError(t, err)
+
+	// Should still get either a rotation event or handle gracefully
+	select {
+	case rotationEvent := <-store.RotationEvents():
+		assert.Equal(t, secretFile, rotationEvent.Path)
+		// Verify content was updated
+		content, exists := store.GetContent(secretFile)
+		require.True(t, exists)
+		require.Equal(t, newContent, content)
+	case err := <-store.Errors():
+		// If there's an error, it should be about watcher re-addition, not permanent deletion
+		assert.Contains(t, err.Error(), "failed to re-add file to watcher")
+	case <-time.After(2 * time.Second):
+		t.Fatal("No event received within timeout")
+	}
+}

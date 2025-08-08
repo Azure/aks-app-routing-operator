@@ -187,15 +187,56 @@ func (s *store) handleFileEvent(event fsnotify.Event) {
 
 	// Handle different event types
 	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-		// File was deleted or renamed - return error
-		err := fmt.Errorf("file was deleted or renamed: %s", path)
-		s.logger.Error(err, "File no longer exists")
+		// For Kubernetes secret mounts, REMOVE events are part of the rotation process
+		// Check if the file still exists (it might be a symlink update)
+		if _, err := os.Stat(path); err == nil {
+			// File still exists, this is likely a K8s secret rotation
+			// Re-add the file to the watcher and refresh content
+			s.logger.Info("File removed but still exists, likely K8s secret rotation", "path", path)
+			
+			// Re-add to watcher (the old watch was removed)
+			if err := s.watcher.Add(path); err != nil {
+				s.logger.Error(err, "Failed to re-add file to watcher after rotation", "path", path)
+				
+				// Send error to error channel
+				select {
+				case s.errorCh <- fmt.Errorf("failed to re-add file to watcher after rotation %s: %w", path, err):
+				default:
+					s.logger.Info("Error channel full, dropping error")
+				}
+				return
+			}
 
-		// Send error to error channel
-		select {
-		case s.errorCh <- err:
-		default:
-			s.logger.Info("Error channel full, dropping error")
+			// Refresh file content
+			if err := s.refreshFileContent(path, file); err != nil {
+				s.logger.Error(err, "Failed to refresh file content after rotation", "path", path)
+
+				// Send error to error channel
+				select {
+				case s.errorCh <- err:
+				default:
+					s.logger.Info("Error channel full, dropping error")
+				}
+			} else {
+				// Send rotation event for successful rotation
+				select {
+				case s.rotationCh <- RotationEvent{Path: path}:
+				default:
+					s.logger.Info("Rotation channel full, dropping event", "path", path)
+				}
+			}
+		} else {
+			// File actually doesn't exist anymore - this is a real deletion
+			// Generate error but keep the file in tracking (old behavior)
+			err := fmt.Errorf("file was deleted or renamed: %s", path)
+			s.logger.Error(err, "File no longer exists")
+
+			// Send error to error channel
+			select {
+			case s.errorCh <- err:
+			default:
+				s.logger.Info("Error channel full, dropping error")
+			}
 		}
 		return
 	}
