@@ -1,6 +1,7 @@
 package suites
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -239,6 +241,59 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				if _, err := tls.ParseTLSCertificate(tlsCert, tlsKey); err != nil {
 					return fmt.Errorf("parsing and verifying TLS certificate: %w", err)
 				}
+
+				lgr.Info("Validating Rotation Story")
+				newCert, newKey, err := manifests.GenerateSelfSignedCert()
+				if err != nil {
+					return fmt.Errorf("generating self-signed cert: %w", err)
+				}
+
+				dds := manifests.CreateDefaultDomainSecret(newCert, newKey)
+				if err := util.Upsert(ctx, cl, dds); err != nil {
+					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
+				}
+
+				// Retry waiting for certificate rotation with timeout
+				if err := wait.PollImmediate(5*time.Second, 300*time.Second, func() (bool, error) {
+					lgr.Info("Waiting for certificate rotation to complete")
+					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+						return false, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
+					}
+
+					rotatedCert, ok := secret.Data["tls.crt"]
+					if !ok {
+						return false, fmt.Errorf("rotated secret does not contain tls.crt data")
+					}
+					if bytes.Equal(rotatedCert, tlsCert) {
+						lgr.Info("rotated certificate is still the same as the original")
+						return false, nil // Retry
+					}
+					if !bytes.Equal(rotatedCert, newCert) {
+						return false, fmt.Errorf("certificate was rotated but doesn't match what was upserted")
+					}
+
+					rotatedKey, ok := secret.Data["tls.key"]
+					if !ok {
+						return false, fmt.Errorf("rotated secret does not contain tls.key data")
+					}
+					if bytes.Equal(rotatedKey, tlsKey) {
+						lgr.Info("rotated key is still the same as the original")
+						return false, nil // Retry
+					}
+					if !bytes.Equal(rotatedKey, newKey) {
+						return false, fmt.Errorf("key was rotated but doesn't match what was upserted")
+					}
+
+					lgr.Info("Validating Rotated Certificate and Key")
+					if _, err := tls.ParseTLSCertificate(rotatedCert, rotatedKey); err != nil {
+						return false, fmt.Errorf("parsing and verifying TLS certificate: %w", err)
+					}
+					return true, nil // Success
+				}); err != nil {
+					return fmt.Errorf("waiting for certificate rotation: %w", err)
+				}
+
+				lgr.Info("Certificate rotation successful")
 
 				lgr.Info("DefaultDomainCertificate happy path test completed successfully")
 				return nil
