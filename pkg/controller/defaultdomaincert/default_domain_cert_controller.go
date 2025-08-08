@@ -198,6 +198,7 @@ func (d *defaultDomainCertControllerReconciler) sendRotationEvents(ctx context.C
 					continue
 				}
 
+				logger.Info(fmt.Sprintf("listing DefaultDomainCertificates for requeue because file %s was reloaded", event.Path))
 				ddcList := &approutingv1alpha1.DefaultDomainCertificateList{}
 				if err := d.client.List(ctx, ddcList); err != nil {
 					// an error here is not ideal but if we are failing to list or failing to requeue controller runtime
@@ -207,6 +208,7 @@ func (d *defaultDomainCertControllerReconciler) sendRotationEvents(ctx context.C
 				}
 
 				for _, ddc := range ddcList.Items {
+					logger.Info(fmt.Sprintf("requeuing DefaultDomainCertificate %s/%s", ddc.Namespace, ddc.Name))
 					queue.Add(reconcile.Request{
 						NamespacedName: types.NamespacedName{
 							Name:      ddc.Name,
