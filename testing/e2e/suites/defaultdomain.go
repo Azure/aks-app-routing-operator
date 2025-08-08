@@ -253,63 +253,47 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
 				}
 
-				rotatedSecret := &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      secretTarget,
-						Namespace: namespace.GetName(),
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Secret",
-						APIVersion: corev1.SchemeGroupVersion.String(),
-					},
-				}
-
 				// Retry waiting for certificate rotation with timeout
 				if err := wait.PollImmediate(5*time.Second, 300*time.Second, func() (bool, error) {
-					if err := cl.Get(ctx, client.ObjectKeyFromObject(rotatedSecret), rotatedSecret); err != nil {
-						lgr.Info("failed to get rotated secret, retrying", "error", err.Error())
-						return false, nil // Retry on error
+					lgr.Info("Waiting for certificate rotation to complete")
+					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+						return false, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
 					}
 
-					rotatedCert, ok := rotatedSecret.Data["tls.crt"]
+					rotatedCert, ok := secret.Data["tls.crt"]
 					if !ok {
-						lgr.Info("rotated secret does not contain tls.crt data, retrying")
-						return false, nil // Retry
+						return false, fmt.Errorf("rotated secret does not contain tls.crt data")
 					}
 					if bytes.Equal(rotatedCert, tlsCert) {
-						lgr.Info("rotated certificate is still the same as the original, retrying")
+						lgr.Info("rotated certificate is still the same as the original")
 						return false, nil // Retry
 					}
 					if !bytes.Equal(rotatedCert, newCert) {
-						lgr.Info("rotated certificate does not match the upserted certificate yet, retrying")
-						return false, nil // Retry
+						return false, fmt.Errorf("certificate was rotated but doesn't match what was upserted")
 					}
 
-					rotatedKey, ok := rotatedSecret.Data["tls.key"]
+					rotatedKey, ok := secret.Data["tls.key"]
 					if !ok {
-						lgr.Info("rotated secret does not contain tls.key data, retrying")
-						return false, nil // Retry
+						return false, fmt.Errorf("rotated secret does not contain tls.key data")
 					}
 					if bytes.Equal(rotatedKey, tlsKey) {
-						lgr.Info("rotated key is still the same as the original, retrying")
+						lgr.Info("rotated key is still the same as the original")
 						return false, nil // Retry
 					}
 					if !bytes.Equal(rotatedKey, newKey) {
-						lgr.Info("rotated key does not match the upserted key yet, retrying")
-						return false, nil // Retry
+						return false, fmt.Errorf("key was rotated but doesn't match what was upserted")
 					}
 
 					lgr.Info("Validating Rotated Certificate and Key")
 					if _, err := tls.ParseTLSCertificate(rotatedCert, rotatedKey); err != nil {
-						lgr.Info("failed to parse rotated TLS certificate, retrying", "error", err.Error())
-						return false, nil // Retry
+						return false, fmt.Errorf("parsing and verifying TLS certificate: %w", err)
 					}
 					return true, nil // Success
 				}); err != nil {
 					return fmt.Errorf("waiting for certificate rotation: %w", err)
 				}
 
-				lgr.Info("Certificate rotation validation successful")
+				lgr.Info("Certificate rotation successful")
 
 				lgr.Info("DefaultDomainCertificate happy path test completed successfully")
 				return nil
