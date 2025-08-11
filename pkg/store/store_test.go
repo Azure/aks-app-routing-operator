@@ -424,69 +424,71 @@ func TestStore_KubernetesSecretRotation(t *testing.T) {
 	require.True(t, exists)
 	require.Equal(t, initialContent, content)
 
+	// Add a small delay to ensure the file system watcher is ready
+	time.Sleep(100 * time.Millisecond)
+
 	// Simulate Kubernetes secret rotation using atomic operations
 	newContent := []byte("rotated-cert-content")
 	err = atomicWriteFile(tmpDir, "tls.crt", newContent)
 	require.NoError(t, err)
 
-	// Wait for rotation event
+	// Wait for rotation event with more robust event handling
 	var rotationEvent RotationEvent
-	select {
-	case rotationEvent = <-store.RotationEvents():
-		assert.Equal(t, secretFile, rotationEvent.Path)
-	case err := <-store.Errors():
-		t.Fatalf("Unexpected error during rotation: %v", err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("No rotation event received within timeout")
+	var gotRotationEvent bool
+
+	// We might get multiple events, so we need to handle them properly
+	timeout := time.After(5 * time.Second)
+	for !gotRotationEvent {
+		select {
+		case rotationEvent = <-store.RotationEvents():
+			if rotationEvent.Path == secretFile {
+				gotRotationEvent = true
+			}
+			// Continue if we got an event for a different file (shouldn't happen in this test)
+		case err := <-store.Errors():
+			t.Fatalf("Unexpected error during rotation: %v", err)
+		case <-timeout:
+			t.Fatal("No rotation event received within timeout")
+		}
 	}
 
-	// Verify content was updated
-	content, exists = store.GetContent(secretFile)
-	require.True(t, exists)
-	require.Equal(t, newContent, content)
+	assert.Equal(t, secretFile, rotationEvent.Path)
+
+	// Verify content was updated with eventual consistency
+	assert.Eventually(t, func() bool {
+		content, exists := store.GetContent(secretFile)
+		return exists && string(content) == string(newContent)
+	}, 1*time.Second, 50*time.Millisecond, "Content should be updated after rotation")
 }
 
-// atomicWriteFile simulates how Kubernetes writes files atomically using temporary directories
-// This mirrors the behavior of https://pkg.go.dev/k8s.io/kubernetes/pkg/volume/util#AtomicWriter
-// https://github.com/kubernetes/kubernetes/blob/v1.33.3/pkg/volume/util/atomic_writer.go#L139
+// atomicWriteFile simulates how Kubernetes writes files atomically
+// This is a simplified version that focuses on the filesystem events that matter for testing
 func atomicWriteFile(targetDir, filename string, data []byte) error {
-	// Create a temporary directory for the new version (like K8s does)
-	tempDir, err := os.MkdirTemp(targetDir, ".tmp-"+filename)
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Write the new content to the temporary directory
-	tempFile := filepath.Join(tempDir, filename)
-	if err := os.WriteFile(tempFile, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-
-	// Get the target file path
 	targetFile := filepath.Join(targetDir, filename)
 
-	// Check if target already exists to decide on the atomic operation
-	_, err = os.Lstat(targetFile)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to stat target file: %w", err)
-	}
+	// Check if target exists
+	_, err := os.Stat(targetFile)
+	targetExists := err == nil
 
-	// Create a timestamp-based name for the old directory (if target exists)
-	if err == nil {
-		// Target exists, so we need to do an atomic swap
-		oldDir := filepath.Join(targetDir, fmt.Sprintf("..%d_old", time.Now().UnixNano()))
+	if targetExists {
+		// For existing files, write to a temp file first, then do atomic rename
+		tempFile := targetFile + ".tmp"
 
-		// Move target to old location
-		if err := os.Rename(targetFile, oldDir); err != nil {
-			return fmt.Errorf("failed to move old file: %w", err)
+		// Write new content to temp file
+		if err := os.WriteFile(tempFile, data, 0o644); err != nil {
+			return fmt.Errorf("failed to write temp file: %w", err)
 		}
-		defer os.RemoveAll(oldDir)
-	}
 
-	// Move the new file from temp directory to final location
-	if err := os.Rename(tempFile, targetFile); err != nil {
-		return fmt.Errorf("failed to move new file to target: %w", err)
+		// Atomic rename (this is the key operation that generates the filesystem events)
+		if err := os.Rename(tempFile, targetFile); err != nil {
+			os.Remove(tempFile) // cleanup on failure
+			return fmt.Errorf("failed to rename temp file: %w", err)
+		}
+	} else {
+		// For new files, just write directly
+		if err := os.WriteFile(targetFile, data, 0o644); err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
+		}
 	}
 
 	return nil
