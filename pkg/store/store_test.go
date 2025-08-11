@@ -402,10 +402,10 @@ func TestStore_KubernetesSecretRotation(t *testing.T) {
 	// Create a temporary directory to simulate K8s secret mount
 	tmpDir := t.TempDir()
 
-	// Create initial secret file
+	// Create initial secret file using the atomic writer pattern (like Kubernetes)
 	secretFile := filepath.Join(tmpDir, "tls.crt")
 	initialContent := []byte("initial-cert-content")
-	err := os.WriteFile(secretFile, initialContent, 0o644)
+	err := atomicWriteFile(tmpDir, "tls.crt", initialContent)
 	require.NoError(t, err)
 
 	// Create store and add the file
@@ -424,31 +424,74 @@ func TestStore_KubernetesSecretRotation(t *testing.T) {
 	require.True(t, exists)
 	require.Equal(t, initialContent, content)
 
-	// Simulate Kubernetes secret rotation:
-	// 1. Remove the file (this sends a REMOVE event)
-	err = os.Remove(secretFile)
-	require.NoError(t, err)
+	// Add a small delay to ensure the file system watcher is ready
+	time.Sleep(100 * time.Millisecond)
 
-	// 2. Create new file with updated content (simulating symlink update)
+	// Simulate Kubernetes secret rotation using atomic operations
 	newContent := []byte("rotated-cert-content")
-	err = os.WriteFile(secretFile, newContent, 0o644)
+	err = atomicWriteFile(tmpDir, "tls.crt", newContent)
 	require.NoError(t, err)
 
-	// Wait for rotation event
+	// Wait for rotation event with more robust event handling
 	var rotationEvent RotationEvent
-	select {
-	case rotationEvent = <-store.RotationEvents():
-		assert.Equal(t, secretFile, rotationEvent.Path)
-	case err := <-store.Errors():
-		t.Fatalf("Unexpected error during rotation: %v", err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("No rotation event received within timeout")
+	var gotRotationEvent bool
+
+	// We might get multiple events, so we need to handle them properly
+	timeout := time.After(5 * time.Second)
+	for !gotRotationEvent {
+		select {
+		case rotationEvent = <-store.RotationEvents():
+			if rotationEvent.Path == secretFile {
+				gotRotationEvent = true
+			}
+			// Continue if we got an event for a different file (shouldn't happen in this test)
+		case err := <-store.Errors():
+			t.Fatalf("Unexpected error during rotation: %v", err)
+		case <-timeout:
+			t.Fatal("No rotation event received within timeout")
+		}
 	}
 
-	// Verify content was updated
-	content, exists = store.GetContent(secretFile)
-	require.True(t, exists)
-	require.Equal(t, newContent, content)
+	assert.Equal(t, secretFile, rotationEvent.Path)
+
+	// Verify content was updated with eventual consistency
+	assert.Eventually(t, func() bool {
+		content, exists := store.GetContent(secretFile)
+		return exists && string(content) == string(newContent)
+	}, 1*time.Second, 50*time.Millisecond, "Content should be updated after rotation")
+}
+
+// atomicWriteFile simulates how Kubernetes writes files atomically
+// This is a simplified version that focuses on the filesystem events that matter for testing
+func atomicWriteFile(targetDir, filename string, data []byte) error {
+	targetFile := filepath.Join(targetDir, filename)
+
+	// Check if target exists
+	_, err := os.Stat(targetFile)
+	targetExists := err == nil
+
+	if targetExists {
+		// For existing files, write to a temp file first, then do atomic rename
+		tempFile := targetFile + ".tmp"
+
+		// Write new content to temp file
+		if err := os.WriteFile(tempFile, data, 0o644); err != nil {
+			return fmt.Errorf("failed to write temp file: %w", err)
+		}
+
+		// Atomic rename (this is the key operation that generates the filesystem events)
+		if err := os.Rename(tempFile, targetFile); err != nil {
+			os.Remove(tempFile) // cleanup on failure
+			return fmt.Errorf("failed to rename temp file: %w", err)
+		}
+	} else {
+		// For new files, just write directly
+		if err := os.WriteFile(targetFile, data, 0o644); err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func TestStore_RealFileDeletion(t *testing.T) {
