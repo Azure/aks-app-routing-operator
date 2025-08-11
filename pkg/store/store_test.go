@@ -402,10 +402,10 @@ func TestStore_KubernetesSecretRotation(t *testing.T) {
 	// Create a temporary directory to simulate K8s secret mount
 	tmpDir := t.TempDir()
 
-	// Create initial secret file
+	// Create initial secret file using the atomic writer pattern (like Kubernetes)
 	secretFile := filepath.Join(tmpDir, "tls.crt")
 	initialContent := []byte("initial-cert-content")
-	err := os.WriteFile(secretFile, initialContent, 0o644)
+	err := atomicWriteFile(tmpDir, "tls.crt", initialContent)
 	require.NoError(t, err)
 
 	// Create store and add the file
@@ -424,14 +424,9 @@ func TestStore_KubernetesSecretRotation(t *testing.T) {
 	require.True(t, exists)
 	require.Equal(t, initialContent, content)
 
-	// Simulate Kubernetes secret rotation:
-	// 1. Remove the file (this sends a REMOVE event)
-	err = os.Remove(secretFile)
-	require.NoError(t, err)
-
-	// 2. Create new file with updated content (simulating symlink update)
+	// Simulate Kubernetes secret rotation using atomic operations
 	newContent := []byte("rotated-cert-content")
-	err = os.WriteFile(secretFile, newContent, 0o644)
+	err = atomicWriteFile(tmpDir, "tls.crt", newContent)
 	require.NoError(t, err)
 
 	// Wait for rotation event
@@ -449,6 +444,52 @@ func TestStore_KubernetesSecretRotation(t *testing.T) {
 	content, exists = store.GetContent(secretFile)
 	require.True(t, exists)
 	require.Equal(t, newContent, content)
+}
+
+// atomicWriteFile simulates how Kubernetes writes files atomically using temporary directories
+// This mirrors the behavior of https://pkg.go.dev/k8s.io/kubernetes/pkg/volume/util#AtomicWriter
+// https://github.com/kubernetes/kubernetes/blob/v1.33.3/pkg/volume/util/atomic_writer.go#L139
+func atomicWriteFile(targetDir, filename string, data []byte) error {
+	// Create a temporary directory for the new version (like K8s does)
+	tempDir, err := os.MkdirTemp(targetDir, ".tmp-"+filename)
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Write the new content to the temporary directory
+	tempFile := filepath.Join(tempDir, filename)
+	if err := os.WriteFile(tempFile, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	// Get the target file path
+	targetFile := filepath.Join(targetDir, filename)
+
+	// Check if target already exists to decide on the atomic operation
+	_, err = os.Lstat(targetFile)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat target file: %w", err)
+	}
+
+	// Create a timestamp-based name for the old directory (if target exists)
+	if err == nil {
+		// Target exists, so we need to do an atomic swap
+		oldDir := filepath.Join(targetDir, fmt.Sprintf("..%d_old", time.Now().UnixNano()))
+
+		// Move target to old location
+		if err := os.Rename(targetFile, oldDir); err != nil {
+			return fmt.Errorf("failed to move old file: %w", err)
+		}
+		defer os.RemoveAll(oldDir)
+	}
+
+	// Move the new file from temp directory to final location
+	if err := os.Rename(tempFile, targetFile); err != nil {
+		return fmt.Errorf("failed to move new file to target: %w", err)
+	}
+
+	return nil
 }
 
 func TestStore_RealFileDeletion(t *testing.T) {
