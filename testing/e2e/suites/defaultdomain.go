@@ -259,13 +259,23 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				if err := wait.PollImmediate(5*time.Second, 3*time.Minute, func() (bool, error) {
 					lgr.Info("Waiting for certificate rotation to complete")
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
-						return true, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
+						return false, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
 					}
 
 					rotatedCert, ok := secret.Data["tls.crt"]
 					if !ok {
-						return true, fmt.Errorf("rotated secret does not contain tls.crt data")
+						return false, fmt.Errorf("rotated secret does not contain tls.crt data")
 					}
+					rotatedKey, ok := secret.Data["tls.key"]
+					if !ok {
+						return false, fmt.Errorf("rotated secret does not contain tls.key data")
+					}
+
+					lgr.Info("Validating Rotated Certificate and Key")
+					if _, err := tls.ParseTLSCertificate(rotatedCert, rotatedKey); err != nil {
+						return true, fmt.Errorf("parsing and verifying TLS certificate: %w", err)
+					}
+
 					if bytes.Equal(rotatedCert, tlsCert) {
 						lgr.Info("rotated certificate is still the same as the original, retrying")
 						return false, nil
@@ -275,10 +285,6 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						return false, nil
 					}
 
-					rotatedKey, ok := secret.Data["tls.key"]
-					if !ok {
-						return true, fmt.Errorf("rotated secret does not contain tls.key data")
-					}
 					if bytes.Equal(rotatedKey, tlsKey) {
 						lgr.Info("rotated key is still the same as the original, retrying")
 						return false, nil
@@ -286,11 +292,6 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					if !bytes.Equal(rotatedKey, newKey) {
 						lgr.Info("rotated key does not match what was upserted, retrying")
 						return false, nil
-					}
-
-					lgr.Info("Validating Rotated Certificate and Key")
-					if _, err := tls.ParseTLSCertificate(rotatedCert, rotatedKey); err != nil {
-						return true, fmt.Errorf("parsing and verifying TLS certificate: %w", err)
 					}
 
 					return true, nil // Success
