@@ -253,11 +253,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
 				}
 
-				lgr.Info("Starting rotation polling",
-					"currentCert", string(tlsCert),
-					"expectedCert", string(newCert),
-					"matches", bytes.Equal(tlsCert, newCert),
-				)
+				lgr.Info("Starting rotation polling")
 
 				// Retry waiting for certificate rotation with timeout
 				if err := wait.PollImmediate(5*time.Second, 300*time.Second, func() (bool, error) {
@@ -270,16 +266,13 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					if !ok {
 						return true, fmt.Errorf("rotated secret does not contain tls.crt data")
 					}
-					lgr.Info("Checking rotation status",
-						"currentCert", string(rotatedCert),
-						"expectedCert", string(newCert),
-						"matches", bytes.Equal(rotatedCert, newCert))
 					if bytes.Equal(rotatedCert, tlsCert) {
-						lgr.Info("rotated certificate is still the same as the original")
-						return false, nil // Retry
+						lgr.Info("rotated certificate is still the same as the original, retrying")
+						return false, nil
 					}
 					if !bytes.Equal(rotatedCert, newCert) {
-						return true, fmt.Errorf("certificate was rotated but doesn't match what was upserted")
+						lgr.Info("rotated certificate does not match what was upserted, retrying")
+						return false, nil
 					}
 
 					rotatedKey, ok := secret.Data["tls.key"]
@@ -287,11 +280,12 @@ func defaultDomainTests(in infra.Provisioned) []test {
 						return true, fmt.Errorf("rotated secret does not contain tls.key data")
 					}
 					if bytes.Equal(rotatedKey, tlsKey) {
-						lgr.Info("rotated key is still the same as the original")
-						return false, nil // Retry
+						lgr.Info("rotated key is still the same as the original, retrying")
+						return false, nil
 					}
 					if !bytes.Equal(rotatedKey, newKey) {
-						return true, fmt.Errorf("key was rotated but doesn't match what was upserted")
+						lgr.Info("rotated key does not match what was upserted, retrying")
+						return false, nil
 					}
 
 					lgr.Info("Validating Rotated Certificate and Key")

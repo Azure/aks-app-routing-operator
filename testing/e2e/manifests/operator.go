@@ -100,6 +100,17 @@ func GenerateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
 	return certPEM, keyPEM, nil
 }
 
+var certPEM, keyPEM []byte
+
+// Generate self-signed certificate for testing
+func init() {
+	var err error
+	certPEM, keyPEM, err = GenerateSelfSignedCert()
+	if err != nil {
+		panic("failed to generate self-signed certificate: " + err.Error())
+	}
+}
+
 func CreateDefaultDomainSecret(certPEM, keyPEM []byte) *corev1.Secret {
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
@@ -382,12 +393,6 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}...)
 
 	if cfg.Version == OperatorVersionLatest {
-		// Generate self-signed certificate for testing
-		certPEM, keyPEM, err := GenerateSelfSignedCert()
-		if err != nil {
-			panic("failed to generate self-signed certificate: " + err.Error())
-		}
-
 		defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
 		ret = append(ret, defaultDomainSecret)
 
