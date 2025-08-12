@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2025-08-11
+
+### Changed
+- bumped external dns to 0.17.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/462)
+
+### Added
+- workload identity for ingress keyvault - [link](https://github.com/Azure/aks-app-routing-operator/pull/459)
+- default domain certificate crd - [link](https://github.com/Azure/aks-app-routing-operator/pull/468)
+- flag to enable default domain - [link](https://github.com/Azure/aks-app-routing-operator/pull/469)
+- default domain reconciler to reconcile default domain into cluster - [link](https://github.com/Azure/aks-app-routing-operator/pull/473)
+- tls validation for default domain - [link](https://github.com/Azure/aks-app-routing-operator/pull/477)
+- store to watch for default domain changes and requeue - [link](https://github.com/Azure/aks-app-routing-operator/pull/479), [2](https://github.com/Azure/aks-app-routing-operator/pull/481)
+
 ## [0.2.7] - 2025-06-19
 
 ### Changed
