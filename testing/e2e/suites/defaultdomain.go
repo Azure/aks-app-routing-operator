@@ -256,7 +256,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				lgr.Info("Starting rotation polling")
 
 				// Retry waiting for certificate rotation with timeout
-				if err := wait.PollImmediate(5*time.Second, 300*time.Second, func() (bool, error) {
+				if err := wait.PollImmediate(5*time.Second, 3*time.Minute, func() (bool, error) {
 					lgr.Info("Waiting for certificate rotation to complete")
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
 						return true, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
