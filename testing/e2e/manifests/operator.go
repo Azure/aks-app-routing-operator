@@ -47,8 +47,8 @@ const (
 	pathToDefaultDomainKey  = "/path/to/default/domain/key"
 )
 
-// generateSelfSignedCert generates a self-signed TLS certificate and private key for testing
-func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
+// GenerateSelfSignedCert generates a self-signed TLS certificate and private key for testing
+func GenerateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
 	// Generate a private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -98,6 +98,34 @@ func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
 	})
 
 	return certPEM, keyPEM, nil
+}
+
+var certPEM, keyPEM []byte
+
+// Generate self-signed certificate for testing
+func init() {
+	var err error
+	certPEM, keyPEM, err = GenerateSelfSignedCert()
+	if err != nil {
+		panic("failed to generate self-signed certificate: " + err.Error())
+	}
+}
+
+func CreateDefaultDomainSecret(certPEM, keyPEM []byte) *corev1.Secret {
+	return &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default-domain-cert",
+			Namespace: operatorNs,
+		},
+		Data: map[string][]byte{
+			"tls.crt": certPEM,
+			"tls.key": keyPEM,
+		},
+	}
 }
 
 // OperatorVersion is an enum for the different versions of the operator
@@ -365,26 +393,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}...)
 
 	if cfg.Version == OperatorVersionLatest {
-		// Generate self-signed certificate for testing
-		certPEM, keyPEM, err := generateSelfSignedCert()
-		if err != nil {
-			panic("failed to generate self-signed certificate: " + err.Error())
-		}
-
-		defaultDomainSecret := &corev1.Secret{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1",
-				Kind:       "Secret",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default-domain-cert",
-				Namespace: operatorNs,
-			},
-			Data: map[string][]byte{
-				"tls.crt": certPEM,
-				"tls.key": keyPEM,
-			},
-		}
+		defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
 		ret = append(ret, defaultDomainSecret)
 
 		defaultDomainVolumeName := "default-domain-cert"
