@@ -85,6 +85,10 @@ type NginxIngressControllerSpec struct {
 	// EnableSSLPassthrough is a flag that enables SSL passthrough for the NginxIngressController. This allows the controller to pass through SSL traffic without terminating it.
 	// +optional
 	EnableSSLPassthrough bool `json:"enableSSLPassthrough,omitempty"`
+
+	// UseForwardedHeaders is a flag that enables using the incoming X-Forwarded-* Headers for the NginxIngressController. This allows the controller to pass through X-Forwarded-* Headers coming from another L7-Proxy /load balancer in front of the NGINX ingress.
+	// +optional
+	UseForwardedHeaders bool `json:"useForwardedHeaders,omitempty"`
 }
 
 // DefaultSSLCertificate holds a secret in the form of a secret struct with name and namespace properties or a key vault uri

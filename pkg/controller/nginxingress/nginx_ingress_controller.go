@@ -569,6 +569,7 @@ func ToNginxIngressConfig(nic *approutingv1alpha1.NginxIngressController, defaul
 		},
 		HTTPDisabled:                   nic.Spec.HTTPDisabled,
 		EnableSSLPassthrough:           nic.Spec.EnableSSLPassthrough,
+		UseForwardedHeaders:           	nic.Spec.UseForwardedHeaders,
 		MinReplicas:                    minReplicas,
 		MaxReplicas:                    maxReplicas,
 		TargetCPUUtilizationPercentage: getTargetCPUUtilizationPercentage(nic),

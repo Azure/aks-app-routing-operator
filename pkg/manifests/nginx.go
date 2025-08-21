@@ -429,6 +429,9 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 	if ingressConfig.EnableSSLPassthrough {
 		deploymentArgs = append(deploymentArgs, "--enable-ssl-passthrough=true")
 	}
+	if ingressConfig.UseForwardedHeaders {
+		deploymentArgs = append(deploymentArgs, "--use-forwarded-headers=true")
+	}
 
 	ret := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{

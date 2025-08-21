@@ -71,6 +71,7 @@ type NginxIngressConfig struct {
 	// https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/
 	LogFormat            string
 	EnableSSLPassthrough bool
+	UseForwardedHeaders  bool
 }
 
 func (n *NginxIngressConfig) PodLabels() map[string]string {
