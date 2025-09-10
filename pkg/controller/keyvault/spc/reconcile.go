@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -267,7 +268,7 @@ func (s *secretProviderClassReconciler[objectType]) buildSpc(obj client.Object, 
 	}
 
 	if opts.cloud != "" {
-		spc.Spec.Parameters["cloud"] = opts.cloud
+		spc.Spec.Parameters[kvcsi.CloudNameParameter] = opts.cloud
 	}
 
 	return spc, nil

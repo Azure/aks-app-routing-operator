@@ -700,7 +700,7 @@ func TestBuildSpc(t *testing.T) {
 				assert.Equal(t, "true", spc.Spec.Parameters["useVMManagedIdentity"])
 				assert.Equal(t, reconcileTestClientId, spc.Spec.Parameters["userAssignedIdentityID"])
 				assert.Equal(t, reconcileTestTenantId, spc.Spec.Parameters["tenantId"])
-				assert.Empty(t, spc.Spec.Parameters["cloud"])
+				assert.Empty(t, spc.Spec.Parameters["cloudName"])
 				assert.Empty(t, spc.Spec.Parameters["objectVersion"])
 			},
 		},
@@ -733,7 +733,7 @@ func TestBuildSpc(t *testing.T) {
 				cloud:      "AzureChinaCloud",
 			},
 			verify: func(t *testing.T, spc *secv1.SecretProviderClass) {
-				assert.Equal(t, "AzureChinaCloud", spc.Spec.Parameters["cloud"])
+				assert.Equal(t, "AzureChinaCloud", spc.Spec.Parameters["cloudName"])
 			},
 		},
 		{
@@ -838,7 +838,7 @@ func TestBuildSpc(t *testing.T) {
 				assert.Empty(t, spc.Spec.Parameters["useVMManagedIdentity"])
 
 				// Verify other parameters still work with workload identity
-				assert.Equal(t, "AzureChinaCloud", spc.Spec.Parameters["cloud"])
+				assert.Equal(t, "AzureChinaCloud", spc.Spec.Parameters["cloudName"])
 				assert.Contains(t, spc.Spec.Parameters["objects"], "v2")
 				assert.Equal(t, reconcileTestVaultName, spc.Spec.Parameters["keyvaultName"])
 				assert.Equal(t, reconcileTestTenantId, spc.Spec.Parameters["tenantId"])
