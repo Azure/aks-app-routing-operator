@@ -134,11 +134,6 @@ spec:
                   for the NginxIngressController. This allows the controller to pass
                   through SSL traffic without terminating it.
                 type: boolean
-              useForwardedHeaders:
-	            description: UseForwardedHeaders is a flag that enables using the incoming X-Forwarded-* Headers 
-                  for the NginxIngressController. This allows the controller to pass through X-Forwarded-* Headers 
-                  coming from another L7-Proxy /load balancer in front of the NGINX ingress.
-	            type: boolean
               httpDisabled:
                 description: HTTPDisabled is a flag that disables HTTP traffic to
                   the NginxIngressController
@@ -205,6 +200,12 @@ spec:
                 x-kubernetes-validations:
                 - rule: (!has(self.minReplicas)) || (!has(self.maxReplicas)) || (self.minReplicas
                     <= self.maxReplicas)
+              useForwardedHeaders:
+                description: UseForwardedHeaders is a flag that enables using the
+                  incoming X-Forwarded-* Headers for the NginxIngressController. This
+                  allows the controller to pass through X-Forwarded-* Headers coming
+                  from another L7-Proxy /load balancer in front of the NGINX ingress.
+                type: boolean
             required:
             - controllerNamePrefix
             - ingressClassName

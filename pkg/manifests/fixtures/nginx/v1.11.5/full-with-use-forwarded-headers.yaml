@@ -1,0 +1,500 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: null
+  labels:
+    openservicemesh.io/monitored-by: osm
+  name: test-namespace
+spec: {}
+status: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: webapprouting.kubernetes.azure.com
+spec:
+  controller: webapprouting.kubernetes.azure.com/nginx
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - nodes
+  - pods
+  - secrets
+  - namespaces
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - list
+  - watch
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - endpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resourceNames:
+  - nginx
+  resources:
+  - leases
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - list
+  - watch
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nginx
+subjects:
+- kind: ServiceAccount
+  name: nginx
+  namespace: test-namespace
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nginx
+subjects:
+- kind: ServiceAccount
+  name: nginx
+  namespace: test-namespace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+spec:
+  externalTrafficPolicy: Local
+  loadBalancerSourceRanges:
+  - 127.1.000.1
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  - name: https
+    port: 443
+    targetPort: https
+  selector:
+    app: nginx
+  type: LoadBalancer
+status:
+  loadBalancer: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "10254"
+    prometheus.io/scrape: "true"
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx-metrics
+  namespace: test-namespace
+spec:
+  ports:
+  - name: prometheus
+    port: 10254
+    targetPort: prometheus
+  selector:
+    app: nginx
+  type: ClusterIP
+status:
+  loadBalancer: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+spec:
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: nginx
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        kubernetes.azure.com/set-kube-service-host-fqdn: "true"
+        openservicemesh.io/sidecar-injection: disabled
+        prometheus.io/port: "10254"
+        prometheus.io/scrape: "true"
+      creationTimestamp: null
+      labels:
+        app: nginx
+        app.kubernetes.io/component: ingress-controller
+        app.kubernetes.io/managed-by: aks-app-routing-operator
+        kubernetes.azure.com/managedby: aks
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: kubernetes.azure.com/mode
+                operator: In
+                values:
+                - system
+            weight: 100
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - args:
+        - /nginx-ingress-controller
+        - --ingress-class=webapprouting.kubernetes.azure.com
+        - --controller-class=webapprouting.kubernetes.azure.com/nginx
+        - --election-id=nginx
+        - --publish-service=$(POD_NAMESPACE)/nginx
+        - --configmap=$(POD_NAMESPACE)/nginx
+        - --enable-annotation-validation=true
+        - --shutdown-grace-period=15
+        - --use-forwarded-headers=true
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.5
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /healthz
+            port: 10254
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: controller
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+        - containerPort: 10254
+          name: prometheus
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 10254
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          requests:
+            cpu: 500m
+            memory: 127Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 101
+          seccompProfile:
+            type: RuntimeDefault
+      priorityClassName: system-cluster-critical
+      serviceAccountName: nginx
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: nginx
+        matchLabelKeys:
+        - pod-template-hash
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+status: {}
+---
+apiVersion: v1
+data:
+  allow-snippet-annotations: "true"
+  annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+spec:
+  maxReplicas: 100
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+  targetCPUUtilizationPercentage: 80
+status:
+  currentReplicas: 0
+  desiredReplicas: 0
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: ingress-controller
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: nginx
+    kubernetes.azure.com/managedby: aks
+  name: nginx
+  namespace: test-namespace
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: nginx
+status:
+  currentHealthy: 0
+  desiredHealthy: 0
+  disruptionsAllowed: 0
+  expectedPods: 0
+---
