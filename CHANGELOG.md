@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.10] - 2025-09-19
 
 ### Changed
-- bumped ingress-nginx to v1.13.1 - [link](https://github.com/Azure/aks-app-routing-operator/pull/497)
+- bumped ingress-nginx to v1.13.1 which **is a breaking change because it removes the ingress_upstream_latency_seconds metric**- [link](https://github.com/Azure/aks-app-routing-operator/pull/497)
 
 ## [0.2.9] - 2025-09-10
 
