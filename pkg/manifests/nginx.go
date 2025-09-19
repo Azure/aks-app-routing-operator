@@ -21,11 +21,11 @@ import (
 )
 
 var (
-	nginx1_11_5 = NginxIngressVersion{
-		name: "v1.11.5",
-		tag:  "v1.11.5",
+	nginx1_13_1 = NginxIngressVersion{
+		name: "v1.13.1",
+		tag:  "v1.13.1",
 	}
-	nginxVersionsAscending = []NginxIngressVersion{nginx1_11_5}
+	nginxVersionsAscending = []NginxIngressVersion{nginx1_13_1}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
 )
 
@@ -416,6 +416,8 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		// load balancer health probe checks in 5 second intervals. It requires 2 failing probes to fail so we need at least 10s of grace period.
 		// we set it to 15s to be safe. Without this Nginx process exits but the LoadBalancer continues routing to the Pod until two health checks fail.
 		"--shutdown-grace-period=15",
+		// this was a breaking change when moving to v1.12+, setting it explicitly for now to avoid breaking customers
+		"--enable-metrics=true",
 	}
 
 	if ingressConfig.DefaultSSLCertificate != "" {
@@ -527,6 +529,10 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 			// See: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#annotation-value-word-blocklist
 			"allow-snippet-annotations":       "true",
 			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
+			// breaking change in v1.12+ so we need to explicitly set this. We should remove this in a future release
+			"allow-cross-namespace-resources": "true",
+			// breaking change in v1.12+, we need to explicitly set this so it's not a breaking change
+			"annotations-risk-level": "Critical",
 		},
 	}
 
