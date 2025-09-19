@@ -368,6 +368,7 @@ spec:
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
         - --shutdown-grace-period=15
+        - --enable-metrics=true
         env:
         - name: POD_NAME
           valueFrom:
@@ -439,8 +440,10 @@ status: {}
 ---
 apiVersion: v1
 data:
+  allow-cross-namespace-resources: "true"
   allow-snippet-annotations: "true"
   annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'
+  annotations-risk-level: Critical
   log-format-upstream: 'custom format with only request: "$request"'
 kind: ConfigMap
 metadata:

@@ -364,6 +364,7 @@ spec:
         - --configmap=$(POD_NAMESPACE)/nginx
         - --enable-annotation-validation=true
         - --shutdown-grace-period=15
+        - --enable-metrics=true
         - --default-backend-service=fakenamespace/fakename
         env:
         - name: POD_NAME
@@ -436,8 +437,10 @@ status: {}
 ---
 apiVersion: v1
 data:
+  allow-cross-namespace-resources: "true"
   allow-snippet-annotations: "true"
   annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'
+  annotations-risk-level: Critical
 kind: ConfigMap
 metadata:
   creationTimestamp: null
