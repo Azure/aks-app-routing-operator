@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,6 +65,15 @@ func ingressToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 			tenantId:   conf.TenantID,
 			secretName: getIngressCertSecretName(ing),
 			cloud:      conf.Cloud,
+		}
+
+		// Check if the ingress is managed and log annotations if it is
+		isManaged, err := ingressManager.IsManaging(ing)
+		if err == nil && isManaged {
+			logger, err := logr.FromContext(ctx)
+			if err == nil {
+				logger.Info("logging ingress annotations", "annotations", ing.Annotations)
+			}
 		}
 
 		reconcile, err := ShouldReconcileIngress(ingressManager, ing)

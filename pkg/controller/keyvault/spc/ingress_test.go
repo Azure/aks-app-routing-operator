@@ -11,6 +11,8 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -709,4 +711,168 @@ func TestModifyOwner(t *testing.T) {
 		assert.Equal(t, opts.secretName, ingress.Spec.TLS[0].SecretName)
 		assert.Equal(t, []string{"test.example.com"}, ingress.Spec.TLS[0].Hosts)
 	}
+}
+
+func TestIngressAnnotationLogging(t *testing.T) {
+	// Set up scheme for fake client
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+
+	conf := &config.Config{
+		MSIClientID: ingressTestClientID,
+		TenantID:    ingressTestTenantID,
+		Cloud:       ingressTestCloud,
+	}
+
+	testAnnotations := map[string]string{
+		"kubernetes.azure.com/tls-cert-keyvault-uri": ingressTestKVUriPublic,
+		"test-annotation":                            "test-value",
+		"another-annotation":                         "another-value",
+	}
+
+	tests := []struct {
+		name              string
+		ingress           *netv1.Ingress
+		ingressManager    util.IngressManager
+		expectLogCalled   bool
+		expectedLogValues map[string]interface{}
+	}{
+		{
+			name: "managed ingress should log annotations",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        ingressTestIngressName,
+					Namespace:   ingressTestNamespace,
+					Annotations: testAnnotations,
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}),
+			expectLogCalled: true,
+			expectedLogValues: map[string]interface{}{
+				"annotations": testAnnotations,
+			},
+		},
+		{
+			name: "unmanaged ingress should not log annotations",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        ingressTestIngressName,
+					Namespace:   ingressTestNamespace,
+					Annotations: testAnnotations,
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return false, nil
+			}),
+			expectLogCalled: false,
+		},
+		{
+			name: "managed ingress without keyvault annotation should log annotations",
+			ingress: &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ingressTestIngressName,
+					Namespace: ingressTestNamespace,
+					Annotations: map[string]string{
+						"test-annotation": "test-value",
+					},
+				},
+			},
+			ingressManager: util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			}),
+			expectLogCalled: true,
+			expectedLogValues: map[string]interface{}{
+				"annotations": map[string]string{
+					"test-annotation": "test-value",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test logger that captures log calls
+			testLogger := testr.New(t)
+			ctx := logr.NewContext(context.Background(), testLogger)
+
+			client := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+			// Track if logging was called with the correct values
+			logCalled := false
+			var loggedValues map[string]interface{}
+
+			// Create a logger that captures the log call
+			captureLogger := testLogger.WithSink(&captureSink{
+				onInfo: func(level int, msg string, keysAndValues ...interface{}) {
+					if msg == "logging ingress annotations" {
+						logCalled = true
+						// Convert keysAndValues to map for easier assertion
+						loggedValues = make(map[string]interface{})
+						for i := 0; i < len(keysAndValues); i += 2 {
+							if i+1 < len(keysAndValues) {
+								key := keysAndValues[i].(string)
+								value := keysAndValues[i+1]
+								loggedValues[key] = value
+							}
+						}
+					}
+				},
+			})
+
+			ctx = logr.NewContext(ctx, captureLogger)
+
+			// Call the function under test
+			var gotOpts []spcOpts
+			var gotErrs []error
+			for opts, err := range ingressToSpcOpts(ctx, client, conf, tt.ingress, tt.ingressManager) {
+				gotOpts = append(gotOpts, opts)
+				gotErrs = append(gotErrs, err)
+			}
+
+			// Verify that logging behavior matches expectations
+			if tt.expectLogCalled {
+				assert.True(t, logCalled, "Expected annotation logging to be called")
+				for key, expectedValue := range tt.expectedLogValues {
+					assert.Equal(t, expectedValue, loggedValues[key], "Logged value for key %s should match expected", key)
+				}
+			} else {
+				assert.False(t, logCalled, "Expected annotation logging NOT to be called")
+			}
+
+			// Verify that the function still works correctly
+			require.Len(t, gotErrs, 1)
+			require.NoError(t, gotErrs[0])
+			require.Len(t, gotOpts, 1)
+		})
+	}
+}
+
+// captureSink is a test helper that captures log calls
+type captureSink struct {
+	onInfo func(level int, msg string, keysAndValues ...interface{})
+}
+
+func (c *captureSink) Init(info logr.RuntimeInfo) {}
+
+func (c *captureSink) Enabled(level int) bool {
+	return true
+}
+
+func (c *captureSink) Info(level int, msg string, keysAndValues ...interface{}) {
+	if c.onInfo != nil {
+		c.onInfo(level, msg, keysAndValues...)
+	}
+}
+
+func (c *captureSink) Error(err error, msg string, keysAndValues ...interface{}) {}
+
+func (c *captureSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
+	return c
+}
+
+func (c *captureSink) WithName(name string) logr.LogSink {
+	return c
 }
