@@ -99,6 +99,9 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	}
 	logger = logger.WithValues("generation", obj.GetGeneration())
 
+	// Add logger to context so it can be used in downstream functions
+	ctx = logr.NewContext(ctx, logger)
+
 	objUpdated := false
 	for spcOpts, err := range s.toSpcOpts(ctx, s.client, obj) {
 		if err != nil {
