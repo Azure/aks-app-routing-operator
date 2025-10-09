@@ -67,7 +67,8 @@ func ingressToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 			cloud:      conf.Cloud,
 		}
 
-		// Check if the ingress is managed and log annotations if it is
+		// Check if the ingress is managed and log annotations if it is log them.
+		// it's not worth failing the reconciliation if we can't log
 		isManaged, err := ingressManager.IsManaging(ing)
 		if err == nil && isManaged {
 			logger, err := logr.FromContext(ctx)
