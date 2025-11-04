@@ -75,7 +75,6 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
@@ -95,7 +94,6 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/glog v1.2.5 // indirect
@@ -112,14 +110,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
-	github.com/lestrrat-go/dsig v1.0.0 // indirect
-	github.com/lestrrat-go/dsig-secp256k1 v1.0.0 // indirect
-	github.com/lestrrat-go/httpcc v1.0.1 // indirect
-	github.com/lestrrat-go/httprc/v3 v3.0.1 // indirect
-	github.com/lestrrat-go/jwx/v3 v3.0.11 // indirect
-	github.com/lestrrat-go/option v1.0.1 // indirect
-	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/microsoft/kiota-abstractions-go v1.8.1 // indirect
 	github.com/microsoft/kiota-authentication-azure-go v1.1.0 // indirect
@@ -135,7 +125,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/open-policy-agent/frameworks/constraint v0.0.0-20240802234259-aa99306df54e // indirect
-	github.com/open-policy-agent/opa v1.10.0 // indirect
+	github.com/open-policy-agent/opa v1.3.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
@@ -143,14 +133,11 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
-	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
-	github.com/valyala/fastjson v1.6.4 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
