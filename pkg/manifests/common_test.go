@@ -16,6 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/yaml"
 )
 
@@ -286,6 +288,10 @@ func (g GatekeeperException) Ignores(r *test.GatorResult) bool {
 }
 
 func GatekeeperTest(t *testing.T, manifestPath string, exceptions ...GatekeeperException) {
+	// Initialize logger required by gatekeeper v3.20.1+
+	// This prevents "eventuallyFulfillRoot" panic when test.Test() tries to log
+	log.SetLogger(zap.New(zap.UseDevMode(true)))
+
 	// similar to https://github.com/open-policy-agent/gatekeeper/blob/master/cmd/gator/test/test.go
 	unstructs, err := reader.ReadSources([]string{constraintsPath, manifestPath}, []string{}, "")
 	require.NoError(t, err, "reading manifest", "path", manifestPath)
