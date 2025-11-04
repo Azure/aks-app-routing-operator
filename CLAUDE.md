@@ -155,3 +155,4 @@ To upgrade the Go version perform the following steps
 - Run `go mod tidy`
 - Upgrade the base dockerfiles to use the new Go image in ./docker directory
 - Run `make unit` to ensure unit tests all pass
+- Upgrade the go-version of actions/setup-go GitHub actions in .github/workflows directory
