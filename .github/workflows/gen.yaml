@@ -17,7 +17,7 @@ jobs:
   generation-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6.pre.beta
       with:
         ref: ${{ inputs.checkout_ref }}
 
