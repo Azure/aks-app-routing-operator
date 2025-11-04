@@ -130,6 +130,10 @@ spec:
                 operator: In
                 values:
                 - linux
+              - key: kubernetes.azure.com/hobovm
+                operator: NotIn
+                values:
+                - "true"
       containers:
       - args:
         - --provider=azure-private-dns
