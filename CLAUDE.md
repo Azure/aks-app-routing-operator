@@ -144,3 +144,14 @@ The operator integrates deeply with Azure services:
 - AKS-specific networking and ingress patterns
 - Azure Container Registry for image management
 - Azure RBAC and service principal authentication
+
+## Common tasks
+
+### Upgrade Go version
+
+To upgrade the Go version perform the following steps
+- Determine what the latest version of Go is 
+- Upgrade the go.mod by changing the go directive to the new version of Go
+- Run `go mod tidy`
+- Upgrade the base dockerfiles to use the new Go image in ./docker directory
+- Run `make unit` to ensure unit tests all pass
