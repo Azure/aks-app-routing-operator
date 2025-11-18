@@ -5,6 +5,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -24,6 +25,16 @@ import (
 const genFixturesEnv = "GENERATE_FIXTURES"
 
 const constraintsPath = "./policy/manifests"
+
+// initLoggerOnce ensures the logger is only initialized once to prevent race conditions
+// when tests run in parallel
+var initLoggerOnce sync.Once
+
+func initLogger() {
+	initLoggerOnce.Do(func() {
+		log.SetLogger(zap.New(zap.UseDevMode(true)))
+	})
+}
 
 var namespaceTestCases = []struct {
 	Name          string
@@ -290,7 +301,8 @@ func (g GatekeeperException) Ignores(r *test.GatorResult) bool {
 func GatekeeperTest(t *testing.T, manifestPath string, exceptions ...GatekeeperException) {
 	// Initialize logger required by gatekeeper v3.20.1+
 	// This prevents "eventuallyFulfillRoot" panic when test.Test() tries to log
-	log.SetLogger(zap.New(zap.UseDevMode(true)))
+	// Use sync.Once to prevent race conditions when tests run in parallel
+	initLogger()
 
 	// similar to https://github.com/open-policy-agent/gatekeeper/blob/master/cmd/gator/test/test.go
 	unstructs, err := reader.ReadSources([]string{constraintsPath, manifestPath}, []string{}, "")

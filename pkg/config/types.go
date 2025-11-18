@@ -84,4 +84,6 @@ type Config struct {
 	EnableDefaultDomain   bool
 	DefaultDomainCertPath string
 	DefaultDomainKeyPath  string
+	DefaultDomainClientID string
+	DefaultDomainZoneID   string
 }

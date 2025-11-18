@@ -56,6 +56,8 @@ func init() {
 	flag.BoolVar(&Flags.EnableDefaultDomain, "enable-default-domain", false, "enable default domain feature including the Default Domain Certificate Controller and CRD")
 	flag.StringVar(&Flags.DefaultDomainCertPath, "default-domain-cert-path", "", "path to the default domain TLS certificate file (tls.crt)")
 	flag.StringVar(&Flags.DefaultDomainKeyPath, "default-domain-key-path", "", "path to the default domain TLS private key file (tls.key)")
+	flag.StringVar(&Flags.DefaultDomainClientID, "default-domain-client-id", "", "client ID of the managed identity with federated permissions to interact with the default domain DNS zone")
+	flag.StringVar(&Flags.DefaultDomainZoneID, "default-domain-zone-id", "", "resource ID of the DNS zone for the default domain")
 }
 
 func (c *Config) Validate() error {
@@ -112,12 +114,16 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("crd path %s is not a directory", c.CrdPath)
 	}
 
-	if !c.EnableDefaultDomain && (c.DefaultDomainCertPath != "" || c.DefaultDomainKeyPath != "") {
-		return errors.New("--default-domain-cert-path and --default-domain-key-path are not allowed when --enable-default-domain is not set")
+	if !c.EnableDefaultDomain && (c.DefaultDomainCertPath != "" || c.DefaultDomainKeyPath != "" || c.DefaultDomainClientID != "" || c.DefaultDomainZoneID != "") {
+		return errors.New("--default-domain-cert-path, --default-domain-key-path, --default-domain-client-id, and --default-domain-zone-id are not allowed when --enable-default-domain is not set")
 	}
 
-	if c.EnableDefaultDomain && (c.DefaultDomainCertPath == "" || c.DefaultDomainKeyPath == "") {
-		return errors.New("both --default-domain-cert-path and --default-domain-key-path are required when --enable-default-domain is set")
+	if c.EnableDefaultDomain && !c.EnabledWorkloadIdentity {
+		return errors.New("--enable-default-domain requires --enable-workload-identity to be enabled")
+	}
+
+	if c.EnableDefaultDomain && (c.DefaultDomainCertPath == "" || c.DefaultDomainKeyPath == "" || c.DefaultDomainClientID == "" || c.DefaultDomainZoneID == "") {
+		return errors.New("--default-domain-cert-path, --default-domain-key-path, --default-domain-client-id, and --default-domain-zone-id are all required when --enable-default-domain is set")
 	}
 
 	return nil
