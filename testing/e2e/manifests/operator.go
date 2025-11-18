@@ -234,6 +234,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--enable-default-domain")
 		ret = append(ret, "--default-domain-cert-path", pathToDefaultDomainCert+"/tls.crt")
 		ret = append(ret, "--default-domain-key-path", pathToDefaultDomainCert+"/tls.key")
+
+		// these two don't do anything yet in the e2e test but are needed so the operator can run
+		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
+		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
 	}
 
 	var zones []string
