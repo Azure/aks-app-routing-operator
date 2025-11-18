@@ -72,6 +72,12 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 		if err := NewClusterExternalDNSController(manager, conf); err != nil {
 			return fmt.Errorf("adding cluster external dns controller: %w", err)
 		}
+
+		if conf.EnableDefaultDomain {
+			if err := NewDefaultDomainDNSReconciler(manager, conf); err != nil {
+				return fmt.Errorf("adding default domain cluster external dns controller: %w", err)
+			}
+		}
 	}
 
 	return nil
