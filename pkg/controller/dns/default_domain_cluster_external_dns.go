@@ -51,7 +51,6 @@ func defaultDomainServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 			Name:      defaultDomainDNSResourceName,
 			Namespace: conf.NS,
 			Annotations: map[string]string{
-				"azure.workload.identity/use":       "true",
 				"azure.workload.identity/client-id": conf.DefaultDomainClientID,
 			},
 			Labels: manifests.GetTopLevelLabels(),

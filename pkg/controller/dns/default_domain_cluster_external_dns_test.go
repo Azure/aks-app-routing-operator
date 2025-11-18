@@ -29,7 +29,6 @@ func TestDefaultDomainServiceAccount(t *testing.T) {
 					Name:      defaultDomainDNSResourceName,
 					Namespace: "test-namespace",
 					Annotations: map[string]string{
-						"azure.workload.identity/use":       "true",
 						"azure.workload.identity/client-id": "test-client-id-123",
 					},
 					Labels: manifests.GetTopLevelLabels(),
@@ -47,7 +46,6 @@ func TestDefaultDomainServiceAccount(t *testing.T) {
 					Name:      defaultDomainDNSResourceName,
 					Namespace: "another-namespace",
 					Annotations: map[string]string{
-						"azure.workload.identity/use":       "true",
 						"azure.workload.identity/client-id": "different-client-id",
 					},
 					Labels: manifests.GetTopLevelLabels(),
@@ -207,7 +205,6 @@ func TestDefaultDomainObjects(t *testing.T) {
 			require.NotNil(t, serviceAccount)
 			require.Equal(t, defaultDomainDNSResourceName, serviceAccount.Name)
 			require.Equal(t, tc.conf.NS, serviceAccount.Namespace)
-			require.Equal(t, "true", serviceAccount.Annotations["azure.workload.identity/use"])
 			require.Equal(t, tc.conf.DefaultDomainClientID, serviceAccount.Annotations["azure.workload.identity/client-id"])
 
 			// Verify ClusterExternalDNS properties
