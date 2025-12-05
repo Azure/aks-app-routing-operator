@@ -86,8 +86,6 @@ func (c *CachedClient) GetTLSCertificate(ctx context.Context) (*TLSCertificate, 
 
 // IsHealthy returns true if the client is healthy (has not exceeded max retries)
 func (c *CachedClient) IsHealthy() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.healthy
 }
 
