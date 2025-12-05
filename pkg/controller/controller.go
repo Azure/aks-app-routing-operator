@@ -283,13 +283,13 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 				ClusterName:    parsedZone.ResourceName,
 				CCPID:          conf.ClusterUid,
 			},
-			lgr.WithName("default-domain-client"),
+			mgr.GetLogger().WithName("default-domain-client"),
 		)
 
 		// Add the health checker to the list
 		healthCheckers.addCheck(defaultDomainClient)
 
-		if err := defaultdomaincert.NewReconciler(conf, mgr, store, defaultDomainClient); err != nil {
+		if err := defaultdomaincert.NewReconciler(conf, mgr, defaultDomainClient); err != nil {
 			return fmt.Errorf("setting up default domain reconciler: %w", err)
 		}
 	}

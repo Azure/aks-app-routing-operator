@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/tls"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -26,22 +25,25 @@ import (
 
 var name = controllername.New("default", "domain", "cert", "reconciler")
 
+// defaultDomainClient is an interface for fetching TLS certificates from the default domain service
+type defaultDomainClient interface {
+	GetTLSCertificate(ctx context.Context) (*defaultdomain.TLSCertificate, error)
+}
+
 type defaultDomainCertControllerReconciler struct {
 	client       client.Client
 	events       record.EventRecorder
 	conf         *config.Config
-	store        store.Store
-	defaultDomainClient *defaultdomain.CachedClient
+	defaultDomainClient defaultDomainClient
 }
 
-func NewReconciler(conf *config.Config, mgr ctrl.Manager, store store.Store, defaultDomainClient *defaultdomain.CachedClient) error {
+func NewReconciler(conf *config.Config, mgr ctrl.Manager, defaultDomainClient *defaultdomain.CachedClient) error {
 	metrics.InitControllerMetrics(name)
 
 	reconciler := &defaultDomainCertControllerReconciler{
 		client:              mgr.GetClient(),
 		events:              mgr.GetEventRecorderFor("aks-app-routing-operator"),
 		conf:                conf,
-		store:               store,
 		defaultDomainClient: defaultDomainClient,
 	}
 
