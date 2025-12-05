@@ -13,7 +13,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
-	"github.com/Azure/aks-app-routing-operator/pkg/healthcheck"
 	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -115,8 +114,8 @@ func TestSetup(t *testing.T) {
 	store, err := store.New(logr.Discard(), context.Background())
 	require.NoError(t, err, "failed to create store")
 
-	var healthCheckers []healthcheck.Checker
+	healthCheckers := newHealthCheckers()
 	require.NoError(t, setupIndexers(mgr, logr.Discard(), testConfig))
-	require.NoError(t, setupControllers(mgr, testConfig, logr.Discard(), controllerruntimefake.NewFakeClient(), store, &healthCheckers))
-	require.NoError(t, setupProbes(testConfig, mgr, logr.Discard(), &healthCheckers))
+	require.NoError(t, setupControllers(mgr, testConfig, logr.Discard(), controllerruntimefake.NewFakeClient(), store, healthCheckers))
+	require.NoError(t, setupProbes(testConfig, mgr, logr.Discard(), healthCheckers))
 }
