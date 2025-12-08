@@ -14,17 +14,17 @@ jobs:
   provision:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version: '~1.25'
           cache-dependency-path: "**/*.sum"
 
       - name: Azure login
-        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -35,7 +35,7 @@ jobs:
         run: go run ./cmd/e2e/main.go infra --subscription="${{ secrets.AZURE_SUBSCRIPTION_ID }}" --tenant="${{ secrets.AZURE_TENANT_ID }}" --names="${{ inputs.name }}" --infra-file="./infra-${{ inputs.name }}.json"
 
       - name: Upload infra file
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: infra-${{ inputs.name }}
           path: infra-${{ inputs.name }}.json
@@ -43,23 +43,23 @@ jobs:
     needs: provision
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version: '~1.25'
           cache-dependency-path: "**/*.sum"
 
       - name: Azure login
-        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: infra-${{ inputs.name }}
 
