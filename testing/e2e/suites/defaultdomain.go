@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -150,9 +151,19 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				scheme := runtime.NewScheme()
 				v1alpha1.AddToScheme(scheme)
 				corev1.AddToScheme(scheme)
+				appsv1.AddToScheme(scheme) // Added appsv1 scheme
 				cl, err := client.New(config, client.Options{Scheme: scheme})
 				if err != nil {
 					return fmt.Errorf("creating client: %w", err)
+				}
+
+				// deploy the default domain server
+				serverName := "default-domain-server"
+				serverObjs := manifests.DefaultDomainServer("kube-system", serverName)
+				for _, obj := range serverObjs {
+					if err := util.Upsert(ctx, cl, obj); err != nil {
+						return fmt.Errorf("upserting default domain server object: %w", err)
+					}
 				}
 
 				namespace := &corev1.Namespace{
@@ -251,6 +262,37 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				dds := manifests.CreateDefaultDomainSecret(newCert, newKey)
 				if err := util.Upsert(ctx, cl, dds); err != nil {
 					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
+				}
+
+				// wait for the secret to be updated with the new cert
+				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					// update the secret in the default domain server
+					secret := &corev1.Secret{}
+					if err := cl.Get(ctx, client.ObjectKey{Name: "default-domain-cert", Namespace: "kube-system"}, secret); err != nil {
+						return false, fmt.Errorf("getting default domain secret: %w", err)
+					}
+
+					if !bytes.Equal(secret.Data["tls.crt"], newCert) {
+						return false, nil
+					}
+					if !bytes.Equal(secret.Data["tls.key"], newKey) {
+						return false, nil
+					}
+
+					return true, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for default domain secret to be updated: %w", err)
+				}
+
+				// bounce the pod to pick up the new secret
+				podList := &corev1.PodList{}
+				if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": serverName}); err != nil {
+					return fmt.Errorf("listing default domain server pods: %w", err)
+				}
+				for _, pod := range podList.Items {
+					if err := cl.Delete(ctx, &pod); err != nil {
+						return fmt.Errorf("deleting default domain server pod: %w", err)
+					}
 				}
 
 				lgr.Info("Starting rotation polling")
