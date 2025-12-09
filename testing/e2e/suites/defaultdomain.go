@@ -157,9 +157,6 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("creating client: %w", err)
 				}
 
-				// deploy the default domain server
-				serverName := "default-domain-server"
-
 				namespace := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "default-domain",
@@ -278,14 +275,15 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("waiting for default domain secret to be updated: %w", err)
 				}
 
-				// bounce the pod to pick up the new secret
+				// bounce the app routing operator to pick up the new secret
+				lgr.Info("Bouncing App Routing Operator")
 				podList := &corev1.PodList{}
-				if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": serverName}); err != nil {
+				if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "app-routing-operator"}); err != nil {
 					return fmt.Errorf("listing default domain server pods: %w", err)
 				}
 				for _, pod := range podList.Items {
 					if err := cl.Delete(ctx, &pod); err != nil {
-						return fmt.Errorf("deleting default domain server pod: %w", err)
+						return fmt.Errorf("deleting operator pod: %w", err)
 					}
 				}
 
