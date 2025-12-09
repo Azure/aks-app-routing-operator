@@ -393,6 +393,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	if cfg.Version == OperatorVersionLatest {
 		defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
 		ret = append(ret, defaultDomainSecret)
+		ret = append(ret, DefaultDomainServer(operatorNs, "default-domain-server")...)
 	}
 
 	// edit and select relevant manifest config by version

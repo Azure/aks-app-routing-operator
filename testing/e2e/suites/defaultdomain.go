@@ -159,12 +159,6 @@ func defaultDomainTests(in infra.Provisioned) []test {
 
 				// deploy the default domain server
 				serverName := "default-domain-server"
-				serverObjs := manifests.DefaultDomainServer("kube-system", serverName)
-				for _, obj := range serverObjs {
-					if err := util.Upsert(ctx, cl, obj); err != nil {
-						return fmt.Errorf("upserting default domain server object: %w", err)
-					}
-				}
 
 				namespace := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
