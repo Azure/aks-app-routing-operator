@@ -69,7 +69,7 @@ func DefaultDomainServer(namespace, name string) []client.Object {
 	}
 
 	return []client.Object{
-		deployment,
 		service,
+		deployment,
 	}
 }
