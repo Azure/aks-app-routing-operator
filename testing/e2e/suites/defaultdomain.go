@@ -279,7 +279,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 
 				lgr.Info("Starting rotation polling")
 				// Retry waiting for certificate rotation with timeout
-				if err := wait.PollImmediate(5*time.Second, 3*time.Minute, func() (bool, error) {
+				if err := wait.PollImmediate(20*time.Second, 3*time.Minute, func() (bool, error) {
 					// we need to bounce the default domain pods because normally rotation is picked up by a long polling interval.
 					// upon restart we hydrate the certificate immediately though.
 					// TODO: in the future we'll make this rotation polling interval configurable so we can speed this up in tests
