@@ -272,6 +272,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 
 					return true, nil
 				}); err != nil {
+					return fmt.Errorf("waiting for default domain secret to be updated: %w", err)
+				}
 
 				// bounce the default domain server pods to pick up the new secret
 				lgr.Info("Bouncing Default Domain Server Pods")
@@ -287,7 +289,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 
 				// bounce the app routing operator to pick up the new secret
 				lgr.Info("Bouncing App Routing Operator")
-				podList := &corev1.PodList{}
+				podList = &corev1.PodList{}
 				if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "app-routing-operator"}); err != nil {
 					return fmt.Errorf("listing default domain server pods: %w", err)
 				}
