@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math"
 	"math/big"
 	"net"
@@ -25,6 +26,12 @@ import (
 const (
 	operatorNs        = "kube-system"
 	ManagedResourceNs = "app-routing-system"
+)
+
+const (
+	defaultDomainServerName = "default-domain-server"
+	defaultDomainCertSecret = "default-domain-cert"
+	defaultDomainPort       = 8080
 )
 
 var (
@@ -113,7 +120,7 @@ func CreateDefaultDomainSecret(certPEM, keyPEM []byte) *corev1.Secret {
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default-domain-cert",
+			Name:      defaultDomainCertSecret,
 			Namespace: operatorNs,
 		},
 		Data: map[string][]byte{
@@ -227,7 +234,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	if o.Version >= OperatorVersionLatest {
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
-		ret = append(ret, "--default-domain-server-address", "http://default-domain-server.kube-system.svc.cluster.local:8080")
+		ret = append(ret, "--default-domain-server-address", fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", defaultDomainServerName, operatorNs, defaultDomainPort))
 
 		// these two don't do anything yet in the e2e test but are needed so the operator can run
 		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
@@ -391,8 +398,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}...)
 
 	if cfg.Version == OperatorVersionLatest {
-		defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
-		defaultDomainRes := append([]client.Object{defaultDomainSecret}, DefaultDomainServer(operatorNs, "default-domain-server")...)
+		defaultDomainRes := DefaultDomainServer(defaultDomainServerName)
 		ret = append(defaultDomainRes, ret...)
 	}
 

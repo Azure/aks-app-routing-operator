@@ -272,7 +272,17 @@ func defaultDomainTests(in infra.Provisioned) []test {
 
 					return true, nil
 				}); err != nil {
-					return fmt.Errorf("waiting for default domain secret to be updated: %w", err)
+
+				// bounce the default domain server pods to pick up the new secret
+				lgr.Info("Bouncing Default Domain Server Pods")
+				podList := &corev1.PodList{}
+				if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "default-domain-server"}); err != nil {
+					return fmt.Errorf("listing default domain server pods: %w", err)
+				}
+				for _, pod := range podList.Items {
+					if err := cl.Delete(ctx, &pod); err != nil {
+						return fmt.Errorf("deleting default domain server pod: %w", err)
+					}
 				}
 
 				// bounce the app routing operator to pick up the new secret

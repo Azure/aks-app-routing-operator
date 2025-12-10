@@ -12,8 +12,8 @@ import (
 //go:embed embedded/defaultDomainServer.golang
 var defaultDomainServerContents string
 
-func DefaultDomainServer(namespace, name string) []client.Object {
-	deployment := newGoDeployment(defaultDomainServerContents, namespace, name)
+func DefaultDomainServer(name string) []client.Object {
+	deployment := newGoDeployment(defaultDomainServerContents, operatorNs, name)
 	deployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
 			Name:  "CERT_PATH",
@@ -38,7 +38,7 @@ func DefaultDomainServer(namespace, name string) []client.Object {
 			Name: "tls-secret",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: "default-domain-cert",
+					SecretName: defaultDomainCertSecret,
 				},
 			},
 		},
@@ -51,7 +51,7 @@ func DefaultDomainServer(namespace, name string) []client.Object {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: operatorNs,
 			Labels: map[string]string{
 				ManagedByKey: ManagedByVal,
 			},
@@ -59,8 +59,8 @@ func DefaultDomainServer(namespace, name string) []client.Object {
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
-				Port:       8080,
-				TargetPort: intstr.FromInt(8080),
+				Port:       defaultDomainPort,
+				TargetPort: intstr.FromInt(defaultDomainPort),
 			}},
 			Selector: map[string]string{
 				"app": name,
@@ -68,7 +68,10 @@ func DefaultDomainServer(namespace, name string) []client.Object {
 		},
 	}
 
+	defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
+
 	return []client.Object{
+		defaultDomainSecret,
 		service,
 		deployment,
 	}
