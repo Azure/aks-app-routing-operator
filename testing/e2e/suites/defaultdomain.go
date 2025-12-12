@@ -7,12 +7,15 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/tls"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -150,6 +153,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				scheme := runtime.NewScheme()
 				v1alpha1.AddToScheme(scheme)
 				corev1.AddToScheme(scheme)
+				appsv1.AddToScheme(scheme) // Added appsv1 scheme
 				cl, err := client.New(config, client.Options{Scheme: scheme})
 				if err != nil {
 					return fmt.Errorf("creating client: %w", err)
@@ -254,9 +258,14 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				}
 
 				lgr.Info("Starting rotation polling")
-
 				// Retry waiting for certificate rotation with timeout
-				if err := wait.PollImmediate(5*time.Second, 3*time.Minute, func() (bool, error) {
+				if err := wait.PollImmediate(20*time.Second, 3*time.Minute, func() (bool, error) {
+					// we need to bounce the default domain pods because normally rotation is picked up by a long polling interval.
+					// upon restart we hydrate the certificate immediately though.
+					// TODO: in the future we'll make this rotation polling interval configurable so we can speed this up in tests
+					// and not need a pod bounce
+					bounceDefaultDomainPods(ctx, lgr, cl)
+
 					lgr.Info("Waiting for certificate rotation to complete")
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
 						return false, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
@@ -306,4 +315,32 @@ func defaultDomainTests(in infra.Provisioned) []test {
 			},
 		},
 	}
+}
+
+func bounceDefaultDomainPods(ctx context.Context, lgr *slog.Logger, cl client.Client) error {
+	// bounce the default domain server pods to pick up the new secret
+	lgr.Info("Bouncing Default Domain Server Pods")
+	podList := &corev1.PodList{}
+	if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "default-domain-server"}); err != nil {
+		return fmt.Errorf("listing default domain server pods: %w", err)
+	}
+	for _, pod := range podList.Items {
+		if err := cl.Delete(ctx, &pod); err != nil {
+			return fmt.Errorf("deleting default domain server pod: %w", err)
+		}
+	}
+
+	// bounce the app routing operator to pick up the new secret
+	lgr.Info("Bouncing App Routing Operator")
+	podList = &corev1.PodList{}
+	if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "app-routing-operator"}); err != nil {
+		return fmt.Errorf("listing default domain server pods: %w", err)
+	}
+	for _, pod := range podList.Items {
+		if err := cl.Delete(ctx, &pod); err != nil {
+			return fmt.Errorf("deleting operator pod: %w", err)
+		}
+	}
+
+	return nil
 }

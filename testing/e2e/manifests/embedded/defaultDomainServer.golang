@@ -1,0 +1,59 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"time"
+)
+
+type TLSCertificate struct {
+	Key       []byte     `json:"key,omitempty"`
+	Cert      []byte     `json:"cert,omitempty"`
+	ExpiresOn *time.Time `json:"expires_on,omitempty"`
+}
+
+func main() {
+	certPath := os.Getenv("CERT_PATH")
+	if certPath == "" {
+		panic("CERT_PATH environment variable is required")
+	}
+	keyPath := os.Getenv("KEY_PATH")
+	if keyPath == "" {
+		panic("KEY_PATH environment variable is required")
+	}
+
+	log.Printf("Starting server on :8080 with certPath=%s keyPath=%s", certPath, keyPath)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received request from %s", r.RemoteAddr)
+		cert, err := os.ReadFile(certPath)
+		if err != nil {
+			log.Printf("Error reading cert file: %v", err)
+			http.Error(w, fmt.Sprintf("reading cert file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			log.Printf("Error reading key file: %v", err)
+			http.Error(w, fmt.Sprintf("reading key file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		resp := TLSCertificate{
+			Key:  key,
+			Cert: cert,
+		}
+
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			log.Printf("Error encoding response: %v", err)
+			http.Error(w, fmt.Sprintf("encoding response: %v", err), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Successfully served certificate and key")
+	})
+
+	panic(http.ListenAndServe(":8080", nil))
+}
