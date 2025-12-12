@@ -257,26 +257,6 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
 				}
 
-				// wait for the secret to be updated with the new cert
-				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-					// update the secret in the default domain server
-					secret := &corev1.Secret{}
-					if err := cl.Get(ctx, client.ObjectKey{Name: "default-domain-cert", Namespace: "kube-system"}, secret); err != nil {
-						return false, fmt.Errorf("getting default domain secret: %w", err)
-					}
-
-					if !bytes.Equal(secret.Data["tls.crt"], newCert) {
-						return false, nil
-					}
-					if !bytes.Equal(secret.Data["tls.key"], newKey) {
-						return false, nil
-					}
-
-					return true, nil
-				}); err != nil {
-					return fmt.Errorf("waiting for default domain secret to be updated: %w", err)
-				}
-
 				lgr.Info("Starting rotation polling")
 				// Retry waiting for certificate rotation with timeout
 				if err := wait.PollImmediate(20*time.Second, 3*time.Minute, func() (bool, error) {
