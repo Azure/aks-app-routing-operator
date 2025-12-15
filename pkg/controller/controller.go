@@ -280,8 +280,11 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 				},
 				SubscriptionID: parsedZone.SubscriptionID,
 				ResourceGroup:  parsedZone.ResourceGroup,
-				ClusterName:    parsedZone.ResourceName,
-				CCPID:          conf.ClusterUid,
+				// note that the zone name isn't actually the cluster name, but the default domain svc resource
+				// doesn't actually utilize this value for anything other than logging/tracing purposes so the unique
+				// zone name works as well. Default-domain-svc only cares about the ccp id
+				ClusterName: parsedZone.ResourceName,
+				CCPID:       conf.ClusterUid,
 			},
 			mgr.GetLogger().WithName("default-domain-client"),
 		)
