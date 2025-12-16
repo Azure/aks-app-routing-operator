@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math"
 	"math/big"
 	"net"
@@ -27,6 +28,12 @@ const (
 	ManagedResourceNs = "app-routing-system"
 )
 
+const (
+	defaultDomainServerName = "default-domain-server"
+	defaultDomainCertSecret = "default-domain-cert"
+	defaultDomainPort       = 8080
+)
+
 var (
 	operatorDeploymentLabels = map[string]string{
 		"app": "app-routing-operator",
@@ -40,11 +47,6 @@ var (
 	NonZeroDnsZoneCounts = []DnsZoneCount{DnsZoneCountOne, DnsZoneCountMultiple}
 
 	SingleStackIPFamilyPolicy = corev1.IPFamilyPolicySingleStack
-)
-
-const (
-	pathToDefaultDomainCert = "/path/to/default/domain/cert"
-	pathToDefaultDomainKey  = "/path/to/default/domain/key"
 )
 
 // GenerateSelfSignedCert generates a self-signed TLS certificate and private key for testing
@@ -118,7 +120,7 @@ func CreateDefaultDomainSecret(certPEM, keyPEM []byte) *corev1.Secret {
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default-domain-cert",
+			Name:      defaultDomainCertSecret,
 			Namespace: operatorNs,
 		},
 		Data: map[string][]byte{
@@ -232,8 +234,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	if o.Version >= OperatorVersionLatest {
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
-		ret = append(ret, "--default-domain-cert-path", pathToDefaultDomainCert+"/tls.crt")
-		ret = append(ret, "--default-domain-key-path", pathToDefaultDomainCert+"/tls.key")
+		ret = append(ret, "--default-domain-server-address", fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", defaultDomainServerName, operatorNs, defaultDomainPort))
 
 		// these two don't do anything yet in the e2e test but are needed so the operator can run
 		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
@@ -397,26 +398,8 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 	}...)
 
 	if cfg.Version == OperatorVersionLatest {
-		defaultDomainSecret := CreateDefaultDomainSecret(certPEM, keyPEM)
-		ret = append(ret, defaultDomainSecret)
-
-		defaultDomainVolumeName := "default-domain-cert"
-		baseDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      defaultDomainVolumeName,
-				MountPath: pathToDefaultDomainCert,
-			},
-		}
-		baseDeployment.Spec.Template.Spec.Volumes = []corev1.Volume{
-			{
-				Name: defaultDomainVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: defaultDomainSecret.GetName(),
-					},
-				},
-			},
-		}
+		defaultDomainRes := DefaultDomainServer(defaultDomainServerName)
+		ret = append(defaultDomainRes, ret...)
 	}
 
 	// edit and select relevant manifest config by version

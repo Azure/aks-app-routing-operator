@@ -7,62 +7,55 @@ import (
 	"time"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	defaultdomain "github.com/Azure/aks-app-routing-operator/pkg/clients/default-domain"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/tls"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var name = controllername.New("default", "domain", "cert", "reconciler")
 
-type defaultDomainCertControllerReconciler struct {
-	client client.Client
-	events record.EventRecorder
-	conf   *config.Config
-	store  store.Store
+// defaultDomainClient is an interface for fetching TLS certificates from the default domain service
+type defaultDomainClient interface {
+	GetTLSCertificate(ctx context.Context) (*defaultdomain.TLSCertificate, error)
 }
 
-func NewReconciler(conf *config.Config, mgr ctrl.Manager, store store.Store) error {
+type defaultDomainCertControllerReconciler struct {
+	client       client.Client
+	events       record.EventRecorder
+	conf         *config.Config
+	defaultDomainClient defaultDomainClient
+}
+
+func NewReconciler(conf *config.Config, mgr ctrl.Manager, defaultDomainClient *defaultdomain.CachedClient) error {
 	metrics.InitControllerMetrics(name)
 
-	if err := store.AddFile(conf.DefaultDomainCertPath); err != nil {
-		return fmt.Errorf("adding default domain cert %s to store: %w", conf.DefaultDomainCertPath, err)
-	}
-
-	if err := store.AddFile(conf.DefaultDomainKeyPath); err != nil {
-		return fmt.Errorf("adding default domain key %s to store: %w", conf.DefaultDomainKeyPath, err)
-	}
-
 	reconciler := &defaultDomainCertControllerReconciler{
-		client: mgr.GetClient(),
-		events: mgr.GetEventRecorderFor("aks-app-routing-operator"),
-		conf:   conf,
-		store:  store,
+		client:              mgr.GetClient(),
+		events:              mgr.GetEventRecorderFor("aks-app-routing-operator"),
+		conf:                conf,
+		defaultDomainClient: defaultDomainClient,
 	}
 
-	if _, _, err := reconciler.getAndVerifyCertAndKey(); err != nil {
-		return fmt.Errorf("verifying cert and key: %w", err)
+	// Verify we can fetch the certificate initially
+	if _, _, err := reconciler.getAndVerifyCertAndKeyFromClient(context.Background()); err != nil {
+		return fmt.Errorf("verifying cert and key from client: %w", err)
 	}
 
 	if err := name.AddToController(
 		ctrl.NewControllerManagedBy(mgr).
 			For(&approutingv1alpha1.DefaultDomainCertificate{}).
-			Owns(&corev1.Secret{}).
-			WatchesRawSource(source.Func(reconciler.sendRotationEvents)),
+			Owns(&corev1.Secret{}),
 		mgr.GetLogger(),
 	).Complete(reconciler); err != nil {
 		return fmt.Errorf("building the controller: %w", err)
@@ -102,7 +95,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	ctx = log.IntoContext(ctx, lgr)
 
 	lgr.Info("upserting Secret for DefaultDomainCertificate")
-	secret, err := d.generateSecret(defaultDomainCertificate)
+	secret, err := d.generateSecret(ctx, defaultDomainCertificate)
 	if err != nil {
 		err := fmt.Errorf("generating Secret for DefaultDomainCertificate: %w", err)
 		lgr.Error(err, "failed to generate Secret for DefaultDomainCertificate")
@@ -130,8 +123,8 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	return ctrl.Result{}, nil
 }
 
-func (d *defaultDomainCertControllerReconciler) generateSecret(defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
-	cert, key, err := d.getAndVerifyCertAndKey()
+func (d *defaultDomainCertControllerReconciler) generateSecret(ctx context.Context, defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
+	cert, key, err := d.getAndVerifyCertAndKeyFromClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting and verifying cert and key: %w", err)
 	}
@@ -159,66 +152,23 @@ func (d *defaultDomainCertControllerReconciler) generateSecret(defaultDomainCert
 	return secret, nil
 }
 
-func (d *defaultDomainCertControllerReconciler) getAndVerifyCertAndKey() ([]byte, []byte, error) {
-	key, ok := d.store.GetContent(d.conf.DefaultDomainKeyPath)
-	if key == nil || !ok {
-		return nil, nil, fmt.Errorf("failed to get default domain key from store")
+func (d *defaultDomainCertControllerReconciler) getAndVerifyCertAndKeyFromClient(ctx context.Context) ([]byte, []byte, error) {
+	tlsCert, err := d.defaultDomainClient.GetTLSCertificate(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get TLS certificate from client: %w", err)
 	}
 
-	cert, ok := d.store.GetContent(d.conf.DefaultDomainCertPath)
-	if cert == nil || !ok {
-		return nil, nil, fmt.Errorf("failed to get default domain cert from store")
+	if tlsCert.Key == nil || len(tlsCert.Key) == 0 {
+		return nil, nil, fmt.Errorf("TLS certificate key is empty")
 	}
 
-	if _, err := tls.ParseTLSCertificate(cert, key); err != nil {
+	if tlsCert.Cert == nil || len(tlsCert.Cert) == 0 {
+		return nil, nil, fmt.Errorf("TLS certificate cert is empty")
+	}
+
+	if _, err := tls.ParseTLSCertificate(tlsCert.Cert, tlsCert.Key); err != nil {
 		return nil, nil, fmt.Errorf("validating cert and key: %w", err)
 	}
 
-	return cert, key, nil
-}
-
-// sendRotationEvents listens for store rotation events and triggers reconciles
-// for all DefaultDomainCertificate resources when certificate files are rotated
-func (d *defaultDomainCertControllerReconciler) sendRotationEvents(ctx context.Context, queue workqueue.TypedRateLimitingInterface[ctrl.Request]) error {
-	go func() {
-		logger := log.FromContext(ctx)
-		logger = logger.WithName("rotation-watcher")
-		logger.Info("starting rotation event watcher")
-		defer func() {
-			logger.Info("rotation event watcher stopped")
-		}()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event := <-d.store.RotationEvents():
-				if event.Path != d.conf.DefaultDomainCertPath && event.Path != d.conf.DefaultDomainKeyPath {
-					logger.Info("non-certificate file rotated " + event.Path)
-					continue
-				}
-
-				logger.Info(fmt.Sprintf("listing DefaultDomainCertificates for requeue because file %s was reloaded", event.Path))
-				ddcList := &approutingv1alpha1.DefaultDomainCertificateList{}
-				if err := d.client.List(ctx, ddcList); err != nil {
-					// an error here is not ideal but if we are failing to list or failing to requeue controller runtime
-					// resync period of 10 hours will catch it
-					logger.Error(err, "failed to list DefaultDomainCertificate resources")
-					continue
-				}
-
-				for _, ddc := range ddcList.Items {
-					logger.Info(fmt.Sprintf("requeuing DefaultDomainCertificate %s/%s", ddc.Namespace, ddc.Name))
-					queue.Add(reconcile.Request{
-						NamespacedName: types.NamespacedName{
-							Name:      ddc.Name,
-							Namespace: ddc.Namespace,
-						},
-					})
-				}
-			}
-		}
-	}()
-
-	return nil
+	return tlsCert.Cert, tlsCert.Key, nil
 }
