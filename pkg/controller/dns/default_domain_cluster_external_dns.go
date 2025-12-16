@@ -55,6 +55,10 @@ func defaultDomainServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 			},
 			Labels: manifests.GetTopLevelLabels(),
 		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
 	}
 }
 
@@ -64,6 +68,10 @@ func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.Cl
 			Name:      defaultDomainDNSResourceName,
 			Namespace: conf.NS,
 			Labels:    manifests.GetTopLevelLabels(),
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterExternalDNS",
+			APIVersion: approutingv1alpha1.GroupVersion.String(),
 		},
 		Spec: approutingv1alpha1.ClusterExternalDNSSpec{
 			ResourceName:       defaultDomainDNSResourceName,
