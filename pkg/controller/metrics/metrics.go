@@ -19,6 +19,16 @@ var (
 		Name: "app_routing_reconcile_errors_total",
 		Help: "Total number of reconciliation errors per controller",
 	}, []string{"controller"})
+
+	DefaultDomainClientCallsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "app_routing_default_domain_client_calls_total",
+		Help: "Total number of calls to the default domain service",
+	}, []string{"result"})
+
+	DefaultDomainClientErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_routing_default_domain_client_errors_total",
+		Help: "Total number of errors from the default domain service",
+	})
 )
 
 const (
@@ -26,10 +36,11 @@ const (
 	LabelRequeueAfter = "requeue_after"
 	LabelRequeue      = "requeue"
 	LabelSuccess      = "success"
+	LabelNotFound     = "not_found"
 )
 
 func init() {
-	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal)
+	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal, DefaultDomainClientCallsTotal, DefaultDomainClientErrors)
 }
 
 // HandleControllerReconcileMetrics is meant to be called within a defer for each controller.

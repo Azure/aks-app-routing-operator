@@ -31,9 +31,9 @@ type defaultDomainClient interface {
 }
 
 type defaultDomainCertControllerReconciler struct {
-	client       client.Client
-	events       record.EventRecorder
-	conf         *config.Config
+	client              client.Client
+	events              record.EventRecorder
+	conf                *config.Config
 	defaultDomainClient defaultDomainClient
 }
 
@@ -45,11 +45,6 @@ func NewReconciler(conf *config.Config, mgr ctrl.Manager, defaultDomainClient *d
 		events:              mgr.GetEventRecorderFor("aks-app-routing-operator"),
 		conf:                conf,
 		defaultDomainClient: defaultDomainClient,
-	}
-
-	// Verify we can fetch the certificate initially
-	if _, _, err := reconciler.getAndVerifyCertAndKeyFromClient(context.Background()); err != nil {
-		return fmt.Errorf("verifying cert and key from client: %w", err)
 	}
 
 	if err := name.AddToController(
@@ -97,6 +92,23 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	lgr.Info("upserting Secret for DefaultDomainCertificate")
 	secret, err := d.generateSecret(ctx, defaultDomainCertificate)
 	if err != nil {
+		if util.IsNotFound(err) {
+			lgr.Info("Default domain certificate not found")
+			defaultDomainCertificate.SetCondition(metav1.Condition{
+				Type:    approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable,
+				Status:  metav1.ConditionFalse,
+				Reason:  "CertificateNotReady",
+				Message: "Certificate not ready yet, waiting for it to be issued",
+			})
+			if err := d.client.Status().Update(ctx, defaultDomainCertificate); err != nil {
+				lgr.Error(err, "failed to update status for DefaultDomainCertificate")
+				return ctrl.Result{}, err
+			}
+
+			// we use a Jitter here to avoid thundering herd issues if many DefaultDomainCertificates are waiting for certs
+			return ctrl.Result{RequeueAfter: util.Jitter(30*time.Second, 0.25)}, nil
+		}
+
 		err := fmt.Errorf("generating Secret for DefaultDomainCertificate: %w", err)
 		lgr.Error(err, "failed to generate Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err

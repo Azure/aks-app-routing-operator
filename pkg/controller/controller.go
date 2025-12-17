@@ -289,8 +289,11 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 			mgr.GetLogger().WithName("default-domain-client"),
 		)
 
-		// Add the health checker to the list
-		healthCheckers.addCheck(defaultDomainClient)
+		// We no longer want to have the default domain client directly impact the health of the operator.
+		// Issues calling default-domain-svc are unlikely to be operator errors and are almost always errors
+		// outside the operator's control (network issues, default-domain-svc down, etc). Instead we use Prometheus
+		// metrics to monitor the health of default domain calls so we can alert and view trends on them.
+		// healthCheckers.addCheck(defaultDomainClient)
 
 		if err := defaultdomaincert.NewReconciler(conf, mgr, defaultDomainClient); err != nil {
 			return fmt.Errorf("setting up default domain reconciler: %w", err)

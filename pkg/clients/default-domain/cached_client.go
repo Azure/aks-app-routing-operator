@@ -140,6 +140,15 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 			return cert, nil
 		}
 
+		// Use IsNotFound to check if the error is a 404
+		if util.IsNotFound(err) {
+			// 404 is a valid state (cert not ready yet), don't mark as unhealthy
+			c.consecutiveFails = 0
+			c.healthy = true
+			c.logger.Info("certificate not found (404), service is reachable")
+			return nil, err
+		}
+
 		lastErr = err
 		c.logger.Error(err, "failed to fetch TLS certificate",
 			"attempt", attempt+1,
