@@ -18,9 +18,11 @@ import (
 	defaultdomain "github.com/Azure/aks-app-routing-operator/pkg/clients/default-domain"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -908,3 +910,51 @@ func TestGetAndVerifyCertAndKeyMissingCert(t *testing.T) {
 	assert.Contains(t, err.Error(), "TLS certificate cert is empty")
 }
 
+func TestReconcile_CertificateNotFound_UpdatesStatus(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ddc).
+		WithStatusSubresource(ddc).
+		Build()
+
+	// Mock client that returns a NotFound error
+	notFoundErr := &util.NotFoundError{Body: "not found"}
+	mockClient := newMockDefaultDomainClient(nil, nil, notFoundErr)
+
+	reconciler := createTestReconciler(client, mockClient)
+
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "test-ddc",
+			Namespace: testNamespace,
+		},
+	}
+
+	ctx := context.Background()
+	result, err := reconciler.Reconcile(ctx, req)
+
+	require.NoError(t, err)
+	// Should requeue after some time
+	assert.GreaterOrEqual(t, result.RequeueAfter, 22*time.Second) // 30s * 0.75
+	assert.LessOrEqual(t, result.RequeueAfter, 38*time.Second)    // 30s * 1.25
+
+	// Verify DefaultDomainCertificate status was updated to indicate not found
+	require.NoError(t, client.Get(ctx, types.NamespacedName{Name: ddc.Name, Namespace: ddc.Namespace}, ddc))
+	cond := ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, "CertificateNotReady", cond.Reason)
+	assert.Contains(t, cond.Message, "Certificate not ready yet, waiting for it to be issued")
+
+	// Verify secret was NOT created
+	var secret corev1.Secret
+	err = client.Get(ctx, types.NamespacedName{Name: testSecretName, Namespace: testNamespace}, &secret)
+	require.Error(t, err)
+	assert.True(t, apierrors.IsNotFound(err))
+}

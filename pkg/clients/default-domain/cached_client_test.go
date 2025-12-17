@@ -10,32 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// mockClock allows testing time-sensitive code with deterministic time
-type mockClock struct {
-	mu  sync.Mutex
-	now time.Time
-}
-
-func newMockClock(t time.Time) *mockClock {
-	return &mockClock{now: t}
-}
-
-func (m *mockClock) Now() time.Time {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.now
-}
-
-func (m *mockClock) Advance(d time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.now = m.now.Add(d)
-}
 
 // TestNewCachedClient verifies client creation and initialization
 func TestNewCachedClient(t *testing.T) {
@@ -251,6 +232,12 @@ func TestCachedClient_GetTLSCertificate_ServerError(t *testing.T) {
 	// Wait for background goroutine to exit
 	time.Sleep(50 * time.Millisecond)
 
+	// Get initial error count
+	var m dto.Metric
+	err := metrics.DefaultDomainClientErrors.Write(&m)
+	require.NoError(t, err)
+	initialErrors := m.GetCounter().GetValue()
+
 	cert, err := client.GetTLSCertificate(context.Background())
 
 	require.Error(t, err)
@@ -259,6 +246,12 @@ func TestCachedClient_GetTLSCertificate_ServerError(t *testing.T) {
 	assert.False(t, client.IsHealthy(), "client should be unhealthy after max retries")
 	assert.Equal(t, maxRetries, client.consecutiveFails)
 	assert.Equal(t, maxRetries, callCount, "should retry maxRetries times")
+
+	// Verify error metric was incremented for each failure
+	err = metrics.DefaultDomainClientErrors.Write(&m)
+	require.NoError(t, err)
+	finalErrors := m.GetCounter().GetValue()
+	assert.Equal(t, initialErrors+float64(maxRetries), finalErrors, "should increment error metric for each failure")
 }
 
 // TestCachedClient_GetTLSCertificate_TransientFailure verifies retry logic with eventual success
@@ -686,4 +679,44 @@ func TestCachedClient_EmptyParameters(t *testing.T) {
 
 	_, err := client.GetTLSCertificate(context.Background())
 	require.NoError(t, err)
+}
+
+func TestCachedClient_GetTLSCertificate_NotFound(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts:           Opts{ServerAddress: server.URL},
+		SubscriptionID: "sub-123",
+		ResourceGroup:  "rg-test",
+		ClusterName:    "cluster-1",
+		CCPID:          "ccp-456",
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	cert, err := client.GetTLSCertificate(context.Background())
+
+	require.Error(t, err)
+	assert.Nil(t, cert)
+	assert.True(t, util.IsNotFound(err))
+
+	// Should remain healthy
+	assert.True(t, client.IsHealthy())
+	assert.Equal(t, 0, client.consecutiveFails)
+
+	// Should not retry immediately
+	assert.Equal(t, 1, callCount)
 }

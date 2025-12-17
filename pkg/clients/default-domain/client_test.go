@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,6 +45,11 @@ func TestClient_GetTLSCertificate_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
+	// Get initial metric value
+	var before dto.Metric
+	_ = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelSuccess).Write(&before)
+	initialCount := before.GetCounter().GetValue()
+
 	client := NewClient(Opts{ServerAddress: server.URL})
 	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
 
@@ -50,6 +58,12 @@ func TestClient_GetTLSCertificate_Success(t *testing.T) {
 	assert.Equal(t, expectedCert.Key, cert.Key)
 	assert.Equal(t, expectedCert.Cert, cert.Cert)
 	assert.NotNil(t, cert.ExpiresOn)
+
+	// Verify success metric
+	var m dto.Metric
+	err = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelSuccess).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, initialCount+1, m.GetCounter().GetValue())
 }
 
 func TestClient_GetTLSCertificate_URLEscaping(t *testing.T) {
@@ -76,6 +90,13 @@ func TestClient_GetTLSCertificate_HTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
+	// Get initial metric values
+	var beforeTotal, beforeErrors dto.Metric
+	_ = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelError).Write(&beforeTotal)
+	initialTotal := beforeTotal.GetCounter().GetValue()
+	_ = metrics.DefaultDomainClientErrors.Write(&beforeErrors)
+	initialErrors := beforeErrors.GetCounter().GetValue()
+
 	client := NewClient(Opts{ServerAddress: server.URL})
 	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
 
@@ -83,6 +104,16 @@ func TestClient_GetTLSCertificate_HTTPError(t *testing.T) {
 	assert.Nil(t, cert)
 	assert.Contains(t, err.Error(), "unexpected status code 500")
 	assert.Contains(t, err.Error(), "internal server error")
+
+	// Verify error metric
+	var m dto.Metric
+	err = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelError).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, initialTotal+1, m.GetCounter().GetValue())
+
+	err = metrics.DefaultDomainClientErrors.Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, initialErrors+1, m.GetCounter().GetValue())
 }
 
 func TestClient_GetTLSCertificate_InvalidJSON(t *testing.T) {
@@ -117,6 +148,33 @@ func TestClient_GetTLSCertificate_ContextCanceled(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, cert)
 	assert.Contains(t, err.Error(), "executing request")
+}
+
+func TestClient_GetTLSCertificate_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+	}))
+	defer server.Close()
+
+	// Get initial metric value
+	var before dto.Metric
+	_ = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelNotFound).Write(&before)
+	initialCount := before.GetCounter().GetValue()
+
+	client := NewClient(Opts{ServerAddress: server.URL})
+	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
+
+	require.Error(t, err)
+	assert.Nil(t, cert)
+	assert.True(t, util.IsNotFound(err))
+	assert.Contains(t, err.Error(), "not found: not found")
+
+	// Verify not found metric
+	var m dto.Metric
+	err = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelNotFound).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, initialCount+1, m.GetCounter().GetValue())
 }
 
 func TestClient_GetTLSCertificate_InvalidServerAddress(t *testing.T) {
