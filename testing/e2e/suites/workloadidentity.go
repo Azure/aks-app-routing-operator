@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -20,6 +21,13 @@ import (
 )
 
 func workloadIdentityTests(in infra.Provisioned) []test {
+	// Skip workload identity tests on gateway clusters - these tests are for Ingress
+	// and would conflict with gateway tests over ManagedIdentityZone ownership
+	opts := in.Cluster.GetOptions()
+	if _, hasIstio := opts[clients.IstioServiceMeshOpt.Name]; hasIstio {
+		return []test{}
+	}
+
 	return []test{
 		{
 			name: "Workload Identity Ingress",
