@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.14] - 2025-12-17
+
+### Added
+- added default domain client and pull default domain cert from endpoint - [link](https://github.com/Azure/aks-app-routing-operator/pull/527), [link2](https://github.com/Azure/aks-app-routing-operator/pull/521)
+- bump dependencies for cves - [link](https://github.com/Azure/aks-app-routing-operator/pull/528)
+- type meta for default domain sa and dns reconciler - [link](https://github.com/Azure/aks-app-routing-operator/pull/526)
+- upgrade ingress-nginx to v1.13.5 - [link](https://github.com/Azure/aks-app-routing-operator/pull/523)
+
 ## [0.2.12-patch-1] - 2025-12-15
 
 ### Added
