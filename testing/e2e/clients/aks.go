@@ -112,7 +112,8 @@ var IstioServiceMeshOpt = McOpt{
 		}
 
 		mc.Properties.ServiceMeshProfile = &armcontainerservice.ServiceMeshProfile{
-			Mode: to.Ptr(armcontainerservice.ServiceMeshModeIstio),
+			Mode:  to.Ptr(armcontainerservice.ServiceMeshModeIstio),
+			Istio: &armcontainerservice.IstioServiceMesh{},
 		}
 
 		return nil
@@ -300,13 +301,6 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		clientId:       clientID,
 		oidcUrl:        *result.Properties.OidcIssuerProfile.IssuerURL,
 		options:        options,
-	}
-
-	// install gateway api (in place of managed gateway addon for now)
-	if err := cluster.runCommand(ctx, armcontainerservice.RunCommandRequest{
-		Command: to.Ptr("kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml"),
-	}, runCommandOpts{}); err != nil {
-		return nil, fmt.Errorf("installing gateway api: %w", err)
 	}
 
 	return cluster, nil

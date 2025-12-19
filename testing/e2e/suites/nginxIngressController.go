@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 var (
@@ -47,6 +48,7 @@ func init() {
 	policyv1.AddToScheme(scheme)
 	rbacv1.AddToScheme(scheme)
 	secv1.AddToScheme(scheme)
+	gatewayv1.Install(scheme)
 }
 
 func nicTests(in infra.Provisioned) []test {
