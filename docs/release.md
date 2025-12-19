@@ -1,5 +1,5 @@
 
-# Release
+# Release 
 
 Releasing a new version of the operator has been automated. You can see the release workflow in [release.yaml](../.github/workflows/release.yaml)
 
