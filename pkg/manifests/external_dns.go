@@ -599,7 +599,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	txtOwnerArg := "--txt-owner-id=" + conf.ClusterUid
 	if externalDnsConfig.isNamespaced {
-		txtOwnerArg += "-" + externalDnsConfig.uid
+		txtOwnerArg += "-" + strings.ReplaceAll(externalDnsConfig.uid, "-", "")[:16]
 	}
 
 	deploymentArgs := []string{

@@ -143,6 +143,61 @@ func (z *zone) GetId() string {
 	return z.id
 }
 
+// RecordSetsClient is a client for managing DNS record sets
+type RecordSetsClient struct {
+	client         *armdns.RecordSetsClient
+	subscriptionId string
+	resourceGroup  string
+	zoneName       string
+}
+
+// NewRecordSetsClient creates a new RecordSetsClient for the given zone
+func NewRecordSetsClient(subscriptionId, resourceGroup, zoneName string) (*RecordSetsClient, error) {
+	cred, err := getAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := armdns.NewRecordSetsClient(subscriptionId, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating record sets client: %w", err)
+	}
+
+	return &RecordSetsClient{
+		client:         client,
+		subscriptionId: subscriptionId,
+		resourceGroup:  resourceGroup,
+		zoneName:       zoneName,
+	}, nil
+}
+
+// GetARecord gets an A record from the DNS zone. Returns nil if the record does not exist.
+func (r *RecordSetsClient) GetARecord(ctx context.Context, recordName string) (*armdns.RecordSet, error) {
+	lgr := logger.FromContext(ctx).With("zone", r.zoneName, "record", recordName)
+
+	resp, err := r.client.Get(ctx, r.resourceGroup, r.zoneName, recordName, armdns.RecordTypeA, nil)
+	if err != nil {
+		lgr.Info("failed to get A record", "error", err)
+		return nil, err
+	}
+
+	return &resp.RecordSet, nil
+}
+
+// DeleteARecord deletes an A record from the DNS zone
+func (r *RecordSetsClient) DeleteARecord(ctx context.Context, recordName string) error {
+	lgr := logger.FromContext(ctx).With("zone", r.zoneName, "record", recordName)
+	lgr.Info("deleting A record")
+
+	_, err := r.client.Delete(ctx, r.resourceGroup, r.zoneName, recordName, armdns.RecordTypeA, nil)
+	if err != nil {
+		return fmt.Errorf("deleting A record: %w", err)
+	}
+
+	lgr.Info("A record deleted")
+	return nil
+}
+
 func LoadPrivateZone(id azure.Resource) *privateZone {
 	return &privateZone{
 		id:             id.String(),
