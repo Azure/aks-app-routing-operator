@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"path"
 	"sort"
 	"strings"
@@ -54,6 +55,8 @@ type ResourceType int
 const (
 	ResourceTypeIngress ResourceType = iota
 	ResourceTypeGateway
+
+	maxUIDLength = 16
 )
 
 func (rt ResourceType) String() string {
@@ -249,9 +252,13 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		resourceName = inputConfig.InputResourceName + "-" + externalDnsResourceName
 	}
 
+	var cleanUID string
 	if inputConfig.IsNamespaced && inputConfig.UID == "" {
 		return nil, errors.New("namespaced external dns requires a unique identifier to avoid resource name conflicts")
 	}
+
+	cleanUID = strings.ReplaceAll(inputConfig.UID, "-", "")
+	cleanUID = cleanUID[:int(math.Min(float64(len(cleanUID)), maxUIDLength))]
 
 	if inputConfig.IdentityType == IdentityTypeWorkloadIdentity && inputConfig.InputServiceAccount == "" {
 		return nil, errors.New("workload identity requires a service account name")
@@ -278,7 +285,7 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		provider:           provider,
 		dnsZoneResourceIDs: inputConfig.DnsZoneresourceIDs,
 		isNamespaced:       inputConfig.IsNamespaced,
-		uid:                inputConfig.UID,
+		uid:                cleanUID,
 	}
 
 	if inputConfig.Filters != nil {
@@ -378,7 +385,7 @@ func newExternalDNSServiceAccount(externalDnsConfig *ExternalDnsConfig) *corev1.
 }
 
 func newExternalDnsNamespacedRBAC(externalDnsConfig *ExternalDnsConfig) []client.Object {
-
+	ret := []client.Object{}
 	role := &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Role",
@@ -410,6 +417,9 @@ func newExternalDnsNamespacedRBAC(externalDnsConfig *ExternalDnsConfig) []client
 	}
 	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
 	for _, resourceType := range sortedRts {
+		if resourceType == ResourceTypeGateway {
+			ret = append(ret, listNamespaceRBAC(externalDnsConfig)...)
+		}
 		role.Rules = append(role.Rules, resourceType.generateRBACRules(externalDnsConfig)...)
 	}
 
@@ -435,12 +445,11 @@ func newExternalDnsNamespacedRBAC(externalDnsConfig *ExternalDnsConfig) []client
 		}},
 	}
 
-	nsClusterRole, nsClusterRoleBinding := listNamespaceRBAC(externalDnsConfig)
-
-	return []client.Object{role, roleBinding, nsClusterRole, nsClusterRoleBinding}
+	return append([]client.Object{role, roleBinding}, ret...)
 }
 
 func newExternalDNSClusterRBAC(externalDnsConfig *ExternalDnsConfig) []client.Object {
+	ret := []client.Object{}
 	clusterRole := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
@@ -472,6 +481,9 @@ func newExternalDNSClusterRBAC(externalDnsConfig *ExternalDnsConfig) []client.Ob
 	sort.Slice(sortedRts, func(i, j int) bool { return sortedRts[i] < sortedRts[j] })
 	for _, resourceType := range sortedRts {
 		clusterRole.Rules = append(clusterRole.Rules, resourceType.generateRBACRules(externalDnsConfig)...)
+		if resourceType == ResourceTypeGateway {
+			ret = append(ret, listNamespaceRBAC(externalDnsConfig)...)
+		}
 	}
 
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
@@ -494,12 +506,10 @@ func newExternalDNSClusterRBAC(externalDnsConfig *ExternalDnsConfig) []client.Ob
 			Namespace: externalDnsConfig.namespace,
 		}},
 	}
-
-	nsClusterRole, nsClusterRoleBinding := listNamespaceRBAC(externalDnsConfig)
-	return []client.Object{clusterRole, clusterRoleBinding, nsClusterRole, nsClusterRoleBinding}
+	return append([]client.Object{clusterRole, clusterRoleBinding}, ret...)
 }
 
-func listNamespaceRBAC(externalDnsConfig *ExternalDnsConfig) (*rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding) {
+func listNamespaceRBAC(externalDnsConfig *ExternalDnsConfig) []client.Object {
 	clusterRole := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
@@ -538,7 +548,7 @@ func listNamespaceRBAC(externalDnsConfig *ExternalDnsConfig) (*rbacv1.ClusterRol
 		}},
 	}
 
-	return clusterRole, clusterRoleBinding
+	return []client.Object{clusterRole, clusterRoleBinding}
 }
 
 func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDnsConfig) (*corev1.ConfigMap, string) {
@@ -589,7 +599,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	podLabels := GetTopLevelLabels()
 	podLabels["app"] = externalDnsConfig.resourceName
-	podLabels["checksum/configmap"] = configMapHash[:16]
+	podLabels["checksum/configmap"] = configMapHash[:maxUIDLength]
 
 	if externalDnsConfig.identityType == IdentityTypeWorkloadIdentity {
 		podLabels["azure.workload.identity/use"] = "true"
@@ -599,7 +609,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	txtOwnerArg := "--txt-owner-id=" + conf.ClusterUid
 	if externalDnsConfig.isNamespaced {
-		txtOwnerArg += "-" + strings.ReplaceAll(externalDnsConfig.uid, "-", "")[:16]
+		txtOwnerArg += "-" + externalDnsConfig.uid
 	}
 
 	deploymentArgs := []string{
@@ -648,7 +658,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.20.0"),
+						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
 						Args:  deploymentArgs,
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",

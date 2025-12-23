@@ -47,6 +47,35 @@ rules:
   - get
   - watch
   - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: test-dns-config-private-external-dns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: test-dns-config-private-external-dns
+subjects:
+- kind: ServiceAccount
+  name: test-private-service-account
+  namespace: test-namespace
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: test-dns-config-private-external-dns-list-ns
+rules:
 - apiGroups:
   - ""
   resources:
@@ -64,11 +93,11 @@ metadata:
     app.kubernetes.io/managed-by: aks-app-routing-operator
     app.kubernetes.io/name: test-dns-config-private-external-dns
     kubernetes.azure.com/managedby: aks
-  name: test-dns-config-private-external-dns
+  name: test-dns-config-private-external-dns-list-ns
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: test-dns-config-private-external-dns
+  name: test-dns-config-private-external-dns-list-ns
 subjects:
 - kind: ServiceAccount
   name: test-private-service-account

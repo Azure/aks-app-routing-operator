@@ -14,7 +14,6 @@ import (
 )
 
 type ExternalDNSCRDConfiguration interface {
-	GetObjectName() string
 	GetTenantId() *string
 	GetInputServiceAccount() string
 	GetResourceNamespace() string
@@ -23,7 +22,6 @@ type ExternalDNSCRDConfiguration interface {
 	GetDnsZoneresourceIDs() []string
 	GetFilters() *v1alpha1.ExternalDNSFilters
 	GetNamespaced() bool
-	GetResourceUID() string
 	client.Object
 }
 
@@ -37,7 +35,7 @@ func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) m
 		DnsZoneresourceIDs:  e.GetDnsZoneresourceIDs(),
 		Filters:             e.GetFilters(),
 		IsNamespaced:        e.GetNamespaced(),
-		UID:                 e.GetResourceUID(),
+		UID:                 string(e.GetUID()),
 	}
 
 	switch e.GetTenantId() {

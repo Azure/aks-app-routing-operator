@@ -144,10 +144,6 @@ type ExternalDNSList struct {
 }
 
 // interface methods for controller abstractions
-func (e *ExternalDNS) GetObjectName() string {
-	return e.Name
-}
-
 func (e *ExternalDNS) GetTenantId() *string {
 	return e.Spec.TenantID
 }
@@ -176,7 +172,3 @@ func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
 	return e.Spec.Filters
 }
 func (e *ExternalDNS) GetNamespaced() bool { return true }
-
-func (e *ExternalDNS) GetResourceUID() string {
-	return string(e.UID)
-}
