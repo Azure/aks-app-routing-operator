@@ -472,7 +472,7 @@ func TestExternalDNSConfig(t *testing.T) {
 					RouteAndIngressLabelSelector: to.Ptr("app=test"),
 				},
 				IsNamespaced: true,
-				UID:          "test-uid",
+				UID:          "resource-uid",
 			},
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "crd-test-external-dns"},
@@ -588,7 +588,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 				IsNamespaced:        true,
-				UID:                 "test-uid",
+				UID:                 "resource-uid",
 			},
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
