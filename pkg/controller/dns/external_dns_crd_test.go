@@ -67,6 +67,25 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.RoleRef.Name = "happy-path-private-external-dns"
 				return ret
 			},
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				nsRole := happyPathListNSClusterRole.DeepCopy()
+				nsRole.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPrivate)
+				nsRole.ObjectMeta.Name = "happy-path-private-external-dns-list-ns"
+				nsRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-private-external-dns"
+
+				return []*rbacv1.ClusterRole{nsRole}
+
+			},
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				nsRoleBinding := happyPathListNSClusterRoleBinding.DeepCopy()
+				nsRoleBinding.Subjects[0].Namespace = "test-ns" // our namespace scoped resources go to a namespace called test-ns
+				nsRoleBinding.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPrivate)
+				nsRoleBinding.ObjectMeta.Name = "happy-path-private-external-dns-list-ns"
+				nsRoleBinding.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-private-external-dns"
+				nsRoleBinding.RoleRef.Name = "happy-path-private-external-dns-list-ns"
+
+				return []*rbacv1.ClusterRoleBinding{nsRoleBinding}
+			},
 		},
 		{
 			name:              "happypath public with no tenant ID and filters",
@@ -111,6 +130,25 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.RoleRef.Name = "happy-path-public-no-tenant-id-external-dns"
 				return ret
 			},
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				nsRole := happyPathListNSClusterRole.DeepCopy()
+				nsRole.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicNoTenantIDAndFilters)
+				nsRole.ObjectMeta.Name = "happy-path-public-no-tenant-id-external-dns-list-ns"
+				nsRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-no-tenant-id-external-dns"
+
+				return []*rbacv1.ClusterRole{nsRole}
+
+			},
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				nsRoleBinding := happyPathListNSClusterRoleBinding.DeepCopy()
+				nsRoleBinding.Subjects[0].Namespace = "test-ns"
+				nsRoleBinding.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicNoTenantIDAndFilters)
+				nsRoleBinding.ObjectMeta.Name = "happy-path-public-no-tenant-id-external-dns-list-ns"
+				nsRoleBinding.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-no-tenant-id-external-dns"
+				nsRoleBinding.RoleRef.Name = "happy-path-public-no-tenant-id-external-dns-list-ns"
+
+				return []*rbacv1.ClusterRoleBinding{nsRoleBinding}
+			},
 		},
 		{
 			name:              "happypath public with filters",
@@ -152,6 +190,25 @@ func TestExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-filters-external-dns"
 				ret.RoleRef.Name = "happy-path-public-filters-external-dns"
 				return ret
+			},
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				nsRole := happyPathListNSClusterRole.DeepCopy()
+				nsRole.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicFilters)
+				nsRole.ObjectMeta.Name = "happy-path-public-filters-external-dns-list-ns"
+				nsRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-filters-external-dns"
+
+				return []*rbacv1.ClusterRole{nsRole}
+
+			},
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				nsRoleBinding := happyPathListNSClusterRoleBinding.DeepCopy()
+				nsRoleBinding.Subjects[0].Namespace = "test-ns"
+				nsRoleBinding.ObjectMeta.OwnerReferences = ownerReferencesFromCRD(happyPathPublicFilters)
+				nsRoleBinding.ObjectMeta.Name = "happy-path-public-filters-external-dns-list-ns"
+				nsRoleBinding.ObjectMeta.Labels["app.kubernetes.io/name"] = "happy-path-public-filters-external-dns"
+				nsRoleBinding.RoleRef.Name = "happy-path-public-filters-external-dns-list-ns"
+
+				return []*rbacv1.ClusterRoleBinding{nsRoleBinding}
 			},
 		},
 		{
@@ -372,22 +429,29 @@ func checkTestResources(tc dnsTestCase, k8sclient client.Client, t *testing.T) {
 		require.Equal(t, tc.expectedRoleBinding().Subjects, actualRoleBinding.Subjects)
 	}
 
-	// check clusterrole
-	if tc.expectedClusterRole != nil {
-		actualClusterRole := &rbacv1.ClusterRole{}
-		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedClusterRole().Name}, actualClusterRole)
-		require.NoError(t, err)
-		require.Equal(t, tc.expectedClusterRole().ObjectMeta, actualClusterRole.ObjectMeta)
-		require.Equal(t, tc.expectedClusterRole().Rules, actualClusterRole.Rules)
+	// check clusterroles
+	if tc.expectedClusterRoles != nil {
+		expectedClusterRoles := tc.expectedClusterRoles()
+		for _, expectedClusterRole := range expectedClusterRoles {
+			actualClusterRole := &rbacv1.ClusterRole{}
+			err = k8sclient.Get(context.Background(), types.NamespacedName{Name: expectedClusterRole.Name}, actualClusterRole)
+			require.NoError(t, err)
+			require.Equal(t, expectedClusterRole.ObjectMeta, actualClusterRole.ObjectMeta)
+			require.Equal(t, expectedClusterRole.Rules, actualClusterRole.Rules)
+		}
 	}
 
-	// check clusterrolebinding
-	if tc.expectedClusterRoleBinding != nil {
-		actualClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-		err = k8sclient.Get(context.Background(), types.NamespacedName{Name: tc.expectedClusterRoleBinding().Name}, actualClusterRoleBinding)
-		require.NoError(t, err)
-		require.Equal(t, tc.expectedClusterRoleBinding().ObjectMeta, actualClusterRoleBinding.ObjectMeta)
-		require.Equal(t, tc.expectedClusterRoleBinding().RoleRef, actualClusterRoleBinding.RoleRef)
-		require.Equal(t, tc.expectedClusterRoleBinding().Subjects, actualClusterRoleBinding.Subjects)
+	// check clusterrolebindings
+	if tc.expectedClusterRoleBindings != nil {
+		expectedClusterRoleBindings := tc.expectedClusterRoleBindings()
+		for _, expectedClusterRoleBinding := range expectedClusterRoleBindings {
+			actualClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+			err = k8sclient.Get(context.Background(), types.NamespacedName{Name: expectedClusterRoleBinding.Name}, actualClusterRoleBinding)
+			require.NoError(t, err)
+			require.Equal(t, expectedClusterRoleBinding.ObjectMeta, actualClusterRoleBinding.ObjectMeta)
+			require.Equal(t, expectedClusterRoleBinding.RoleRef, actualClusterRoleBinding.RoleRef)
+			require.Equal(t, expectedClusterRoleBinding.Subjects, actualClusterRoleBinding.Subjects)
+		}
+
 	}
 }

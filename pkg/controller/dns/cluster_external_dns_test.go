@@ -30,13 +30,17 @@ import (
 func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 	tcs := []dnsTestCase{
 		{
-			name:                       "happypath public zones",
-			existingResources:          []client.Object{testServiceAccountInResourceNs},
-			crd:                        func() ExternalDNSCRDConfiguration { return clusterHappyPathPublic },
-			expectedDeployment:         func() *appsv1.Deployment { return clusterHappyPathPublicDeployment },
-			expectedConfigmap:          func() *corev1.ConfigMap { return clusterHappyPathPublicConfigmap },
-			expectedClusterRole:        func() *rbacv1.ClusterRole { return happyPathClusterRole },
-			expectedClusterRoleBinding: func() *rbacv1.ClusterRoleBinding { return happyPathClusterRoleBinding },
+			name:               "happypath public zones",
+			existingResources:  []client.Object{testServiceAccountInResourceNs},
+			crd:                func() ExternalDNSCRDConfiguration { return clusterHappyPathPublic },
+			expectedDeployment: func() *appsv1.Deployment { return clusterHappyPathPublicDeployment },
+			expectedConfigmap:  func() *corev1.ConfigMap { return clusterHappyPathPublicConfigmap },
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				return []*rbacv1.ClusterRole{happyPathClusterRole, happyPathListNSClusterRole}
+			},
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				return []*rbacv1.ClusterRoleBinding{happyPathClusterRoleBinding, happyPathListNSClusterRoleBinding}
+			},
 		},
 		{
 			name:               "happypath private zones",
@@ -50,20 +54,33 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
 				return ret
 			},
-			expectedClusterRole: func() *rbacv1.ClusterRole {
-				ret := happyPathClusterRole.DeepCopy()
-				ret.ObjectMeta.Name = "cluster-happy-path-private-external-dns"
-				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
-				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
-				return ret
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				clusterRole := happyPathClusterRole.DeepCopy()
+				clusterRole.ObjectMeta.Name = "cluster-happy-path-private-external-dns"
+				clusterRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
+				clusterRole.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
+
+				nsClusterRole := happyPathListNSClusterRole.DeepCopy()
+				nsClusterRole.ObjectMeta.Name = "cluster-happy-path-private-external-dns-list-ns"
+				nsClusterRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
+				nsClusterRole.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
+
+				return []*rbacv1.ClusterRole{clusterRole, nsClusterRole}
 			},
-			expectedClusterRoleBinding: func() *rbacv1.ClusterRoleBinding {
-				ret := happyPathClusterRoleBinding.DeepCopy()
-				ret.ObjectMeta.Name = "cluster-happy-path-private-external-dns"
-				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
-				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
-				ret.RoleRef.Name = "cluster-happy-path-private-external-dns"
-				return ret
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				role := happyPathClusterRoleBinding.DeepCopy()
+				role.ObjectMeta.Name = "cluster-happy-path-private-external-dns"
+				role.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
+				role.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
+				role.RoleRef.Name = "cluster-happy-path-private-external-dns"
+
+				nsRole := happyPathListNSClusterRoleBinding.DeepCopy()
+				nsRole.ObjectMeta.Name = "cluster-happy-path-private-external-dns-list-ns"
+				nsRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-private-external-dns"
+				nsRole.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPrivate)
+				nsRole.RoleRef.Name = "cluster-happy-path-private-external-dns-list-ns"
+
+				return []*rbacv1.ClusterRoleBinding{role, nsRole}
 			},
 		},
 		{
@@ -89,20 +106,33 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
 				return ret
 			},
-			expectedClusterRole: func() *rbacv1.ClusterRole {
-				ret := happyPathClusterRole.DeepCopy()
-				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
-				ret.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
-				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
-				return ret
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				role := happyPathClusterRole.DeepCopy()
+				role.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				role.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				role.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+
+				nsRole := happyPathListNSClusterRole.DeepCopy()
+				nsRole.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				nsRole.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns-list-ns"
+				nsRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+
+				return []*rbacv1.ClusterRole{role, nsRole}
 			},
-			expectedClusterRoleBinding: func() *rbacv1.ClusterRoleBinding {
-				ret := happyPathClusterRoleBinding.DeepCopy()
-				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
-				ret.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
-				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
-				ret.RoleRef.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
-				return ret
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				binding := happyPathClusterRoleBinding.DeepCopy()
+				binding.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				binding.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+				binding.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				binding.RoleRef.Name = "cluster-happy-path-public-no-tenant-id-external-dns"
+
+				nsBinding := happyPathListNSClusterRoleBinding.DeepCopy()
+				nsBinding.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicNoTenantID)
+				nsBinding.ObjectMeta.Name = "cluster-happy-path-public-no-tenant-id-external-dns-list-ns"
+				nsBinding.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-no-tenant-id-external-dns"
+				nsBinding.RoleRef.Name = "cluster-happy-path-public-no-tenant-id-external-dns-list-ns"
+
+				return []*rbacv1.ClusterRoleBinding{binding, nsBinding}
 			},
 		},
 		{
@@ -131,20 +161,33 @@ func TestClusterExternalDNSCRDController_Reconcile(t *testing.T) {
 				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
 				return ret
 			},
-			expectedClusterRole: func() *rbacv1.ClusterRole {
-				ret := happyPathClusterRole.DeepCopy()
-				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicFilters)
-				ret.ObjectMeta.Name = "cluster-happy-path-public-filters-external-dns"
-				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
-				return ret
+			expectedClusterRoles: func() []*rbacv1.ClusterRole {
+				role := happyPathClusterRole.DeepCopy()
+				role.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicFilters)
+				role.ObjectMeta.Name = "cluster-happy-path-public-filters-external-dns"
+				role.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
+
+				nsRole := happyPathListNSClusterRole.DeepCopy()
+				nsRole.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicFilters)
+				nsRole.ObjectMeta.Name = "cluster-happy-path-public-filters-external-dns-list-ns"
+				nsRole.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
+
+				return []*rbacv1.ClusterRole{role, nsRole}
 			},
-			expectedClusterRoleBinding: func() *rbacv1.ClusterRoleBinding {
-				ret := happyPathClusterRoleBinding.DeepCopy()
-				ret.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicFilters)
-				ret.ObjectMeta.Name = "cluster-happy-path-public-filters-external-dns"
-				ret.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
-				ret.RoleRef.Name = "cluster-happy-path-public-filters-external-dns"
-				return ret
+			expectedClusterRoleBindings: func() []*rbacv1.ClusterRoleBinding {
+				binding := happyPathClusterRoleBinding.DeepCopy()
+				binding.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicFilters)
+				binding.ObjectMeta.Name = "cluster-happy-path-public-filters-external-dns"
+				binding.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
+				binding.RoleRef.Name = "cluster-happy-path-public-filters-external-dns"
+
+				nsBinding := happyPathListNSClusterRoleBinding.DeepCopy()
+				nsBinding.ObjectMeta.OwnerReferences = ownerReferencesFromClusterCRD(clusterHappyPathPublicFilters)
+				nsBinding.ObjectMeta.Name = "cluster-happy-path-public-filters-external-dns-list-ns"
+				nsBinding.ObjectMeta.Labels["app.kubernetes.io/name"] = "cluster-happy-path-public-filters-external-dns"
+				nsBinding.RoleRef.Name = "cluster-happy-path-public-filters-external-dns-list-ns"
+
+				return []*rbacv1.ClusterRoleBinding{binding, nsBinding}
 			},
 		},
 		{
