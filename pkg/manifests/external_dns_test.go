@@ -110,6 +110,7 @@ var (
 		routeAndIngressLabelSelector: "app==test",
 		gatewayLabelSelector:         "app==test",
 		isNamespaced:                 true,
+		uid:                          "resourceuid",
 	}
 
 	publicGwConfigNoZones = &ExternalDnsConfig{
@@ -184,6 +185,7 @@ var (
 		serviceAccountName: "test-private-service-account",
 		resourceName:       "test-dns-config-private-external-dns",
 		isNamespaced:       true,
+		uid:                "resourceuid",
 	}
 
 	privateGwIngressConfig = &ExternalDnsConfig{
@@ -470,6 +472,7 @@ func TestExternalDNSConfig(t *testing.T) {
 					RouteAndIngressLabelSelector: to.Ptr("app=test"),
 				},
 				IsNamespaced: true,
+				UID:          "resource-uid",
 			},
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "crd-test-external-dns"},
@@ -585,6 +588,7 @@ func TestExternalDNSConfig(t *testing.T) {
 				ResourceTypes:       map[ResourceType]struct{}{ResourceTypeGateway: {}},
 				DnsZoneresourceIDs:  []string{privateZoneOne, privateZoneTwo},
 				IsNamespaced:        true,
+				UID:                 "resource-uid",
 			},
 
 			expectedLabels:  map[string]string{"app.kubernetes.io/name": "test-dns-config-private-external-dns"},
