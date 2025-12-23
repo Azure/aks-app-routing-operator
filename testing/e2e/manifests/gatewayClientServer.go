@@ -12,6 +12,9 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
+//go:embed embedded/gateway_client.golang
+var gatewayClientContents string
+
 const (
 	// IstioGatewayClassName is the GatewayClass name for Istio managed gateways
 	IstioGatewayClassName = "istio"
@@ -75,8 +78,8 @@ func (g GatewayClientServerResources) Objects() []client.Object {
 func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
-	// Create client deployment
-	clientDeployment := newGoDeployment(clientContents, namespace, name+"-gw-client")
+	// Create client deployment using gateway-specific client (doesn't validate X-Forwarded-For)
+	clientDeployment := newGoDeployment(gatewayClientContents, namespace, name+"-gw-client")
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
 			Name:  "URL",

@@ -1,22 +1,22 @@
 package suites
 
 import (
+	"bufio"
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -54,7 +54,7 @@ func gatewayTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}). // TODO - variable dns zone counts for MI zones too
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
@@ -117,7 +117,7 @@ func gatewayTests(in infra.Provisioned) []test {
 						APIVersion: v1alpha1.GroupVersion.String(),
 					},
 					Spec: v1alpha1.ClusterExternalDNSSpec{
-						ResourceName:       "gw-cluster-external-dns",
+						ResourceName:       "gw-cluster",
 						DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
 						ResourceTypes:      []string{"gateway"},
 						Identity: v1alpha1.ExternalDNSIdentity{
@@ -144,27 +144,8 @@ func gatewayTests(in infra.Provisioned) []test {
 
 				lgr.Info("cluster-scoped externaldns test passed, cleaning up gateway resources")
 
-				// Delete Gateway and HTTPRoute first (triggers DNS record cleanup by external-dns)
-				if err := cl.Delete(ctx, resources.Gateway); err != nil {
-					return fmt.Errorf("deleting gateway: %w", err)
-				}
-				if err := cl.Delete(ctx, resources.HTTPRoute); err != nil {
-					return fmt.Errorf("deleting httproute: %w", err)
-				}
-
-				// Wait for DNS A record to be deleted from Azure DNS zone
-				// The record name is the subdomain part of the host (e.g., "wi-ns" for "wi-ns.zone.com")
-				zoneName := in.ManagedIdentityZone.Zone.GetName()
-				recordName := strings.ToLower(gatewayTestNamespace)
-				lgr.Info("waiting for DNS record deletion", "zone", zoneName, "record", recordName)
-				if err := waitForDNSRecordDeletion(ctx, in.SubscriptionId, in.ResourceGroup.GetName(), zoneName, recordName); err != nil {
-					return fmt.Errorf("waiting for DNS record deletion: %w", err)
-				}
-
-				// Now delete the ClusterExternalDNS CRD
-				lgr.Info("deleting cluster-scoped externaldns")
-				if err := cl.Delete(ctx, clusterExternalDns); err != nil {
-					return fmt.Errorf("deleting cluster external dns: %w", err)
+				if err := cleanupResources(ctx, config, resources, in, clusterExternalDns); err != nil {
+					return fmt.Errorf("cleaning up gateway resources: %w", err)
 				}
 
 				// ========================================
@@ -205,6 +186,10 @@ func gatewayTests(in infra.Provisioned) []test {
 				lgr.Info("waiting for client deployment to be available", "client", resources2.Client.Name)
 				if err := waitForAvailable(ctx, cl, *resources2.Client); err != nil {
 					return fmt.Errorf("waiting for client deployment (ns-scoped): %w", err)
+				}
+
+				if err := cleanupResources(ctx, config, resources2, in, externalDns); err != nil {
+					return fmt.Errorf("cleaning up gateway resources (ns-scoped): %w", err)
 				}
 
 				lgr.Info("finished gateway with externaldns test")
@@ -256,31 +241,104 @@ func deployGatewayResources(
 	return &resources, nil
 }
 
-// waitForDNSRecordDeletion waits for the DNS A record to be deleted from the Azure DNS zone
-func waitForDNSRecordDeletion(ctx context.Context, subscriptionId, resourceGroup, zoneName, recordName string) error {
-	lgr := logger.FromContext(ctx).With("zone", zoneName, "record", recordName)
+// waitForDNSRecordDeletion waits for the external-dns pod to log that it deleted the DNS A record
+// deploymentName is the name of the external-dns deployment (e.g., "gw-cluster-external-dns")
+// namespace is the namespace where the deployment is located
+func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deploymentName, namespace, zoneName, recordName string) error {
+	lgr := logger.FromContext(ctx).With("zone", zoneName, "record", recordName, "deployment", deploymentName, "namespace", namespace)
 
-	recordSetsClient, err := clients.NewRecordSetsClient(subscriptionId, resourceGroup, zoneName)
+	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return fmt.Errorf("creating record sets client: %w", err)
+		return fmt.Errorf("creating kubernetes clientset: %w", err)
 	}
 
+	// The expected log message from external-dns when deleting an A record
+	expectedLogMessage := fmt.Sprintf("Deleting A record named '%s' for Azure DNS zone '%s'", recordName, zoneName)
+	lgr.Info("waiting for external-dns to log deletion", "expectedMessage", expectedLogMessage)
+
 	err = wait.PollImmediate(5*time.Second, 3*time.Minute, func() (bool, error) {
-		_, err := recordSetsClient.GetARecord(ctx, recordName)
+		// Find the external-dns pods by the deployment's label selector (app=deploymentName)
+		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("app=%s", deploymentName),
+		})
 		if err != nil {
-			// Check if it's a not found error (404)
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-				lgr.Info("DNS A record deleted")
-				return true, nil
-			}
-			return false, fmt.Errorf("getting DNS record: %w", err)
+			return false, fmt.Errorf("listing external-dns pods: %w", err)
 		}
-		lgr.Info("waiting for DNS A record to be deleted")
+
+		if len(pods.Items) == 0 {
+			lgr.Info("no external-dns pods found, retrying")
+			return false, nil
+		}
+
+		// Check logs from each pod
+		for _, pod := range pods.Items {
+			req := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
+			logs, err := req.Stream(ctx)
+			if err != nil {
+				lgr.Info("failed to get pod logs", "pod", pod.Name, "error", err)
+				continue
+			}
+
+			scanner := bufio.NewScanner(logs)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.Contains(line, expectedLogMessage) {
+					logs.Close()
+					lgr.Info("found DNS deletion log entry", "pod", pod.Name)
+					return true, nil
+				}
+			}
+			logs.Close()
+		}
+
+		lgr.Info("DNS deletion log entry not found yet, retrying")
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("waiting for DNS A record %q to be deleted from zone %q: %w", recordName, zoneName, err)
+		return fmt.Errorf("waiting for DNS A record '%s' deletion log in zone '%s': %w", recordName, zoneName, err)
 	}
+	return nil
+}
+
+func cleanupResources(ctx context.Context, config *rest.Config, resources *manifests.GatewayClientServerResources, in infra.Provisioned, dnsResource dns.ExternalDNSCRDConfiguration, otherObjects ...client.Object) error {
+	lgr := logger.FromContext(ctx)
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
+	// Delete Gateway and HTTPRoute first (triggers DNS record cleanup by external-dns)
+	if err := cl.Delete(ctx, resources.Gateway); err != nil {
+		return fmt.Errorf("deleting gateway: %w", err)
+	}
+	if err := cl.Delete(ctx, resources.HTTPRoute); err != nil {
+		return fmt.Errorf("deleting httproute: %w", err)
+	}
+
+	// Wait for external-dns to log that it deleted the DNS A record
+	// The record name is the subdomain part of the host (e.g., "wi-ns" for "wi-ns.zone.com")
+	zoneName := in.ManagedIdentityZone.Zone.GetName()
+	recordName := strings.ToLower(gatewayTestNamespace)
+	// The deployment name is {CRD.Spec.ResourceName}-external-dns
+	externalDnsDeploymentName := dnsResource.GetInputResourceName() + "-external-dns"
+	lgr.Info("waiting for DNS record deletion", "zone", zoneName, "record", recordName, "deployment", externalDnsDeploymentName)
+	if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, gatewayTestNamespace, zoneName, recordName); err != nil {
+		return fmt.Errorf("waiting for DNS record deletion: %w", err)
+	}
+
+	if err := cl.Delete(ctx, dnsResource); err != nil {
+		return fmt.Errorf("cleaning up external dns CRD: %w", err)
+	}
+
+	// Now delete other objects
+	for _, obj := range otherObjects {
+		lgr.Info("deleting resource", "name", obj.GetName(), "kind", obj.GetObjectKind().GroupVersionKind().Kind)
+		if err := cl.Delete(ctx, obj); err != nil {
+			return fmt.Errorf("deleting resource %s: %w", obj.GetName(), err)
+		}
+	}
+
 	return nil
 }

@@ -31,7 +31,7 @@ var Infras = infras{
 		Name:          "gateway-full-mesh-cluster",
 		ResourceGroup: uniqueResourceGroup(),
 		Location:      getLocation(),
-		Suffix:        uuid.New().String(),
+		Suffix:        uuid.New().String()[:16],
 		McOpts:        []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
 	},
 	// TODO: add back when service principal cluster is supported
