@@ -33,6 +33,10 @@ func TestDefaultDomainServiceAccount(t *testing.T) {
 					},
 					Labels: manifests.GetTopLevelLabels(),
 				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ServiceAccount",
+					APIVersion: "v1",
+				},
 			},
 		},
 		{
@@ -49,6 +53,10 @@ func TestDefaultDomainServiceAccount(t *testing.T) {
 						"azure.workload.identity/client-id": "different-client-id",
 					},
 					Labels: manifests.GetTopLevelLabels(),
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ServiceAccount",
+					APIVersion: "v1",
 				},
 			},
 		},
@@ -80,6 +88,10 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 					Namespace: "test-namespace",
 					Labels:    manifests.GetTopLevelLabels(),
 				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterExternalDNS",
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+				},
 				Spec: approutingv1alpha1.ClusterExternalDNSSpec{
 					ResourceName:       defaultDomainDNSResourceName,
 					ResourceNamespace:  "test-namespace",
@@ -102,6 +114,10 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 					Name:      defaultDomainDNSResourceName,
 					Namespace: "prod-namespace",
 					Labels:    manifests.GetTopLevelLabels(),
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterExternalDNS",
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
 				},
 				Spec: approutingv1alpha1.ClusterExternalDNSSpec{
 					ResourceName:       defaultDomainDNSResourceName,

@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
+	"github.com/Azure/aks-app-routing-operator/pkg/util"
 )
 
 // Opts contains configuration options for the client
@@ -60,19 +63,30 @@ func (c *Client) GetTLSCertificate(ctx context.Context, subscriptionID, resource
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelError).Inc()
+		metrics.DefaultDomainClientErrors.Inc()
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusNotFound {
+			metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelNotFound).Inc()
+			return nil, &util.NotFoundError{Body: string(body)}
+		}
+		metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelError).Inc()
+		metrics.DefaultDomainClientErrors.Inc()
 		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
 	var cert TLSCertificate
 	if err := json.NewDecoder(resp.Body).Decode(&cert); err != nil {
+		metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelError).Inc()
+		metrics.DefaultDomainClientErrors.Inc()
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 
+	metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelSuccess).Inc()
 	return &cert, nil
 }

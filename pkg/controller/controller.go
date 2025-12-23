@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	defaultdomain "github.com/Azure/aks-app-routing-operator/pkg/clients/default-domain"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/defaultdomaincert"
 	placeholderpod "github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/placeholderpod"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/keyvault/spc"
@@ -16,6 +17,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -133,7 +135,10 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	}
 
 	setupLog := m.GetLogger().WithName("setup")
-	if err := setupProbes(conf, m, setupLog); err != nil {
+
+	// Health checkers will be populated during controller setup
+	healthCheckers := newHealthCheckers()
+	if err := setupProbes(conf, m, setupLog, healthCheckers); err != nil {
 		setupLog.Error(err, "failed to set up probes")
 		return nil, fmt.Errorf("setting up probes: %w", err)
 	}
@@ -155,7 +160,7 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("setting up indexers: %w", err)
 	}
 
-	if err := setupControllers(m, conf, setupLog, cl, store); err != nil {
+	if err := setupControllers(m, conf, setupLog, cl, store, healthCheckers); err != nil {
 		setupLog.Error(err, "unable to setup controllers")
 		return nil, fmt.Errorf("setting up controllers: %w", err)
 	}
@@ -183,7 +188,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error
 	return nil
 }
 
-func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl client.Client, store store.Store) error {
+func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl client.Client, store store.Store, healthCheckers *healthCheckers) error {
 	lgr.Info("setting up controllers")
 
 	lgr.Info("determining default IngressClass controller class")
@@ -263,7 +268,38 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 
 	if conf.EnableDefaultDomain {
 		lgr.Info("setting up default domain reconcilers")
-		if err := defaultdomaincert.NewReconciler(conf, mgr, store); err != nil {
+
+		// Parse the DefaultDomainZoneID to extract subscription, resource group, and cluster name
+		parsedZone, err := azure.ParseResourceID(conf.DefaultDomainZoneID)
+		if err != nil {
+			return fmt.Errorf("parsing default domain zone ID: %w", err)
+		}
+
+		// Create default domain client for fetching TLS certificates
+		defaultDomainClient := defaultdomain.NewCachedClient(
+			context.Background(),
+			defaultdomain.CachedClientOpts{
+				Opts: defaultdomain.Opts{
+					ServerAddress: conf.DefaultDomainServerAddress,
+				},
+				SubscriptionID: parsedZone.SubscriptionID,
+				ResourceGroup:  parsedZone.ResourceGroup,
+				// note that the zone name isn't actually the cluster name, but the default domain svc resource
+				// doesn't actually utilize this value for anything other than logging/tracing purposes so the unique
+				// zone name works as well. Default-domain-svc only cares about the ccp id
+				ClusterName: parsedZone.ResourceName,
+				CCPID:       conf.ClusterUid,
+			},
+			mgr.GetLogger().WithName("default-domain-client"),
+		)
+
+		// We no longer want to have the default domain client directly impact the health of the operator.
+		// Issues calling default-domain-svc are unlikely to be operator errors and are almost always errors
+		// outside the operator's control (network issues, default-domain-svc down, etc). Instead we use Prometheus
+		// metrics to monitor the health of default domain calls so we can alert and view trends on them.
+		// healthCheckers.addCheck(defaultDomainClient)
+
+		if err := defaultdomaincert.NewReconciler(conf, mgr, defaultDomainClient); err != nil {
 			return fmt.Errorf("setting up default domain reconciler: %w", err)
 		}
 	}
@@ -272,7 +308,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	return nil
 }
 
-func setupProbes(conf *config.Config, mgr ctrl.Manager, log logr.Logger) error {
+func setupProbes(conf *config.Config, mgr ctrl.Manager, log logr.Logger, healthCheckers *healthCheckers) error {
 	log.Info("adding probes to manager")
 
 	check := func(req *http.Request) error { return nil }
@@ -281,7 +317,15 @@ func setupProbes(conf *config.Config, mgr ctrl.Manager, log logr.Logger) error {
 		return fmt.Errorf("adding readyz check: %w", err)
 	}
 
-	if err := mgr.AddHealthzCheck("healthz", check); err != nil {
+	// Create health check that includes all registered health checkers
+	healthCheck := func(req *http.Request) error {
+		if !healthCheckers.isHealthy() {
+			return fmt.Errorf("health checker is unhealthy")
+		}
+		return nil
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthCheck); err != nil {
 		return fmt.Errorf("adding healthz check: %w", err)
 	}
 

@@ -292,8 +292,8 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 			return fmt.Errorf("creating or updating resource: %w", err)
 		}
 
-		// if res is deployment, wait for it to be ready
-		if res.GetObjectKind().GroupVersionKind().Kind == "Deployment" {
+		// if res is deployment and operator, wait for it to be ready
+		if res.GetObjectKind().GroupVersionKind().Kind == "Deployment" && res.GetName() == "app-routing-operator" {
 			lastDepCheckTime := time.Now()
 			if err := wait.PollImmediate(1*time.Second, 2*time.Minute, func() (bool, error) {
 				var copy appsv1.Deployment
@@ -301,7 +301,7 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 					return false, fmt.Errorf("getting deployment: %w", err)
 				}
 
-				lgr.Info("waiting for replicas", "generation", copy.Status.ObservedGeneration, "desired", *copy.Spec.Replicas, "available", copy.Status.AvailableReplicas, "updated", copy.Status.UpdatedReplicas)
+				lgr.Info("waiting for replicas", "generation", copy.Status.ObservedGeneration, "desired", *copy.Spec.Replicas, "available", copy.Status.AvailableReplicas, "updated", copy.Status.UpdatedReplicas, "name", res.GetName(), "namespace", res.GetNamespace())
 
 				// check rollout status of deployment
 				if copy.Status.AvailableReplicas != *copy.Spec.Replicas || copy.Status.UpdatedReplicas != *copy.Spec.Replicas || copy.Status.ObservedGeneration < operatorGeneration+1 {

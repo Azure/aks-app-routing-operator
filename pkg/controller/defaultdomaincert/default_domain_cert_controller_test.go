@@ -10,20 +10,19 @@ import (
 	"errors"
 	"math/big"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	defaultdomain "github.com/Azure/aks-app-routing-operator/pkg/clients/default-domain"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
-	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
-	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,7 +30,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // ErrorClient wraps a client to inject errors for testing
@@ -138,97 +136,37 @@ func generateTestCertificate(t *testing.T) ([]byte, []byte) {
 	return certPEM, keyPEM
 }
 
-// mockStore implements the store.Store interface for testing
-type mockStore struct {
-	files         map[string][]byte
-	addFileErr    error
-	shouldExist   map[string]bool
-	addFileCalls  int
-	addFileKeyErr error // Error to return specifically for key file (second call)
+// mockDefaultDomainClient implements a mock for the default domain client
+type mockDefaultDomainClient struct {
+	cert []byte
+	key  []byte
+	err  error
 }
 
-func newMockStore() *mockStore {
-	return &mockStore{
-		files:       make(map[string][]byte),
-		shouldExist: make(map[string]bool),
+func newMockDefaultDomainClient(cert, key []byte, err error) *mockDefaultDomainClient {
+	return &mockDefaultDomainClient{
+		cert: cert,
+		key:  key,
+		err:  err,
 	}
 }
 
-func (m *mockStore) AddFile(path string) error {
-	m.addFileCalls++
-	if m.addFileErr != nil {
-		return m.addFileErr
+func (m *mockDefaultDomainClient) GetTLSCertificate(ctx context.Context) (*defaultdomain.TLSCertificate, error) {
+	if m.err != nil {
+		return nil, m.err
 	}
-	// If this is the second call and we have a specific key error, return it
-	if m.addFileCalls == 2 && m.addFileKeyErr != nil {
-		return m.addFileKeyErr
-	}
-	m.shouldExist[path] = true
-	return nil
+	return &defaultdomain.TLSCertificate{
+		Cert: m.cert,
+		Key:  m.key,
+	}, nil
 }
 
-func (m *mockStore) GetContent(path string) ([]byte, bool) {
-	if content, exists := m.files[path]; exists && m.shouldExist[path] {
-		return content, true
-	}
-	return nil, false
-}
-
-func (m *mockStore) RotationEvents() <-chan store.RotationEvent {
-	ch := make(chan store.RotationEvent)
-	close(ch)
-	return ch
-}
-
-func (m *mockStore) Errors() <-chan error {
-	ch := make(chan error)
-	close(ch)
-	return ch
-}
-
-func (m *mockStore) setFileContent(path string, content []byte) {
-	m.files[path] = content
-	m.shouldExist[path] = true
-}
-
-// mockStoreWithRotationEvents extends mockStore to support rotation events
-type mockStoreWithRotationEvents struct {
-	*mockStore
-	rotationCh chan store.RotationEvent
-	errorCh    chan error
-}
-
-func newMockStoreWithRotationEvents() *mockStoreWithRotationEvents {
-	return &mockStoreWithRotationEvents{
-		mockStore:  newMockStore(),
-		rotationCh: make(chan store.RotationEvent, 10),
-		errorCh:    make(chan error, 10),
-	}
-}
-
-func (m *mockStoreWithRotationEvents) RotationEvents() <-chan store.RotationEvent {
-	return m.rotationCh
-}
-
-func (m *mockStoreWithRotationEvents) Errors() <-chan error {
-	return m.errorCh
-}
-
-func (m *mockStoreWithRotationEvents) sendRotationEvent(path string) {
-	m.rotationCh <- store.RotationEvent{Path: path}
-}
-
-func createTestReconciler(client client.Client, store store.Store) *defaultDomainCertControllerReconciler {
-	conf := &config.Config{
-		DefaultDomainCertPath: testCertPath,
-		DefaultDomainKeyPath:  testKeyPath,
-	}
-
+func createTestReconciler(client client.Client, defaultDomainClient *mockDefaultDomainClient) *defaultDomainCertControllerReconciler {
 	return &defaultDomainCertControllerReconciler{
-		client: client,
-		events: &record.FakeRecorder{},
-		conf:   conf,
-		store:  store,
+		client:              client,
+		events:              &record.FakeRecorder{},
+		conf:                &config.Config{},
+		defaultDomainClient: defaultDomainClient,
 	}
 }
 
@@ -271,11 +209,9 @@ func TestReconcile_SuccessfulReconciliation(t *testing.T) {
 
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
-	reconciler := createTestReconciler(client, mockStore)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -322,8 +258,8 @@ func TestReconcile_DefaultDomainCertificateNotFound(t *testing.T) {
 		WithScheme(scheme).
 		Build()
 
-	mockStore := newMockStore()
-	reconciler := createTestReconciler(client, mockStore)
+	mockClient := newMockDefaultDomainClient(nil, nil, nil)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -349,8 +285,8 @@ func TestReconcile_ErrorGettingDefaultDomainCertificate(t *testing.T) {
 		GetError: errors.New("internal server error"),
 	}
 
-	mockStore := newMockStore()
-	reconciler := createTestReconciler(client, mockStore)
+	mockClient := newMockDefaultDomainClient(nil, nil, nil)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -379,8 +315,8 @@ func TestReconcile_NoTargetSecretSpecified(t *testing.T) {
 		WithObjects(ddc).
 		Build()
 
-	mockStore := newMockStore()
-	reconciler := createTestReconciler(client, mockStore)
+	mockClient := newMockDefaultDomainClient(nil, nil, nil)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -409,13 +345,10 @@ func TestReconcile_FailedToGetSecret(t *testing.T) {
 		WithObjects(ddc).
 		Build()
 
-	_, key := generateTestCertificate(t)
+	// Mock client that returns an error
+	mockClient := newMockDefaultDomainClient(nil, nil, errors.New("failed to get TLS certificate from client"))
 
-	mockStore := newMockStore()
-	// Don't set cert content, should cause error
-	mockStore.setFileContent(testKeyPath, []byte(key))
-
-	reconciler := createTestReconciler(client, mockStore)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -428,7 +361,7 @@ func TestReconcile_FailedToGetSecret(t *testing.T) {
 	result, err := reconciler.Reconcile(ctx, req)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "generating Secret for DefaultDomainCertificate: getting and verifying cert and key: failed to get default domain cert from store")
+	assert.Contains(t, err.Error(), "generating Secret for DefaultDomainCertificate: getting and verifying cert and key: failed to get TLS certificate from client")
 	assert.Equal(t, ctrl.Result{}, result)
 }
 
@@ -447,11 +380,9 @@ func TestReconcile_FailedToUpsertSecret(t *testing.T) {
 
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
-	reconciler := createTestReconciler(client, mockStore)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -483,21 +414,16 @@ func TestReconcile_FailedToUpsertSecret_RecordsEvent(t *testing.T) {
 
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
 	// Use a fake event recorder to capture events
 	fakeRecorder := &record.FakeRecorder{Events: make(chan string, 10)}
 
 	reconciler := &defaultDomainCertControllerReconciler{
-		client: client,
-		events: fakeRecorder,
-		conf: &config.Config{
-			DefaultDomainCertPath: testCertPath,
-			DefaultDomainKeyPath:  testKeyPath,
-		},
-		store: mockStore,
+		client:              client,
+		events:              fakeRecorder,
+		conf:                &config.Config{},
+		defaultDomainClient: mockClient,
 	}
 
 	req := ctrl.Request{
@@ -554,11 +480,9 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
-	reconciler := createTestReconciler(client, mockStore)
+	reconciler := createTestReconciler(client, mockClient)
 
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
@@ -589,9 +513,7 @@ func TestReconcile_StatusUpdateFails(t *testing.T) {
 	// Test that error is returned when status update fails
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
@@ -613,7 +535,7 @@ func TestReconcile_StatusUpdateFails(t *testing.T) {
 		StatusUpdateError: errors.New("status update failed"),
 	}
 
-	reconciler := createTestReconciler(statusClient, mockStore)
+	reconciler := createTestReconciler(statusClient, mockClient)
 
 	ctx := context.Background()
 	req := ctrl.Request{
@@ -643,9 +565,7 @@ func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 	// Test multiple reconciles to ensure status conditions are updated correctly
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
@@ -659,7 +579,7 @@ func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 		WithObjects(ddc).
 		WithStatusSubresource(ddc).
 		Build()
-	reconciler := createTestReconciler(client, mockStore)
+	reconciler := createTestReconciler(client, mockClient)
 
 	ctx := context.Background()
 	req := ctrl.Request{
@@ -718,16 +638,15 @@ func TestReconcile_MultipleStatusConditionUpdates(t *testing.T) {
 func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 	ddc.UID = "test-uid"
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.NoError(t, err)
 	require.NotNil(t, secret)
@@ -749,91 +668,86 @@ func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
 func TestGenerateSecret_CertificateNotFoundInStore(t *testing.T) {
 	_, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	// Only set key content, not cert content
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	// Mock client with empty cert
+	mockClient := newMockDefaultDomainClient(nil, key, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain cert from store")
+	assert.Contains(t, err.Error(), "getting and verifying cert and key")
 	assert.Nil(t, secret)
 }
 
 func TestGenerateSecret_KeyNotFoundInStore(t *testing.T) {
 	cert, _ := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	// Only set cert content, not key content
-	mockStore.setFileContent(testCertPath, []byte(cert))
+	// Mock client with empty key
+	mockClient := newMockDefaultDomainClient(cert, nil, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain key from store")
+	assert.Contains(t, err.Error(), "getting and verifying cert and key")
 	assert.Nil(t, secret)
 }
 
 func TestGenerateSecret_CertificateContentIsNil(t *testing.T) {
 	_, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	// Set files to exist but with nil content
-	mockStore.files[testCertPath] = nil
-	mockStore.shouldExist[testCertPath] = true
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	// Mock client with nil cert content
+	mockClient := newMockDefaultDomainClient(nil, key, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain cert from store")
+	assert.Contains(t, err.Error(), "getting and verifying cert and key")
 	assert.Nil(t, secret)
 }
 
 func TestGenerateSecret_KeyContentIsNil(t *testing.T) {
 	cert, _ := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	// Set key file to exist but with nil content
-	mockStore.files[testKeyPath] = nil
-	mockStore.shouldExist[testKeyPath] = true
+	// Mock client with nil key content
+	mockClient := newMockDefaultDomainClient(cert, nil, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "getting and verifying cert and key: failed to get default domain key from store")
+	require.Contains(t, err.Error(), "getting and verifying cert and key")
 	require.Nil(t, secret)
 }
 
 func TestGenerateSecret_EmptyNamespace(t *testing.T) {
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", "", testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.NoError(t, err)
 	require.NotNil(t, secret)
@@ -845,11 +759,9 @@ func TestGenerateSecret_EmptyNamespace(t *testing.T) {
 func TestGenerateSecret_ValidatesOwnerReferences(t *testing.T) {
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 	ddc.UID = "test-uid-12345"
@@ -859,7 +771,8 @@ func TestGenerateSecret_ValidatesOwnerReferences(t *testing.T) {
 		Kind:       "DefaultDomainCertificate",
 	}
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.NoError(t, err)
 	require.NotNil(t, secret)
@@ -881,15 +794,14 @@ func TestGenerateSecret_LargeFileContent(t *testing.T) {
 	largeCertContent := strings.Repeat("LARGE CERT CONTENT ", 1000)
 	largeKeyContent := strings.Repeat("LARGE KEY CONTENT ", 1000)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(largeCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(largeKeyContent))
+	mockClient := newMockDefaultDomainClient([]byte(largeCertContent), []byte(largeKeyContent), nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Contains(t, err.Error(), "getting and verifying cert and key: validating cert and key: failed to decode PEM certificate block")
 	require.Nil(t, secret)
@@ -900,51 +812,17 @@ func TestGenerateSecret_SpecialCharactersInContent(t *testing.T) {
 	specialCertContent := "-----BEGIN CERTIFICATE-----\n测试特殊字符\n🔒🔑\n-----END CERTIFICATE-----"
 	specialKeyContent := "-----BEGIN PRIVATE KEY-----\nñáéíóú\n\x00\x01\x02\n-----END PRIVATE KEY-----"
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(specialCertContent))
-	mockStore.setFileContent(testKeyPath, []byte(specialKeyContent))
+	mockClient := newMockDefaultDomainClient([]byte(specialCertContent), []byte(specialKeyContent), nil)
 
-	reconciler := createTestReconciler(nil, mockStore)
+	reconciler := createTestReconciler(nil, mockClient)
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	secret, err := reconciler.generateSecret(ddc)
+	ctx := context.Background()
+	secret, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Contains(t, err.Error(), "getting and verifying cert and key: validating cert and key: failed to decode PEM certificate block")
 	require.Nil(t, secret)
-}
-
-func TestNewReconciler_AddCertFileError(t *testing.T) {
-	mockStore := newMockStore()
-	mockStore.addFileErr = errors.New("failed to add cert file")
-
-	conf := &config.Config{
-		DefaultDomainCertPath: testCertPath,
-		DefaultDomainKeyPath:  testKeyPath,
-	}
-
-	err := NewReconciler(conf, &testutils.FakeManager{}, mockStore)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "adding default domain cert")
-	assert.Contains(t, err.Error(), "failed to add cert file")
-}
-
-func TestNewReconciler_AddKeyFileError(t *testing.T) {
-	mockStore := newMockStore()
-	// Set specific error for the key file (second AddFile call)
-	mockStore.addFileKeyErr = errors.New("failed to add key file")
-
-	conf := &config.Config{
-		DefaultDomainCertPath: testCertPath,
-		DefaultDomainKeyPath:  testKeyPath,
-	}
-
-	err := NewReconciler(conf, &testutils.FakeManager{}, mockStore)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "adding default domain key")
-	assert.Contains(t, err.Error(), "failed to add key file")
 }
 
 // StatusErrorClient wraps a client to inject errors specifically for status updates
@@ -983,12 +861,11 @@ func (s *StatusErrorWriter) Patch(ctx context.Context, obj client.Object, patch 
 func TestGetAndVerifyCertAndKeySuccess(t *testing.T) {
 	cert, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
-	reconciler := createTestReconciler(nil, mockStore)
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
+	reconciler := createTestReconciler(nil, mockClient)
 
-	certContent, keyContent, err := reconciler.getAndVerifyCertAndKey()
+	ctx := context.Background()
+	certContent, keyContent, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, certContent)
 	require.NotNil(t, keyContent)
@@ -997,15 +874,14 @@ func TestGetAndVerifyCertAndKeySuccess(t *testing.T) {
 }
 
 func TestGetAndVerifyCertAndKeyNonCert(t *testing.T) {
-	cert, key := generateTestCertificate(t)
-	cert = []byte("non-cert content")
+	_, key := generateTestCertificate(t)
+	cert := []byte("non-cert content")
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	mockStore.setFileContent(testKeyPath, []byte(key))
-	reconciler := createTestReconciler(nil, mockStore)
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
+	reconciler := createTestReconciler(nil, mockClient)
 
-	_, _, err := reconciler.getAndVerifyCertAndKey()
+	ctx := context.Background()
+	_, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decode PEM certificate block")
 }
@@ -1013,444 +889,72 @@ func TestGetAndVerifyCertAndKeyNonCert(t *testing.T) {
 func TestGetAndVerifyCertAndKeyMissingKey(t *testing.T) {
 	cert, _ := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testCertPath, []byte(cert))
-	reconciler := createTestReconciler(nil, mockStore)
+	mockClient := newMockDefaultDomainClient(cert, nil, nil)
+	reconciler := createTestReconciler(nil, mockClient)
 
-	_, _, err := reconciler.getAndVerifyCertAndKey()
+	ctx := context.Background()
+	_, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get default domain key from store")
+	assert.Contains(t, err.Error(), "TLS certificate key is empty")
 }
 
 func TestGetAndVerifyCertAndKeyMissingCert(t *testing.T) {
 	_, key := generateTestCertificate(t)
 
-	mockStore := newMockStore()
-	mockStore.setFileContent(testKeyPath, []byte(key))
-	reconciler := createTestReconciler(nil, mockStore)
-	_, _, err := reconciler.getAndVerifyCertAndKey()
+	mockClient := newMockDefaultDomainClient(nil, key, nil)
+	reconciler := createTestReconciler(nil, mockClient)
+
+	ctx := context.Background()
+	_, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get default domain cert from store")
+	assert.Contains(t, err.Error(), "TLS certificate cert is empty")
 }
 
-func TestSendRotationEvents_CertificateFileRotation(t *testing.T) {
-	// Create fake client with scheme
+func TestReconcile_CertificateNotFound_UpdatesStatus(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
 
-	// Create test DefaultDomainCertificate resources
-	ddc1 := &approutingv1alpha1.DefaultDomainCertificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cert-1",
-			Namespace: testNamespace,
-		},
-		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
-			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
-				Secret: util.ToPtr("test-secret-1"),
-			},
-		},
-	}
-
-	ddc2 := &approutingv1alpha1.DefaultDomainCertificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cert-2",
-			Namespace: testNamespace,
-		},
-		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
-			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
-				Secret: util.ToPtr("test-secret-2"),
-			},
-		},
-	}
-
-	client := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(ddc1, ddc2).
-		Build()
-
-	store := newMockStoreWithRotationEvents()
-	reconciler := createTestReconciler(client, store)
-
-	// Create a test context and work queue
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create a mock queue to capture reconcile requests
-	queue := &mockWorkQueue{}
-
-	// Start sendRotationEvents in a goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		err := reconciler.sendRotationEvents(ctx, queue)
-		errCh <- err
-	}()
-
-	// Give the goroutine time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Send a rotation event for the certificate file
-	store.sendRotationEvent(testCertPath)
-
-	// Wait for the event to be processed
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify that reconcile requests were added to the queue for both DDCs
-	assert.Eventually(t, func() bool {
-		return queue.Len() >= 2
-	}, 1*time.Second, 50*time.Millisecond, "Expected 2 reconcile requests to be queued")
-
-	// Check that the correct requests were queued
-	expectedRequests := map[types.NamespacedName]bool{
-		{Name: "test-cert-1", Namespace: testNamespace}: false,
-		{Name: "test-cert-2", Namespace: testNamespace}: false,
-	}
-
-	requests := queue.GetRequests()
-	for _, req := range requests {
-		if _, exists := expectedRequests[req.NamespacedName]; exists {
-			expectedRequests[req.NamespacedName] = true
-		}
-	}
-
-	for name, found := range expectedRequests {
-		assert.True(t, found, "Expected reconcile request for %s to be queued", name)
-	}
-
-	// Cancel context and verify goroutine exits
-	cancel()
-	select {
-	case err := <-errCh:
-		// Expected - goroutine should exit when context is cancelled
-		require.NoError(t, err)
-	case <-time.After(1 * time.Second):
-		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
-	}
-}
-
-func TestSendRotationEvents_KeyFileRotation(t *testing.T) {
-	// Create fake client with scheme
-	scheme := runtime.NewScheme()
-	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
-
-	// Create test DefaultDomainCertificate resource
-	ddc := &approutingv1alpha1.DefaultDomainCertificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cert",
-			Namespace: testNamespace,
-		},
-		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
-			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
-				Secret: util.ToPtr("test-secret"),
-			},
-		},
-	}
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(ddc).
+		WithStatusSubresource(ddc).
 		Build()
 
-	store := newMockStoreWithRotationEvents()
-	reconciler := createTestReconciler(client, store)
+	// Mock client that returns a NotFound error
+	notFoundErr := &util.NotFoundError{Body: "not found"}
+	mockClient := newMockDefaultDomainClient(nil, nil, notFoundErr)
 
-	// Create a test context and work queue
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	reconciler := createTestReconciler(client, mockClient)
 
-	queue := &mockWorkQueue{}
-
-	// Start sendRotationEvents in a goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		err := reconciler.sendRotationEvents(ctx, queue)
-		errCh <- err
-	}()
-
-	// Give the goroutine time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Send a rotation event for the key file
-	store.sendRotationEvent(testKeyPath)
-
-	// Wait for the event to be processed
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify that a reconcile request was added to the queue
-	assert.Eventually(t, func() bool {
-		return queue.Len() >= 1
-	}, 1*time.Second, 50*time.Millisecond, "Expected 1 reconcile request to be queued")
-
-	// Check that the correct request was queued
-	requests := queue.GetRequests()
-	assert.Equal(t, "test-cert", requests[0].NamespacedName.Name)
-	assert.Equal(t, testNamespace, requests[0].NamespacedName.Namespace)
-
-	// Cancel context and verify goroutine exits
-	cancel()
-	select {
-	case err := <-errCh:
-		// Expected - goroutine should exit when context is cancelled
-		assert.NoError(t, err)
-	case <-time.After(1 * time.Second):
-		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
-	}
-}
-
-func TestSendRotationEvents_NonCertificateFileIgnored(t *testing.T) {
-	// Create fake client with scheme
-	scheme := runtime.NewScheme()
-	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
-
-	// Create test DefaultDomainCertificate resource
-	ddc := &approutingv1alpha1.DefaultDomainCertificate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cert",
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "test-ddc",
 			Namespace: testNamespace,
 		},
-		Spec: approutingv1alpha1.DefaultDomainCertificateSpec{
-			Target: approutingv1alpha1.DefaultDomainCertificateTarget{
-				Secret: util.ToPtr("test-secret"),
-			},
-		},
 	}
 
-	client := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(ddc).
-		Build()
+	ctx := context.Background()
+	result, err := reconciler.Reconcile(ctx, req)
 
-	store := newMockStoreWithRotationEvents()
-	reconciler := createTestReconciler(client, store)
+	require.NoError(t, err)
+	// Should requeue after some time
+	assert.GreaterOrEqual(t, result.RequeueAfter, 22*time.Second) // 30s * 0.75
+	assert.LessOrEqual(t, result.RequeueAfter, 38*time.Second)    // 30s * 1.25
 
-	// Create a test context and work queue
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// Verify DefaultDomainCertificate status was updated to indicate not found
+	require.NoError(t, client.Get(ctx, types.NamespacedName{Name: ddc.Name, Namespace: ddc.Namespace}, ddc))
+	cond := ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, "CertificateNotReady", cond.Reason)
+	assert.Contains(t, cond.Message, "Certificate not ready yet, waiting for it to be issued")
 
-	queue := &mockWorkQueue{}
-
-	// Start sendRotationEvents in a goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		err := reconciler.sendRotationEvents(ctx, queue)
-		errCh <- err
-	}()
-
-	// Give the goroutine time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Send rotation events for non-certificate files
-	store.sendRotationEvent("/some/other/file.txt")
-	store.sendRotationEvent("/path/to/config.yaml")
-
-	// Wait a moment to ensure events are processed
-	time.Sleep(200 * time.Millisecond)
-
-	// Verify that no reconcile requests were added to the queue
-	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests for non-certificate files")
-
-	// Cancel context and verify goroutine exits
-	cancel()
-	select {
-	case err := <-errCh:
-		// Expected - goroutine should exit when context is cancelled
-		assert.NoError(t, err)
-	case <-time.After(1 * time.Second):
-		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
-	}
-}
-
-func TestSendRotationEvents_ListError(t *testing.T) {
-	// Create a fake client that will return an error when listing DDCs
-	scheme := runtime.NewScheme()
-	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
-
-	client := &ErrorClient{
-		Client:   fake.NewClientBuilder().WithScheme(scheme).Build(),
-		GetError: errors.New("list error"),
-	}
-
-	store := newMockStoreWithRotationEvents()
-	reconciler := createTestReconciler(client, store)
-
-	// Create a test context and work queue
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	queue := &mockWorkQueue{}
-
-	// Start sendRotationEvents in a goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		err := reconciler.sendRotationEvents(ctx, queue)
-		errCh <- err
-	}()
-
-	// Give the goroutine time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Send a rotation event for the certificate file
-	store.sendRotationEvent(testCertPath)
-
-	// Wait for the event to be processed
-	time.Sleep(200 * time.Millisecond)
-
-	// Verify that no reconcile requests were added (due to list error)
-	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests when list fails")
-
-	// Cancel context and verify goroutine exits
-	cancel()
-	select {
-	case err := <-errCh:
-		// Expected - goroutine should exit when context is cancelled
-		require.NoError(t, err)
-	case <-time.After(1 * time.Second):
-		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
-	}
-}
-
-func TestSendRotationEvents_ContextCancellation(t *testing.T) {
-	// Create fake client with scheme
-	scheme := runtime.NewScheme()
-	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
-	client := fake.NewClientBuilder().WithScheme(scheme).Build()
-
-	store := newMockStoreWithRotationEvents()
-	reconciler := createTestReconciler(client, store)
-
-	// Create a test context and work queue
-	ctx, cancel := context.WithCancel(context.Background())
-	queue := &mockWorkQueue{}
-
-	// Start sendRotationEvents in a goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		err := reconciler.sendRotationEvents(ctx, queue)
-		errCh <- err
-	}()
-
-	// Give the goroutine time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel the context immediately
-	cancel()
-
-	// Verify that the goroutine exits gracefully
-	select {
-	case err := <-errCh:
-		// Expected - goroutine should exit when context is cancelled
-		require.NoError(t, err)
-	case <-time.After(1 * time.Second):
-		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
-	}
-
-	// Verify no requests were queued
-	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests after context cancellation")
-}
-
-func TestSendRotationEvents_EmptyDDCList(t *testing.T) {
-	// Create fake client with no DDCs
-	scheme := runtime.NewScheme()
-	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
-	client := fake.NewClientBuilder().WithScheme(scheme).Build()
-
-	store := newMockStoreWithRotationEvents()
-	reconciler := createTestReconciler(client, store)
-
-	// Create a test context and work queue
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	queue := &mockWorkQueue{}
-
-	// Start sendRotationEvents in a goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		err := reconciler.sendRotationEvents(ctx, queue)
-		errCh <- err
-	}()
-
-	// Give the goroutine time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Send a rotation event for the certificate file
-	store.sendRotationEvent(testCertPath)
-
-	// Wait for the event to be processed
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify that no reconcile requests were added (no DDCs exist)
-	assert.Equal(t, 0, queue.Len(), "Expected no reconcile requests when no DDCs exist")
-
-	// Cancel context and verify goroutine exits
-	cancel()
-	select {
-	case err := <-errCh:
-		// Expected - goroutine should exit when context is cancelled
-		require.NoError(t, err)
-	case <-time.After(1 * time.Second):
-		t.Fatal("sendRotationEvents goroutine did not exit after context cancellation")
-	}
-}
-
-// mockWorkQueue implements workqueue.TypedRateLimitingInterface for testing
-type mockWorkQueue struct {
-	requests []reconcile.Request
-	mu       sync.Mutex
-}
-
-func (m *mockWorkQueue) Add(item reconcile.Request) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.requests = append(m.requests, item)
-}
-
-func (m *mockWorkQueue) Len() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return len(m.requests)
-}
-
-func (m *mockWorkQueue) Get() (item reconcile.Request, shutdown bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if len(m.requests) == 0 {
-		return reconcile.Request{}, false
-	}
-	item = m.requests[0]
-	m.requests = m.requests[1:]
-	return item, false
-}
-
-func (m *mockWorkQueue) Done(item reconcile.Request) {}
-
-func (m *mockWorkQueue) ShutDown() {}
-
-func (m *mockWorkQueue) ShutDownWithDrain() {}
-
-func (m *mockWorkQueue) ShuttingDown() bool {
-	return false
-}
-
-func (m *mockWorkQueue) AddAfter(item reconcile.Request, duration time.Duration) {
-	m.Add(item)
-}
-
-func (m *mockWorkQueue) AddRateLimited(item reconcile.Request) {
-	m.Add(item)
-}
-
-func (m *mockWorkQueue) Forget(item reconcile.Request) {}
-
-func (m *mockWorkQueue) NumRequeues(item reconcile.Request) int {
-	return 0
-}
-
-// GetRequests returns a copy of all requests for testing
-func (m *mockWorkQueue) GetRequests() []reconcile.Request {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// Return a copy to avoid race conditions
-	result := make([]reconcile.Request, len(m.requests))
-	copy(result, m.requests)
-	return result
+	// Verify secret was NOT created
+	var secret corev1.Secret
+	err = client.Get(ctx, types.NamespacedName{Name: testSecretName, Namespace: testNamespace}, &secret)
+	require.Error(t, err)
+	assert.True(t, apierrors.IsNotFound(err))
 }

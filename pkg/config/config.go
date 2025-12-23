@@ -44,7 +44,7 @@ func init() {
 	flag.StringVar(&Flags.MetricsAddr, "metrics-addr", "0.0.0.0:8081", "address to serve Prometheus metrics on")
 	flag.StringVar(&Flags.ProbeAddr, "probe-addr", "0.0.0.0:8080", "address to serve readiness/liveness probes on")
 	flag.StringVar(&Flags.OperatorDeployment, "operator-deployment", "app-routing-operator", "name of the operator's k8s deployment")
-	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to")
+	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to. This should be the CCP ID.")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
 	flag.BoolVar(&Flags.EnableGateway, "enable-gateway", false, "whether or not to support and create controllers for Gateway API resources")
@@ -54,8 +54,7 @@ func init() {
 
 	// Default domain flags
 	flag.BoolVar(&Flags.EnableDefaultDomain, "enable-default-domain", false, "enable default domain feature including the Default Domain Certificate Controller and CRD")
-	flag.StringVar(&Flags.DefaultDomainCertPath, "default-domain-cert-path", "", "path to the default domain TLS certificate file (tls.crt)")
-	flag.StringVar(&Flags.DefaultDomainKeyPath, "default-domain-key-path", "", "path to the default domain TLS private key file (tls.key)")
+	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server")
 	flag.StringVar(&Flags.DefaultDomainClientID, "default-domain-client-id", "", "client ID of the managed identity with federated permissions to interact with the default domain DNS zone")
 	flag.StringVar(&Flags.DefaultDomainZoneID, "default-domain-zone-id", "", "resource ID of the DNS zone for the default domain")
 }
@@ -114,16 +113,16 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("crd path %s is not a directory", c.CrdPath)
 	}
 
-	if !c.EnableDefaultDomain && (c.DefaultDomainCertPath != "" || c.DefaultDomainKeyPath != "" || c.DefaultDomainClientID != "" || c.DefaultDomainZoneID != "") {
-		return errors.New("--default-domain-cert-path, --default-domain-key-path, --default-domain-client-id, and --default-domain-zone-id are not allowed when --enable-default-domain is not set")
+	if !c.EnableDefaultDomain && (c.DefaultDomainServerAddress != "" || c.DefaultDomainClientID != "" || c.DefaultDomainZoneID != "") {
+		return errors.New("--default-domain-server-address, --default-domain-client-id, and --default-domain-zone-id are not allowed when --enable-default-domain is not set")
 	}
 
 	if c.EnableDefaultDomain && !c.EnabledWorkloadIdentity {
 		return errors.New("--enable-default-domain requires --enable-workload-identity to be enabled")
 	}
 
-	if c.EnableDefaultDomain && (c.DefaultDomainCertPath == "" || c.DefaultDomainKeyPath == "" || c.DefaultDomainClientID == "" || c.DefaultDomainZoneID == "") {
-		return errors.New("--default-domain-cert-path, --default-domain-key-path, --default-domain-client-id, and --default-domain-zone-id are all required when --enable-default-domain is set")
+	if c.EnableDefaultDomain && (c.DefaultDomainServerAddress == "" || c.DefaultDomainClientID == "" || c.DefaultDomainZoneID == "") {
+		return errors.New("--default-domain-server-address, --default-domain-client-id, and --default-domain-zone-id are all required when --enable-default-domain is set")
 	}
 
 	return nil

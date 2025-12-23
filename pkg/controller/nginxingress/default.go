@@ -81,7 +81,6 @@ func (d *defaultNicReconciler) Start(ctx context.Context) error {
 
 		interval = reconcileInterval
 	}
-
 }
 
 func (d *defaultNicReconciler) tick(ctx context.Context) (err error) {
