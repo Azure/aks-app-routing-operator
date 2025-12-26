@@ -23,18 +23,18 @@ import (
 )
 
 type dnsTestCase struct {
-	name                       string
-	existingResources          []client.Object
-	crd                        func() ExternalDNSCRDConfiguration
-	expectedUserError          string
-	expectedError              error
-	expectedDeployment         func() *appsv1.Deployment
-	expectedConfigmap          func() *corev1.ConfigMap
-	expectedRole               func() *rbacv1.Role
-	expectedRoleBinding        func() *rbacv1.RoleBinding
-	expectedClusterRole        func() *rbacv1.ClusterRole
-	expectedClusterRoleBinding func() *rbacv1.ClusterRoleBinding
-	transformClient            func(defaultBuilder *fake.ClientBuilder) *fake.ClientBuilder
+	name                        string
+	existingResources           []client.Object
+	crd                         func() ExternalDNSCRDConfiguration
+	expectedUserError           string
+	expectedError               error
+	expectedDeployment          func() *appsv1.Deployment
+	expectedConfigmap           func() *corev1.ConfigMap
+	expectedRole                func() *rbacv1.Role
+	expectedRoleBinding         func() *rbacv1.RoleBinding
+	expectedClusterRoles        func() []*rbacv1.ClusterRole
+	expectedClusterRoleBindings func() []*rbacv1.ClusterRoleBinding
+	transformClient             func(defaultBuilder *fake.ClientBuilder) *fake.ClientBuilder
 }
 
 var testRegistry = "testregistry.azurecr.io"
@@ -43,6 +43,7 @@ var happyPathPublic = &v1alpha1.ExternalDNS{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "happy-path-public",
 		Namespace: "test-ns",
+		UID:       "resourceuid",
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-public",
@@ -136,13 +137,15 @@ var happyPathPublicDeployment = &appsv1.Deployment{
 						Args: []string{
 							"--provider=azure",
 							"--interval=3m0s",
-							"--txt-owner-id=test-cluster-uid",
+							"--txt-owner-id=test-cluster-uid-resourceuid",
 							"--txt-wildcard-replacement=approutingwildcard",
 							"--source=gateway-grpcroute",
 							"--source=gateway-httproute",
 							"--source=ingress",
 							"--domain-filter=test.com",
 							"--domain-filter=test2.com",
+							"--namespace=test-ns",
+							"--gateway-namespace=test-ns",
 						},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
@@ -238,6 +241,7 @@ var happyPathPublicFilters = &v1alpha1.ExternalDNS{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "happy-path-public-filters",
 		Namespace: "test-ns",
+		UID:       "resourceuid",
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-public-filters",
@@ -258,6 +262,7 @@ var happyPathPublicNoTenantIDAndFilters = &v1alpha1.ExternalDNS{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "happy-path-public-no-tenant-id",
 		Namespace: "test-ns",
+		UID:       "resourceuid",
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-public-no-tenant-id",
@@ -277,6 +282,7 @@ var happyPathPrivate = &v1alpha1.ExternalDNS{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "happy-path-private",
 		Namespace: "test-ns",
+		UID:       "resourceuid",
 	},
 	Spec: v1alpha1.ExternalDNSSpec{
 		ResourceName:       "happy-path-private",
@@ -323,13 +329,15 @@ var happyPathPrivateDeployment = &appsv1.Deployment{
 						Args: []string{
 							"--provider=azure-private-dns",
 							"--interval=3m0s",
-							"--txt-owner-id=test-cluster-uid",
+							"--txt-owner-id=test-cluster-uid-resourceuid",
 							"--txt-wildcard-replacement=approutingwildcard",
 							"--source=gateway-grpcroute",
 							"--source=gateway-httproute",
 							"--source=ingress",
 							"--domain-filter=test.com",
 							"--domain-filter=test2.com",
+							"--namespace=test-ns",
+							"--gateway-namespace=test-ns",
 						},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
@@ -478,11 +486,6 @@ var happyPathClusterRole = &rbacv1.ClusterRole{
 			Resources: []string{"gateways", "httproutes", "grpcroutes"},
 			Verbs:     []string{"get", "watch", "list"},
 		},
-		{
-			APIGroups: []string{""},
-			Resources: []string{"namespaces"},
-			Verbs:     []string{"get", "watch", "list"},
-		},
 	},
 }
 
@@ -505,6 +508,57 @@ var happyPathClusterRoleBinding = &rbacv1.ClusterRoleBinding{
 		APIGroup: "rbac.authorization.k8s.io",
 		Kind:     "ClusterRole",
 		Name:     "cluster-happy-path-public-external-dns",
+	},
+	Subjects: []rbacv1.Subject{{
+		Kind:      "ServiceAccount",
+		Name:      "test-service-account",
+		Namespace: "test-resource-ns",
+	}},
+}
+
+var happyPathListNSClusterRole = &rbacv1.ClusterRole{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ClusterRole",
+		APIVersion: "rbac.authorization.k8s.io/v1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		ResourceVersion: "1",
+		Name:            "cluster-happy-path-public-external-dns-list-ns",
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by":   "aks-app-routing-operator",
+			"app.kubernetes.io/name":         "cluster-happy-path-public-external-dns",
+			"kubernetes.azure.com/managedby": "aks",
+		},
+		OwnerReferences: ownerReferencesFromClusterCRD(clusterHappyPathPublic),
+	},
+	Rules: []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"namespaces"},
+			Verbs:     []string{"get", "watch", "list"},
+		},
+	},
+}
+
+var happyPathListNSClusterRoleBinding = &rbacv1.ClusterRoleBinding{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ClusterRoleBinding",
+		APIVersion: "rbac.authorization.k8s.io/v1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		ResourceVersion: "1",
+		Name:            "cluster-happy-path-public-external-dns-list-ns",
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by":   "aks-app-routing-operator",
+			"app.kubernetes.io/name":         "cluster-happy-path-public-external-dns",
+			"kubernetes.azure.com/managedby": "aks",
+		},
+		OwnerReferences: ownerReferencesFromClusterCRD(clusterHappyPathPublic),
+	},
+	RoleRef: rbacv1.RoleRef{
+		APIGroup: "rbac.authorization.k8s.io",
+		Kind:     "ClusterRole",
+		Name:     "cluster-happy-path-public-external-dns-list-ns",
 	},
 	Subjects: []rbacv1.Subject{{
 		Kind:      "ServiceAccount",

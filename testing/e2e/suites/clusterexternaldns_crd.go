@@ -5,13 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -47,7 +51,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 			name: "clusterexternaldns crd validations",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllUsedOperatorVersions...).
+				withVersions(manifests.OperatorVersionLatest).
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -55,14 +59,160 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 				lgr.Info("starting test")
 
 				tcs := []struct {
-					name          string
-					ced           *v1alpha1.ClusterExternalDNS
-					expectedError error
+					name                 string
+					ced                  *v1alpha1.ClusterExternalDNS
+					prereqs              []client.Object // objects to create before running test case
+					expectedError        error
+					expectedWarningEvent *string // controller-level validation failure message
 				}{
 					{
 						name:          "valid",
 						ced:           validClusterExternalDNS(),
 						expectedError: nil,
+					},
+					{
+						name: "invalid zone ID format",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "invalid-zone-id",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/not/a/valid/resource/id/but/has/enough/slashes",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+							},
+						},
+						prereqs: []client.Object{
+							&corev1.ServiceAccount{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: "v1",
+									Kind:       "ServiceAccount",
+								},
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "test-sa",
+									Namespace: "default",
+									Annotations: map[string]string{
+										"azure.workload.identity/client-id": "test-client-id",
+									},
+								},
+							},
+						},
+						expectedWarningEvent: to.Ptr("invalid dns zone resource id"),
+					},
+					{
+						name: "serviceaccount does not exist",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "sa-not-exist",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "nonexistent-sa",
+								},
+							},
+						},
+						expectedWarningEvent: to.Ptr("serviceAccount nonexistent-sa does not exist in namespace default"),
+					},
+					{
+						name: "serviceaccount missing WI annotation",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "sa-missing-wi",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "sa-no-annotation",
+								},
+							},
+						},
+						prereqs: []client.Object{
+							&corev1.ServiceAccount{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: "v1",
+									Kind:       "ServiceAccount",
+								},
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sa-no-annotation",
+									Namespace: "default",
+								},
+								// No annotations - missing azure.workload.identity/client-id
+							},
+						},
+						expectedWarningEvent: to.Ptr("serviceAccount sa-no-annotation was specified but does not include necessary annotation for workload identity"),
+					},
+					{
+						name: "serviceaccount in wrong namespace",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "sa-wrong-ns",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "kube-system", // SA exists in default, not kube-system
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "sa-in-wrong-ns",
+								},
+							},
+						},
+						prereqs: []client.Object{
+							// Create SA in "default" namespace, but CRD references "kube-system"
+							&corev1.ServiceAccount{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: "v1",
+									Kind:       "ServiceAccount",
+								},
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sa-in-wrong-ns",
+									Namespace: "default", // Wrong namespace
+									Annotations: map[string]string{
+										"azure.workload.identity/client-id": "test-client-id",
+									},
+								},
+							},
+						},
+						expectedWarningEvent: to.Ptr("serviceAccount sa-in-wrong-ns does not exist in namespace kube-system"),
 					},
 					{
 						name: "no resourcenamespace",
@@ -588,6 +738,15 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 				}
 
 				for _, tc := range tcs {
+					lgr.Info("running test case", "name", tc.name)
+
+					// Create prerequisite objects before running test case
+					for _, prereq := range tc.prereqs {
+						if err := upsert(ctx, c, prereq); err != nil {
+							return fmt.Errorf("for case %s: creating prereq %T/%s: %w", tc.name, prereq, prereq.GetName(), err)
+						}
+					}
+
 					err := upsert(context.Background(), c, tc.ced)
 					if tc.expectedError != nil {
 						if err == nil {
@@ -596,11 +755,71 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						if !strings.Contains(err.Error(), tc.expectedError.Error()) {
 							return fmt.Errorf("for case %s expected error: %s, got: %s", tc.name, tc.expectedError.Error(), err.Error())
 						}
+						continue
+					}
 
-					} else {
-						// ignore already exists since same cluster is used for multiple tests
-						if client.IgnoreAlreadyExists(err) != nil {
-							return fmt.Errorf("for case %s unexpected error: %s", tc.name, err.Error())
+					// ignore already exists since same cluster is used for multiple tests
+					if client.IgnoreAlreadyExists(err) != nil {
+						return fmt.Errorf("for case %s unexpected error: %s", tc.name, err.Error())
+					}
+
+					// Check for expected warning event (controller-level validation)
+					if tc.expectedWarningEvent != nil {
+						lgr.Info("waiting for warning event", "expectedMessage", *tc.expectedWarningEvent)
+						// ClusterExternalDNS events are recorded in the resource namespace
+						resourceNamespace := tc.ced.Spec.ResourceNamespace
+						if resourceNamespace == "" {
+							resourceNamespace = "default"
+						}
+						var observedMessages []string
+						err := wait.PollImmediate(2*time.Second, 1*time.Minute, func() (bool, error) {
+							// get the resource
+							cdns := &v1alpha1.ClusterExternalDNS{}
+							err := c.Get(ctx, client.ObjectKey{Name: tc.ced.Name}, cdns)
+							if err != nil {
+								return false, fmt.Errorf("getting ClusterExternalDNS: %w", err)
+							}
+							
+							uid := cdns.GetUID()
+
+							// List events by involvedObject.uid for cluster-scoped resources
+							clientset, err := kubernetes.NewForConfig(config)
+							if err != nil {
+								return false, fmt.Errorf("creating clientset: %w", err)
+							}
+							eventList, err := clientset.CoreV1().Events("").List(ctx, metav1.ListOptions{
+								FieldSelector: fmt.Sprintf("involvedObject.uid=%s", uid),
+							})
+							if err != nil {
+								lgr.Info("failed to list events", "error", err)
+								return false, nil
+							}
+
+							observedMessages = []string{}
+							for _, event := range eventList.Items {
+								observedMessages = append(observedMessages, event.Message)
+								if event.Type == "Warning" && strings.Contains(event.Message, *tc.expectedWarningEvent) {
+									lgr.Info("found expected warning event", "event", event.Message)
+									return true, nil
+								}
+							}
+							lgr.Info("waiting for warning event", "observedMessages", observedMessages)
+							return false, nil
+						})
+						if err != nil {
+							return fmt.Errorf("for case %s: waiting for warning event containing '%s': %w. Observed events: %v", tc.name, *tc.expectedWarningEvent, err, observedMessages)
+						}
+
+						// Clean up the CRD after controller-level validation test
+						if err := c.Delete(ctx, tc.ced); err != nil {
+							lgr.Info("failed to delete test CRD", "error", err)
+						}
+
+						// Clean up prerequisite objects
+						for _, prereq := range tc.prereqs {
+							if err := client.IgnoreNotFound(c.Delete(ctx, prereq)); err != nil {
+								lgr.Info("failed to delete prereq", "type", fmt.Sprintf("%T", prereq), "name", prereq.GetName(), "error", err)
+							}
 						}
 					}
 				}

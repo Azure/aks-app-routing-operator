@@ -14,6 +14,7 @@ import (
 )
 
 type ExternalDNSCRDConfiguration interface {
+	GetObjectName() string
 	GetTenantId() *string
 	GetInputServiceAccount() string
 	GetResourceNamespace() string
@@ -22,6 +23,7 @@ type ExternalDNSCRDConfiguration interface {
 	GetDnsZoneresourceIDs() []string
 	GetFilters() *v1alpha1.ExternalDNSFilters
 	GetNamespaced() bool
+	client.Object
 }
 
 func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) manifests.InputExternalDNSConfig {
@@ -34,6 +36,7 @@ func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) m
 		DnsZoneresourceIDs:  e.GetDnsZoneresourceIDs(),
 		Filters:             e.GetFilters(),
 		IsNamespaced:        e.GetNamespaced(),
+		UID:                 string(e.GetUID()),
 	}
 
 	switch e.GetTenantId() {
@@ -75,8 +78,9 @@ func deployExternalDNSResources(ctx context.Context, client client.Client, manif
 	multiError := &multierror.Error{}
 
 	for _, resource := range manifestsConf.Resources() {
-		resource.SetOwnerReferences(owners)
-
+		if resource.GetObjectKind().GroupVersionKind().Kind != "Namespace" { // don't want to set owner references in case we're generating the ns
+			resource.SetOwnerReferences(owners)
+		}
 		currentResourceErr := util.Upsert(ctx, client, resource)
 		multiError = multierror.Append(multiError, currentResourceErr)
 	}
