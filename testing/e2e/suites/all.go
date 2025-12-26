@@ -19,6 +19,7 @@ func All(infra infra.Provisioned) tests.Ts {
 	// t = append(t, nicTests(infra)...)
 	t = append(t, externalDnsCrdTests(infra)...)
 	t = append(t, clusterExternalDnsCrdTests(infra)...)
+	t = append(t, gatewayFilterTests(infra)...)
 	// t = append(t, defaultBackendTests(infra)...)
 	// t = append(t, workloadIdentityTests(infra)...)
 	// t = append(t, defaultDomainTests(infra)...)

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,25 @@ func main() {
 			log.Printf("unexpected test header: %s", val)
 			w.WriteHeader(500)
 			return
+		}
+
+		// Check if there's an UNREACHABLE_URL that should fail with "no such host"
+		unreachableURL := os.Getenv("UNREACHABLE_URL")
+		if unreachableURL != "" {
+			log.Printf("attempting to reach unreachable URL: %s", unreachableURL)
+			_, err := client.Get(unreachableURL)
+			if err == nil {
+				log.Printf("ERROR: expected unreachable URL to fail, but it succeeded")
+				w.WriteHeader(500)
+				return
+			}
+			// Check that the error is "no such host" (DNS resolution failure)
+			if !strings.Contains(err.Error(), "no such host") {
+				log.Printf("ERROR: expected 'no such host' error, but got: %s", err)
+				w.WriteHeader(500)
+				return
+			}
+			log.Printf("correctly failed to reach unreachable URL with 'no such host': %s", err)
 		}
 
 		// Note we do not validate X-Forwarded-For for Gateway API tests because istio forwarding behavior uses the proxy pod IP
