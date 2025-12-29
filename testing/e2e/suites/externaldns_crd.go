@@ -654,8 +654,16 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 
 					// Create prerequisite objects
 					for _, prereq := range tc.prereqs {
-						if err := client.IgnoreAlreadyExists(c.Create(ctx, prereq)); err != nil {
+						if err := upsert(ctx, c, prereq); err != nil {
 							return fmt.Errorf("for case %s: creating prereq %T %s: %w", tc.name, prereq, prereq.GetName(), err)
+						}
+
+						// ensure pre req was created
+						sa := &corev1.ServiceAccount{}
+						if err := c.Get(ctx, client.ObjectKey{Name: prereq.GetName(), Namespace: prereq.GetNamespace()}, sa); err != nil {
+							return fmt.Errorf("for case %s: getting prereq %T %s: %w", tc.name, prereq, prereq.GetName(), err)
+						} else {
+							lgr.Info("created prereq", "type", fmt.Sprintf("%T", prereq), "name", prereq.GetName(), "annotations", sa.Annotations)
 						}
 					}
 

@@ -321,11 +321,20 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		return nil
 	})
 
+	// Always federate the default wi-ns/wi-sa namespace (used by various tests)
 	permEg.Go(func() error {
 		if err := ret.ManagedIdentity.FederateServiceAccount(ctx, ret.ResourceGroup.GetName(), ret.Cluster.GetOidcUrl(), "wi-sa", "wi-ns"); err != nil {
-			return logger.Error(lgr, fmt.Errorf("federating service principal: %w", err))
+			return logger.Error(lgr, fmt.Errorf("federating service account wi-sa: %w", err))
 		}
 
+		// Federate additional service accounts for each configured namespace (can't be done concurrently)
+		for _, fedNs := range i.FederatedNamespaces {
+			// Use a unique name for each federated credential based on namespace and service account
+			credName := fmt.Sprintf("%s-%s-%s", ret.ResourceGroup.GetName(), fedNs.Namespace, fedNs.ServiceAccount)
+			if err := ret.ManagedIdentity.FederateServiceAccount(ctx, credName, ret.Cluster.GetOidcUrl(), fedNs.ServiceAccount, fedNs.Namespace); err != nil {
+				return logger.Error(lgr, fmt.Errorf("federating service account %s/%s: %w", fedNs.Namespace, fedNs.ServiceAccount, err))
+			}
+		}
 		return nil
 	})
 

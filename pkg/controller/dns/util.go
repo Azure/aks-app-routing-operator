@@ -14,7 +14,6 @@ import (
 )
 
 type ExternalDNSCRDConfiguration interface {
-	GetObjectName() string
 	GetTenantId() *string
 	GetInputServiceAccount() string
 	GetResourceNamespace() string

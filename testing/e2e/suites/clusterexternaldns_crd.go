@@ -745,6 +745,12 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						if err := upsert(ctx, c, prereq); err != nil {
 							return fmt.Errorf("for case %s: creating prereq %T/%s: %w", tc.name, prereq, prereq.GetName(), err)
 						}
+						sa := &corev1.ServiceAccount{}
+						if err := c.Get(ctx, client.ObjectKey{Name: prereq.GetName(), Namespace: prereq.GetNamespace()}, sa); err != nil {
+							return fmt.Errorf("for case %s: getting prereq %T %s: %w", tc.name, prereq, prereq.GetName(), err)
+						} else {
+							lgr.Info("created prereq", "type", fmt.Sprintf("%T", prereq), "name", prereq.GetName(), "annotations", sa.Annotations)
+						}
 					}
 
 					err := upsert(context.Background(), c, tc.ced)
@@ -779,7 +785,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 							if err != nil {
 								return false, fmt.Errorf("getting ClusterExternalDNS: %w", err)
 							}
-							
+
 							uid := cdns.GetUID()
 
 							// List events by involvedObject.uid for cluster-scoped resources

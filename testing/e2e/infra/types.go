@@ -23,6 +23,12 @@ const (
 
 type infras []infra
 
+// FederatedNamespace represents a namespace and service account pair to federate with the managed identity
+type FederatedNamespace struct {
+	Namespace      string
+	ServiceAccount string
+}
+
 type infra struct {
 	Name   string
 	Suffix string
@@ -30,8 +36,10 @@ type infra struct {
 	// for resources to be provisioned inside
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
-	AuthType                AuthType
-	ServicePrincipal        *clients.ServicePrincipal
+	// FederatedNamespaces is a list of namespace/service account pairs to federate with the managed identity
+	FederatedNamespaces []FederatedNamespace
+	AuthType            AuthType
+	ServicePrincipal    *clients.ServicePrincipal
 }
 
 type Identifier interface {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
@@ -35,48 +37,22 @@ func gatewayFilterTests(in infra.Provisioned) []test {
 
 	return []test{
 		{
-			name: "clusterexternaldns gateway label selector",
+			name: "gateway and route label selector filters",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false).
 				withVersions(manifests.OperatorVersionLatest).
 				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
-			run: clusterExternalDNSGatewayLabelSelectorTest(in),
-		},
-		{
-			name: "clusterexternaldns route label selector",
-			cfgs: builderFromInfra(in).
-				withOsm(in, false).
-				withVersions(manifests.OperatorVersionLatest).
-				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
-				build(),
-			run: clusterExternalDNSRouteLabelSelectorTest(in),
-		},
-		{
-			name: "externaldns gateway label selector",
-			cfgs: builderFromInfra(in).
-				withOsm(in, false).
-				withVersions(manifests.OperatorVersionLatest).
-				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
-				build(),
-			run: externalDNSGatewayLabelSelectorTest(in),
-		},
-		{
-			name: "externaldns route label selector",
-			cfgs: builderFromInfra(in).
-				withOsm(in, false).
-				withVersions(manifests.OperatorVersionLatest).
-				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
-				build(),
-			run: externalDNSRouteLabelSelectorTest(in),
+			run: runAllFilterTests(in),
 		},
 	}
 }
 
-func clusterExternalDNSGatewayLabelSelectorTest(in infra.Provisioned) func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+// runAllFilterTests runs all 4 filter tests sequentially within a single test
+func runAllFilterTests(in infra.Provisioned) func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 	return func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 		lgr := logger.FromContext(ctx)
-		lgr.Info("starting clusterexternaldns gateway label selector test")
+		lgr.Info("starting gateway and route label selector filter tests")
 
 		cl, err := client.New(config, client.Options{
 			Scheme: scheme,
@@ -85,373 +61,421 @@ func clusterExternalDNSGatewayLabelSelectorTest(in infra.Provisioned) func(ctx c
 			return fmt.Errorf("creating client: %w", err)
 		}
 
-		// Setup namespace and service account
+		// Setup namespace and service account (shared by all tests)
 		if err := setupFilterTestNamespace(ctx, cl, in); err != nil {
 			return fmt.Errorf("setting up filter test namespace: %w", err)
 		}
 
-		zone := in.ManagedIdentityZone.Zone
-		zoneName := zone.GetName()
-		nameserver := zone.GetNameservers()[0]
-		keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
-
-		// Build hostnames
-		labeledHost := "gw-labeled." + strings.TrimRight(zoneName, ".")
-		unlabeledHost := "gw-unlabeled." + strings.TrimRight(zoneName, ".")
-
-		lgr.Info("deploying gateway filter resources",
-			"labeledHost", labeledHost,
-			"unlabeledHost", unlabeledHost,
-			"zone", zoneName)
-
-		// Create ClusterExternalDNS with gateway label selector
-		clusterExternalDns := &v1alpha1.ClusterExternalDNS{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "gw-label-filter",
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ClusterExternalDNS",
-				APIVersion: v1alpha1.GroupVersion.String(),
-			},
-			Spec: v1alpha1.ClusterExternalDNSSpec{
-				ResourceName:       "gw-label-filter",
-				DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
-				ResourceTypes:      []string{"gateway"},
-				Identity: v1alpha1.ExternalDNSIdentity{
-					ServiceAccount: filterTestServiceAccount,
-				},
-				ResourceNamespace: filterTestNamespace,
-				Filters: &v1alpha1.ExternalDNSFilters{
-					GatewayLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
-				},
-			},
-		}
-		if err := upsert(ctx, cl, clusterExternalDns); err != nil {
-			return fmt.Errorf("upserting cluster external dns: %w", err)
+		// ========================================
+		// Test 1: ClusterExternalDNS Gateway Label Selector
+		// ========================================
+		lgr.Info("========================================")
+		lgr.Info("Test 1: ClusterExternalDNS Gateway Label Selector")
+		lgr.Info("========================================")
+		if err := runClusterExternalDNSGatewayLabelTest(ctx, config, in); err != nil {
+			return fmt.Errorf("clusterexternaldns gateway label selector test failed: %w", err)
 		}
 
-		// Create gateway filter test resources
-		resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
-			Namespace:          filterTestNamespace,
-			Name:               zoneName,
-			Nameserver:         nameserver,
-			KeyvaultURI:        keyvaultURI,
-			LabeledHost:        labeledHost,
-			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: filterTestServiceAccount,
-			GatewayClassName:   manifests.IstioGatewayClassName,
-			FilterLabelKey:     filterLabelKey,
-			FilterLabelValue:   filterLabelValue,
-		})
-
-		// Deploy all resources
-		for _, obj := range resources.Objects() {
-			if err := upsert(ctx, cl, obj); err != nil {
-				return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
-			}
+		// ========================================
+		// Test 2: ClusterExternalDNS Route Label Selector
+		// ========================================
+		lgr.Info("========================================")
+		lgr.Info("Test 2: ClusterExternalDNS Route Label Selector")
+		lgr.Info("========================================")
+		if err := runClusterExternalDNSRouteLabelTest(ctx, config, in); err != nil {
+			return fmt.Errorf("clusterexternaldns route label selector test failed: %w", err)
 		}
 
-		// Wait for client deployment to be available (validates that labeled gateway is reachable
-		// and unlabeled gateway is unreachable)
-		lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
-		if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
-			return fmt.Errorf("waiting for client deployment: %w", err)
+		// ========================================
+		// Test 3: ExternalDNS Gateway Label Selector
+		// ========================================
+		lgr.Info("========================================")
+		lgr.Info("Test 3: ExternalDNS Gateway Label Selector")
+		lgr.Info("========================================")
+		if err := runExternalDNSGatewayLabelTest(ctx, config, in); err != nil {
+			return fmt.Errorf("externaldns gateway label selector test failed: %w", err)
 		}
 
-		lgr.Info("clusterexternaldns gateway label selector test passed")
-
-		// Cleanup
-		if err := cleanupFilterResources(ctx, cl, &resources, clusterExternalDns); err != nil {
-			return fmt.Errorf("cleaning up resources: %w", err)
+		// ========================================
+		// Test 4: ExternalDNS Route Label Selector
+		// ========================================
+		lgr.Info("========================================")
+		lgr.Info("Test 4: ExternalDNS Route Label Selector")
+		lgr.Info("========================================")
+		if err := runExternalDNSRouteLabelTest(ctx, config, in); err != nil {
+			return fmt.Errorf("externaldns route label selector test failed: %w", err)
 		}
 
+		lgr.Info("all gateway and route label selector filter tests passed")
 		return nil
 	}
 }
 
-func clusterExternalDNSRouteLabelSelectorTest(in infra.Provisioned) func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-	return func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-		lgr := logger.FromContext(ctx)
-		lgr.Info("starting clusterexternaldns route label selector test")
+// runClusterExternalDNSGatewayLabelTest tests ClusterExternalDNS with gateway label selector
+func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+	lgr := logger.FromContext(ctx)
 
-		cl, err := client.New(config, client.Options{
-			Scheme: scheme,
-		})
-		if err != nil {
-			return fmt.Errorf("creating client: %w", err)
-		}
-
-		// Setup namespace and service account
-		if err := setupFilterTestNamespace(ctx, cl, in); err != nil {
-			return fmt.Errorf("setting up filter test namespace: %w", err)
-		}
-
-		zone := in.ManagedIdentityZone.Zone
-		zoneName := zone.GetName()
-		nameserver := zone.GetNameservers()[0]
-		keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
-
-		// Build hostnames
-		labeledHost := "route-labeled." + strings.TrimRight(zoneName, ".")
-		unlabeledHost := "route-unlabeled." + strings.TrimRight(zoneName, ".")
-
-		lgr.Info("deploying route filter resources",
-			"labeledHost", labeledHost,
-			"unlabeledHost", unlabeledHost,
-			"zone", zoneName)
-
-		// Create ClusterExternalDNS with route label selector
-		clusterExternalDns := &v1alpha1.ClusterExternalDNS{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "route-label-filter",
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ClusterExternalDNS",
-				APIVersion: v1alpha1.GroupVersion.String(),
-			},
-			Spec: v1alpha1.ClusterExternalDNSSpec{
-				ResourceName:       "route-label-filter",
-				DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
-				ResourceTypes:      []string{"gateway"},
-				Identity: v1alpha1.ExternalDNSIdentity{
-					ServiceAccount: filterTestServiceAccount,
-				},
-				ResourceNamespace: filterTestNamespace,
-				Filters: &v1alpha1.ExternalDNSFilters{
-					RouteAndIngressLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
-				},
-			},
-		}
-		if err := upsert(ctx, cl, clusterExternalDns); err != nil {
-			return fmt.Errorf("upserting cluster external dns: %w", err)
-		}
-
-		// Create route filter test resources
-		resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
-			Namespace:          filterTestNamespace,
-			Name:               zoneName,
-			Nameserver:         nameserver,
-			KeyvaultURI:        keyvaultURI,
-			LabeledHost:        labeledHost,
-			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: filterTestServiceAccount,
-			GatewayClassName:   manifests.IstioGatewayClassName,
-			FilterLabelKey:     filterLabelKey,
-			FilterLabelValue:   filterLabelValue,
-		})
-
-		// Deploy all resources
-		for _, obj := range resources.Objects() {
-			if err := upsert(ctx, cl, obj); err != nil {
-				return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
-			}
-		}
-
-		// Wait for client deployment to be available
-		lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
-		if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
-			return fmt.Errorf("waiting for client deployment: %w", err)
-		}
-
-		lgr.Info("clusterexternaldns route label selector test passed")
-
-		// Cleanup
-		if err := cleanupFilterResources(ctx, cl, &resources, clusterExternalDns); err != nil {
-			return fmt.Errorf("cleaning up resources: %w", err)
-		}
-
-		return nil
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
 	}
+
+	zone := in.ManagedIdentityZone.Zone
+	zoneName := zone.GetName()
+	nameserver := zone.GetNameservers()[0]
+	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+
+	// Host prefixes used for DNS records
+	const labeledHostPrefix = "gw-labeled"
+	const unlabeledHostPrefix = "gw-unlabeled"
+
+	// Build hostnames
+	labeledHost := labeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+	unlabeledHost := unlabeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+
+	lgr.Info("deploying gateway filter resources",
+		"labeledHost", labeledHost,
+		"unlabeledHost", unlabeledHost,
+		"zone", zoneName)
+
+	// Create ClusterExternalDNS with gateway label selector
+	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gw-label-filter",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterExternalDNS",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
+		Spec: v1alpha1.ClusterExternalDNSSpec{
+			ResourceName:       "gw-label-filter",
+			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			ResourceTypes:      []string{"gateway"},
+			Identity: v1alpha1.ExternalDNSIdentity{
+				ServiceAccount: filterTestServiceAccount,
+			},
+			ResourceNamespace: filterTestNamespace,
+			Filters: &v1alpha1.ExternalDNSFilters{
+				GatewayLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
+			},
+		},
+	}
+	if err := upsert(ctx, cl, clusterExternalDns); err != nil {
+		return fmt.Errorf("upserting cluster external dns: %w", err)
+	}
+
+	// Create gateway filter test resources
+	resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+		Namespace:          filterTestNamespace,
+		Name:               zoneName,
+		Nameserver:         nameserver,
+		KeyvaultURI:        keyvaultURI,
+		LabeledHost:        labeledHost,
+		UnlabeledHost:      unlabeledHost,
+		ServiceAccountName: filterTestServiceAccount,
+		GatewayClassName:   manifests.IstioGatewayClassName,
+		FilterLabelKey:     filterLabelKey,
+		FilterLabelValue:   filterLabelValue,
+	})
+
+	// Deploy all resources
+	for _, obj := range resources.Objects() {
+		if err := upsert(ctx, cl, obj); err != nil {
+			return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
+		}
+	}
+
+	// Wait for client deployment to be available (validates that labeled gateway is reachable
+	// and unlabeled gateway is unreachable)
+	lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
+	if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
+		return fmt.Errorf("waiting for client deployment: %w", err)
+	}
+
+	lgr.Info("clusterexternaldns gateway label selector test passed")
+
+	// Cleanup
+	if err := cleanupFilterResources(ctx, config, &resources, clusterExternalDns, zoneName, labeledHostPrefix); err != nil {
+		return fmt.Errorf("cleaning up resources: %w", err)
+	}
+
+	return nil
 }
 
-func externalDNSGatewayLabelSelectorTest(in infra.Provisioned) func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-	return func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-		lgr := logger.FromContext(ctx)
-		lgr.Info("starting externaldns gateway label selector test")
-
-		cl, err := client.New(config, client.Options{
-			Scheme: scheme,
-		})
-		if err != nil {
-			return fmt.Errorf("creating client: %w", err)
-		}
-
-		// Setup namespace and service account
-		if err := setupFilterTestNamespace(ctx, cl, in); err != nil {
-			return fmt.Errorf("setting up filter test namespace: %w", err)
-		}
-
-		zone := in.ManagedIdentityZone.Zone
-		zoneName := zone.GetName()
-		nameserver := zone.GetNameservers()[0]
-		keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
-
-		// Build hostnames
-		labeledHost := "ns-gw-labeled." + strings.TrimRight(zoneName, ".")
-		unlabeledHost := "ns-gw-unlabeled." + strings.TrimRight(zoneName, ".")
-
-		lgr.Info("deploying gateway filter resources",
-			"labeledHost", labeledHost,
-			"unlabeledHost", unlabeledHost,
-			"zone", zoneName)
-
-		// Create ExternalDNS with gateway label selector
-		externalDns := &v1alpha1.ExternalDNS{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ns-gw-label-filter",
-				Namespace: filterTestNamespace,
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ExternalDNS",
-				APIVersion: v1alpha1.GroupVersion.String(),
-			},
-			Spec: v1alpha1.ExternalDNSSpec{
-				ResourceName:       "ns-gw-label-filter",
-				DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
-				ResourceTypes:      []string{"gateway"},
-				Identity: v1alpha1.ExternalDNSIdentity{
-					ServiceAccount: filterTestServiceAccount,
-				},
-				Filters: &v1alpha1.ExternalDNSFilters{
-					GatewayLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
-				},
-			},
-		}
-		if err := upsert(ctx, cl, externalDns); err != nil {
-			return fmt.Errorf("upserting external dns: %w", err)
-		}
-
-		// Create gateway filter test resources
-		resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
-			Namespace:          filterTestNamespace,
-			Name:               "ns-" + zoneName,
-			Nameserver:         nameserver,
-			KeyvaultURI:        keyvaultURI,
-			LabeledHost:        labeledHost,
-			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: filterTestServiceAccount,
-			GatewayClassName:   manifests.IstioGatewayClassName,
-			FilterLabelKey:     filterLabelKey,
-			FilterLabelValue:   filterLabelValue,
-		})
-
-		// Deploy all resources
-		for _, obj := range resources.Objects() {
-			if err := upsert(ctx, cl, obj); err != nil {
-				return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
-			}
-		}
-
-		// Wait for client deployment to be available
-		lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
-		if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
-			return fmt.Errorf("waiting for client deployment: %w", err)
-		}
-
-		lgr.Info("externaldns gateway label selector test passed")
-
-		// Cleanup
-		if err := cleanupFilterResources(ctx, cl, &resources, externalDns); err != nil {
-			return fmt.Errorf("cleaning up resources: %w", err)
-		}
-
-		return nil
+// runClusterExternalDNSRouteLabelTest tests ClusterExternalDNS with route label selector
+func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+	lgr := logger.FromContext(ctx)
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
 	}
+
+	zone := in.ManagedIdentityZone.Zone
+	zoneName := zone.GetName()
+	nameserver := zone.GetNameservers()[0]
+	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+
+	// Host prefixes used for DNS records
+	const labeledHostPrefix = "route-labeled"
+	const unlabeledHostPrefix = "route-unlabeled"
+
+	// Build hostnames
+	labeledHost := labeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+	unlabeledHost := unlabeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+
+	lgr.Info("deploying route filter resources",
+		"labeledHost", labeledHost,
+		"unlabeledHost", unlabeledHost,
+		"zone", zoneName)
+
+	// Create ClusterExternalDNS with route label selector
+	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "route-label-filter",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterExternalDNS",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
+		Spec: v1alpha1.ClusterExternalDNSSpec{
+			ResourceName:       "route-label-filter",
+			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			ResourceTypes:      []string{"gateway"},
+			Identity: v1alpha1.ExternalDNSIdentity{
+				ServiceAccount: filterTestServiceAccount,
+			},
+			ResourceNamespace: filterTestNamespace,
+			Filters: &v1alpha1.ExternalDNSFilters{
+				RouteAndIngressLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
+			},
+		},
+	}
+	if err := upsert(ctx, cl, clusterExternalDns); err != nil {
+		return fmt.Errorf("upserting cluster external dns: %w", err)
+	}
+
+	// Create route filter test resources
+	resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+		Namespace:          filterTestNamespace,
+		Name:               zoneName,
+		Nameserver:         nameserver,
+		KeyvaultURI:        keyvaultURI,
+		LabeledHost:        labeledHost,
+		UnlabeledHost:      unlabeledHost,
+		ServiceAccountName: filterTestServiceAccount,
+		GatewayClassName:   manifests.IstioGatewayClassName,
+		FilterLabelKey:     filterLabelKey,
+		FilterLabelValue:   filterLabelValue,
+	})
+
+	// Deploy all resources
+	for _, obj := range resources.Objects() {
+		if err := upsert(ctx, cl, obj); err != nil {
+			return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
+		}
+	}
+
+	// Wait for client deployment to be available
+	lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
+	if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
+		return fmt.Errorf("waiting for client deployment: %w", err)
+	}
+
+	lgr.Info("clusterexternaldns route label selector test passed")
+
+	// Cleanup
+	if err := cleanupFilterResources(ctx, config, &resources, clusterExternalDns, zoneName, labeledHostPrefix); err != nil {
+		return fmt.Errorf("cleaning up resources: %w", err)
+	}
+
+	return nil
 }
 
-func externalDNSRouteLabelSelectorTest(in infra.Provisioned) func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-	return func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-		lgr := logger.FromContext(ctx)
-		lgr.Info("starting externaldns route label selector test")
-
-		cl, err := client.New(config, client.Options{
-			Scheme: scheme,
-		})
-		if err != nil {
-			return fmt.Errorf("creating client: %w", err)
-		}
-
-		// Setup namespace and service account
-		if err := setupFilterTestNamespace(ctx, cl, in); err != nil {
-			return fmt.Errorf("setting up filter test namespace: %w", err)
-		}
-
-		zone := in.ManagedIdentityZone.Zone
-		zoneName := zone.GetName()
-		nameserver := zone.GetNameservers()[0]
-		keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
-
-		// Build hostnames
-		labeledHost := "ns-route-labeled." + strings.TrimRight(zoneName, ".")
-		unlabeledHost := "ns-route-unlabeled." + strings.TrimRight(zoneName, ".")
-
-		lgr.Info("deploying route filter resources",
-			"labeledHost", labeledHost,
-			"unlabeledHost", unlabeledHost,
-			"zone", zoneName)
-
-		// Create ExternalDNS with route label selector
-		externalDns := &v1alpha1.ExternalDNS{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ns-route-label-filter",
-				Namespace: filterTestNamespace,
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ExternalDNS",
-				APIVersion: v1alpha1.GroupVersion.String(),
-			},
-			Spec: v1alpha1.ExternalDNSSpec{
-				ResourceName:       "ns-route-label-filter",
-				DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
-				ResourceTypes:      []string{"gateway"},
-				Identity: v1alpha1.ExternalDNSIdentity{
-					ServiceAccount: filterTestServiceAccount,
-				},
-				Filters: &v1alpha1.ExternalDNSFilters{
-					RouteAndIngressLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
-				},
-			},
-		}
-		if err := upsert(ctx, cl, externalDns); err != nil {
-			return fmt.Errorf("upserting external dns: %w", err)
-		}
-
-		// Create route filter test resources
-		resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
-			Namespace:          filterTestNamespace,
-			Name:               "ns-" + zoneName,
-			Nameserver:         nameserver,
-			KeyvaultURI:        keyvaultURI,
-			LabeledHost:        labeledHost,
-			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: filterTestServiceAccount,
-			GatewayClassName:   manifests.IstioGatewayClassName,
-			FilterLabelKey:     filterLabelKey,
-			FilterLabelValue:   filterLabelValue,
-		})
-
-		// Deploy all resources
-		for _, obj := range resources.Objects() {
-			if err := upsert(ctx, cl, obj); err != nil {
-				return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
-			}
-		}
-
-		// Wait for client deployment to be available
-		lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
-		if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
-			return fmt.Errorf("waiting for client deployment: %w", err)
-		}
-
-		lgr.Info("externaldns route label selector test passed")
-
-		// Cleanup
-		if err := cleanupFilterResources(ctx, cl, &resources, externalDns); err != nil {
-			return fmt.Errorf("cleaning up resources: %w", err)
-		}
-
-		return nil
+// runExternalDNSGatewayLabelTest tests ExternalDNS with gateway label selector
+func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+	lgr := logger.FromContext(ctx)
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
 	}
+
+	zone := in.ManagedIdentityZone.Zone
+	zoneName := zone.GetName()
+	nameserver := zone.GetNameservers()[0]
+	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+
+	// Host prefixes used for DNS records
+	const labeledHostPrefix = "ns-gw-labeled"
+	const unlabeledHostPrefix = "ns-gw-unlabeled"
+
+	// Build hostnames
+	labeledHost := labeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+	unlabeledHost := unlabeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+
+	lgr.Info("deploying gateway filter resources",
+		"labeledHost", labeledHost,
+		"unlabeledHost", unlabeledHost,
+		"zone", zoneName)
+
+	// Create ExternalDNS with gateway label selector
+	externalDns := &v1alpha1.ExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ns-gw-label-filter",
+			Namespace: filterTestNamespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ExternalDNS",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
+		Spec: v1alpha1.ExternalDNSSpec{
+			ResourceName:       "ns-gw-label-filter",
+			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			ResourceTypes:      []string{"gateway"},
+			Identity: v1alpha1.ExternalDNSIdentity{
+				ServiceAccount: filterTestServiceAccount,
+			},
+			Filters: &v1alpha1.ExternalDNSFilters{
+				GatewayLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
+			},
+		},
+	}
+	if err := upsert(ctx, cl, externalDns); err != nil {
+		return fmt.Errorf("upserting external dns: %w", err)
+	}
+
+	// Create gateway filter test resources
+	resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+		Namespace:          filterTestNamespace,
+		Name:               "ns-" + zoneName,
+		Nameserver:         nameserver,
+		KeyvaultURI:        keyvaultURI,
+		LabeledHost:        labeledHost,
+		UnlabeledHost:      unlabeledHost,
+		ServiceAccountName: filterTestServiceAccount,
+		GatewayClassName:   manifests.IstioGatewayClassName,
+		FilterLabelKey:     filterLabelKey,
+		FilterLabelValue:   filterLabelValue,
+	})
+
+	// Deploy all resources
+	for _, obj := range resources.Objects() {
+		if err := upsert(ctx, cl, obj); err != nil {
+			return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
+		}
+	}
+
+	// Wait for client deployment to be available
+	lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
+	if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
+		return fmt.Errorf("waiting for client deployment: %w", err)
+	}
+
+	lgr.Info("externaldns gateway label selector test passed")
+
+	// Cleanup
+	if err := cleanupFilterResources(ctx, config, &resources, externalDns, zoneName, labeledHostPrefix); err != nil {
+		return fmt.Errorf("cleaning up resources: %w", err)
+	}
+
+	return nil
+}
+
+// runExternalDNSRouteLabelTest tests ExternalDNS with route label selector
+func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+	lgr := logger.FromContext(ctx)
+
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
+	zone := in.ManagedIdentityZone.Zone
+	zoneName := zone.GetName()
+	nameserver := zone.GetNameservers()[0]
+	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+
+	// Host prefixes used for DNS records
+	const labeledHostPrefix = "ns-route-labeled"
+	const unlabeledHostPrefix = "ns-route-unlabeled"
+
+	// Build hostnames
+	labeledHost := labeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+	unlabeledHost := unlabeledHostPrefix + "." + strings.TrimRight(zoneName, ".")
+
+	lgr.Info("deploying route filter resources",
+		"labeledHost", labeledHost,
+		"unlabeledHost", unlabeledHost,
+		"zone", zoneName)
+
+	// Create ExternalDNS with route label selector
+	externalDns := &v1alpha1.ExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ns-route-label-filter",
+			Namespace: filterTestNamespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ExternalDNS",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
+		Spec: v1alpha1.ExternalDNSSpec{
+			ResourceName:       "ns-route-label-filter",
+			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			ResourceTypes:      []string{"gateway"},
+			Identity: v1alpha1.ExternalDNSIdentity{
+				ServiceAccount: filterTestServiceAccount,
+			},
+			Filters: &v1alpha1.ExternalDNSFilters{
+				RouteAndIngressLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
+			},
+		},
+	}
+	if err := upsert(ctx, cl, externalDns); err != nil {
+		return fmt.Errorf("upserting external dns: %w", err)
+	}
+
+	// Create route filter test resources
+	resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+		Namespace:          filterTestNamespace,
+		Name:               "ns-" + zoneName,
+		Nameserver:         nameserver,
+		KeyvaultURI:        keyvaultURI,
+		LabeledHost:        labeledHost,
+		UnlabeledHost:      unlabeledHost,
+		ServiceAccountName: filterTestServiceAccount,
+		GatewayClassName:   manifests.IstioGatewayClassName,
+		FilterLabelKey:     filterLabelKey,
+		FilterLabelValue:   filterLabelValue,
+	})
+
+	// Deploy all resources
+	for _, obj := range resources.Objects() {
+		if err := upsert(ctx, cl, obj); err != nil {
+			return fmt.Errorf("upserting resource %s: %w", obj.GetName(), err)
+		}
+	}
+
+	// Wait for client deployment to be available
+	lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
+	if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
+		return fmt.Errorf("waiting for client deployment: %w", err)
+	}
+
+	lgr.Info("externaldns route label selector test passed")
+
+	// Cleanup
+	if err := cleanupFilterResources(ctx, config, &resources, externalDns, zoneName, labeledHostPrefix); err != nil {
+		return fmt.Errorf("cleaning up resources: %w", err)
+	}
+
+	return nil
 }
 
 // setupFilterTestNamespace creates the namespace and service account for filter tests
@@ -495,8 +519,15 @@ func setupFilterTestNamespace(ctx context.Context, cl client.Client, in infra.Pr
 }
 
 // cleanupFilterResources cleans up resources created for filter tests
-func cleanupFilterResources(ctx context.Context, cl client.Client, resources *manifests.GatewayFilterTestResources, dnsResource client.Object) error {
+func cleanupFilterResources(ctx context.Context, config *rest.Config, resources *manifests.GatewayFilterTestResources, dnsResource dns.ExternalDNSCRDConfiguration, zoneName, recordName string) error {
 	lgr := logger.FromContext(ctx)
+
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
 
 	// Delete gateways and routes
 	if resources.LabeledGateway != nil {
@@ -537,10 +568,19 @@ func cleanupFilterResources(ctx context.Context, cl client.Client, resources *ma
 		}
 	}
 
+	// wait for dns records to be deleted
+	if err := waitForDNSRecordDeletion(ctx, config, dnsResource.GetInputResourceName()+"-external-dns", dnsResource.GetResourceNamespace(), zoneName, recordName); err != nil {
+		lgr.Error("failed to wait for dns record deletion", "error", err)
+		return fmt.Errorf("error waiting for dns record deletion: %w", err)
+	}
+
 	// Delete DNS resource
 	if err := client.IgnoreNotFound(cl.Delete(ctx, dnsResource)); err != nil {
 		lgr.Info("failed to delete dns resource", "error", err)
 	}
+
+	// Wait a bit for resources to be deleted
+	time.Sleep(10 * time.Second)
 
 	return nil
 }

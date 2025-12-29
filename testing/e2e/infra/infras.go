@@ -33,6 +33,9 @@ var Infras = infras{
 		Location:      getLocation(),
 		Suffix:        uuid.New().String()[:16],
 		McOpts:        []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
+		FederatedNamespaces: []FederatedNamespace{
+			{Namespace: "filter-ns", ServiceAccount: "filter-sa"},
+		},
 	},
 	// TODO: add back when service principal cluster is supported
 	//{
