@@ -65,7 +65,7 @@ func (m mockDnsConfig) GetGenerateName() string { return "" }
 
 func (m mockDnsConfig) SetGenerateName(name string) {}
 
-func (m mockDnsConfig) GetUID() types.UID { return "" }
+func (m mockDnsConfig) GetUID() types.UID { return "resourceuid" }
 
 func (m mockDnsConfig) SetUID(uid types.UID) {}
 

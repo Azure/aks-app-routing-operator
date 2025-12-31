@@ -408,7 +408,7 @@ func Operator(latestImage string, publicZones, privateZones []string, cfg *Opera
 		ret = append(ret, baseDeployment)
 
 		if cleanDeploy {
-			ret = append(ret, NewNginxIngressController("default", "webapprouting.kubernetes.azure.com"))
+			ret = append(ret, DefaultNginxIngressController())
 		}
 	}
 
