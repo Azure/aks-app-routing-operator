@@ -23,9 +23,9 @@ import (
 
 const (
 	// gatewayTestNamespace is the namespace used for gateway tests
-	gatewayTestNamespace = "wi-ns"
+	gatewayTestNamespace = "gateway-wi-ns"
 	// gatewayTestServiceAccount is the service account used for gateway tests
-	gatewayTestServiceAccount = "wi-sa"
+	gatewayTestServiceAccount = "gateway-wi-sa"
 )
 
 // TODO: Add e2e test for multi-tenant zone sharing scenario where multiple namespace-scoped
@@ -71,6 +71,9 @@ func gatewayTests(in infra.Provisioned) []test {
 				ns := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: gatewayTestNamespace,
+						Labels: map[string]string{
+							manifests.ManagedByKey: manifests.ManagedByVal,
+						},
 					},
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Namespace",
@@ -193,6 +196,8 @@ func gatewayTests(in infra.Provisioned) []test {
 				}
 
 				lgr.Info("finished gateway with externaldns test")
+
+				runAllFilterTests(in)
 				return nil
 			},
 		},
@@ -318,7 +323,7 @@ func cleanupResources(ctx context.Context, config *rest.Config, resources *manif
 	}
 
 	// Wait for external-dns to log that it deleted the DNS A record
-	// The record name is the subdomain part of the host (e.g., "wi-ns" for "wi-ns.zone.com")
+	// The record name is the subdomain part of the host (e.g., "gateway-wi-ns" for "gateway-wi-ns.zone.com")
 	zoneName := in.ManagedIdentityZone.Zone.GetName()
 	recordName := strings.ToLower(gatewayTestNamespace)
 	// The deployment name is {CRD.Spec.ResourceName}-external-dns

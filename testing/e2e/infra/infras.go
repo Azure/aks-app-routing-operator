@@ -35,6 +35,7 @@ var Infras = infras{
 		McOpts:        []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
 		FederatedNamespaces: []FederatedNamespace{
 			{Namespace: "filter-ns", ServiceAccount: "filter-sa"},
+			{Namespace: "gateway-wi-ns", ServiceAccount: "gateway-wi-sa"},
 		},
 	},
 	// TODO: add back when service principal cluster is supported
