@@ -8,7 +8,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/dns"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/infra"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -29,90 +28,69 @@ const (
 	filterLabelValue = "enabled"
 )
 
-func gatewayFilterTests(in infra.Provisioned) []test {
-	// Only run gateway filter tests on clusters with Gateway API and Istio enabled
-	if !isGatewayCluster(in) {
-		return []test{}
-	}
-
-	return []test{
-		{
-			name: "gateway and route label selector filters",
-			cfgs: builderFromInfra(in).
-				withOsm(in, false).
-				withVersions(manifests.OperatorVersionLatest).
-				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
-				build(),
-			run: runAllFilterTests(in),
-		},
-	}
-}
-
 // runAllFilterTests runs all 4 filter tests sequentially within a single test
-func runAllFilterTests(in infra.Provisioned) func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-	return func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-		lgr := logger.FromContext(ctx)
-		lgr.Info("starting gateway and route label selector filter tests")
+func runAllFilterTests(ctx context.Context, config *rest.Config, gwTestConfig gatewayTestConfig) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting gateway and route label selector filter tests")
 
-		cl, err := client.New(config, client.Options{
-			Scheme: scheme,
-		})
-		if err != nil {
-			return fmt.Errorf("creating client: %w", err)
-		}
-
-		// Setup namespace and service account (shared by all tests)
-		if err := setupFilterTestNamespace(ctx, cl, in); err != nil {
-			return fmt.Errorf("setting up filter test namespace: %w", err)
-		}
-
-		// ========================================
-		// Test 1: ClusterExternalDNS Gateway Label Selector
-		// ========================================
-		lgr.Info("========================================")
-		lgr.Info("Test 1: ClusterExternalDNS Gateway Label Selector")
-		lgr.Info("========================================")
-		if err := runClusterExternalDNSGatewayLabelTest(ctx, config, in); err != nil {
-			return fmt.Errorf("clusterexternaldns gateway label selector test failed: %w", err)
-		}
-
-		// ========================================
-		// Test 2: ClusterExternalDNS Route Label Selector
-		// ========================================
-		lgr.Info("========================================")
-		lgr.Info("Test 2: ClusterExternalDNS Route Label Selector")
-		lgr.Info("========================================")
-		if err := runClusterExternalDNSRouteLabelTest(ctx, config, in); err != nil {
-			return fmt.Errorf("clusterexternaldns route label selector test failed: %w", err)
-		}
-
-		// ========================================
-		// Test 3: ExternalDNS Gateway Label Selector
-		// ========================================
-		lgr.Info("========================================")
-		lgr.Info("Test 3: ExternalDNS Gateway Label Selector")
-		lgr.Info("========================================")
-		if err := runExternalDNSGatewayLabelTest(ctx, config, in); err != nil {
-			return fmt.Errorf("externaldns gateway label selector test failed: %w", err)
-		}
-
-		// ========================================
-		// Test 4: ExternalDNS Route Label Selector
-		// ========================================
-		lgr.Info("========================================")
-		lgr.Info("Test 4: ExternalDNS Route Label Selector")
-		lgr.Info("========================================")
-		if err := runExternalDNSRouteLabelTest(ctx, config, in); err != nil {
-			return fmt.Errorf("externaldns route label selector test failed: %w", err)
-		}
-
-		lgr.Info("all gateway and route label selector filter tests passed")
-		return nil
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
 	}
+
+	// Setup namespace and service account (shared by all tests)
+	if err := setupFilterTestNamespace(ctx, cl, gwTestConfig); err != nil {
+		return fmt.Errorf("setting up filter test namespace: %w", err)
+	}
+
+	// ========================================
+	// Test 1: ClusterExternalDNS Gateway Label Selector
+	// ========================================
+	lgr.Info("========================================")
+	lgr.Info("Test 1: ClusterExternalDNS Gateway Label Selector")
+	lgr.Info("========================================")
+	if err := runClusterExternalDNSGatewayLabelTest(ctx, config, gwTestConfig); err != nil {
+		return fmt.Errorf("clusterexternaldns gateway label selector test failed: %w", err)
+	}
+
+	// ========================================
+	// Test 2: ClusterExternalDNS Route Label Selector
+	// ========================================
+	lgr.Info("========================================")
+	lgr.Info("Test 2: ClusterExternalDNS Route Label Selector")
+	lgr.Info("========================================")
+	if err := runClusterExternalDNSRouteLabelTest(ctx, config, gwTestConfig); err != nil {
+		return fmt.Errorf("clusterexternaldns route label selector test failed: %w", err)
+	}
+
+	// ========================================
+	// Test 3: ExternalDNS Gateway Label Selector
+	// ========================================
+	lgr.Info("========================================")
+	lgr.Info("Test 3: ExternalDNS Gateway Label Selector")
+	lgr.Info("========================================")
+	if err := runExternalDNSGatewayLabelTest(ctx, config, gwTestConfig); err != nil {
+		return fmt.Errorf("externaldns gateway label selector test failed: %w", err)
+	}
+
+	// ========================================
+	// Test 4: ExternalDNS Route Label Selector
+	// ========================================
+	lgr.Info("========================================")
+	lgr.Info("Test 4: ExternalDNS Route Label Selector")
+	lgr.Info("========================================")
+	if err := runExternalDNSRouteLabelTest(ctx, config, gwTestConfig); err != nil {
+		return fmt.Errorf("externaldns route label selector test failed: %w", err)
+	}
+
+	lgr.Info("all gateway and route label selector filter tests passed")
+	return nil
 }
 
 // runClusterExternalDNSGatewayLabelTest tests ClusterExternalDNS with gateway label selector
-func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, gwTestConfig gatewayTestConfig) error {
 	lgr := logger.FromContext(ctx)
 
 	cl, err := client.New(config, client.Options{
@@ -122,10 +100,9 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	zone := in.ManagedIdentityZone.Zone
-	zoneName := zone.GetName()
-	nameserver := zone.GetNameservers()[0]
-	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+	zoneName := gwTestConfig.zoneConfig.ZoneName
+	nameserver := gwTestConfig.zoneConfig.Nameserver
+	keyvaultURI := gwTestConfig.zoneConfig.KeyvaultCertURI
 
 	// Host prefixes used for DNS records
 	const labeledHostPrefix = "gw-labeled"
@@ -143,15 +120,15 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 	// Create ClusterExternalDNS with gateway label selector
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "gw-label-filter",
+			Name: gwTestConfig.zoneConfig.NamePrefix + "gw-label-filter",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterExternalDNS",
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ClusterExternalDNSSpec{
-			ResourceName:       "gw-label-filter",
-			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			ResourceName:       gwTestConfig.zoneConfig.NamePrefix + "gw-label-filter",
+			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: filterTestServiceAccount,
@@ -205,7 +182,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 }
 
 // runClusterExternalDNSRouteLabelTest tests ClusterExternalDNS with route label selector
-func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, gwTestConfig gatewayTestConfig) error {
 	lgr := logger.FromContext(ctx)
 	cl, err := client.New(config, client.Options{
 		Scheme: scheme,
@@ -214,10 +191,9 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	zone := in.ManagedIdentityZone.Zone
-	zoneName := zone.GetName()
-	nameserver := zone.GetNameservers()[0]
-	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+	zoneName := gwTestConfig.zoneConfig.ZoneName
+	nameserver := gwTestConfig.zoneConfig.Nameserver
+	keyvaultURI := gwTestConfig.zoneConfig.KeyvaultCertURI
 
 	// Host prefixes used for DNS records
 	const labeledHostPrefix = "route-labeled"
@@ -235,7 +211,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 	// Create ClusterExternalDNS with route label selector
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "route-label-filter",
+			Name: gwTestConfig.zoneConfig.NamePrefix + "route-label-filter",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterExternalDNS",
@@ -243,7 +219,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 		},
 		Spec: v1alpha1.ClusterExternalDNSSpec{
 			ResourceName:       "route-label-filter",
-			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: filterTestServiceAccount,
@@ -296,7 +272,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 }
 
 // runExternalDNSGatewayLabelTest tests ExternalDNS with gateway label selector
-func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, gwTestConfig gatewayTestConfig) error {
 	lgr := logger.FromContext(ctx)
 	cl, err := client.New(config, client.Options{
 		Scheme: scheme,
@@ -305,10 +281,9 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	zone := in.ManagedIdentityZone.Zone
-	zoneName := zone.GetName()
-	nameserver := zone.GetNameservers()[0]
-	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+	zoneName := gwTestConfig.zoneConfig.ZoneName
+	nameserver := gwTestConfig.zoneConfig.Nameserver
+	keyvaultURI := gwTestConfig.zoneConfig.KeyvaultCertURI
 
 	// Host prefixes used for DNS records
 	const labeledHostPrefix = "ns-gw-labeled"
@@ -326,7 +301,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in
 	// Create ExternalDNS with gateway label selector
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ns-gw-label-filter",
+			Name:      gwTestConfig.zoneConfig.NamePrefix + "ns-gw-label-filter",
 			Namespace: filterTestNamespace,
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -335,7 +310,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
 			ResourceName:       "ns-gw-label-filter",
-			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: filterTestServiceAccount,
@@ -387,7 +362,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, in
 }
 
 // runExternalDNSRouteLabelTest tests ExternalDNS with route label selector
-func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in infra.Provisioned) error {
+func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, gwTestConfig gatewayTestConfig) error {
 	lgr := logger.FromContext(ctx)
 
 	cl, err := client.New(config, client.Options{
@@ -397,10 +372,9 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in i
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	zone := in.ManagedIdentityZone.Zone
-	zoneName := zone.GetName()
-	nameserver := zone.GetNameservers()[0]
-	keyvaultURI := in.ManagedIdentityZone.Cert.GetId()
+	zoneName := gwTestConfig.zoneConfig.ZoneName
+	nameserver := gwTestConfig.zoneConfig.Nameserver
+	keyvaultURI := gwTestConfig.zoneConfig.KeyvaultCertURI
 
 	// Host prefixes used for DNS records
 	const labeledHostPrefix = "ns-route-labeled"
@@ -418,7 +392,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in i
 	// Create ExternalDNS with route label selector
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ns-route-label-filter",
+			Name:      gwTestConfig.zoneConfig.NamePrefix + "route-label-filter",
 			Namespace: filterTestNamespace,
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -427,7 +401,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in i
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
 			ResourceName:       "ns-route-label-filter",
-			DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: filterTestServiceAccount,
@@ -479,7 +453,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, in i
 }
 
 // setupFilterTestNamespace creates the namespace and service account for filter tests
-func setupFilterTestNamespace(ctx context.Context, cl client.Client, in infra.Provisioned) error {
+func setupFilterTestNamespace(ctx context.Context, cl client.Client, gwTestConfig gatewayTestConfig) error {
 	// Create namespace
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -500,7 +474,7 @@ func setupFilterTestNamespace(ctx context.Context, cl client.Client, in infra.Pr
 			Name:      filterTestServiceAccount,
 			Namespace: filterTestNamespace,
 			Annotations: map[string]string{
-				"azure.workload.identity/client-id": in.ManagedIdentity.GetClientID(),
+				"azure.workload.identity/client-id": gwTestConfig.clientId,
 			},
 			Labels: map[string]string{
 				"azure.workload.identity/use": "true",

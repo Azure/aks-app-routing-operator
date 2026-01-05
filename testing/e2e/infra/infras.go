@@ -36,6 +36,7 @@ var Infras = infras{
 		FederatedNamespaces: []FederatedNamespace{
 			{Namespace: "filter-ns", ServiceAccount: "filter-sa"},
 			{Namespace: "gateway-wi-ns", ServiceAccount: "gateway-wi-sa"},
+			{Namespace: "private-gateway-wi-ns", ServiceAccount: "gateway-wi-sa"},
 		},
 	},
 	// TODO: add back when service principal cluster is supported

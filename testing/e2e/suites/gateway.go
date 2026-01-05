@@ -22,11 +22,58 @@ import (
 )
 
 const (
-	// gatewayTestNamespace is the namespace used for gateway tests
-	gatewayTestNamespace = "gateway-wi-ns"
+	// gatewayPublicTestNamespace is the namespace used for gateway tests for public dns zones
+	gatewayPublicTestNamespace = "gateway-wi-ns"
+	// gatewayPrivateTestNamespace is the namespace used for gateway tests for private dns zones
+	gatewayPrivateTestNamespace = "private-gateway-wi-ns"
 	// gatewayTestServiceAccount is the service account used for gateway tests
 	gatewayTestServiceAccount = "gateway-wi-sa"
 )
+
+type gatewayTestConfig struct {
+	namespace  string
+	clientId   string
+	zoneConfig gatewayZoneConfig
+}
+
+// gatewayZoneConfig contains zone-specific configuration for gateway tests.
+// This abstraction allows the same test logic to work with both public and private DNS zones.
+type gatewayZoneConfig struct {
+	// ZoneID is the Azure resource ID of the DNS zone
+	ZoneID string
+	// ZoneName is the DNS zone domain name (e.g., "mi-zone-abc123.com")
+	ZoneName string
+	// Nameserver is the DNS server for resolution
+	// - Public zones: zone's authoritative nameserver
+	// - Private zones: cluster's DNS service IP (CoreDNS)
+	Nameserver string
+	// KeyvaultCertURI is the Azure Key Vault certificate URI for TLS
+	KeyvaultCertURI string
+	// NamePrefix is used to create unique resource names (e.g., "public" or "private")
+	// This ensures resources don't collide when tests run concurrently
+	NamePrefix string
+}
+
+// newPublicZoneConfig creates a gatewayZoneConfig for a public DNS zone
+func newPublicZoneConfig(zone infra.WithCert[infra.Zone]) gatewayZoneConfig {
+	return gatewayZoneConfig{
+		ZoneID:          zone.Zone.GetId(),
+		ZoneName:        zone.Zone.GetName(),
+		Nameserver:      zone.Zone.GetNameservers()[0],
+		KeyvaultCertURI: zone.Cert.GetId(),
+	}
+}
+
+// newPrivateZoneConfig creates a gatewayZoneConfig for a private DNS zone
+func newPrivateZoneConfig(zone infra.WithCert[infra.PrivateZone], dnsServiceIP string) gatewayZoneConfig {
+	return gatewayZoneConfig{
+		ZoneID:          zone.Zone.GetId(),
+		ZoneName:        zone.Zone.GetName(),
+		Nameserver:      dnsServiceIP,
+		KeyvaultCertURI: zone.Cert.GetId(),
+		NamePrefix:      "private-",
+	}
+}
 
 // TODO: Add e2e test for multi-tenant zone sharing scenario where multiple namespace-scoped
 // ExternalDNS resources (across different namespaces) share the same DNS zone. This validates
@@ -50,183 +97,217 @@ func gatewayTests(in infra.Provisioned) []test {
 
 	return []test{
 		{
-			name: "gateway with externaldns",
+			name: "gateway with externaldns for public zone",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}). // TODO - variable dns zone counts for MI zones too
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				lgr := logger.FromContext(ctx)
-				lgr.Info("starting gateway with externaldns test")
-
-				cl, err := client.New(config, client.Options{
-					Scheme: scheme,
-				})
-				if err != nil {
-					return fmt.Errorf("creating client: %w", err)
+				publicZoneConfig := newPublicZoneConfig(in.ManagedIdentityZone)
+				publicGwTestConfig := gatewayTestConfig{
+					namespace:  gatewayPublicTestNamespace,
+					clientId:   in.ManagedIdentity.GetClientID(),
+					zoneConfig: publicZoneConfig,
 				}
-
-				// Create namespace
-				ns := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: gatewayTestNamespace,
-						Labels: map[string]string{
-							manifests.ManagedByKey: manifests.ManagedByVal,
-						},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Namespace",
-						APIVersion: "v1",
-					},
+				if err := runGatewayTests(ctx, config, in.ManagedIdentity.GetClientID(), publicGwTestConfig); err != nil {
+					return err
 				}
-				if err := upsert(ctx, cl, ns); err != nil {
-					return fmt.Errorf("upserting namespace: %w", err)
-				}
-
-				// Create ServiceAccount with workload identity
-				sa := &corev1.ServiceAccount{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      gatewayTestServiceAccount,
-						Namespace: gatewayTestNamespace,
-						Annotations: map[string]string{
-							"azure.workload.identity/client-id": in.ManagedIdentity.GetClientID(),
-						},
-						Labels: map[string]string{
-							"azure.workload.identity/use": "true",
-						},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ServiceAccount",
-						APIVersion: "v1",
-					},
-				}
-				if err := upsert(ctx, cl, sa); err != nil {
-					return fmt.Errorf("creating service account: %w", err)
-				}
-
-				// ========================================
-				// Test 1: Cluster-scoped ExternalDNS
-				// ========================================
-				lgr.Info("testing cluster-scoped externaldns")
-
-				// Create ClusterExternalDNS for public zone
-				clusterExternalDns := &v1alpha1.ClusterExternalDNS{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "gw-cluster-dns",
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ClusterExternalDNS",
-						APIVersion: v1alpha1.GroupVersion.String(),
-					},
-					Spec: v1alpha1.ClusterExternalDNSSpec{
-						ResourceName:       "gw-cluster",
-						DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
-						ResourceTypes:      []string{"gateway"},
-						Identity: v1alpha1.ExternalDNSIdentity{
-							ServiceAccount: sa.Name,
-						},
-						ResourceNamespace: gatewayTestNamespace,
-					},
-				}
-				if err := upsert(ctx, cl, clusterExternalDns); err != nil {
-					return fmt.Errorf("upserting cluster external dns: %w", err)
-				}
-
-				// Deploy Gateway resources and run test
-				resources, err := deployGatewayResources(ctx, cl, in, in.ManagedIdentityZone)
-				if err != nil {
-					return fmt.Errorf("deploying gateway resources: %w", err)
-				}
-
-				// Wait for client deployment to be available (validates end-to-end connectivity)
-				lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
-				if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
-					return fmt.Errorf("waiting for client deployment: %w", err)
-				}
-
-				lgr.Info("cluster-scoped externaldns test passed, cleaning up gateway resources")
-
-				if err := cleanupResources(ctx, config, resources, in, clusterExternalDns); err != nil {
-					return fmt.Errorf("cleaning up gateway resources: %w", err)
-				}
-
-				// ========================================
-				// Test 2: Namespace-scoped ExternalDNS
-				// ========================================
-				lgr.Info("testing namespace-scoped externaldns")
-
-				// Create namespace-scoped ExternalDNS for public zone
-				externalDns := &v1alpha1.ExternalDNS{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "gw-ns-dns",
-						Namespace: gatewayTestNamespace,
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ExternalDNS",
-						APIVersion: v1alpha1.GroupVersion.String(),
-					},
-					Spec: v1alpha1.ExternalDNSSpec{
-						ResourceName:       "gw-ns-external-dns",
-						DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
-						ResourceTypes:      []string{"gateway"},
-						Identity: v1alpha1.ExternalDNSIdentity{
-							ServiceAccount: sa.Name,
-						},
-					},
-				}
-				if err := upsert(ctx, cl, externalDns); err != nil {
-					return fmt.Errorf("upserting namespace-scoped external dns: %w", err)
-				}
-
-				// Deploy new Gateway resources for namespace-scoped test
-				resources2, err := deployGatewayResources(ctx, cl, in, in.ManagedIdentityZone)
-				if err != nil {
-					return fmt.Errorf("deploying gateway resources for ns-scoped test: %w", err)
-				}
-
-				// Wait for client deployment to be available
-				lgr.Info("waiting for client deployment to be available", "client", resources2.Client.Name)
-				if err := waitForAvailable(ctx, cl, *resources2.Client); err != nil {
-					return fmt.Errorf("waiting for client deployment (ns-scoped): %w", err)
-				}
-
-				if err := cleanupResources(ctx, config, resources2, in, externalDns); err != nil {
-					return fmt.Errorf("cleaning up gateway resources (ns-scoped): %w", err)
-				}
-
-				lgr.Info("finished gateway with externaldns test")
-
-				runAllFilterTests(in)
 				return nil
 			},
 		},
+		// {
+		// 	name: "gateway with externaldns for private zone",
+		// 	cfgs: builderFromInfra(in).
+		// 		withOsm(in, false).
+		// 		withVersions(manifests.OperatorVersionLatest).
+		// 		withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+		// 		build(),
+		// 	run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+		// 		privateZoneConfig := newPrivateZoneConfig(in.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp())
+		// 		privateGwTestConfig := gatewayTestConfig{
+		// 			namespace:  gatewayPrivateTestNamespace,
+		// 			clientId:   in.ManagedIdentity.GetClientID(),
+		// 			zoneConfig: privateZoneConfig,
+		// 		}
+		// 		if err := runGatewayTests(ctx, config, in.ManagedIdentity.GetClientID(), privateGwTestConfig); err != nil {
+		// 			return err
+		// 		}
+		// 		return nil
+		// 	},
+		// },
 	}
+}
+
+func runGatewayTests(ctx context.Context, config *rest.Config, clientId string, gatewayTestConfig gatewayTestConfig) error {
+	lgr := logger.FromContext(ctx)
+	lgr.Info("starting gateway with externaldns test")
+
+	cl, err := client.New(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
+	// Create namespace
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: gatewayTestConfig.namespace,
+			Labels: map[string]string{
+				manifests.ManagedByKey: manifests.ManagedByVal,
+			},
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
+	}
+	if err := upsert(ctx, cl, ns); err != nil {
+		return fmt.Errorf("upserting namespace: %w", err)
+	}
+
+	// Create ServiceAccount with workload identity
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gatewayTestServiceAccount,
+			Namespace: gatewayTestConfig.namespace,
+			Annotations: map[string]string{
+				"azure.workload.identity/client-id": clientId,
+			},
+			Labels: map[string]string{
+				"azure.workload.identity/use": "true",
+			},
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
+	}
+	if err := upsert(ctx, cl, sa); err != nil {
+		return fmt.Errorf("creating service account: %w", err)
+	}
+
+	// ========================================
+	// Test 1: Cluster-scoped ExternalDNS
+	// ========================================
+	lgr.Info("testing cluster-scoped externaldns")
+
+	// Create ClusterExternalDNS for zone
+	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: gatewayTestConfig.zoneConfig.NamePrefix + "gw-cluster-dns",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterExternalDNS",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
+		Spec: v1alpha1.ClusterExternalDNSSpec{
+			ResourceName:       "gw-cluster",
+			DNSZoneResourceIDs: []string{gatewayTestConfig.zoneConfig.ZoneID},
+			ResourceTypes:      []string{"gateway"},
+			Identity: v1alpha1.ExternalDNSIdentity{
+				ServiceAccount: sa.Name,
+			},
+			ResourceNamespace: ns.Name,
+		},
+	}
+	if err := upsert(ctx, cl, clusterExternalDns); err != nil {
+		return fmt.Errorf("upserting cluster external dns: %w", err)
+	}
+
+	// Deploy Gateway resources and run test
+	resources, err := deployGatewayResources(ctx, cl, gatewayTestConfig)
+	if err != nil {
+		return fmt.Errorf("deploying gateway resources: %w", err)
+	}
+
+	// Wait for client deployment to be available (validates end-to-end connectivity)
+	lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name)
+	if err := waitForAvailable(ctx, cl, *resources.Client); err != nil {
+		return fmt.Errorf("waiting for client deployment: %w", err)
+	}
+
+	lgr.Info("cluster-scoped externaldns test passed, cleaning up gateway resources")
+
+	if err := cleanupResources(ctx, config, resources, gatewayTestConfig, clusterExternalDns); err != nil {
+		return fmt.Errorf("cleaning up gateway resources: %w", err)
+	}
+
+	// ========================================
+	// Test 2: Namespace-scoped ExternalDNS
+	// ========================================
+	lgr.Info("testing namespace-scoped externaldns")
+
+	// Create namespace-scoped ExternalDNS for public zone
+	externalDns := &v1alpha1.ExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gatewayTestConfig.zoneConfig.NamePrefix + "gw-ns-dns",
+			Namespace: gatewayTestConfig.namespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ExternalDNS",
+			APIVersion: v1alpha1.GroupVersion.String(),
+		},
+		Spec: v1alpha1.ExternalDNSSpec{
+			ResourceName:       "gw-ns-external-dns",
+			DNSZoneResourceIDs: []string{gatewayTestConfig.zoneConfig.ZoneID},
+			ResourceTypes:      []string{"gateway"},
+			Identity: v1alpha1.ExternalDNSIdentity{
+				ServiceAccount: sa.Name,
+			},
+		},
+	}
+	if err := upsert(ctx, cl, externalDns); err != nil {
+		return fmt.Errorf("upserting namespace-scoped external dns: %w", err)
+	}
+
+	// Deploy new Gateway resources for namespace-scoped test
+	resources2, err := deployGatewayResources(ctx, cl, gatewayTestConfig)
+	if err != nil {
+		return fmt.Errorf("deploying gateway resources for ns-scoped test: %w", err)
+	}
+
+	// Wait for client deployment to be available
+	lgr.Info("waiting for client deployment to be available", "client", resources2.Client.Name)
+	if err := waitForAvailable(ctx, cl, *resources2.Client); err != nil {
+		return fmt.Errorf("waiting for client deployment (ns-scoped): %w", err)
+	}
+
+	if err := cleanupResources(ctx, config, resources2, gatewayTestConfig, externalDns); err != nil {
+		return fmt.Errorf("cleaning up gateway resources (ns-scoped): %w", err)
+	}
+
+	lgr.Info("finished gateway with externaldns test")
+
+	if err := runAllFilterTests(ctx, config, gatewayTestConfig); err != nil {
+		return fmt.Errorf("running filter tests: %w", err)
+	}
+
+	return nil
 }
 
 // deployGatewayResources creates Gateway API resources and returns them for later cleanup
 func deployGatewayResources(
 	ctx context.Context,
 	cl client.Client,
-	in infra.Provisioned,
-	zoneWithCert infra.WithCert[infra.Zone],
+	gatewayTestConfig gatewayTestConfig,
 ) (*manifests.GatewayClientServerResources, error) {
 	lgr := logger.FromContext(ctx)
 
-	zone := zoneWithCert.Zone
-	zoneName := zone.GetName()
-	nameserver := zone.GetNameservers()[0]
+	zoneName := gatewayTestConfig.zoneConfig.ZoneName
+	nameserver := gatewayTestConfig.zoneConfig.Nameserver
 
 	// Build hostname from namespace and zone
-	host := strings.ToLower(gatewayTestNamespace) + "." + strings.TrimRight(zoneName, ".")
+	host := strings.ToLower(gatewayTestConfig.namespace) + "." + strings.TrimRight(zoneName, ".")
 	tlsHost := host
-	keyvaultURI := zoneWithCert.Cert.GetId()
+	keyvaultURI := gatewayTestConfig.zoneConfig.KeyvaultCertURI
 
 	lgr.Info("deploying gateway resources", "host", host, "zone", zoneName)
 
 	// Create Gateway API resources
 	resources := manifests.GatewayClientAndServer(
-		gatewayTestNamespace,
+		gatewayTestConfig.namespace,
 		zoneName,
 		nameserver,
 		keyvaultURI,
@@ -305,7 +386,7 @@ func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deployme
 	return nil
 }
 
-func cleanupResources(ctx context.Context, config *rest.Config, resources *manifests.GatewayClientServerResources, in infra.Provisioned, dnsResource dns.ExternalDNSCRDConfiguration, otherObjects ...client.Object) error {
+func cleanupResources(ctx context.Context, config *rest.Config, resources *manifests.GatewayClientServerResources, gatewayTestConfig gatewayTestConfig, dnsResource dns.ExternalDNSCRDConfiguration, otherObjects ...client.Object) error {
 	lgr := logger.FromContext(ctx)
 	cl, err := client.New(config, client.Options{
 		Scheme: scheme,
@@ -324,12 +405,12 @@ func cleanupResources(ctx context.Context, config *rest.Config, resources *manif
 
 	// Wait for external-dns to log that it deleted the DNS A record
 	// The record name is the subdomain part of the host (e.g., "gateway-wi-ns" for "gateway-wi-ns.zone.com")
-	zoneName := in.ManagedIdentityZone.Zone.GetName()
-	recordName := strings.ToLower(gatewayTestNamespace)
+	zoneName := gatewayTestConfig.zoneConfig.ZoneName
+	recordName := strings.ToLower(gatewayTestConfig.namespace)
 	// The deployment name is {CRD.Spec.ResourceName}-external-dns
 	externalDnsDeploymentName := dnsResource.GetInputResourceName() + "-external-dns"
 	lgr.Info("waiting for DNS record deletion", "zone", zoneName, "record", recordName, "deployment", externalDnsDeploymentName)
-	if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, gatewayTestNamespace, zoneName, recordName); err != nil {
+	if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, gatewayTestConfig.namespace, zoneName, recordName); err != nil {
 		return fmt.Errorf("waiting for DNS record deletion: %w", err)
 	}
 

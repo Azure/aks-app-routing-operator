@@ -56,7 +56,7 @@ const (
 	ResourceTypeIngress ResourceType = iota
 	ResourceTypeGateway
 
-	maxUIDLength = 16
+	maxUIDLength = 8
 )
 
 func (rt ResourceType) String() string {
