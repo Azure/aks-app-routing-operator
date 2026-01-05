@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
@@ -101,6 +101,43 @@ func VmCountOpt(count int32) McOpt {
 			return nil
 		},
 	}
+}
+
+// IstioServiceMeshOpt enables the Istio service mesh addon on the cluster
+var IstioServiceMeshOpt = McOpt{
+	Name: "istio service mesh",
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
+		if mc.Properties == nil {
+			mc.Properties = &armcontainerservice.ManagedClusterProperties{}
+		}
+
+		mc.Properties.ServiceMeshProfile = &armcontainerservice.ServiceMeshProfile{
+			Mode:  to.Ptr(armcontainerservice.ServiceMeshModeIstio),
+			Istio: &armcontainerservice.IstioServiceMesh{},
+		}
+
+		return nil
+	},
+}
+
+// ManagedGatewayOpt enables the managed Gateway API on the cluster
+var ManagedGatewayOpt = McOpt{
+	Name: "managed gateway api",
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
+		if mc.Properties == nil {
+			mc.Properties = &armcontainerservice.ManagedClusterProperties{}
+		}
+
+		if mc.Properties.IngressProfile == nil {
+			mc.Properties.IngressProfile = &armcontainerservice.ManagedClusterIngressProfile{}
+		}
+
+		mc.Properties.IngressProfile.GatewayAPI = &armcontainerservice.ManagedClusterIngressProfileGatewayConfiguration{
+			Installation: to.Ptr(armcontainerservice.ManagedGatewayTypeStandard),
+		}
+
+		return nil
+	},
 }
 
 func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId, oidcUrl string, options map[string]struct{}) *aks {
@@ -264,13 +301,6 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		clientId:       clientID,
 		oidcUrl:        *result.Properties.OidcIssuerProfile.IssuerURL,
 		options:        options,
-	}
-
-	// install gateway api (in place of managed gateway addon for now)
-	if err := cluster.runCommand(ctx, armcontainerservice.RunCommandRequest{
-		Command: to.Ptr("kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml"),
-	}, runCommandOpts{}); err != nil {
-		return nil, fmt.Errorf("installing gateway api: %w", err)
 	}
 
 	return cluster, nil

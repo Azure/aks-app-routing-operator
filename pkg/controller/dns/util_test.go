@@ -65,6 +65,7 @@ func Test_buildInputDNSConfig(t *testing.T) {
 	require.Equal(t, inputConfig.DnsZoneresourceIDs, mockConfigWithTenantId.dnsZoneresourceIDs)
 	require.Equal(t, inputConfig.Filters, mockConfigWithTenantId.filters)
 	require.Equal(t, inputConfig.IsNamespaced, mockConfigWithTenantId.namespaced)
+	require.Equal(t, inputConfig.UID, "resourceuid")
 
 	// Test with nil tenant ID
 	inputConfig = buildInputDNSConfig(mockConfigWithoutTenantId, conf)
@@ -79,6 +80,7 @@ func Test_buildInputDNSConfig(t *testing.T) {
 	require.Equal(t, inputConfig.DnsZoneresourceIDs, mockConfigWithTenantId.dnsZoneresourceIDs)
 	require.Equal(t, inputConfig.Filters, mockConfigWithTenantId.filters)
 	require.Equal(t, inputConfig.IsNamespaced, mockConfigWithTenantId.namespaced)
+	require.Equal(t, inputConfig.UID, "resourceuid")
 }
 
 func Test_extractResourceTypes(t *testing.T) {
@@ -127,11 +129,11 @@ func Test_generateManifestsConf(t *testing.T) {
 	for _, res := range manifestsConf.Resources() {
 		switch casted := res.(type) {
 		case *appsv1.Deployment:
-			require.Equal(t, casted.Spec.Template.Spec.ServiceAccountName, mockConfigWithTenantId.inputServiceAccount)
-			require.Equal(t, casted.Spec.Template.Spec.Containers[0].Args, []string{
+			require.Equal(t, mockConfigWithTenantId.inputServiceAccount, casted.Spec.Template.Spec.ServiceAccountName)
+			require.Equal(t, []string{
 				"--provider=azure",
 				"--interval=3m0s",
-				"--txt-owner-id=test-cluster-uid",
+				"--txt-owner-id=test-cluster-uid-resourceuid",
 				"--txt-wildcard-replacement=approutingwildcard",
 				"--gateway-label-filter=test==test",
 				"--label-filter=test==othertest",
@@ -140,7 +142,10 @@ func Test_generateManifestsConf(t *testing.T) {
 				"--source=ingress",
 				"--domain-filter=test.com",
 				"--domain-filter=test2.com",
-			})
+				"--namespace=mock-namespace",
+				"--gateway-namespace=mock-namespace",
+			},
+				casted.Spec.Template.Spec.Containers[0].Args)
 		case *corev1.ConfigMap:
 			require.Equal(t, casted.Data["azure.json"], `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-123456789012","useWorkloadIdentityExtension":true}`)
 		}
@@ -162,10 +167,10 @@ func Test_generateManifestsConf(t *testing.T) {
 		switch casted := res.(type) {
 		case *appsv1.Deployment:
 			require.Equal(t, casted.Spec.Template.Spec.ServiceAccountName, mockConfigWithoutTenantId.inputServiceAccount)
-			require.Equal(t, casted.Spec.Template.Spec.Containers[0].Args, []string{
+			require.Equal(t, []string{
 				"--provider=azure",
 				"--interval=3m0s",
-				"--txt-owner-id=test-cluster-uid",
+				"--txt-owner-id=test-cluster-uid-resourceuid",
 				"--txt-wildcard-replacement=approutingwildcard",
 				"--gateway-label-filter=test==test",
 				"--label-filter=test==othertest",
@@ -174,7 +179,9 @@ func Test_generateManifestsConf(t *testing.T) {
 				"--source=ingress",
 				"--domain-filter=test.com",
 				"--domain-filter=test2.com",
-			})
+				"--namespace=mock-namespace",
+				"--gateway-namespace=mock-namespace",
+			}, casted.Spec.Template.Spec.Containers[0].Args)
 		case *corev1.ConfigMap:
 			require.Equal(t, casted.Data["azure.json"], `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-012987654321","useWorkloadIdentityExtension":true}`)
 		}
