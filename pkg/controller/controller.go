@@ -260,10 +260,6 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		if err := spc.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
 			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
 		}
-
-		if err := dns.NewExternalDNSCRDController(mgr, *conf); err != nil {
-			return fmt.Errorf("setting up Gateway external DNS controller: %w", err)
-		}
 	}
 
 	if conf.EnableDefaultDomain {

@@ -39,12 +39,14 @@ var (
 )
 
 var (
-	workloadIdentityEnabled  = &config.Config{EnabledWorkloadIdentity: true, CrdPath: validCrdPath}
-	workloadIdentityDisabled = &config.Config{EnabledWorkloadIdentity: false, CrdPath: validCrdPath}
-	defaultDomainEnabled     = &config.Config{EnableDefaultDomain: true, CrdPath: validCrdPath}
-	defaultDomainDisabled    = &config.Config{EnableDefaultDomain: false, CrdPath: validCrdPath}
-	allFeaturesEnabled       = &config.Config{EnabledWorkloadIdentity: true, EnableDefaultDomain: true, CrdPath: validCrdPath}
-	allFeaturesDisabled      = &config.Config{EnabledWorkloadIdentity: false, EnableDefaultDomain: false, CrdPath: validCrdPath}
+	workloadIdentityEnabled                = &config.Config{EnabledWorkloadIdentity: true, CrdPath: validCrdPath}
+	workloadIdentityAndGatewayEnabled      = &config.Config{EnabledWorkloadIdentity: true, EnableGateway: true, CrdPath: validCrdPath}
+	workloadIdentityDisabled               = &config.Config{EnabledWorkloadIdentity: false, CrdPath: validCrdPath}
+	workloadIdentityDisabledGatewayEnabled = &config.Config{EnabledWorkloadIdentity: false, EnableGateway: true, CrdPath: validCrdPath}
+	defaultDomainEnabled                   = &config.Config{EnableDefaultDomain: true, CrdPath: validCrdPath}
+	defaultDomainDisabled                  = &config.Config{EnableDefaultDomain: false, CrdPath: validCrdPath}
+	allFeaturesEnabled                     = &config.Config{EnabledWorkloadIdentity: true, EnableGateway: true, EnableDefaultDomain: true, CrdPath: validCrdPath}
+	allFeaturesDisabled                    = &config.Config{EnabledWorkloadIdentity: false, EnableDefaultDomain: false, CrdPath: validCrdPath}
 )
 
 func TestLoadCRDs(t *testing.T) {
@@ -90,10 +92,12 @@ func TestLoadCRDs(t *testing.T) {
 		expectedCRDNames []string
 	}{
 		{name: "workload identity enabled", cfg: workloadIdentityEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName})},
+		{name: "workload identity and gateway enabled", cfg: workloadIdentityAndGatewayEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName, externalDnsCrdName})},
 		{name: "workload identity disabled", cfg: workloadIdentityDisabled, expectedCRDNames: nginxCrds},
+		{name: "workload identity disabled with gateway enabled", cfg: workloadIdentityDisabledGatewayEnabled, expectedCRDNames: nginxCrds},
 		{name: "default domain enabled", cfg: defaultDomainEnabled, expectedCRDNames: slices.Concat(nginxCrds, defaultDomainCertificates)},
 		{name: "default domain disabled", cfg: defaultDomainDisabled, expectedCRDNames: nginxCrds},
-		{name: "all features enabled", cfg: allFeaturesEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName}, defaultDomainCertificates)},
+		{name: "all features enabled", cfg: allFeaturesEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName, externalDnsCrdName}, defaultDomainCertificates)},
 		{name: "all features disabled", cfg: allFeaturesDisabled, expectedCRDNames: nginxCrds},
 	}
 
@@ -142,7 +146,9 @@ func TestShouldLoadCRD(t *testing.T) {
 		expected bool
 	}{
 		{name: "external dns crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "external dns crd with workload identity and gateway enabled", cfg: workloadIdentityAndGatewayEnabled, filename: externalDnsCrdFilename, expected: true},
 		{name: "external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "external dns crd with workload identity disabled but gateway enabled", cfg: workloadIdentityDisabledGatewayEnabled, filename: externalDnsCrdFilename, expected: false},
 		{name: "cluster external dns crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: clusterExternalDnsCrdFilename, expected: true},
 		{name: "cluster external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: clusterExternalDnsCrdFilename, expected: false},
 		{name: "nginx ingress controller crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
