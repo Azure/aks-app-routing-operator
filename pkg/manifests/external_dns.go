@@ -56,7 +56,8 @@ const (
 	ResourceTypeIngress ResourceType = iota
 	ResourceTypeGateway
 
-	maxUIDLength = 16
+	maxUIDLength   = 16
+	checkSumLength = 16
 )
 
 func (rt ResourceType) String() string {
@@ -599,7 +600,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 
 	podLabels := GetTopLevelLabels()
 	podLabels["app"] = externalDnsConfig.resourceName
-	podLabels["checksum/configmap"] = configMapHash[:maxUIDLength]
+	podLabels["checksum/configmap"] = configMapHash[:checkSumLength]
 
 	if externalDnsConfig.identityType == IdentityTypeWorkloadIdentity {
 		podLabels["azure.workload.identity/use"] = "true"
