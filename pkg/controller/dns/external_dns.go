@@ -69,8 +69,12 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 	}
 
 	if conf.EnabledWorkloadIdentity {
-		if err := NewClusterExternalDNSController(manager, conf); err != nil {
+		if err := newClusterExternalDNSController(manager, conf); err != nil {
 			return fmt.Errorf("adding cluster external dns controller: %w", err)
+		}
+
+		if err := newExternalDNSCRDController(manager, *conf); err != nil {
+			return fmt.Errorf("setting up namespaced external DNS controller: %w", err)
 		}
 
 		if conf.EnableDefaultDomain {

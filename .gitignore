@@ -11,3 +11,6 @@ unit-vis.json
 # e2e files
 infra-config.json
 job-app-routing-operator-e2e.log
+
+# Mac files
+*.DS_Store
