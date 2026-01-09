@@ -145,7 +145,7 @@ func TestShouldLoadCRD(t *testing.T) {
 		filename string
 		expected bool
 	}{
-		{name: "external dns crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "external dns crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: externalDnsCrdFilename, expected: true},
 		{name: "external dns crd with workload identity and gateway enabled", cfg: workloadIdentityAndGatewayEnabled, filename: externalDnsCrdFilename, expected: true},
 		{name: "external dns crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: externalDnsCrdFilename, expected: false},
 		{name: "external dns crd with workload identity disabled but gateway enabled", cfg: workloadIdentityDisabledGatewayEnabled, filename: externalDnsCrdFilename, expected: false},

@@ -73,10 +73,8 @@ func NewExternalDns(manager ctrl.Manager, conf *config.Config) error {
 			return fmt.Errorf("adding cluster external dns controller: %w", err)
 		}
 
-		if conf.EnableGateway {
-			if err := newExternalDNSCRDController(manager, *conf); err != nil {
-				return fmt.Errorf("setting up Gateway external DNS controller: %w", err)
-			}
+		if err := newExternalDNSCRDController(manager, *conf); err != nil {
+			return fmt.Errorf("setting up namespaced external DNS controller: %w", err)
 		}
 
 		if conf.EnableDefaultDomain {
