@@ -91,7 +91,7 @@ func TestLoadCRDs(t *testing.T) {
 		cfg              *config.Config
 		expectedCRDNames []string
 	}{
-		{name: "workload identity enabled", cfg: workloadIdentityEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName})},
+		{name: "workload identity enabled", cfg: workloadIdentityEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName, externalDnsCrdName})},
 		{name: "workload identity and gateway enabled", cfg: workloadIdentityAndGatewayEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName, externalDnsCrdName})},
 		{name: "workload identity disabled", cfg: workloadIdentityDisabled, expectedCRDNames: nginxCrds},
 		{name: "workload identity disabled with gateway enabled", cfg: workloadIdentityDisabledGatewayEnabled, expectedCRDNames: nginxCrds},
