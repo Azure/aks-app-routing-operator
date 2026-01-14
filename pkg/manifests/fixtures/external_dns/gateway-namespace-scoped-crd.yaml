@@ -68,6 +68,43 @@ subjects:
   name: test-private-service-account
   namespace: test-namespace
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: test-dns-config-private-external-dns-list-ns
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/managed-by: aks-app-routing-operator
+    app.kubernetes.io/name: test-dns-config-private-external-dns
+    kubernetes.azure.com/managedby: aks
+  name: test-dns-config-private-external-dns-list-ns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: test-dns-config-private-external-dns-list-ns
+subjects:
+- kind: ServiceAccount
+  name: test-private-service-account
+  namespace: test-namespace
+---
 apiVersion: v1
 data:
   azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-private","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
@@ -141,12 +178,14 @@ spec:
       - args:
         - --provider=azure-private-dns
         - --interval=3m0s
-        - --txt-owner-id=test-cluster-uid
+        - --txt-owner-id=test-cluster-uid-resourceuid
         - --txt-wildcard-replacement=approutingwildcard
         - --source=gateway-grpcroute
         - --source=gateway-httproute
         - --domain-filter=test-three.com
         - --domain-filter=test-four.com
+        - --namespace=test-namespace
+        - --gateway-namespace=test-namespace
         image: /oss/v2/kubernetes/external-dns:v0.17.0
         livenessProbe:
           failureThreshold: 3

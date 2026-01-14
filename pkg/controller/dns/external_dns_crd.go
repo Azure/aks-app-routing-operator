@@ -28,7 +28,7 @@ type ExternalDNSCRDController struct {
 	events record.EventRecorder
 }
 
-func NewExternalDNSCRDController(manager ctrl.Manager, config config.Config) error {
+func newExternalDNSCRDController(manager ctrl.Manager, config config.Config) error {
 	return ExternalDNSCRDControllerName.AddToController(ctrl.NewControllerManagedBy(manager).
 		For(&v1alpha1.ExternalDNS{}).
 		Owns(&appsv1.Deployment{}), manager.GetLogger()).

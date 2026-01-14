@@ -22,7 +22,7 @@ import (
 
 var ClusterExternalDNSControllerName = controllername.New("cluster", "externaldns", "crd")
 
-func NewClusterExternalDNSController(mgr ctrl.Manager, config *config.Config) error {
+func newClusterExternalDNSController(mgr ctrl.Manager, config *config.Config) error {
 	return ClusterExternalDNSControllerName.AddToController(
 		ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.ClusterExternalDNS{}).
