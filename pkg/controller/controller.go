@@ -17,7 +17,6 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/service"
 	"github.com/Azure/aks-app-routing-operator/pkg/store"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
-	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/go-logr/logr"
 	cfgv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	policyv1alpha1 "github.com/openservicemesh/osm/pkg/apis/policy/v1alpha1"
@@ -265,12 +264,6 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 	if conf.EnableDefaultDomain {
 		lgr.Info("setting up default domain reconcilers")
 
-		// Parse the DefaultDomainZoneID to extract subscription, resource group, and cluster name
-		parsedZone, err := azure.ParseResourceID(conf.DefaultDomainZoneID)
-		if err != nil {
-			return fmt.Errorf("parsing default domain zone ID: %w", err)
-		}
-
 		// Create default domain client for fetching TLS certificates
 		defaultDomainClient := defaultdomain.NewCachedClient(
 			context.Background(),
@@ -278,13 +271,6 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 				Opts: defaultdomain.Opts{
 					ServerAddress: conf.DefaultDomainServerAddress,
 				},
-				SubscriptionID: parsedZone.SubscriptionID,
-				ResourceGroup:  parsedZone.ResourceGroup,
-				// note that the zone name isn't actually the cluster name, but the default domain svc resource
-				// doesn't actually utilize this value for anything other than logging/tracing purposes so the unique
-				// zone name works as well. Default-domain-svc only cares about the ccp id
-				ClusterName: parsedZone.ResourceName,
-				CCPID:       conf.ClusterUid,
 			},
 			mgr.GetLogger().WithName("default-domain-client"),
 		)

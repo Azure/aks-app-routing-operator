@@ -54,7 +54,7 @@ func init() {
 
 	// Default domain flags
 	flag.BoolVar(&Flags.EnableDefaultDomain, "enable-default-domain", false, "enable default domain feature including the Default Domain Certificate Controller and CRD")
-	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server")
+	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server for the particular cluster app routing operator is deployed in")
 	flag.StringVar(&Flags.DefaultDomainClientID, "default-domain-client-id", "", "client ID of the managed identity with federated permissions to interact with the default domain DNS zone")
 	flag.StringVar(&Flags.DefaultDomainZoneID, "default-domain-zone-id", "", "resource ID of the DNS zone for the default domain")
 }
