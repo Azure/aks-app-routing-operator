@@ -227,7 +227,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version >= OperatorVersion0_2_5 {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 3).String())
-		ret = append(ret, "--enable-gateway-tls")
+		ret = append(ret, "--enable-gateway")
 		ret = append(ret, "--disable-expensive-cache")
 	}
 
