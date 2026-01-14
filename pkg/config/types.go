@@ -85,4 +85,5 @@ type Config struct {
 	DefaultDomainServerAddress string
 	DefaultDomainClientID      string
 	DefaultDomainZoneID        string
+	EnableDefaultDomainGateway bool
 }

@@ -63,6 +63,11 @@ func defaultDomainServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 }
 
 func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.ClusterExternalDNS {
+	resourceTypes := []string{"ingress"}
+	if conf.EnableDefaultDomainGateway {
+		resourceTypes = append(resourceTypes, "gateway")
+	}
+
 	return &approutingv1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      defaultDomainDNSResourceName,
@@ -77,7 +82,7 @@ func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.Cl
 			ResourceName:       defaultDomainDNSResourceName,
 			ResourceNamespace:  conf.NS,
 			DNSZoneResourceIDs: []string{conf.DefaultDomainZoneID},
-			ResourceTypes:      []string{"ingress", "gateway"},
+			ResourceTypes:      resourceTypes,
 			Identity: approutingv1alpha1.ExternalDNSIdentity{
 				ServiceAccount: defaultDomainDNSResourceName,
 			},
