@@ -25,10 +25,6 @@ func TestNewCachedClient(t *testing.T) {
 		Opts: Opts{
 			ServerAddress: "http://localhost:9000",
 		},
-		SubscriptionID: "test-sub",
-		ResourceGroup:  "test-rg",
-		ClusterName:    "test-cluster",
-		CCPID:          "test-ccpid",
 	}
 
 	client := NewCachedClient(ctx, opts, logr.Discard())
@@ -64,11 +60,7 @@ func TestCachedClient_GetTLSCertificate_Success(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -116,11 +108,7 @@ func TestCachedClient_GetTLSCertificate_CacheExpiration(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -169,11 +157,7 @@ func TestCachedClient_GetTLSCertificate_ConcurrentCalls(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -216,11 +200,7 @@ func TestCachedClient_GetTLSCertificate_ServerError(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -278,11 +258,7 @@ func TestCachedClient_GetTLSCertificate_TransientFailure(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -352,11 +328,7 @@ func TestCachedClient_IsHealthy(t *testing.T) {
 // TestCachedClient_Close verifies cleanup
 func TestCachedClient_Close(t *testing.T) {
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: "http://localhost:9000"},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: "http://localhost:9000"},
 	}
 
 	client := NewCachedClient(context.Background(), opts, logr.Discard())
@@ -401,11 +373,7 @@ func TestCachedClient_RefreshLoop_StopsOnContextCancel(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	client := NewCachedClient(context.Background(), opts, logr.Discard())
@@ -440,11 +408,7 @@ func TestCachedClient_ExponentialBackoff(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -488,11 +452,7 @@ func TestCachedClient_HealthRecovery(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -535,11 +495,7 @@ func TestCachedClient_NilCertificateHandling(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -577,11 +533,7 @@ func TestCachedClient_CacheTTLJitter(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -621,11 +573,7 @@ func TestCachedClient_MultipleSequentialFailures(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh
@@ -650,37 +598,6 @@ func TestCachedClient_MultipleSequentialFailures(t *testing.T) {
 	assert.Equal(t, int32(maxRetries*2), secondCallCount)
 }
 
-// TestCachedClient_EmptyParameters verifies behavior with empty parameters
-func TestCachedClient_EmptyParameters(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify empty parameters are properly escaped in URL
-		assert.Contains(t, r.URL.Path, "/defaultdomain/subscriptions//resourcegroups//clusters//ccpid//defaultdomaintls")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(&TLSCertificate{})
-	}))
-	defer server.Close()
-
-	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "",
-		ResourceGroup:  "",
-		ClusterName:    "",
-		CCPID:          "",
-	}
-
-	// Create client with canceled context to prevent background refresh
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	client := NewCachedClient(ctx, opts, logr.Discard())
-	defer client.Close()
-
-	// Wait for background goroutine to exit
-	time.Sleep(50 * time.Millisecond)
-
-	_, err := client.GetTLSCertificate(context.Background())
-	require.NoError(t, err)
-}
-
 func TestCachedClient_GetTLSCertificate_NotFound(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -691,11 +608,7 @@ func TestCachedClient_GetTLSCertificate_NotFound(t *testing.T) {
 	defer server.Close()
 
 	opts := CachedClientOpts{
-		Opts:           Opts{ServerAddress: server.URL},
-		SubscriptionID: "sub-123",
-		ResourceGroup:  "rg-test",
-		ClusterName:    "cluster-1",
-		CCPID:          "ccp-456",
+		Opts: Opts{ServerAddress: server.URL},
 	}
 
 	// Create client with canceled context to prevent background refresh

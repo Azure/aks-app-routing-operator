@@ -37,7 +37,6 @@ func TestClient_GetTLSCertificate_Success(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
-		assert.Equal(t, "/defaultdomain/subscriptions/sub-123/resourcegroups/rg-test/clusters/cluster-1/ccpid/ccp-456/defaultdomaintls", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		w.WriteHeader(http.StatusOK)
@@ -51,7 +50,7 @@ func TestClient_GetTLSCertificate_Success(t *testing.T) {
 	initialCount := before.GetCounter().GetValue()
 
 	client := NewClient(Opts{ServerAddress: server.URL})
-	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
+	cert, err := client.GetTLSCertificate(context.Background())
 
 	require.NoError(t, err)
 	require.NotNil(t, cert)
@@ -64,23 +63,6 @@ func TestClient_GetTLSCertificate_Success(t *testing.T) {
 	err = metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelSuccess).Write(&m)
 	require.NoError(t, err)
 	assert.Equal(t, initialCount+1, m.GetCounter().GetValue())
-}
-
-func TestClient_GetTLSCertificate_URLEscaping(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify that special characters are properly escaped in the URL path
-		// Note: url.PathEscape doesn't escape + and = as they're valid path characters
-		assert.Equal(t, "/defaultdomain/subscriptions/sub%2F123/resourcegroups/rg%20test/clusters/cluster+name/ccpid/ccp=456/defaultdomaintls", r.URL.Path)
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(&TLSCertificate{})
-	}))
-	defer server.Close()
-
-	client := NewClient(Opts{ServerAddress: server.URL})
-	_, err := client.GetTLSCertificate(context.Background(), "sub/123", "rg test", "cluster+name", "ccp=456")
-
-	require.NoError(t, err)
 }
 
 func TestClient_GetTLSCertificate_HTTPError(t *testing.T) {
@@ -98,7 +80,7 @@ func TestClient_GetTLSCertificate_HTTPError(t *testing.T) {
 	initialErrors := beforeErrors.GetCounter().GetValue()
 
 	client := NewClient(Opts{ServerAddress: server.URL})
-	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
+	cert, err := client.GetTLSCertificate(context.Background())
 
 	require.Error(t, err)
 	assert.Nil(t, cert)
@@ -124,7 +106,7 @@ func TestClient_GetTLSCertificate_InvalidJSON(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(Opts{ServerAddress: server.URL})
-	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
+	cert, err := client.GetTLSCertificate(context.Background())
 
 	require.Error(t, err)
 	assert.Nil(t, cert)
@@ -143,7 +125,7 @@ func TestClient_GetTLSCertificate_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	cert, err := client.GetTLSCertificate(ctx, "sub-123", "rg-test", "cluster-1", "ccp-456")
+	cert, err := client.GetTLSCertificate(ctx)
 
 	require.Error(t, err)
 	assert.Nil(t, cert)
@@ -163,7 +145,7 @@ func TestClient_GetTLSCertificate_NotFound(t *testing.T) {
 	initialCount := before.GetCounter().GetValue()
 
 	client := NewClient(Opts{ServerAddress: server.URL})
-	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
+	cert, err := client.GetTLSCertificate(context.Background())
 
 	require.Error(t, err)
 	assert.Nil(t, cert)
@@ -179,7 +161,7 @@ func TestClient_GetTLSCertificate_NotFound(t *testing.T) {
 
 func TestClient_GetTLSCertificate_InvalidServerAddress(t *testing.T) {
 	client := NewClient(Opts{ServerAddress: "http://nonexistent-server-12345.local"})
-	cert, err := client.GetTLSCertificate(context.Background(), "sub-123", "rg-test", "cluster-1", "ccp-456")
+	cert, err := client.GetTLSCertificate(context.Background())
 
 	require.Error(t, err)
 	assert.Nil(t, cert)
