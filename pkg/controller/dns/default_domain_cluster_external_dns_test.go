@@ -77,10 +77,39 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 		expected *approutingv1alpha1.ClusterExternalDNS
 	}{
 		{
-			name: "creates ClusterExternalDNS with correct spec",
+			name: "creates ClusterExternalDNS with ingress only when gateway disabled",
 			conf: &config.Config{
-				NS:                  "test-namespace",
-				DefaultDomainZoneID: "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				NS:                         "test-namespace",
+				DefaultDomainZoneID:        "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				EnableDefaultDomainGateway: false,
+			},
+			expected: &approutingv1alpha1.ClusterExternalDNS{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      defaultDomainDNSResourceName,
+					Namespace: "test-namespace",
+					Labels:    manifests.GetTopLevelLabels(),
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterExternalDNS",
+					APIVersion: approutingv1alpha1.GroupVersion.String(),
+				},
+				Spec: approutingv1alpha1.ClusterExternalDNSSpec{
+					ResourceName:       defaultDomainDNSResourceName,
+					ResourceNamespace:  "test-namespace",
+					DNSZoneResourceIDs: []string{"/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com"},
+					ResourceTypes:      []string{"ingress"},
+					Identity: approutingv1alpha1.ExternalDNSIdentity{
+						ServiceAccount: defaultDomainDNSResourceName,
+					},
+				},
+			},
+		},
+		{
+			name: "creates ClusterExternalDNS with ingress and gateway when gateway enabled",
+			conf: &config.Config{
+				NS:                         "test-namespace",
+				DefaultDomainZoneID:        "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				EnableDefaultDomainGateway: true,
 			},
 			expected: &approutingv1alpha1.ClusterExternalDNS{
 				ObjectMeta: metav1.ObjectMeta{
@@ -104,10 +133,11 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 			},
 		},
 		{
-			name: "creates ClusterExternalDNS with different zone ID",
+			name: "creates ClusterExternalDNS with different zone ID and gateway enabled",
 			conf: &config.Config{
-				NS:                  "prod-namespace",
-				DefaultDomainZoneID: "/subscriptions/prod-sub/resourceGroups/prod-rg/providers/Microsoft.Network/dnszones/prod.example.com",
+				NS:                         "prod-namespace",
+				DefaultDomainZoneID:        "/subscriptions/prod-sub/resourceGroups/prod-rg/providers/Microsoft.Network/dnszones/prod.example.com",
+				EnableDefaultDomainGateway: true,
 			},
 			expected: &approutingv1alpha1.ClusterExternalDNS{
 				ObjectMeta: metav1.ObjectMeta{
@@ -142,44 +172,64 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 
 func TestDefaultDomainObjects(t *testing.T) {
 	testCases := []struct {
-		name             string
-		conf             *config.Config
-		expectedObjCount int
-		expectedTypes    []string
-		hasNamespace     bool
+		name                  string
+		conf                  *config.Config
+		expectedObjCount      int
+		expectedTypes         []string
+		hasNamespace          bool
+		expectedResourceTypes []string
 	}{
 		{
-			name: "creates all objects with namespace when NS is not kube-system",
+			name: "creates all objects with namespace when NS is not kube-system, gateway disabled",
 			conf: &config.Config{
-				NS:                    "test-namespace",
-				DefaultDomainClientID: "test-client-id",
-				DefaultDomainZoneID:   "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				NS:                         "test-namespace",
+				DefaultDomainClientID:      "test-client-id",
+				DefaultDomainZoneID:        "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				EnableDefaultDomainGateway: false,
 			},
-			expectedObjCount: 3,
-			expectedTypes:    []string{"Namespace", "ServiceAccount", "ClusterExternalDNS"},
-			hasNamespace:     true,
+			expectedObjCount:      3,
+			expectedTypes:         []string{"Namespace", "ServiceAccount", "ClusterExternalDNS"},
+			hasNamespace:          true,
+			expectedResourceTypes: []string{"ingress"},
+		},
+		{
+			name: "creates all objects with namespace when NS is not kube-system, gateway enabled",
+			conf: &config.Config{
+				NS:                         "test-namespace",
+				DefaultDomainClientID:      "test-client-id",
+				DefaultDomainZoneID:        "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				EnableDefaultDomainGateway: true,
+			},
+			expectedObjCount:      3,
+			expectedTypes:         []string{"Namespace", "ServiceAccount", "ClusterExternalDNS"},
+			hasNamespace:          true,
+			expectedResourceTypes: []string{"ingress", "gateway"},
 		},
 		{
 			name: "creates objects without namespace when NS is kube-system",
 			conf: &config.Config{
-				NS:                    "kube-system",
-				DefaultDomainClientID: "test-client-id",
-				DefaultDomainZoneID:   "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				NS:                         "kube-system",
+				DefaultDomainClientID:      "test-client-id",
+				DefaultDomainZoneID:        "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com",
+				EnableDefaultDomainGateway: false,
 			},
-			expectedObjCount: 2,
-			expectedTypes:    []string{"ServiceAccount", "ClusterExternalDNS"},
-			hasNamespace:     false,
+			expectedObjCount:      2,
+			expectedTypes:         []string{"ServiceAccount", "ClusterExternalDNS"},
+			hasNamespace:          false,
+			expectedResourceTypes: []string{"ingress"},
 		},
 		{
 			name: "creates all objects with namespace for custom namespace",
 			conf: &config.Config{
-				NS:                    "custom-ns",
-				DefaultDomainClientID: "custom-client-id",
-				DefaultDomainZoneID:   "/subscriptions/custom-sub/resourceGroups/custom-rg/providers/Microsoft.Network/dnszones/custom.example.com",
+				NS:                         "custom-ns",
+				DefaultDomainClientID:      "custom-client-id",
+				DefaultDomainZoneID:        "/subscriptions/custom-sub/resourceGroups/custom-rg/providers/Microsoft.Network/dnszones/custom.example.com",
+				EnableDefaultDomainGateway: false,
 			},
-			expectedObjCount: 3,
-			expectedTypes:    []string{"Namespace", "ServiceAccount", "ClusterExternalDNS"},
-			hasNamespace:     true,
+			expectedObjCount:      3,
+			expectedTypes:         []string{"Namespace", "ServiceAccount", "ClusterExternalDNS"},
+			hasNamespace:          true,
+			expectedResourceTypes: []string{"ingress"},
 		},
 	}
 
@@ -236,7 +286,7 @@ func TestDefaultDomainObjects(t *testing.T) {
 			require.Equal(t, tc.conf.NS, clusterExternalDNS.Namespace)
 			require.Equal(t, tc.conf.NS, clusterExternalDNS.Spec.ResourceNamespace)
 			require.Equal(t, []string{tc.conf.DefaultDomainZoneID}, clusterExternalDNS.Spec.DNSZoneResourceIDs)
-			require.Equal(t, []string{"ingress", "gateway"}, clusterExternalDNS.Spec.ResourceTypes)
+			require.Equal(t, tc.expectedResourceTypes, clusterExternalDNS.Spec.ResourceTypes)
 			require.Equal(t, defaultDomainDNSResourceName, clusterExternalDNS.Spec.Identity.ServiceAccount)
 		})
 	}

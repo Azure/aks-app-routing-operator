@@ -57,6 +57,7 @@ func init() {
 	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server")
 	flag.StringVar(&Flags.DefaultDomainClientID, "default-domain-client-id", "", "client ID of the managed identity with federated permissions to interact with the default domain DNS zone")
 	flag.StringVar(&Flags.DefaultDomainZoneID, "default-domain-zone-id", "", "resource ID of the DNS zone for the default domain")
+	flag.BoolVar(&Flags.EnableDefaultDomainGateway, "enable-default-domain-gateway", false, "enable Gateway API resource type for default domain external DNS (defaults to off)")
 }
 
 func (c *Config) Validate() error {
