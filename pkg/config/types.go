@@ -76,7 +76,7 @@ type Config struct {
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
 	CrdPath                             string
-	EnableGateway                       bool
+	EnableGatewayTLS                    bool
 	DisableExpensiveCache               bool
 	EnableInternalLogging               bool
 	EnabledWorkloadIdentity             bool

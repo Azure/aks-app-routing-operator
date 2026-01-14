@@ -40,12 +40,12 @@ var (
 
 var (
 	workloadIdentityEnabled                = &config.Config{EnabledWorkloadIdentity: true, CrdPath: validCrdPath}
-	workloadIdentityAndGatewayEnabled      = &config.Config{EnabledWorkloadIdentity: true, EnableGateway: true, CrdPath: validCrdPath}
+	workloadIdentityAndGatewayEnabled      = &config.Config{EnabledWorkloadIdentity: true, EnableGatewayTLS: true, CrdPath: validCrdPath}
 	workloadIdentityDisabled               = &config.Config{EnabledWorkloadIdentity: false, CrdPath: validCrdPath}
-	workloadIdentityDisabledGatewayEnabled = &config.Config{EnabledWorkloadIdentity: false, EnableGateway: true, CrdPath: validCrdPath}
+	workloadIdentityDisabledGatewayEnabled = &config.Config{EnabledWorkloadIdentity: false, EnableGatewayTLS: true, CrdPath: validCrdPath}
 	defaultDomainEnabled                   = &config.Config{EnableDefaultDomain: true, CrdPath: validCrdPath}
 	defaultDomainDisabled                  = &config.Config{EnableDefaultDomain: false, CrdPath: validCrdPath}
-	allFeaturesEnabled                     = &config.Config{EnabledWorkloadIdentity: true, EnableGateway: true, EnableDefaultDomain: true, CrdPath: validCrdPath}
+	allFeaturesEnabled                     = &config.Config{EnabledWorkloadIdentity: true, EnableGatewayTLS: true, EnableDefaultDomain: true, CrdPath: validCrdPath}
 	allFeaturesDisabled                    = &config.Config{EnabledWorkloadIdentity: false, EnableDefaultDomain: false, CrdPath: validCrdPath}
 )
 
