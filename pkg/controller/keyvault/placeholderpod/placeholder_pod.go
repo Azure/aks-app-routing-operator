@@ -50,7 +50,7 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 	}
 
 	spcOwnerTypes := []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager, conf)}
-	if conf.EnableGateway {
+	if conf.EnableGatewayTLS {
 		spcOwnerTypes = append(spcOwnerTypes, gatewaySpcOwner)
 	}
 

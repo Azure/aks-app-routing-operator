@@ -176,7 +176,7 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error
 		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
 	}
 
-	if conf.EnableGateway {
+	if conf.EnableGatewayTLS {
 		if err := util.AddGatewayServiceAccountIndex(mgr.GetFieldIndexer(), gatewayListenerIndexName); err != nil {
 			lgr.Error(err, "adding Gateway Service Account indexer")
 			return fmt.Errorf("adding Gateway Service Account indexer: %w", err)
@@ -254,7 +254,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 		return fmt.Errorf("setting up ingress backend reconciler: %w", err)
 	}
 
-	if conf.EnableGateway {
+	if conf.EnableGatewayTLS {
 		lgr.Info("setting up gateway reconcilers")
 		if err := spc.NewGatewaySecretClassProviderReconciler(mgr, conf, gatewayListenerIndexName); err != nil {
 			return fmt.Errorf("setting up Gateway SPC reconciler: %w", err)
