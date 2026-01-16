@@ -26,7 +26,7 @@ func TestDefaultDomainServiceAccount(t *testing.T) {
 			},
 			expected: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      defaultDomainDNSResourceName,
+					Name:      defaultDomainServiceAccountName,
 					Namespace: "test-namespace",
 					Annotations: map[string]string{
 						"azure.workload.identity/client-id": "test-client-id-123",
@@ -47,7 +47,7 @@ func TestDefaultDomainServiceAccount(t *testing.T) {
 			},
 			expected: &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      defaultDomainDNSResourceName,
+					Name:      defaultDomainServiceAccountName,
 					Namespace: "another-namespace",
 					Annotations: map[string]string{
 						"azure.workload.identity/client-id": "different-client-id",
@@ -99,7 +99,7 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 					DNSZoneResourceIDs: []string{"/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com"},
 					ResourceTypes:      []string{"ingress"},
 					Identity: approutingv1alpha1.ExternalDNSIdentity{
-						ServiceAccount: defaultDomainDNSResourceName,
+						ServiceAccount: defaultDomainServiceAccountName,
 					},
 				},
 			},
@@ -127,7 +127,7 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 					DNSZoneResourceIDs: []string{"/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com"},
 					ResourceTypes:      []string{"ingress", "gateway"},
 					Identity: approutingv1alpha1.ExternalDNSIdentity{
-						ServiceAccount: defaultDomainDNSResourceName,
+						ServiceAccount: defaultDomainServiceAccountName,
 					},
 				},
 			},
@@ -155,7 +155,7 @@ func TestDefaultDomainClusterExternalDNS(t *testing.T) {
 					DNSZoneResourceIDs: []string{"/subscriptions/prod-sub/resourceGroups/prod-rg/providers/Microsoft.Network/dnszones/prod.example.com"},
 					ResourceTypes:      []string{"ingress", "gateway"},
 					Identity: approutingv1alpha1.ExternalDNSIdentity{
-						ServiceAccount: defaultDomainDNSResourceName,
+						ServiceAccount: defaultDomainServiceAccountName,
 					},
 				},
 			},
@@ -269,7 +269,7 @@ func TestDefaultDomainObjects(t *testing.T) {
 				}
 			}
 			require.NotNil(t, serviceAccount)
-			require.Equal(t, defaultDomainDNSResourceName, serviceAccount.Name)
+			require.Equal(t, defaultDomainServiceAccountName, serviceAccount.Name)
 			require.Equal(t, tc.conf.NS, serviceAccount.Namespace)
 			require.Equal(t, tc.conf.DefaultDomainClientID, serviceAccount.Annotations["azure.workload.identity/client-id"])
 
@@ -287,7 +287,7 @@ func TestDefaultDomainObjects(t *testing.T) {
 			require.Equal(t, tc.conf.NS, clusterExternalDNS.Spec.ResourceNamespace)
 			require.Equal(t, []string{tc.conf.DefaultDomainZoneID}, clusterExternalDNS.Spec.DNSZoneResourceIDs)
 			require.Equal(t, tc.expectedResourceTypes, clusterExternalDNS.Spec.ResourceTypes)
-			require.Equal(t, defaultDomainDNSResourceName, clusterExternalDNS.Spec.Identity.ServiceAccount)
+			require.Equal(t, defaultDomainServiceAccountName, clusterExternalDNS.Spec.Identity.ServiceAccount)
 		})
 	}
 }
