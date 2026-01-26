@@ -32,6 +32,9 @@ const (
 	k8sNameKey              = "app.kubernetes.io/name"
 	externalDnsResourceName = "external-dns"
 	txtWildcardReplacement  = "approutingwildcard"
+
+	// ExternalDNSVersion is the version of the external-dns image used
+	ExternalDNSVersion = "v0.20.0"
 )
 
 type IdentityType int
@@ -659,7 +662,7 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{*withLivenessProbeMatchingReadiness(withTypicalReadinessProbe(7979, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
+						Image: path.Join(conf.Registry, "/oss/v2/kubernetes/external-dns:"+ExternalDNSVersion),
 						Args:  deploymentArgs,
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
