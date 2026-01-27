@@ -47,16 +47,17 @@ func init() {
 	flag.StringVar(&Flags.ClusterUid, "cluster-uid", "", "unique identifier of the cluster the add-on belongs to. This should be the CCP ID.")
 	flag.DurationVar(&Flags.DnsSyncInterval, "dns-sync-interval", defaultDnsSyncInterval, "interval at which to sync DNS records")
 	flag.StringVar(&Flags.CrdPath, "crd", "/crd", "location of the CRD manifests. manifests should be directly in this directory, not in a subdirectory")
-	flag.BoolVar(&Flags.EnableGateway, "enable-gateway", false, "whether or not to support and create controllers for Gateway API resources")
+	flag.BoolVar(&Flags.EnableGatewayTLS, "enable-gateway-tls", false, "whether or not to support controllers to reconcile TLS certificates for Gateway API resources")
 	flag.BoolVar(&Flags.DisableExpensiveCache, "disable-expensive-cache", false, "disable the cache for expensive resources that aren't core to App Routing like Pods and Events")
 	flag.BoolVar(&Flags.EnableInternalLogging, "enable-internal-logging", false, "enable internal logging for internal customers, includes things like json format and additional fields in logs")
 	flag.BoolVar(&Flags.EnabledWorkloadIdentity, "enable-workload-identity", false, "enable workload identity allows users to use workload identity to authenticate to Azure resources instead of using the addon managed identity")
 
 	// Default domain flags
 	flag.BoolVar(&Flags.EnableDefaultDomain, "enable-default-domain", false, "enable default domain feature including the Default Domain Certificate Controller and CRD")
-	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server")
+	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server for the particular cluster app routing operator is deployed in")
 	flag.StringVar(&Flags.DefaultDomainClientID, "default-domain-client-id", "", "client ID of the managed identity with federated permissions to interact with the default domain DNS zone")
 	flag.StringVar(&Flags.DefaultDomainZoneID, "default-domain-zone-id", "", "resource ID of the DNS zone for the default domain")
+	flag.BoolVar(&Flags.EnableDefaultDomainGateway, "enable-default-domain-gateway", false, "enable Gateway API resource type for default domain external DNS (defaults to off)")
 }
 
 func (c *Config) Validate() error {

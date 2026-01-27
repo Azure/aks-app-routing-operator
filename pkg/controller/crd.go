@@ -79,7 +79,7 @@ func shouldLoadCRD(cfg *config.Config, filename string) bool {
 
 	// namespaced ExternalDNS CRD not used yet
 	case externalDnsCrdFilename:
-		return cfg.EnableGateway
+		return cfg.EnabledWorkloadIdentity
 	case clusterExternalDnsCrdFilename:
 		return cfg.EnabledWorkloadIdentity
 

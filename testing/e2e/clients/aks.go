@@ -27,6 +27,10 @@ var (
 	workloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet"}
 
 	nonZeroExitCode = errors.New("non-zero exit code")
+
+	// gatewayCrdPath is the path to the Gateway API CRD file relative to the repository root.
+	// The e2e tests are run from the repository root (via `go run ./cmd/e2e/main.go`).
+	gatewayCrdPath = "config/gatewaycrd/v1.2.0.yaml"
 )
 
 type aks struct {
@@ -303,6 +307,20 @@ func NewAks(ctx context.Context, subscriptionId, resourceGroup, name, location s
 		options:        options,
 	}
 
+	// install gateway api (in place of managed gateway addon for now)
+	// use local CRD file to avoid GitHub rate limiting issues
+	gatewayCrdZip, err := zipFile(gatewayCrdPath)
+	if err != nil {
+		return nil, fmt.Errorf("zipping gateway crd file: %w", err)
+	}
+	gatewayCrdEncoded := base64.StdEncoding.EncodeToString(gatewayCrdZip)
+	if err := cluster.runCommand(ctx, armcontainerservice.RunCommandRequest{
+		Command: to.Ptr("kubectl apply -f gateway-crd.yaml"),
+		Context: &gatewayCrdEncoded,
+	}, runCommandOpts{}); err != nil {
+		return nil, fmt.Errorf("installing gateway api: %w", err)
+	}
+
 	return cluster, nil
 }
 
@@ -330,6 +348,28 @@ func (a *aks) Deploy(ctx context.Context, objs []client.Object) error {
 	}
 
 	return nil
+}
+
+// zipFile reads a file from the local filesystem and wraps it into a zip file.
+// The file is placed at the root of the zip with a fixed name for kubectl to reference.
+func zipFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading file %s: %w", path, err)
+	}
+
+	b := &bytes.Buffer{}
+	zipWriter := zip.NewWriter(b)
+	f, err := zipWriter.Create("gateway-crd.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("creating zip entry: %w", err)
+	}
+
+	if _, err := f.Write(data); err != nil {
+		return nil, fmt.Errorf("writing zip entry: %w", err)
+	}
+	zipWriter.Close()
+	return b.Bytes(), nil
 }
 
 // zipManifests wraps manifests into base64 zip file.

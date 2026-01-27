@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
@@ -32,29 +30,9 @@ func NewClient(opts Opts) *Client {
 	}
 }
 
-// GetTLSCertificate retrieves a TLS certificate for the specified parameters
-func (c *Client) GetTLSCertificate(ctx context.Context, subscriptionID, resourceGroup, clusterName, ccpID string) (*TLSCertificate, error) {
-	baseURL, err := url.Parse(c.opts.ServerAddress)
-	if err != nil {
-		return nil, fmt.Errorf("parsing server address: %w", err)
-	}
-
-	pathSegments := []string{
-		"defaultdomain",
-		"subscriptions",
-		url.PathEscape(subscriptionID),
-		"resourcegroups",
-		url.PathEscape(resourceGroup),
-		"clusters",
-		url.PathEscape(clusterName),
-		"ccpid",
-		url.PathEscape(ccpID),
-		"defaultdomaintls",
-	}
-
-	baseURL.Path = "/" + strings.Join(pathSegments, "/")
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL.String(), nil)
+// GetTLSCertificate retrieves a TLS certificate from the configured server address
+func (c *Client) GetTLSCertificate(ctx context.Context) (*TLSCertificate, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.opts.ServerAddress, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}

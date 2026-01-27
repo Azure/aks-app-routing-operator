@@ -217,6 +217,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		panic("not enough zones provided")
 	}
 
+	enableGatewayArg := ""
 	ret := []string{
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
@@ -227,11 +228,12 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version >= OperatorVersion0_2_5 {
 		ret = append(ret, "--dns-sync-interval", (time.Second * 3).String())
-		ret = append(ret, "--enable-gateway")
+		enableGatewayArg = "--enable-gateway"
 		ret = append(ret, "--disable-expensive-cache")
 	}
 
 	if o.Version >= OperatorVersionLatest {
+		enableGatewayArg = "--enable-gateway-tls"
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
 		ret = append(ret, "--default-domain-server-address", fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", defaultDomainServerName, operatorNs, defaultDomainPort))
@@ -240,6 +242,8 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
 		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
 	}
+
+	ret = append(ret, enableGatewayArg)
 
 	var zones []string
 	switch o.Zones.Public {

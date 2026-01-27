@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/testutils"
+	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/Azure/go-autorest/autorest/to"
 	appsv1 "k8s.io/api/apps/v1"
@@ -133,7 +134,7 @@ var happyPathPublicDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:"+manifests.ExternalDNSVersion),
 						Args: []string{
 							"--provider=azure",
 							"--interval=3m0s",
@@ -325,7 +326,7 @@ var happyPathPrivateDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:"+manifests.ExternalDNSVersion),
 						Args: []string{
 							"--provider=azure-private-dns",
 							"--interval=3m0s",
@@ -416,7 +417,7 @@ var clusterHappyPathPublicDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:"+manifests.ExternalDNSVersion),
 						Args: []string{
 							"--provider=azure",
 							"--interval=3m0s",
@@ -648,7 +649,7 @@ var clusterHappyPathPrivateDeployment = &appsv1.Deployment{
 				Containers: []corev1.Container{
 					{
 						Name:  "controller",
-						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:v0.17.0"),
+						Image: path.Join(testRegistry, "/oss/v2/kubernetes/external-dns:"+manifests.ExternalDNSVersion),
 						Args: []string{
 							"--provider=azure-private-dns",
 							"--interval=3m0s",

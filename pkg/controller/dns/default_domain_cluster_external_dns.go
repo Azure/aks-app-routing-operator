@@ -12,7 +12,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const defaultDomainDNSResourceName = "default-domain-dns"
+const (
+	defaultDomainDNSResourceName = "default-domain-dns"
+	// defaultDomainServiceAccountName is the name of the service account used by the default domain external DNS controller.
+	// This exact name must be used because aks rp federates credentials for this
+	defaultDomainServiceAccountName = "default-domain-sa"
+)
 
 var name = controllername.New("default", "domain", "dns")
 
@@ -48,7 +53,7 @@ func defaultDomainObjects(conf *config.Config) []client.Object {
 func defaultDomainServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      defaultDomainDNSResourceName,
+			Name:      defaultDomainServiceAccountName,
 			Namespace: conf.NS,
 			Annotations: map[string]string{
 				"azure.workload.identity/client-id": conf.DefaultDomainClientID,
@@ -63,6 +68,11 @@ func defaultDomainServiceAccount(conf *config.Config) *corev1.ServiceAccount {
 }
 
 func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.ClusterExternalDNS {
+	resourceTypes := []string{"ingress"}
+	if conf.EnableDefaultDomainGateway {
+		resourceTypes = append(resourceTypes, "gateway")
+	}
+
 	return &approutingv1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      defaultDomainDNSResourceName,
@@ -77,9 +87,9 @@ func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.Cl
 			ResourceName:       defaultDomainDNSResourceName,
 			ResourceNamespace:  conf.NS,
 			DNSZoneResourceIDs: []string{conf.DefaultDomainZoneID},
-			ResourceTypes:      []string{"ingress", "gateway"},
+			ResourceTypes:      resourceTypes,
 			Identity: approutingv1alpha1.ExternalDNSIdentity{
-				ServiceAccount: defaultDomainDNSResourceName,
+				ServiceAccount: defaultDomainServiceAccountName,
 			},
 		},
 	}

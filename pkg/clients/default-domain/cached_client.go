@@ -31,10 +31,6 @@ const (
 // CachedClientOpts contains configuration options for the cached client
 type CachedClientOpts struct {
 	Opts
-	SubscriptionID string
-	ResourceGroup  string
-	ClusterName    string
-	CCPID          string
 }
 
 // CachedClient is a client that caches TLS certificates with automatic refresh
@@ -119,12 +115,7 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 		}
 
 		// Fetch with lock held - this is intentional to prevent concurrent fetches
-		cert, err := c.client.GetTLSCertificate(ctx,
-			c.opts.SubscriptionID,
-			c.opts.ResourceGroup,
-			c.opts.ClusterName,
-			c.opts.CCPID,
-		)
+		cert, err := c.client.GetTLSCertificate(ctx)
 
 		if err == nil {
 			// Success! Update cache and reset health tracking
