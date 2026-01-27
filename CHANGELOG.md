@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.16] - 2026-02-26
+
+### Changed
+- bumped external dns to 0.20.0 - [link](https://github.com/Azure/aks-app-routing-operator/commit/cd8e7d1b316a0432ccff80829aa3738bc2170b8d)
+- fixed default domain service account name - [link](https://github.com/Azure/aks-app-routing-operator/commit/5b13571e8aa36d5a912426bcba5f615a3a207630)
+
+
 ## [0.2.15] - 2026-01-14
 
 ### Added
