@@ -3,6 +3,7 @@ package suites
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 
@@ -184,7 +185,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:40], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
+			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:int(math.Min(40, float64(len(zone.GetName()))))], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
