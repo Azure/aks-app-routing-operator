@@ -237,7 +237,7 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, cnName string,
 	}
 
 	id := string(*created.ID)
-	id = strings.TrimSuffix(id, "/pending") // remove /pending suffix from cert id
+	id = strings.TrimSuffix(id, "/pending") // haven't found a better way of getting the cert id other than this so far
 	return &Cert{
 		id:   id,
 		name: name,
