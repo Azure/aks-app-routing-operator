@@ -299,7 +299,7 @@ func deployGatewayResources(
 	nameserver := gatewayTestConfig.zoneConfig.Nameserver
 
 	// Build hostname from namespace and zone
-	host := strings.ToLower(gatewayTestConfig.namespace) + "." + strings.TrimRight(zoneName, ".")
+	host := strings.ToLower(gatewayTestConfig.namespace) + "." + strings.TrimSuffix(zoneName, ".")
 	tlsHost := host
 	keyvaultURI := gatewayTestConfig.zoneConfig.KeyvaultCertURI
 
@@ -327,7 +327,8 @@ func deployGatewayResources(
 	return &resources, nil
 }
 
-// waitForDNSRecordDeletion waits for the external-dns pod to log that it deleted the DNS A record
+// waitForDNSRecordDeletion waits for the external-dns pod to log that it deleted both the DNS A record
+// and the corresponding TXT ownership record.
 // deploymentName is the name of the external-dns deployment (e.g., "gw-cluster-external-dns")
 // namespace is the namespace where the deployment is located
 func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deploymentName, namespace, zoneName, recordName string) error {
@@ -338,9 +339,17 @@ func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deployme
 		return fmt.Errorf("creating kubernetes clientset: %w", err)
 	}
 
-	// The expected log message from external-dns when deleting an A record
-	expectedLogMessage := fmt.Sprintf("Deleting A record named '%s' for Azure DNS zone '%s'", recordName, zoneName)
-	lgr.Info("waiting for external-dns to log deletion", "expectedMessage", expectedLogMessage)
+	// The expected log messages from external-dns when deleting records
+	// A record: "Deleting A record named 'gateway-wi-ns' for Azure DNS zone 'example.com'"
+	// TXT record: "Deleting TXT record named 'a-gateway-wi-ns' for Azure DNS zone 'example.com'"
+	// The TXT record name is prefixed with "a-" to indicate it's the ownership record for an A record
+	expectedARecordLog := fmt.Sprintf("Deleting A record named '%s' for Azure DNS zone '%s'", recordName, zoneName)
+	txtRecordName := "a-" + recordName // external-dns prefixes TXT ownership records with the record type
+	expectedTXTRecordLog := fmt.Sprintf("Deleting TXT record named '%s' for Azure DNS zone '%s'", txtRecordName, zoneName)
+
+	lgr.Info("waiting for external-dns to log deletion of A and TXT records",
+		"expectedARecordLog", expectedARecordLog,
+		"expectedTXTRecordLog", expectedTXTRecordLog)
 
 	err = wait.PollImmediate(5*time.Second, 3*time.Minute, func() (bool, error) {
 		// Find the external-dns pods by the deployment's label selector (app=deploymentName)
@@ -356,6 +365,9 @@ func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deployme
 			return false, nil
 		}
 
+		foundARecordDeletion := false
+		foundTXTRecordDeletion := false
+
 		// Check logs from each pod
 		for _, pod := range pods.Items {
 			req := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
@@ -368,20 +380,36 @@ func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deployme
 			scanner := bufio.NewScanner(logs)
 			for scanner.Scan() {
 				line := scanner.Text()
-				if strings.Contains(line, expectedLogMessage) {
-					logs.Close()
-					lgr.Info("found DNS deletion log entry", "pod", pod.Name)
-					return true, nil
+				if strings.Contains(line, expectedARecordLog) {
+					foundARecordDeletion = true
+				}
+				if strings.Contains(line, expectedTXTRecordLog) {
+					foundTXTRecordDeletion = true
 				}
 			}
 			logs.Close()
 		}
 
-		lgr.Info("DNS deletion log entry not found yet, retrying")
+		if foundARecordDeletion && foundTXTRecordDeletion {
+			lgr.Info("found DNS deletion log entries for both A and TXT records")
+			return true, nil
+		}
+
+		// Log which specific deletion is missing
+		if foundARecordDeletion && !foundTXTRecordDeletion {
+			lgr.Info("found A record deletion but still waiting for TXT record deletion",
+				"missingTXTRecord", txtRecordName)
+		} else if !foundARecordDeletion && foundTXTRecordDeletion {
+			lgr.Info("found TXT record deletion but still waiting for A record deletion",
+				"missingARecord", recordName)
+		} else {
+			lgr.Info("waiting for both A and TXT record deletions")
+		}
+
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("waiting for DNS A record '%s' deletion log in zone '%s': %w", recordName, zoneName, err)
+		return fmt.Errorf("waiting for DNS A record '%s' and TXT record '%s' deletion logs in zone '%s': %w", recordName, txtRecordName, zoneName, err)
 	}
 	return nil
 }
