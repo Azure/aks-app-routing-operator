@@ -553,7 +553,7 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 	if *result.Properties.ExitCode != 0 {
 		lgr.Info(fmt.Sprintf("command failed with exit code %d", *result.Properties.ExitCode))
 		lgr.Info("command logs: " + logs)
-		return fmt.Errorf("%s: %s", nonZeroExitCode.Error(), logs)
+		return fmt.Errorf("%w: %s", nonZeroExitCode, logs)
 	}
 
 	return nil
