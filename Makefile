@@ -1,6 +1,6 @@
 # Run `make help` for usage information on commands in this file.
 
-.PHONY: help clean dev push e2e e2e-deploy unit crd manifests generate controller-gen docker-build-dev unit-vis
+.PHONY: help clean dev push e2e e2e-deploy e2e-push-deploy unit crd manifests generate controller-gen docker-build-dev unit-vis
 
 -include .env
 
@@ -55,6 +55,18 @@ e2e: ## Runs end-to-end tests
 	go run ./cmd/e2e/main.go deploy
 	
 e2e-deploy: ## runs only deploy
+	go run ./cmd/e2e/main.go deploy
+
+e2e-push-deploy: ## Builds e2e image for linux/amd64, pushes to registry, updates infra-config.json, and deploys
+	@REGISTRY=$$(cat infra-config.json | jq -r '.[0].ContainerRegistry.ResourceName') && \
+	NEW_TAG="$$(echo $$REGISTRY | sed 's/registry//')-$$(date +%s)" && \
+	echo "Building e2e image with tag: $$NEW_TAG" && \
+	az acr login -n $$REGISTRY && \
+	docker build --platform linux/amd64 -t $$REGISTRY.azurecr.io/e2e:$$NEW_TAG -f docker/e2e.Dockerfile . && \
+	docker push $$REGISTRY.azurecr.io/e2e:$$NEW_TAG && \
+	jq ".[0].E2eImage = \"$$REGISTRY.azurecr.io/e2e:$$NEW_TAG\"" infra-config.json > infra-config.json.tmp && \
+	mv infra-config.json.tmp infra-config.json && \
+	echo "Updated infra-config.json with new E2eImage: $$REGISTRY.azurecr.io/e2e:$$NEW_TAG" && \
 	go run ./cmd/e2e/main.go deploy
 
 DEV_DOCKERFILE := ./docker/dev.Dockerfile
