@@ -172,7 +172,3 @@ func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
 	return e.Spec.Filters
 }
 func (e *ExternalDNS) GetNamespaced() bool { return true }
-
-func (e *ExternalDNS) GetResourceUID() string {
-	return string(e.UID)
-}

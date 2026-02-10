@@ -27,9 +27,6 @@ var (
 	workloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet"}
 
 	nonZeroExitCode = errors.New("non-zero exit code")
-
-	// gatewayCrdPath is the path to the Gateway API CRD file relative to the repository root.
-	// The e2e tests are run from the repository root (via `go run ./cmd/e2e/main.go`).
 )
 
 type aks struct {

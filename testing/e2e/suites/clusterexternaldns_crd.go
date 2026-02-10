@@ -51,7 +51,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 			name: "clusterexternaldns crd validations",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.OperatorVersionLatest).
+				withVersions(manifests.AllUsedOperatorVersions...).
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {

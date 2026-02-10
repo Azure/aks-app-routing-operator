@@ -134,7 +134,3 @@ func (c *ClusterExternalDNS) GetFilters() *ExternalDNSFilters {
 }
 
 func (e *ClusterExternalDNS) GetNamespaced() bool { return false }
-
-func (c *ClusterExternalDNS) GetResourceUID() string {
-	return string(c.UID)
-}
