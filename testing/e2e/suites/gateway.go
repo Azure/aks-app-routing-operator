@@ -102,6 +102,7 @@ func gatewayTests(in infra.Provisioned) []test {
 				withOsm(in, false).
 				withVersions(manifests.OperatorVersionLatest).
 				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+				withGatewayTLS(true).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				publicZoneConfig := newPublicZoneConfig(in.ManagedIdentityZone)

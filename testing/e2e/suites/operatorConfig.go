@@ -74,7 +74,8 @@ func (c cfgBuilderWithOsm) withVersions(versions ...manifests.OperatorVersion) c
 
 type cfgBuilderWithZones struct {
 	cfgBuilderWithVersions
-	zones []manifests.DnsZones
+	zones            []manifests.DnsZones
+	enableGatewayTLS bool
 }
 
 func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, private []manifests.DnsZoneCount) cfgBuilderWithZones {
@@ -101,6 +102,11 @@ func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, priva
 	}
 }
 
+func (c cfgBuilderWithZones) withGatewayTLS(enabled bool) cfgBuilderWithZones {
+	c.enableGatewayTLS = enabled
+	return c
+}
+
 type operatorCfgs []manifests.OperatorConfig
 
 func (c cfgBuilderWithZones) build() operatorCfgs {
@@ -110,12 +116,13 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 		for _, version := range c.versions {
 			for _, zones := range c.zones {
 				ret = append(ret, manifests.OperatorConfig{
-					Version:    version,
-					Location:   c.location,
-					TenantId:   c.tenantId,
-					Msi:        c.msi,
-					Zones:      zones,
-					DisableOsm: !osmEnabled,
+					Version:          version,
+					Location:         c.location,
+					TenantId:         c.tenantId,
+					Msi:              c.msi,
+					Zones:            zones,
+					DisableOsm:       !osmEnabled,
+					EnableGatewayTLS: c.enableGatewayTLS,
 				})
 			}
 		}

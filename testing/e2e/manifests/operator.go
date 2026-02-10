@@ -188,12 +188,13 @@ type DnsZones struct {
 }
 
 type OperatorConfig struct {
-	Version    OperatorVersion
-	Msi        string
-	TenantId   string
-	Location   string
-	Zones      DnsZones
-	DisableOsm bool
+	Version          OperatorVersion
+	Msi              string
+	TenantId         string
+	Location         string
+	Zones            DnsZones
+	DisableOsm       bool
+	EnableGatewayTLS bool
 }
 
 func (o *OperatorConfig) image(latestImage string) string {
@@ -243,7 +244,9 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
 	}
 
-	ret = append(ret, enableGatewayArg)
+	if o.EnableGatewayTLS {
+		ret = append(ret, enableGatewayArg)
+	}
 
 	var zones []string
 	switch o.Zones.Public {
