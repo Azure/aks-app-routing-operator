@@ -117,6 +117,26 @@ func gatewayTests(in infra.Provisioned) []test {
 				return nil
 			},
 		},
+		{
+			name: "gateway with externaldns for private zone",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				privateZoneConfig := newPrivateZoneConfig(in.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp())
+				privateGwTestConfig := gatewayTestConfig{
+					namespace:  gatewayPrivateTestNamespace,
+					clientId:   in.ManagedIdentity.GetClientID(),
+					zoneConfig: privateZoneConfig,
+				}
+				if err := runGatewayTests(ctx, config, in.ManagedIdentity.GetClientID(), privateGwTestConfig); err != nil {
+					return err
+				}
+				return nil
+			},
+		},
 	}
 }
 
