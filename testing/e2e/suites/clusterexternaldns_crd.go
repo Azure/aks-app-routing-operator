@@ -51,7 +51,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 			name: "clusterexternaldns crd validations",
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
-				withVersions(manifests.AllUsedOperatorVersions...).
+				withVersions(manifests.OperatorVersionLatest).
 				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
@@ -71,48 +71,46 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						ced:           validClusterExternalDNS(),
 						expectedError: nil,
 					},
-					// TODO - eventually troubleshoot flakiness with events appearing in cluster but not being seen by client
-					// (we have UTs for this anyway)
-					// {
-					// 	name: "invalid zone ID format",
-					// 	ced: &v1alpha1.ClusterExternalDNS{
-					// 		TypeMeta: metav1.TypeMeta{
-					// 			APIVersion: v1alpha1.GroupVersion.String(),
-					// 			Kind:       "ClusterExternalDNS",
-					// 		},
-					// 		ObjectMeta: metav1.ObjectMeta{
-					// 			Name: "invalid-zone-id",
-					// 		},
-					// 		Spec: v1alpha1.ClusterExternalDNSSpec{
-					// 			ResourceName:      "test",
-					// 			ResourceNamespace: "default",
-					// 			TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
-					// 			DNSZoneResourceIDs: []string{
-					// 				"/not/a/valid/resource/id/but/has/enough/slashes",
-					// 			},
-					// 			ResourceTypes: []string{"ingress", "gateway"},
-					// 			Identity: v1alpha1.ExternalDNSIdentity{
-					// 				ServiceAccount: "test-sa",
-					// 			},
-					// 		},
-					// 	},
-					// 	prereqs: []client.Object{
-					// 		&corev1.ServiceAccount{
-					// 			TypeMeta: metav1.TypeMeta{
-					// 				APIVersion: "v1",
-					// 				Kind:       "ServiceAccount",
-					// 			},
-					// 			ObjectMeta: metav1.ObjectMeta{
-					// 				Name:      "test-sa",
-					// 				Namespace: "default",
-					// 				Annotations: map[string]string{
-					// 					"azure.workload.identity/client-id": "test-client-id",
-					// 				},
-					// 			},
-					// 		},
-					// 	},
-					// 	expectedWarningEvent: to.Ptr("invalid dns zone resource id"),
-					// },
+					{
+						name: "invalid zone ID format",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "invalid-zone-id",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/not/a/valid/resource/id/but/has/enough/slashes",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
+							},
+						},
+						prereqs: []client.Object{
+							&corev1.ServiceAccount{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: "v1",
+									Kind:       "ServiceAccount",
+								},
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "test-sa",
+									Namespace: "default",
+									Annotations: map[string]string{
+										"azure.workload.identity/client-id": "test-client-id",
+									},
+								},
+							},
+						},
+						expectedWarningEvent: to.Ptr("invalid dns zone resource id"),
+					},
 					{
 						name: "serviceaccount does not exist",
 						ced: &v1alpha1.ClusterExternalDNS{
@@ -138,44 +136,44 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 						},
 						expectedWarningEvent: to.Ptr("serviceAccount nonexistent-sa does not exist in namespace default"),
 					},
-					// {
-					// 	name: "serviceaccount missing WI annotation",
-					// 	ced: &v1alpha1.ClusterExternalDNS{
-					// 		TypeMeta: metav1.TypeMeta{
-					// 			APIVersion: v1alpha1.GroupVersion.String(),
-					// 			Kind:       "ClusterExternalDNS",
-					// 		},
-					// 		ObjectMeta: metav1.ObjectMeta{
-					// 			Name: "sa-missing-wi",
-					// 		},
-					// 		Spec: v1alpha1.ClusterExternalDNSSpec{
-					// 			ResourceName:      "test",
-					// 			ResourceNamespace: "default",
-					// 			TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
-					// 			DNSZoneResourceIDs: []string{
-					// 				"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
-					// 			},
-					// 			ResourceTypes: []string{"ingress", "gateway"},
-					// 			Identity: v1alpha1.ExternalDNSIdentity{
-					// 				ServiceAccount: "sa-no-annotation",
-					// 			},
-					// 		},
-					// 	},
-					// 	prereqs: []client.Object{
-					// 		&corev1.ServiceAccount{
-					// 			TypeMeta: metav1.TypeMeta{
-					// 				APIVersion: "v1",
-					// 				Kind:       "ServiceAccount",
-					// 			},
-					// 			ObjectMeta: metav1.ObjectMeta{
-					// 				Name:      "sa-no-annotation",
-					// 				Namespace: "default",
-					// 			},
-					// 			// No annotations - missing azure.workload.identity/client-id
-					// 		},
-					// 	},
-					// 	expectedWarningEvent: to.Ptr("serviceAccount sa-no-annotation was specified but does not include necessary annotation for workload identity"),
-					// },
+					{
+						name: "serviceaccount missing WI annotation",
+						ced: &v1alpha1.ClusterExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ClusterExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "sa-missing-wi",
+							},
+							Spec: v1alpha1.ClusterExternalDNSSpec{
+								ResourceName:      "test",
+								ResourceNamespace: "default",
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress", "gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "sa-no-annotation",
+								},
+							},
+						},
+						prereqs: []client.Object{
+							&corev1.ServiceAccount{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: "v1",
+									Kind:       "ServiceAccount",
+								},
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sa-no-annotation",
+									Namespace: "default",
+								},
+								// No annotations - missing azure.workload.identity/client-id
+							},
+						},
+						expectedWarningEvent: to.Ptr("serviceAccount sa-no-annotation was specified but does not include necessary annotation for workload identity"),
+					},
 					{
 						name: "serviceaccount in wrong namespace",
 						ced: &v1alpha1.ClusterExternalDNS{
