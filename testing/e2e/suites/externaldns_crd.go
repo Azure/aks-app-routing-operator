@@ -20,6 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const externalDNSTestNamespace = "external-dns-test-ns"
+
 func validExternalDNS() *v1alpha1.ExternalDNS {
 	return &v1alpha1.ExternalDNS{
 		TypeMeta: metav1.TypeMeta{
@@ -28,7 +30,7 @@ func validExternalDNS() *v1alpha1.ExternalDNS {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-no-filters",
-			Namespace: "default",
+			Namespace: externalDNSTestNamespace,
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
 			ResourceName: "test",
@@ -59,6 +61,27 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 				lgr.With("test", "externaldns crd validations")
 				lgr.Info("starting test")
 
+				c, err := client.New(config, client.Options{
+					Scheme: scheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
+				}
+
+				// Create dedicated test namespace
+				testNs := &corev1.Namespace{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Namespace",
+						APIVersion: "v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: externalDNSTestNamespace,
+					},
+				}
+				if err := upsert(ctx, c, testNs); err != nil {
+					return fmt.Errorf("creating test namespace: %w", err)
+				}
+
 				tcs := []struct {
 					name                 string
 					ed                   *v1alpha1.ExternalDNS
@@ -80,7 +103,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "invalid-zone-id",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -102,7 +125,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ObjectMeta: metav1.ObjectMeta{
 									Name:      "test-sa",
-									Namespace: "default",
+									Namespace: externalDNSTestNamespace,
 									Annotations: map[string]string{
 										"azure.workload.identity/client-id": "test-client-id",
 									},
@@ -120,7 +143,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "sa-not-exist",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -134,7 +157,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedWarningEvent: to.Ptr("serviceAccount nonexistent-sa does not exist in namespace default"),
+						expectedWarningEvent: to.Ptr("serviceAccount nonexistent-sa does not exist in namespace " + externalDNSTestNamespace),
 					},
 					{
 						name: "serviceaccount missing WI annotation",
@@ -145,7 +168,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "sa-missing-wi",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -167,7 +190,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ObjectMeta: metav1.ObjectMeta{
 									Name:      "sa-no-annotation",
-									Namespace: "default",
+									Namespace: externalDNSTestNamespace,
 								},
 								// No annotations - missing azure.workload.identity/client-id
 							},
@@ -183,7 +206,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "invalid-tenant",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -208,7 +231,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "empty-tenant",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								TenantID:     to.Ptr(""),
@@ -233,7 +256,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "nil-tenant",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -256,7 +279,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "diff-sub",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -282,7 +305,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "diff-type",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -308,7 +331,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "duplicate-zones",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -334,7 +357,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "diff-rg",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -360,7 +383,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "no-zones",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName:       "test",
@@ -383,7 +406,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "no-resourcetypes",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -408,7 +431,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "empty-resourcetypes",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -434,7 +457,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "invalid-resourcetypes",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -460,7 +483,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "no-identity",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -483,7 +506,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "no-sa",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -507,7 +530,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "test",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -536,7 +559,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "test",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -561,7 +584,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "test",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -587,7 +610,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "test",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -616,7 +639,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 							},
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "test",
-								Namespace: "default",
+								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
 								ResourceName: "test",
@@ -636,13 +659,6 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 						},
 						expectedError: errors.New("should match '^[^=]+=[^=]+$'"),
 					},
-				}
-
-				c, err := client.New(config, client.Options{
-					Scheme: scheme,
-				})
-				if err != nil {
-					return fmt.Errorf("creating client: %w", err)
 				}
 
 				clientset, err := kubernetes.NewForConfig(config)
