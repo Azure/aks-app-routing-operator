@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
@@ -35,6 +36,7 @@ func init() {
 	policyv1.AddToScheme(scheme)
 	rbacv1.AddToScheme(scheme)
 	v1alpha1.AddToScheme(scheme)
+	gatewayv1.Install(scheme)
 }
 
 // MarshalJson converts an object to json

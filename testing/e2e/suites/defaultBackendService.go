@@ -240,7 +240,7 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			zoneName := nonAlphaNumHyphenRegex.ReplaceAllString(zone.GetName()[:26], "-")
+			zoneName := nonAlphaNumHyphenRegex.ReplaceAllString(zone.GetName()[:23], "-")
 			zoneName = trailingHyphenRegex.ReplaceAllString(zoneName, "")
 			zoneNamespace := ns.Name
 			zoneKVUri := zone.GetCertId()
@@ -265,10 +265,10 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 
 			if nic.Spec.CustomHTTPErrors != nil && len(nic.Spec.CustomHTTPErrors) > 1 {
 				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, serviceName)
-				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{testingResources.Service.Name, testingResources.Service.Namespace}
+				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: testingResources.Service.Name, Namespace: testingResources.Service.Namespace}
 			} else {
 				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
-				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{"default-" + zoneName + "-service", zoneNamespace}
+				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: "default-" + zoneName + "-service", Namespace: zoneNamespace}
 			}
 
 			upsertObjects = append(upsertObjects, testingResources.Objects()...)
