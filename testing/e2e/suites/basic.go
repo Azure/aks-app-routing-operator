@@ -110,14 +110,14 @@ func getZoners(ctx context.Context, c client.Client, namespacer namespacer, oper
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0], infra.KeyVault)
+		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0])
 		if err != nil {
 			return nil, fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zs, err := toZoners(ctx, c, namespacer, z, infra.KeyVault)
+			zs, err := toZoners(ctx, c, namespacer, z)
 			if err != nil {
 				return nil, fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -127,14 +127,14 @@ func getZoners(ctx context.Context, c client.Client, namespacer namespacer, oper
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp(), infra.KeyVault)
+		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
 		if err != nil {
 			return nil, fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp(), infra.KeyVault)
+			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp())
 			if err != nil {
 				return nil, fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -216,7 +216,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	return nil
 }
 
-func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.Zone], kv infra.KeyVault) ([]zoner, error) {
+func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.Zone]) ([]zoner, error) {
 	name := z.Zone.GetName()
 	nameserver := z.Zone.GetNameservers()[0]
 	certName := z.Cert.GetName()
@@ -226,15 +226,8 @@ func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z in
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
 
-	// Fetch the CA certificate from Key Vault
-	var caCertB64 string
-	if kv != nil {
-		caCertDER, err := kv.GetCertificateCER(ctx, certName)
-		if err != nil {
-			return nil, fmt.Errorf("getting certificate CER from keyvault: %w", err)
-		}
-		caCertB64 = base64.StdEncoding.EncodeToString(caCertDER)
-	}
+	// Get the CA certificate from the cert (populated during provisioning)
+	caCertB64 := base64.StdEncoding.EncodeToString(z.Cert.GetCER())
 
 	return []zoner{
 		zone{
@@ -258,7 +251,7 @@ func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z in
 	}, nil
 }
 
-func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.PrivateZone], nameserver string, kv infra.KeyVault) ([]zoner, error) {
+func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.PrivateZone], nameserver string) ([]zoner, error) {
 	name := z.Zone.GetName()
 	certName := z.Cert.GetName()
 	certId := z.Cert.GetId()
@@ -267,15 +260,8 @@ func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespace
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
 
-	// Fetch the CA certificate from Key Vault
-	var caCertB64 string
-	if kv != nil {
-		caCertDER, err := kv.GetCertificateCER(ctx, certName)
-		if err != nil {
-			return nil, fmt.Errorf("getting certificate CER from keyvault: %w", err)
-		}
-		caCertB64 = base64.StdEncoding.EncodeToString(caCertDER)
-	}
+	// Get the CA certificate from the cert (populated during provisioning)
+	caCertB64 := base64.StdEncoding.EncodeToString(z.Cert.GetCER())
 
 	return []zoner{
 		zone{

@@ -104,6 +104,7 @@ type KeyVault interface {
 type cert interface {
 	GetName() string
 	GetId() string
+	GetCER() []byte
 }
 
 // WithCert is a resource with a tls certificate valid for that resource. This is used to bundle DNS Zones
@@ -138,6 +139,7 @@ type withLoadableCert[T any] struct {
 	Zone     T
 	CertName string
 	CertId   string
+	CertCER  []byte // DER-encoded X.509 certificate for TLS verification
 }
 
 // LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.

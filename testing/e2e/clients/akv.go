@@ -27,6 +27,7 @@ type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
 type Cert struct {
 	id   string
 	name string
+	cer  []byte // DER-encoded X.509 certificate
 }
 
 func LoadAkv(id azure.Resource) *akv {
@@ -154,10 +155,11 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	return nil
 }
 
-func LoadCert(name, id string) *Cert {
+func LoadCert(name, id string, cer []byte) *Cert {
 	return &Cert{
 		id:   id,
 		name: name,
+		cer:  cer,
 	}
 }
 
@@ -241,9 +243,18 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, cnName string,
 
 	id := string(*created.ID)
 	id = strings.TrimSuffix(id, "/pending") // haven't found a better way of getting the cert id other than this so far
+
+	// Fetch the CER (DER-encoded certificate) for TLS verification
+	// The certificate may not be ready immediately, so we call GetCertificateCER which will poll
+	cer, err := a.GetCertificateCER(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("getting certificate CER: %w", err)
+	}
+
 	return &Cert{
 		id:   id,
 		name: name,
+		cer:  cer,
 	}, nil
 }
 
@@ -253,6 +264,10 @@ func (c *Cert) GetName() string {
 
 func (c *Cert) GetId() string {
 	return c.id
+}
+
+func (c *Cert) GetCER() []byte {
+	return c.cer
 }
 
 // GetCertificateCER retrieves the CER (X.509 certificate in DER format) for a certificate.

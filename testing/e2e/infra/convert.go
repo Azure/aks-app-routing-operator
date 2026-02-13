@@ -32,6 +32,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 			},
 			CertName: zone.Cert.GetName(),
 			CertId:   zone.Cert.GetId(),
+			CertCER:  zone.Cert.GetCER(),
 		}
 	}
 
@@ -45,6 +46,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 			Zone:     z,
 			CertName: privateZone.Cert.GetName(),
 			CertId:   privateZone.Cert.GetId(),
+			CertCER:  privateZone.Cert.GetCER(),
 		}
 	}
 
@@ -59,6 +61,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		},
 		CertName: p.ManagedIdentityZone.Cert.GetName(),
 		CertId:   p.ManagedIdentityZone.Cert.GetId(),
+		CertCER:  p.ManagedIdentityZone.Cert.GetCER(),
 	}
 	managedIdentityPrivateZoneId, err := azure.ParseResourceID(p.ManagedIdentityPrivateZone.Zone.GetId())
 	if err != nil {
@@ -68,6 +71,7 @@ func (p Provisioned) Loadable() (LoadableProvisioned, error) {
 		Zone:     managedIdentityPrivateZoneId,
 		CertName: p.ManagedIdentityPrivateZone.Cert.GetName(),
 		CertId:   p.ManagedIdentityPrivateZone.Cert.GetId(),
+		CertCER:  p.ManagedIdentityPrivateZone.Cert.GetCER(),
 	}
 
 	keyVault, err := azure.ParseResourceID(p.KeyVault.GetId())
@@ -140,25 +144,25 @@ func (l LoadableProvisioned) Provisioned() (Provisioned, error) {
 	for i, z := range l.Zones {
 		zs[i] = WithCert[Zone]{
 			Zone: clients.LoadZone(z.Zone.ResourceId, z.Zone.Nameservers),
-			Cert: clients.LoadCert(z.CertName, z.CertId),
+			Cert: clients.LoadCert(z.CertName, z.CertId, z.CertCER),
 		}
 	}
 	pzs := make([]WithCert[PrivateZone], len(l.PrivateZones))
 	for i, pz := range l.PrivateZones {
 		pzs[i] = WithCert[PrivateZone]{
 			Zone: clients.LoadPrivateZone(pz.Zone),
-			Cert: clients.LoadCert(pz.CertName, pz.CertId),
+			Cert: clients.LoadCert(pz.CertName, pz.CertId, pz.CertCER),
 		}
 	}
 
 	managedIdentityZone := WithCert[Zone]{
 		Zone: clients.LoadZone(l.ManagedIdentityZone.Zone.ResourceId, l.ManagedIdentityZone.Zone.Nameservers),
-		Cert: clients.LoadCert(l.ManagedIdentityZone.CertName, l.ManagedIdentityZone.CertId),
+		Cert: clients.LoadCert(l.ManagedIdentityZone.CertName, l.ManagedIdentityZone.CertId, l.ManagedIdentityZone.CertCER),
 	}
 
 	managedIdentityPrivateZone := WithCert[PrivateZone]{
 		Zone: clients.LoadPrivateZone(l.ManagedIdentityPrivateZone.Zone),
-		Cert: clients.LoadCert(l.ManagedIdentityPrivateZone.CertName, l.ManagedIdentityPrivateZone.CertId),
+		Cert: clients.LoadCert(l.ManagedIdentityPrivateZone.CertName, l.ManagedIdentityPrivateZone.CertId, l.ManagedIdentityPrivateZone.CertCER),
 	}
 
 	return Provisioned{
