@@ -29,6 +29,10 @@ var mockConfigWithTenantId = mockDnsConfig{
 		RouteAndIngressLabelSelector: to.Ptr("test=othertest"),
 	},
 	namespaced: true,
+	identity: v1alpha1.ExternalDNSIdentity{
+		Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+		ServiceAccount: "mock-service-account",
+	},
 }
 
 var mockConfigWithoutTenantId = mockDnsConfig{
@@ -42,6 +46,10 @@ var mockConfigWithoutTenantId = mockDnsConfig{
 		RouteAndIngressLabelSelector: to.Ptr("test=othertest"),
 	},
 	namespaced: true,
+	identity: v1alpha1.ExternalDNSIdentity{
+		Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+		ServiceAccount: "mock-service-account",
+	},
 }
 
 var conf = &config.Config{

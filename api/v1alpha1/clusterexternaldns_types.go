@@ -134,3 +134,7 @@ func (c *ClusterExternalDNS) GetFilters() *ExternalDNSFilters {
 }
 
 func (e *ClusterExternalDNS) GetNamespaced() bool { return false }
+
+func (c *ClusterExternalDNS) GetIdentity() ExternalDNSIdentity {
+	return c.Spec.Identity
+}
