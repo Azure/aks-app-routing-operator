@@ -84,17 +84,41 @@ spec:
                 description: Identity contains information about the identity that
                   ExternalDNS will use to interface with Azure resources.
                 properties:
+                  clientID:
+                    description: |-
+                      ClientID is the client ID of the Azure Managed Identity that ExternalDNS will use to interface with Azure resources.
+                      Required when type is "managedIdentity".
+                    format: uuid
+                    pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+                    type: string
                   serviceAccount:
-                    description: ServiceAccount is the name of the Kubernetes ServiceAccount
-                      that ExternalDNS will use to interface with Azure resources.
-                      It must be in the same namespace as the ExternalDNS.
+                    description: |-
+                      ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources.
+                      Required when type is "workloadIdentity". The ServiceAccount must exist in the same namespace as the ExternalDNS
+                      and must have the azure.workload.identity/client-id annotation.
                     maxLength: 253
                     minLength: 1
                     pattern: ^[a-z0-9][-a-z0-9\.]*[a-z0-9]$
                     type: string
+                  type:
+                    default: workloadIdentity
+                    description: |-
+                      Type is the type of identity that ExternalDNS will use to interface with Azure resources.
+                      Supported values are "workloadIdentity" and "managedIdentity".
+                    enum:
+                    - workloadIdentity
+                    - managedIdentity
+                    type: string
                 required:
-                - serviceAccount
+                - type
                 type: object
+                x-kubernetes-validations:
+                - message: serviceAccount is required when type is workloadIdentity
+                  rule: 'self.type == ''workloadIdentity'' ? has(self.serviceAccount)
+                    && self.serviceAccount != '''' : true'
+                - message: clientID is required when type is managedIdentity
+                  rule: 'self.type == ''managedIdentity'' ? has(self.clientID) &&
+                    self.clientID != '''' : true'
               resourceName:
                 description: ResourceName is the name that will be used for the ExternalDNS
                   deployment and related resources. Will default to the name of the

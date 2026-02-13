@@ -22,13 +22,31 @@ type ExternalDNSCRDConfiguration interface {
 	GetDnsZoneresourceIDs() []string
 	GetFilters() *v1alpha1.ExternalDNSFilters
 	GetNamespaced() bool
+	GetIdentity() v1alpha1.ExternalDNSIdentity
 	client.Object
 }
 
 func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) manifests.InputExternalDNSConfig {
+	identity := e.GetIdentity()
+
+	// Determine identity type
+	identityType := manifests.IdentityTypeWorkloadIdentity
+	var clientId string
+	var serviceAccount string
+
+	if identity.Type == v1alpha1.IdentityTypeManagedIdentity {
+		identityType = manifests.IdentityTypeMSI
+		clientId = identity.ClientID
+		// For MSI, we generate a service account name based on the resource name
+		serviceAccount = ""
+	} else {
+		serviceAccount = identity.ServiceAccount
+	}
+
 	ret := manifests.InputExternalDNSConfig{
-		IdentityType:        manifests.IdentityTypeWorkloadIdentity,
-		InputServiceAccount: e.GetInputServiceAccount(),
+		IdentityType:        identityType,
+		ClientId:            clientId,
+		InputServiceAccount: serviceAccount,
 		Namespace:           e.GetResourceNamespace(),
 		InputResourceName:   e.GetInputResourceName(),
 		ResourceTypes:       extractResourceTypes(e.GetResourceTypes()),
@@ -85,4 +103,22 @@ func deployExternalDNSResources(ctx context.Context, client client.Client, manif
 	}
 
 	return multiError.ErrorOrNil()
+}
+
+// verifyIdentity verifies that the identity configuration is valid for the ExternalDNS resource.
+// For workload identity, it validates that the service account exists and has the required annotation.
+// For managed identity, no additional verification is needed as the clientID is validated by CRD schema.
+func verifyIdentity(ctx context.Context, k8sclient client.Client, obj ExternalDNSCRDConfiguration) error {
+	identity := obj.GetIdentity()
+
+	// For workload identity (or default/empty which defaults to workload identity),
+	// verify the service account exists and has the required annotation
+	if identity.Type != v1alpha1.IdentityTypeManagedIdentity {
+		_, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, k8sclient, identity.ServiceAccount, obj.GetResourceNamespace())
+		return err
+	}
+
+	// For managed identity, the clientID is validated by CRD schema validation
+	// No additional verification is needed at runtime
+	return nil
 }
