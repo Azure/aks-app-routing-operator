@@ -111,7 +111,7 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 						},
 						Spec: v1alpha1.ClusterExternalDNSSpec{
 							ResourceName:       "wi-cluster-external-dns",
-							DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+							DNSZoneResourceIDs: []string{in.ManagedIdentityZones[0].Zone.GetId()},
 							ResourceTypes:      []string{"ingress"},
 							Identity: v1alpha1.ExternalDNSIdentity{
 								ServiceAccount: sa.Name,
@@ -133,7 +133,7 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 						},
 						Spec: v1alpha1.ClusterExternalDNSSpec{
 							ResourceName:       "wi-private-cluster-external-dns",
-							DNSZoneResourceIDs: []string{in.ManagedIdentityPrivateZone.Zone.GetId()},
+							DNSZoneResourceIDs: []string{in.ManagedIdentityPrivateZones[0].Zone.GetId()},
 							ResourceTypes:      []string{"ingress"},
 							Identity: v1alpha1.ExternalDNSIdentity{
 								ServiceAccount: sa.Name,
@@ -149,12 +149,12 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					ingress.Annotations["kubernetes.azure.com/tls-cert-service-account"] = sa.GetName()
 					return nil
 				}, util.ToPtr(service.Name), func(ctx context.Context, c client.Client, namespacer namespacer, operator manifests.OperatorConfig, infra infra.Provisioned, serviceName *string) ([]zoner, error) {
-					zs, err := toZoners(ctx, cl, namespacer, infra.ManagedIdentityZone)
+					zs, err := toZoners(ctx, cl, namespacer, infra.ManagedIdentityZones[0])
 					if err != nil {
 						return nil, fmt.Errorf("getting zoners: %w", err)
 					}
 
-					pzs, err := toPrivateZoners(ctx, cl, namespacer, infra.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp())
+					pzs, err := toPrivateZoners(ctx, cl, namespacer, infra.ManagedIdentityPrivateZones[0], in.Cluster.GetDnsServiceIp())
 					if err != nil {
 						return nil, fmt.Errorf("getting private zoners: %w", err)
 					}

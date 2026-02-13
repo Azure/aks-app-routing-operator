@@ -2,6 +2,7 @@ package infra
 
 import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
+	"github.com/Azure/aks-app-routing-operator/testing/e2e/utils"
 	"github.com/google/uuid"
 )
 
@@ -28,16 +29,12 @@ var Infras = infras{
 		McOpts:        []clients.McOpt{clients.OsmClusterOpt, clients.VmCountOpt(8)}, // requires more VMs than other infras
 	},
 	{
-		Name:          "gateway-full-mesh-cluster",
-		ResourceGroup: uniqueResourceGroup(),
-		Location:      getLocation(),
-		Suffix:        uuid.New().String()[:16],
-		McOpts:        []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
-		FederatedNamespaces: []FederatedNamespace{
-			{Namespace: "filter-ns", ServiceAccount: "filter-sa"},
-			{Namespace: "gateway-wi-ns", ServiceAccount: "gateway-wi-sa"},
-			{Namespace: "private-gateway-wi-ns", ServiceAccount: "gateway-wi-sa"},
-		},
+		Name:                "gateway-full-mesh-cluster",
+		ResourceGroup:       uniqueResourceGroup(),
+		Location:            getLocation(),
+		Suffix:              uuid.New().String()[:16],
+		McOpts:              []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
+		FederatedNamespaces: utils.GenerateGatewayFederatedNamespaces(),
 	},
 	// TODO: add back when service principal cluster is supported
 	//{
