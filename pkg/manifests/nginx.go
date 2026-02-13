@@ -21,11 +21,11 @@ import (
 )
 
 var (
-	nginx1_13_5 = NginxIngressVersion{
-		name: "v1.13.5",
-		tag:  "v1.13.5",
+	nginx1_13_7 = NginxIngressVersion{
+		name: "v1.13.7",
+		tag:  "v1.13.7",
 	}
-	nginxVersionsAscending = []NginxIngressVersion{nginx1_13_5}
+	nginxVersionsAscending = []NginxIngressVersion{nginx1_13_7}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
 )
 
@@ -467,7 +467,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withLivenessProbeMatchingReadinessNewFailureThresh(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/mirror/registry.k8s.io/ingress-nginx/controller:"+ingressConfig.Version.tag),
+						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+ingressConfig.Version.tag),
 						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: util.ToPtr(false),
