@@ -149,12 +149,12 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 					ingress.Annotations["kubernetes.azure.com/tls-cert-service-account"] = sa.GetName()
 					return nil
 				}, util.ToPtr(service.Name), func(ctx context.Context, c client.Client, namespacer namespacer, operator manifests.OperatorConfig, infra infra.Provisioned, serviceName *string) ([]zoner, error) {
-					zs, err := toZoners(ctx, cl, namespacer, infra.ManagedIdentityZone)
+					zs, err := toZoners(ctx, cl, namespacer, infra.ManagedIdentityZone, infra.KeyVault)
 					if err != nil {
 						return nil, fmt.Errorf("getting zoners: %w", err)
 					}
 
-					pzs, err := toPrivateZoners(ctx, cl, namespacer, infra.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp())
+					pzs, err := toPrivateZoners(ctx, cl, namespacer, infra.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp(), infra.KeyVault)
 					if err != nil {
 						return nil, fmt.Errorf("getting private zoners: %w", err)
 					}

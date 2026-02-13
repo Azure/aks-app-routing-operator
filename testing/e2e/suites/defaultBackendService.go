@@ -185,14 +185,14 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0])
+		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0], infra.KeyVault)
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zs, err := toZoners(ctx, c, namespacer, z)
+			zs, err := toZoners(ctx, c, namespacer, z, infra.KeyVault)
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -202,14 +202,14 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp(), infra.KeyVault)
 		if err != nil {
 			return fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp())
+			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp(), infra.KeyVault)
 			if err != nil {
 				return fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -264,10 +264,10 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			}
 
 			if nic.Spec.CustomHTTPErrors != nil && len(nic.Spec.CustomHTTPErrors) > 1 {
-				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, serviceName)
+				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, zone.GetCaCertB64(), serviceName)
 				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: testingResources.Service.Name, Namespace: testingResources.Service.Namespace}
 			} else {
-				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
+				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost, zone.GetCaCertB64())
 				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: "default-" + zoneName + "-service", Namespace: zoneNamespace}
 			}
 
