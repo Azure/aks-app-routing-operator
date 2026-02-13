@@ -3,6 +3,7 @@ package suites
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -52,27 +53,51 @@ type gatewayZoneConfig struct {
 	// NamePrefix is used to create unique resource names (e.g., "public" or "private")
 	// This ensures resources don't collide when tests run concurrently
 	NamePrefix string
+	// CaCertB64 is the base64-encoded CA certificate (DER format) for TLS verification
+	CaCertB64 string
 }
 
 // newPublicZoneConfig creates a gatewayZoneConfig for a public DNS zone
-func newPublicZoneConfig(zone infra.WithCert[infra.Zone]) gatewayZoneConfig {
+func newPublicZoneConfig(ctx context.Context, zone infra.WithCert[infra.Zone], kv infra.KeyVault) (gatewayZoneConfig, error) {
+	// Fetch the CA certificate from Key Vault
+	var caCertB64 string
+	if kv != nil {
+		caCertDER, err := kv.GetCertificateCER(ctx, zone.Cert.GetName())
+		if err != nil {
+			return gatewayZoneConfig{}, fmt.Errorf("getting certificate CER from keyvault: %w", err)
+		}
+		caCertB64 = base64.StdEncoding.EncodeToString(caCertDER)
+	}
+
 	return gatewayZoneConfig{
 		ZoneID:          zone.Zone.GetId(),
 		ZoneName:        zone.Zone.GetName(),
 		Nameserver:      zone.Zone.GetNameservers()[0],
 		KeyvaultCertURI: zone.Cert.GetId(),
-	}
+		CaCertB64:       caCertB64,
+	}, nil
 }
 
 // newPrivateZoneConfig creates a gatewayZoneConfig for a private DNS zone
-func newPrivateZoneConfig(zone infra.WithCert[infra.PrivateZone], dnsServiceIP string) gatewayZoneConfig {
+func newPrivateZoneConfig(ctx context.Context, zone infra.WithCert[infra.PrivateZone], dnsServiceIP string, kv infra.KeyVault) (gatewayZoneConfig, error) {
+	// Fetch the CA certificate from Key Vault
+	var caCertB64 string
+	if kv != nil {
+		caCertDER, err := kv.GetCertificateCER(ctx, zone.Cert.GetName())
+		if err != nil {
+			return gatewayZoneConfig{}, fmt.Errorf("getting certificate CER from keyvault: %w", err)
+		}
+		caCertB64 = base64.StdEncoding.EncodeToString(caCertDER)
+	}
+
 	return gatewayZoneConfig{
 		ZoneID:          zone.Zone.GetId(),
 		ZoneName:        zone.Zone.GetName(),
 		Nameserver:      dnsServiceIP,
 		KeyvaultCertURI: zone.Cert.GetId(),
 		NamePrefix:      "private-",
-	}
+		CaCertB64:       caCertB64,
+	}, nil
 }
 
 // TODO: Add e2e test for multi-tenant zone sharing scenario where multiple namespace-scoped
@@ -105,7 +130,10 @@ func gatewayTests(in infra.Provisioned) []test {
 				withGatewayTLS(true).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				publicZoneConfig := newPublicZoneConfig(in.ManagedIdentityZone)
+				publicZoneConfig, err := newPublicZoneConfig(ctx, in.ManagedIdentityZone, in.KeyVault)
+				if err != nil {
+					return fmt.Errorf("creating public zone config: %w", err)
+				}
 				publicGwTestConfig := gatewayTestConfig{
 					namespace:  gatewayPublicTestNamespace,
 					clientId:   in.ManagedIdentity.GetClientID(),
@@ -283,6 +311,7 @@ func deployGatewayResources(
 	host := strings.ToLower(gatewayTestConfig.namespace) + "." + strings.TrimSuffix(zoneName, ".")
 	tlsHost := host
 	keyvaultURI := gatewayTestConfig.zoneConfig.KeyvaultCertURI
+	caCertB64 := gatewayTestConfig.zoneConfig.CaCertB64
 
 	lgr.Info("deploying gateway resources", "host", host, "zone", zoneName)
 
@@ -296,6 +325,7 @@ func deployGatewayResources(
 		tlsHost,
 		gatewayTestServiceAccount,
 		manifests.IstioGatewayClassName,
+		caCertB64,
 	)
 
 	// Deploy all resources

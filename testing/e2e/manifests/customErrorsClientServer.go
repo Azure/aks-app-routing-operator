@@ -21,7 +21,7 @@ var notFoundContents string
 //go:embed embedded/503.html
 var unavailableContents string
 
-func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, ingressClassName string, serviceName *string) ClientServerResources {
+func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, ingressClassName, caCertB64 string, serviceName *string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
 	// Client deployment
@@ -47,6 +47,10 @@ func CustomErrorsClientAndServer(namespace, name, nameserver, keyvaultURI, host,
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+		{
+			Name:  "CA_CERT",
+			Value: caCertB64,
 		},
 	}
 	errorsClientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{

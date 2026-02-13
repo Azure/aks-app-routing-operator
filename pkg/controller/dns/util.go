@@ -22,13 +22,28 @@ type ExternalDNSCRDConfiguration interface {
 	GetDnsZoneresourceIDs() []string
 	GetFilters() *v1alpha1.ExternalDNSFilters
 	GetNamespaced() bool
+	GetIdentity() v1alpha1.ExternalDNSIdentity
 	client.Object
 }
 
 func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) manifests.InputExternalDNSConfig {
+	identity := e.GetIdentity()
+	identityType := manifests.IdentityTypeWorkloadIdentity
+	var clientId string
+	var serviceAccount string
+
+	if identity.Type == v1alpha1.IdentityTypeManagedIdentity {
+		identityType = manifests.IdentityTypeMSI
+		clientId = identity.ClientID
+		serviceAccount = ""
+	} else {
+		serviceAccount = identity.ServiceAccount
+	}
+
 	ret := manifests.InputExternalDNSConfig{
-		IdentityType:        manifests.IdentityTypeWorkloadIdentity,
-		InputServiceAccount: e.GetInputServiceAccount(),
+		IdentityType:        identityType,
+		InputServiceAccount: serviceAccount,
+		ClientId:            clientId,
 		Namespace:           e.GetResourceNamespace(),
 		InputResourceName:   e.GetInputResourceName(),
 		ResourceTypes:       extractResourceTypes(e.GetResourceTypes()),
@@ -85,4 +100,14 @@ func deployExternalDNSResources(ctx context.Context, client client.Client, manif
 	}
 
 	return multiError.ErrorOrNil()
+}
+
+func verifyIdentity(ctx context.Context, k8sclient client.Client, obj ExternalDNSCRDConfiguration) error {
+	identity := obj.GetIdentity()
+	// Only verify workload identity service accounts - MSI uses client ID directly
+	if identity.Type != v1alpha1.IdentityTypeManagedIdentity {
+		_, err := util.GetServiceAccountWorkloadIdentityClientId(ctx, k8sclient, identity.ServiceAccount, obj.GetResourceNamespace())
+		return err
+	}
+	return nil
 }

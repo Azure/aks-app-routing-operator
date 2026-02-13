@@ -189,11 +189,6 @@ func NewExternalDNSConfig(conf *config.Config, inputConfig InputExternalDNSConfi
 		return nil, fmt.Errorf("invalid identity type: %v", inputConfig.IdentityType)
 	}
 
-	_, containsGateway := inputConfig.ResourceTypes[ResourceTypeGateway]
-	if containsGateway && inputConfig.IdentityType != IdentityTypeWorkloadIdentity {
-		return nil, errors.New("gateway resource type can only be used with workload identity")
-	}
-
 	var firstZoneResourceType string
 	var firstZoneSub string
 	var firstZoneRg string

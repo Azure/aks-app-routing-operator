@@ -27,14 +27,18 @@ type CertOpt func(cert *azcertificates.CreateCertificateParameters) error
 type Cert struct {
 	id   string
 	name string
+	cer  []byte // DER-encoded X.509 certificate
 }
 
 func LoadAkv(id azure.Resource) *akv {
+	// Construct the vault URI from the name using the standard Azure Key Vault URL pattern
+	uri := fmt.Sprintf("https://%s.vault.azure.net/", id.ResourceName)
 	return &akv{
 		id:             id.String(),
 		name:           id.ResourceName,
 		resourceGroup:  id.ResourceGroup,
 		subscriptionId: id.SubscriptionID,
+		uri:            uri,
 	}
 }
 
@@ -151,10 +155,11 @@ func (a *akv) AddAccessPolicy(ctx context.Context, objectId string, permissions 
 	return nil
 }
 
-func LoadCert(name, id string) *Cert {
+func LoadCert(name, id string, cer []byte) *Cert {
 	return &Cert{
 		id:   id,
 		name: name,
+		cer:  cer,
 	}
 }
 
@@ -238,9 +243,18 @@ func (a *akv) CreateCertificate(ctx context.Context, name string, cnName string,
 
 	id := string(*created.ID)
 	id = strings.TrimSuffix(id, "/pending") // haven't found a better way of getting the cert id other than this so far
+
+	// Fetch the CER (DER-encoded certificate) for TLS verification
+	// The certificate may not be ready immediately, so we call GetCertificateCER which will poll
+	cer, err := a.GetCertificateCER(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("getting certificate CER: %w", err)
+	}
+
 	return &Cert{
 		id:   id,
 		name: name,
+		cer:  cer,
 	}, nil
 }
 
@@ -250,4 +264,39 @@ func (c *Cert) GetName() string {
 
 func (c *Cert) GetId() string {
 	return c.id
+}
+
+func (c *Cert) GetCER() []byte {
+	return c.cer
+}
+
+// GetCertificateCER retrieves the CER (X.509 certificate in DER format) for a certificate.
+// This can be used as the CA certificate for TLS verification of self-signed certificates.
+func (a *akv) GetCertificateCER(ctx context.Context, certName string) ([]byte, error) {
+	lgr := logger.FromContext(ctx).With("certName", certName, "name", a.name)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get certificate CER")
+	defer lgr.Info("finished getting certificate CER")
+
+	cred, err := getAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := azcertificates.NewClient(a.uri, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	// Get the latest version by passing empty string
+	resp, err := client.GetCertificate(ctx, certName, "", nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting certificate: %w", err)
+	}
+
+	if resp.CER == nil {
+		return nil, fmt.Errorf("certificate CER is nil")
+	}
+
+	return resp.CER, nil
 }

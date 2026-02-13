@@ -25,7 +25,7 @@ var (
 	notFoundPath    = "/notfound"
 )
 
-func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost string) ClientServerResources {
+func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ingressClassName, host, tlsHost, caCertB64 string) ClientServerResources {
 	// Client deployment
 	clientDeployment := newGoDeployment(dbClientContents, namespace, name+"-db-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
@@ -45,6 +45,10 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+		{
+			Name:  "CA_CERT",
+			Value: caCertB64,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{

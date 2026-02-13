@@ -88,14 +88,35 @@ type ExternalDNSSpec struct {
 	Filters *ExternalDNSFilters `json:"filters,omitempty"`
 }
 
+// ExternalDNSIdentityType is the type of identity that ExternalDNS will use to interface with Azure resources.
+// +kubebuilder:validation:Enum=workloadIdentity;managedIdentity
+type ExternalDNSIdentityType string
+
+const (
+	IdentityTypeWorkloadIdentity ExternalDNSIdentityType = "workloadIdentity"
+	IdentityTypeManagedIdentity  ExternalDNSIdentityType = "managedIdentity"
+)
+
 // ExternalDNSIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
+// +kubebuilder:validation:XValidation:rule="self.type == 'workloadIdentity' ? has(self.serviceAccount) && self.serviceAccount != '' : true",message="serviceAccount is required when type is workloadIdentity"
+// +kubebuilder:validation:XValidation:rule="self.type == 'managedIdentity' ? has(self.clientID) && self.clientID != '' : true",message="clientID is required when type is managedIdentity"
 type ExternalDNSIdentity struct {
+	// Type is the type of identity that ExternalDNS will use. Must be either 'workloadIdentity' or 'managedIdentity'.
+	// +kubebuilder:validation:Required
+	Type ExternalDNSIdentityType `json:"type"`
+
+	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. Required when type is 'workloadIdentity'. It must be in the same namespace as the ExternalDNS.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	// +kubebuilder:validation:Required
-	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. It must be in the same namespace as the ExternalDNS.
-	ServiceAccount string `json:"serviceAccount"`
+	// +kubebuilder:validation:Optional
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+
+	// ClientID is the client ID of the managed identity that ExternalDNS will use. Required when type is 'managedIdentity'.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Format:=uuid
+	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+	ClientID string `json:"clientID,omitempty"`
 }
 
 type ExternalDNSFilters struct {
@@ -171,4 +192,9 @@ func (e *ExternalDNS) GetDnsZoneresourceIDs() []string {
 func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
 	return e.Spec.Filters
 }
+
+func (e *ExternalDNS) GetIdentity() ExternalDNSIdentity {
+	return e.Spec.Identity
+}
+
 func (e *ExternalDNS) GetNamespaced() bool { return true }

@@ -75,7 +75,8 @@ func (g GatewayClientServerResources) Objects() []client.Object {
 //   - tlsHost: hostname for TLS certificate (can include wildcards)
 //   - serviceAccountName: name of the ServiceAccount for workload identity (must be created separately)
 //   - gatewayClassName: the GatewayClass name to use (e.g., "istio")
-func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
+//   - caCertB64: base64-encoded CA certificate (DER format) for TLS verification
+func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, serviceAccountName, gatewayClassName, caCertB64 string) GatewayClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 
 	// Create client deployment using gateway-specific client (doesn't validate X-Forwarded-For)
@@ -92,6 +93,10 @@ func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsH
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+		{
+			Name:  "CA_CERT",
+			Value: caCertB64,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
@@ -297,6 +302,7 @@ type GatewayLabelFilterTestConfig struct {
 	GatewayClassName   string
 	FilterLabelKey     string
 	FilterLabelValue   string
+	CaCertB64          string // base64-encoded CA certificate (DER format) for TLS verification
 }
 
 // GatewayLabelFilterResources creates resources for testing gateway label selectors
@@ -322,6 +328,10 @@ func GatewayLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilter
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+		{
+			Name:  "CA_CERT",
+			Value: cfg.CaCertB64,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
@@ -585,6 +595,10 @@ func RouteLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTe
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+		{
+			Name:  "CA_CERT",
+			Value: cfg.CaCertB64,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{

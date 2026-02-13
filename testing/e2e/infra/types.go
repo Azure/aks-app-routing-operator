@@ -93,16 +93,18 @@ type resourceGroup interface {
 	Identifier
 }
 
-type keyVault interface {
+type KeyVault interface {
 	GetId() string
 	CreateCertificate(ctx context.Context, name string, cnName string, dnsnames []string, certOpts ...clients.CertOpt) (*clients.Cert, error)
 	AddAccessPolicy(ctx context.Context, objectId string, permissions armkeyvault.Permissions) error
+	GetCertificateCER(ctx context.Context, certName string) ([]byte, error)
 	Identifier
 }
 
 type cert interface {
 	GetName() string
 	GetId() string
+	GetCER() []byte
 }
 
 // WithCert is a resource with a tls certificate valid for that resource. This is used to bundle DNS Zones
@@ -120,7 +122,7 @@ type Provisioned struct {
 	ManagedIdentityPrivateZone WithCert[PrivateZone]
 	Zones                      []WithCert[Zone]
 	PrivateZones               []WithCert[PrivateZone]
-	KeyVault                   keyVault
+	KeyVault                   KeyVault
 	ResourceGroup              resourceGroup
 	SubscriptionId             string
 	TenantId                   string
@@ -137,6 +139,7 @@ type withLoadableCert[T any] struct {
 	Zone     T
 	CertName string
 	CertId   string
+	CertCER  []byte // DER-encoded X.509 certificate for TLS verification
 }
 
 // LoadableProvisioned is a struct that can be used to load a Provisioned struct from a file.

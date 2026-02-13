@@ -264,10 +264,10 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			}
 
 			if nic.Spec.CustomHTTPErrors != nil && len(nic.Spec.CustomHTTPErrors) > 1 {
-				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, serviceName)
+				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, zone.GetCaCertB64(), serviceName)
 				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: testingResources.Service.Name, Namespace: testingResources.Service.Namespace}
 			} else {
-				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
+				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost, zone.GetCaCertB64())
 				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: "default-" + zoneName + "-service", Namespace: zoneNamespace}
 			}
 

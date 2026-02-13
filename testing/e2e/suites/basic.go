@@ -2,6 +2,7 @@ package suites
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math"
 	"strings"
@@ -185,7 +186,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:int(math.Min(40, float64(len(zone.GetName()))))], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
+			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:int(math.Min(40, float64(len(zone.GetName()))))], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost(), zone.GetCaCertB64())
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
@@ -225,12 +226,16 @@ func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z in
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
 
+	// Get the CA certificate from the cert (populated during provisioning)
+	caCertB64 := base64.StdEncoding.EncodeToString(z.Cert.GetCER())
+
 	return []zoner{
 		zone{
 			name:       name,
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
+			caCertB64:  caCertB64,
 			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
@@ -239,6 +244,7 @@ func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z in
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
+			caCertB64:  caCertB64,
 			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
@@ -254,12 +260,16 @@ func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespace
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
 
+	// Get the CA certificate from the cert (populated during provisioning)
+	caCertB64 := base64.StdEncoding.EncodeToString(z.Cert.GetCER())
+
 	return []zoner{
 		zone{
 			name:       name,
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
+			caCertB64:  caCertB64,
 			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
@@ -268,6 +278,7 @@ func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespace
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
+			caCertB64:  caCertB64,
 			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
@@ -280,6 +291,7 @@ type zoner interface {
 	GetNameserver() string
 	GetCertName() string
 	GetCertId() string
+	GetCaCertB64() string
 	GetHost() string
 	GetTlsHost() string
 }
@@ -289,6 +301,7 @@ type zone struct {
 	nameserver string
 	certName   string
 	certId     string
+	caCertB64  string
 	host       string
 	tlsHost    string
 }
@@ -307,6 +320,10 @@ func (z zone) GetCertName() string {
 
 func (z zone) GetCertId() string {
 	return z.certId
+}
+
+func (z zone) GetCaCertB64() string {
+	return z.caCertB64
 }
 
 func (z zone) GetHost() string {
