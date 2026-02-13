@@ -46,7 +46,7 @@ func (t ClientServerResources) Objects() []client.Object {
 	return ret
 }
 
-func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost string) ClientServerResources {
+func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, caCertB64 string) ClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
 	clientDeployment := newGoDeployment(clientContents, namespace, name+"-client")
 	clientDeployment.Spec.Template.Annotations["openservicemesh.io/sidecar-injection"] = "disabled"
@@ -62,6 +62,10 @@ func ClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost str
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+		{
+			Name:  "CA_CERT",
+			Value: caCertB64,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{

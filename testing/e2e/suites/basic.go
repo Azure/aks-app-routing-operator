@@ -2,6 +2,7 @@ package suites
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math"
 	"strings"
@@ -109,14 +110,14 @@ func getZoners(ctx context.Context, c client.Client, namespacer namespacer, oper
 	switch operator.Zones.Public {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0])
+		zs, err := toZoners(ctx, c, namespacer, infra.Zones[0], infra.KeyVault)
 		if err != nil {
 			return nil, fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.Zones {
-			zs, err := toZoners(ctx, c, namespacer, z)
+			zs, err := toZoners(ctx, c, namespacer, z, infra.KeyVault)
 			if err != nil {
 				return nil, fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -126,14 +127,14 @@ func getZoners(ctx context.Context, c client.Client, namespacer namespacer, oper
 	switch operator.Zones.Private {
 	case manifests.DnsZoneCountNone:
 	case manifests.DnsZoneCountOne:
-		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp())
+		zs, err := toPrivateZoners(ctx, c, namespacer, infra.PrivateZones[0], infra.Cluster.GetDnsServiceIp(), infra.KeyVault)
 		if err != nil {
 			return nil, fmt.Errorf("converting to zoners: %w", err)
 		}
 		zoners = append(zoners, zs...)
 	case manifests.DnsZoneCountMultiple:
 		for _, z := range infra.PrivateZones {
-			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp())
+			zs, err := toPrivateZoners(ctx, c, namespacer, z, infra.Cluster.GetDnsServiceIp(), infra.KeyVault)
 			if err != nil {
 				return nil, fmt.Errorf("converting to zoners: %w", err)
 			}
@@ -185,7 +186,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			lgr = lgr.With("namespace", ns.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
-			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:int(math.Min(40, float64(len(zone.GetName()))))], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost())
+			testingResources := manifests.ClientAndServer(ns.Name, zone.GetName()[:int(math.Min(40, float64(len(zone.GetName()))))], zone.GetNameserver(), zone.GetCertId(), zone.GetHost(), zone.GetTlsHost(), zone.GetCaCertB64())
 			if mod != nil {
 				if err := mod(testingResources.Ingress, testingResources.Service, zone); err != nil {
 					return fmt.Errorf("modifying ingress and service: %w", err)
@@ -215,7 +216,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 	return nil
 }
 
-func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.Zone]) ([]zoner, error) {
+func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.Zone], kv infra.KeyVault) ([]zoner, error) {
 	name := z.Zone.GetName()
 	nameserver := z.Zone.GetNameservers()[0]
 	certName := z.Cert.GetName()
@@ -225,33 +226,14 @@ func toZoners(ctx context.Context, cl client.Client, namespacer namespacer, z in
 		return nil, fmt.Errorf("getting namespaces: %w", err)
 	}
 
-	return []zoner{
-		zone{
-			name:       name,
-			nameserver: nameserver,
-			certName:   certName,
-			certId:     certId,
-			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
-			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
-		},
-		zone{
-			name:       "wildcard" + name,
-			nameserver: nameserver,
-			certName:   certName,
-			certId:     certId,
-			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
-			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
-		},
-	}, nil
-}
-
-func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.PrivateZone], nameserver string) ([]zoner, error) {
-	name := z.Zone.GetName()
-	certName := z.Cert.GetName()
-	certId := z.Cert.GetId()
-	ns, err := namespacer.getNamespace(ctx, cl, name)
-	if err != nil {
-		return nil, fmt.Errorf("getting namespaces: %w", err)
+	// Fetch the CA certificate from Key Vault
+	var caCertB64 string
+	if kv != nil {
+		caCertDER, err := kv.GetCertificateCER(ctx, certName)
+		if err != nil {
+			return nil, fmt.Errorf("getting certificate CER from keyvault: %w", err)
+		}
+		caCertB64 = base64.StdEncoding.EncodeToString(caCertDER)
 	}
 
 	return []zoner{
@@ -260,6 +242,7 @@ func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespace
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
+			caCertB64:  caCertB64,
 			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
@@ -268,6 +251,48 @@ func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespace
 			nameserver: nameserver,
 			certName:   certName,
 			certId:     certId,
+			caCertB64:  caCertB64,
+			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+		},
+	}, nil
+}
+
+func toPrivateZoners(ctx context.Context, cl client.Client, namespacer namespacer, z infra.WithCert[infra.PrivateZone], nameserver string, kv infra.KeyVault) ([]zoner, error) {
+	name := z.Zone.GetName()
+	certName := z.Cert.GetName()
+	certId := z.Cert.GetId()
+	ns, err := namespacer.getNamespace(ctx, cl, name)
+	if err != nil {
+		return nil, fmt.Errorf("getting namespaces: %w", err)
+	}
+
+	// Fetch the CA certificate from Key Vault
+	var caCertB64 string
+	if kv != nil {
+		caCertDER, err := kv.GetCertificateCER(ctx, certName)
+		if err != nil {
+			return nil, fmt.Errorf("getting certificate CER from keyvault: %w", err)
+		}
+		caCertB64 = base64.StdEncoding.EncodeToString(caCertDER)
+	}
+
+	return []zoner{
+		zone{
+			name:       name,
+			nameserver: nameserver,
+			certName:   certName,
+			certId:     certId,
+			caCertB64:  caCertB64,
+			host:       strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+			tlsHost:    strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
+		},
+		zone{
+			name:       "wildcard" + name,
+			nameserver: nameserver,
+			certName:   certName,
+			certId:     certId,
+			caCertB64:  caCertB64,
 			host:       "wildcard." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 			tlsHost:    "*." + strings.ToLower(ns.Name) + "." + strings.TrimRight(name, "."),
 		},
@@ -280,6 +305,7 @@ type zoner interface {
 	GetNameserver() string
 	GetCertName() string
 	GetCertId() string
+	GetCaCertB64() string
 	GetHost() string
 	GetTlsHost() string
 }
@@ -289,6 +315,7 @@ type zone struct {
 	nameserver string
 	certName   string
 	certId     string
+	caCertB64  string
 	host       string
 	tlsHost    string
 }
@@ -307,6 +334,10 @@ func (z zone) GetCertName() string {
 
 func (z zone) GetCertId() string {
 	return z.certId
+}
+
+func (z zone) GetCaCertB64() string {
+	return z.caCertB64
 }
 
 func (z zone) GetHost() string {

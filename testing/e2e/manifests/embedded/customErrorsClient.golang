@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"io/ioutil"
 	"log"
 	"net"
@@ -29,8 +31,30 @@ func main() {
 			return d.DialContext(ctx, "tcp", ns+":53")
 		},
 	}}
+
+	tlsConfig := &tls.Config{}
+
+	// Load CA certificate from base64-encoded DER format if provided
+	caCertB64 := os.Getenv("CA_CERT")
+	if caCertB64 != "" {
+		caCertDER, err := base64.StdEncoding.DecodeString(caCertB64)
+		if err != nil {
+			log.Fatalf("failed to decode CA certificate: %s", err)
+		}
+		caCert, err := x509.ParseCertificate(caCertDER)
+		if err != nil {
+			log.Fatalf("failed to parse CA certificate: %s", err)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AddCert(caCert)
+		tlsConfig.RootCAs = caCertPool
+	} else {
+		log.Println("WARNING: CA_CERT not provided, using insecure skip verify")
+		tlsConfig.InsecureSkipVerify = true
+	}
+
 	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: tlsConfig,
 		DialContext:     dialer.DialContext,
 	}}
 

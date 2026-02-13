@@ -251,3 +251,34 @@ func (c *Cert) GetName() string {
 func (c *Cert) GetId() string {
 	return c.id
 }
+
+// GetCertificateCER retrieves the CER (X.509 certificate in DER format) for a certificate.
+// This can be used as the CA certificate for TLS verification of self-signed certificates.
+func (a *akv) GetCertificateCER(ctx context.Context, certName string) ([]byte, error) {
+	lgr := logger.FromContext(ctx).With("certName", certName, "name", a.name)
+	ctx = logger.WithContext(ctx, lgr)
+	lgr.Info("starting to get certificate CER")
+	defer lgr.Info("finished getting certificate CER")
+
+	cred, err := getAzCred()
+	if err != nil {
+		return nil, fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	client, err := azcertificates.NewClient(a.uri, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	// Get the latest version by passing empty string
+	resp, err := client.GetCertificate(ctx, certName, "", nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting certificate: %w", err)
+	}
+
+	if resp.CER == nil {
+		return nil, fmt.Errorf("certificate CER is nil")
+	}
+
+	return resp.CER, nil
+}
