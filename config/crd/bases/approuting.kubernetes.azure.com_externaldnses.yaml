@@ -109,13 +109,11 @@ spec:
                     - workloadIdentity
                     - managedIdentity
                     type: string
-                required:
-                - type
                 type: object
                 x-kubernetes-validations:
                 - message: serviceAccount is required when type is workloadIdentity
-                  rule: 'self.type == ''workloadIdentity'' ? has(self.serviceAccount)
-                    && self.serviceAccount != '''' : true'
+                  rule: 'self.type == ''workloadIdentity'' || self.type == '''' ?
+                    has(self.serviceAccount) && self.serviceAccount != '''' : true'
                 - message: clientID is required when type is managedIdentity
                   rule: 'self.type == ''managedIdentity'' ? has(self.clientID) &&
                     self.clientID != '''' : true'

@@ -103,14 +103,13 @@ const (
 )
 
 // ExternalDNSIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
-// +kubebuilder:validation:XValidation:rule="self.type == 'workloadIdentity' ? has(self.serviceAccount) && self.serviceAccount != '' : true",message="serviceAccount is required when type is workloadIdentity"
+// +kubebuilder:validation:XValidation:rule="self.type == 'workloadIdentity' || self.type == '' ? has(self.serviceAccount) && self.serviceAccount != '' : true",message="serviceAccount is required when type is workloadIdentity"
 // +kubebuilder:validation:XValidation:rule="self.type == 'managedIdentity' ? has(self.clientID) && self.clientID != '' : true",message="clientID is required when type is managedIdentity"
 type ExternalDNSIdentity struct {
 	// Type is the type of identity that ExternalDNS will use to interface with Azure resources.
 	// Supported values are "workloadIdentity" and "managedIdentity".
-	// +kubebuilder:validation:Required
 	// +kubebuilder:default=workloadIdentity
-	Type ExternalDNSIdentityType `json:"type"`
+	Type ExternalDNSIdentityType `json:"type,omitempty"`
 
 	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources.
 	// Required when type is "workloadIdentity". The ServiceAccount must exist in the same namespace as the ExternalDNS

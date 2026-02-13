@@ -155,6 +155,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "nonexistent-sa",
 								},
 							},
@@ -180,6 +181,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "sa-no-annotation",
 								},
 							},

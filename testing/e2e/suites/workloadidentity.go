@@ -114,6 +114,7 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 							DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
 							ResourceTypes:      []string{"ingress"},
 							Identity: v1alpha1.ExternalDNSIdentity{
+								Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 								ServiceAccount: sa.Name,
 							},
 							ResourceNamespace: ns,
@@ -136,6 +137,7 @@ func workloadIdentityTests(in infra.Provisioned) []test {
 							DNSZoneResourceIDs: []string{in.ManagedIdentityPrivateZone.Zone.GetId()},
 							ResourceTypes:      []string{"ingress"},
 							Identity: v1alpha1.ExternalDNSIdentity{
+								Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 								ServiceAccount: sa.Name,
 							},
 							ResourceNamespace: ns,
