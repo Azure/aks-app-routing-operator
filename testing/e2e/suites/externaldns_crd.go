@@ -41,6 +41,7 @@ func validExternalDNS() *v1alpha1.ExternalDNS {
 			},
 			ResourceTypes: []string{"ingress", "gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 				ServiceAccount: "test-sa",
 			},
 		},
@@ -113,6 +114,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -216,6 +218,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -241,6 +244,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -265,6 +269,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -290,6 +295,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -316,6 +322,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -342,6 +349,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -368,6 +376,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -391,6 +400,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								DNSZoneResourceIDs: []string{},
 								ResourceTypes:      []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -416,6 +426,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
 								},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -442,6 +453,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -468,6 +480,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "deployment"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -475,7 +488,161 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 						expectedError: errors.New("all items must be either 'gateway' or 'ingress'"),
 					},
 					{
-						name: "no identity",
+						name: "valid managed identity with gateway",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "valid-msi-gateway",
+								Namespace: externalDNSTestNamespace,
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"gateway"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:     v1alpha1.IdentityTypeManagedIdentity,
+									ClientID: "123e4567-e89b-12d3-a456-426614174000",
+								},
+							},
+						},
+						expectedError: nil,
+					},
+					{
+						name: "valid managed identity with ingress",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "valid-msi-ingress",
+								Namespace: externalDNSTestNamespace,
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:     v1alpha1.IdentityTypeManagedIdentity,
+									ClientID: "123e4567-e89b-12d3-a456-426614174000",
+								},
+							},
+						},
+						expectedError: nil,
+					},
+					{
+						name: "managed identity without clientID",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "msi-no-clientid",
+								Namespace: externalDNSTestNamespace,
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									Type: v1alpha1.IdentityTypeManagedIdentity,
+								},
+							},
+						},
+						expectedError: errors.New("clientID is required when type is managedIdentity"),
+					},
+					{
+						name: "managed identity with invalid clientID format",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "msi-invalid-clientid",
+								Namespace: externalDNSTestNamespace,
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:     v1alpha1.IdentityTypeManagedIdentity,
+									ClientID: "not-a-valid-uuid",
+								},
+							},
+						},
+						expectedError: errors.New("spec.identity.clientID in body should match"),
+					},
+					{
+						name: "workload identity without serviceAccount",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "wi-no-sa",
+								Namespace: externalDNSTestNamespace,
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									Type: v1alpha1.IdentityTypeWorkloadIdentity,
+								},
+							},
+						},
+						expectedError: errors.New("serviceAccount is required when type is workloadIdentity"),
+					},
+					{
+						name: "invalid identity type",
+						ed: &v1alpha1.ExternalDNS{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: v1alpha1.GroupVersion.String(),
+								Kind:       "ExternalDNS",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "invalid-identity-type",
+								Namespace: externalDNSTestNamespace,
+							},
+							Spec: v1alpha1.ExternalDNSSpec{
+								ResourceName: "test",
+								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								DNSZoneResourceIDs: []string{
+									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
+								},
+								ResourceTypes: []string{"ingress"},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           "invalidType",
+									ServiceAccount: "test-sa",
+								},
+							},
+						},
+						expectedError: errors.New("spec.identity.type: Unsupported value"),
+					},
+					{
+						name: "no identity - defaults to workloadIdentity requiring serviceAccount",
 						ed: &v1alpha1.ExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
@@ -495,10 +662,10 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								ResourceTypes: []string{"ingress", "gateway"},
 							},
 						},
-						expectedError: errors.New("spec.identity.serviceAccount in body should be at least 1 chars long"),
+						expectedError: errors.New("serviceAccount is required when type is workloadIdentity"),
 					},
 					{
-						name: "no serviceaccount",
+						name: "no serviceaccount with default workloadIdentity type",
 						ed: &v1alpha1.ExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
@@ -519,7 +686,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								Identity:      v1alpha1.ExternalDNSIdentity{},
 							},
 						},
-						expectedError: errors.New("serviceAccount in body should be at least 1 chars long"),
+						expectedError: errors.New("serviceAccount is required when type is workloadIdentity"),
 					},
 					{
 						name: "valid filters",
@@ -541,6 +708,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 								Filters: &v1alpha1.ExternalDNSFilters{
@@ -570,6 +738,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 							},
@@ -595,6 +764,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 								Filters: &v1alpha1.ExternalDNSFilters{},
@@ -621,6 +791,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 								Filters: &v1alpha1.ExternalDNSFilters{
@@ -650,6 +821,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
 								Identity: v1alpha1.ExternalDNSIdentity{
+									Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 									ServiceAccount: "test-sa",
 								},
 								Filters: &v1alpha1.ExternalDNSFilters{
