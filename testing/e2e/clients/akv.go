@@ -30,11 +30,14 @@ type Cert struct {
 }
 
 func LoadAkv(id azure.Resource) *akv {
+	// Construct the vault URI from the name using the standard Azure Key Vault URL pattern
+	uri := fmt.Sprintf("https://%s.vault.azure.net/", id.ResourceName)
 	return &akv{
 		id:             id.String(),
 		name:           id.ResourceName,
 		resourceGroup:  id.ResourceGroup,
 		subscriptionId: id.SubscriptionID,
+		uri:            uri,
 	}
 }
 
