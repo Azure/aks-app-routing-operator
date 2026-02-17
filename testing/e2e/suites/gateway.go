@@ -279,9 +279,13 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	}
 
 	// Deploy gateway resources for each zone in its respective namespace
-	clusterResources := make([]*manifests.GatewayClientServerResources, len(testConfig.zoneConfigs))
+	clusterResources := make([]manifests.ObjectsContainer, len(testConfig.zoneConfigs))
+	clusterHostPrefixes := make([]string, len(testConfig.zoneConfigs)) // for DNS record verification during cleanup
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix())
+		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
+		clusterHostPrefixes[i] = recordName
+		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
+		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix(), tlsHost)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d: %w", zoneCfg.ZoneIndex, err)
 		}
@@ -293,8 +297,9 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	for i, resources := range clusterResources {
 		i, resources := i, resources // capture loop variables
 		eg.Go(func() error {
-			lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx, cl, *resources.Client); err != nil {
+			castedResources := resources.(*manifests.GatewayClientServerResources)
+			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
+			if err := waitForAvailable(egCtx, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (zone %d): %w", i, err)
 			}
 			return nil
@@ -307,7 +312,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	lgr.Info("cluster-scoped externaldns test passed, cleaning up gateway resources")
 
 	// Cleanup cluster-scoped test resources
-	if err := cleanupMultiZoneResources(ctx, config, clusterResources, testConfig.zoneConfigs, clusterTestNamespaces, clusterExternalDns, testConfig.zoneType); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, clusterResources, clusterExternalDns, testConfig, clusterHostPrefixes, clusterTestNamespaces[0].Name); err != nil {
 		return fmt.Errorf("cleaning up cluster-scoped gateway resources: %w", err)
 	}
 
@@ -384,9 +389,13 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	}
 
 	// Deploy gateway resources for each zone in the same namespace
-	nsResources := make([]*manifests.GatewayClientServerResources, len(testConfig.zoneConfigs))
+	nsResources := make([]manifests.ObjectsContainer, len(testConfig.zoneConfigs))
+	namespaceHostPrefixes := make([]string, len(testConfig.zoneConfigs)) // for DNS record verification during cleanup
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, utils.GatewayNsSaName, testConfig.zoneType.Prefix())
+		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
+		namespaceHostPrefixes[i] = recordName
+		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
+		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, utils.GatewayNsSaName, testConfig.zoneType.Prefix(), tlsHost)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 		}
@@ -396,10 +405,10 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	// Wait for all client deployments to be available in parallel
 	eg2, egCtx2 := errgroup.WithContext(ctx)
 	for i, resources := range nsResources {
-		i, resources := i, resources // capture loop variables
 		eg2.Go(func() error {
-			lgr.Info("waiting for client deployment to be available", "client", resources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx2, cl, *resources.Client); err != nil {
+			castedResources := resources.(*manifests.GatewayClientServerResources)
+			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
+			if err := waitForAvailable(egCtx2, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (ns-scoped, zone %d): %w", i, err)
 			}
 			return nil
@@ -412,11 +421,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	lgr.Info("namespace-scoped externaldns test passed, cleaning up gateway resources")
 
 	// Cleanup namespace-scoped test resources
-	nsNamespaces := make([]*corev1.Namespace, len(testConfig.zoneConfigs))
-	for i := range nsNamespaces {
-		nsNamespaces[i] = ns // All use the same namespace
-	}
-	if err := cleanupMultiZoneResources(ctx, config, nsResources, testConfig.zoneConfigs, nsNamespaces, externalDns, testConfig.zoneType); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, nsResources, externalDns, testConfig, namespaceHostPrefixes, nsName); err != nil {
 		return fmt.Errorf("cleaning up namespace-scoped gateway resources: %w", err)
 	}
 
@@ -438,22 +443,16 @@ func deployGatewayResourcesForZone(
 	namespace string,
 	serviceAccountName string,
 	zoneTypePrefix string,
+	tlsHost string,
 ) (*manifests.GatewayClientServerResources, error) {
 	lgr := logger.FromContext(ctx)
-
-	// Build hostname from namespace and zone (include zone index to avoid collisions)
-	host := fmt.Sprintf("zone%d.%s", zoneCfg.ZoneIndex, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-	tlsHost := host
-
-	lgr.Info("deploying gateway resources", "host", host, "zone", zoneCfg.ZoneName, "namespace", namespace)
-
+	lgr.Info("deploying gateway resources", "host", tlsHost, "zone", zoneCfg.ZoneName, "namespace", namespace)
 	// Create Gateway API resources
 	resources := manifests.GatewayClientAndServer(
 		namespace,
 		fmt.Sprintf("%szone%d", zoneTypePrefix, zoneCfg.ZoneIndex), // unique name per zone
 		zoneCfg.Nameserver,
 		zoneCfg.KeyvaultCertURI,
-		host,
 		tlsHost,
 		serviceAccountName,
 		manifests.IstioGatewayClassName,
@@ -473,13 +472,14 @@ func deployGatewayResourcesForZone(
 func cleanupMultiZoneResources(
 	ctx context.Context,
 	config *rest.Config,
-	resources []*manifests.GatewayClientServerResources,
-	zoneConfigs []gatewayZoneConfig,
-	namespaces []*corev1.Namespace,
+	allResources []manifests.ObjectsContainer,
 	dnsResource dns.ExternalDNSCRDConfiguration,
-	zt zoneType,
+	testConfig multiZoneGatewayTestConfig,
+	recordNames []string,
+	externalDnsNamespace string,
 ) error {
 	lgr := logger.FromContext(ctx)
+
 	cl, err := client.New(config, client.Options{
 		Scheme: scheme,
 	})
@@ -487,31 +487,38 @@ func cleanupMultiZoneResources(
 		return fmt.Errorf("creating client: %w", err)
 	}
 
-	// Delete all Gateways and HTTPRoutes first (triggers DNS record cleanup by external-dns)
-	for i, res := range resources {
-		lgr.Info("deleting gateway and httproute", "zoneIndex", i)
-		if err := cl.Delete(ctx, res.Gateway); err != nil {
-			return fmt.Errorf("deleting gateway (zone %d): %w", i, err)
-		}
-		if err := cl.Delete(ctx, res.HTTPRoute); err != nil {
-			return fmt.Errorf("deleting httproute (zone %d): %w", i, err)
+	// Get the external-dns deployment name from the DNS resource
+	externalDnsDeploymentName := dnsResource.GetInputResourceName() + "-external-dns"
+
+	// Delete all resources for all zones
+	for i, resources := range allResources {
+		lgr.Info("deleting filter resources for zone", "zoneIndex", i)
+
+		for _, obj := range resources.Objects() {
+			if err := client.IgnoreNotFound(cl.Delete(ctx, obj)); err != nil {
+				lgr.Info("failed to delete object", "error", err, "name", obj.GetName())
+			}
 		}
 	}
 
 	// Wait for DNS record deletion for each zone
-	externalDnsDeploymentName := dnsResource.GetInputResourceName() + "-external-dns"
-	for i, zoneCfg := range zoneConfigs {
-		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
-		lgr.Info("waiting for DNS record deletion", "zone", zoneCfg.ZoneName, "record", recordName, "zoneIndex", i)
-		if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, dnsResource.GetResourceNamespace(), zoneCfg.ZoneName, recordName, zt); err != nil {
-			return fmt.Errorf("waiting for DNS record deletion (zone %d): %w", i, err)
+	for i, zoneCfg := range testConfig.zoneConfigs {
+		lgr.Info("waiting for DNS record deletion", "zone", zoneCfg.ZoneName, "record", recordNames[i])
+		if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, externalDnsNamespace, zoneCfg.ZoneName, recordNames[i], testConfig.zoneType); err != nil {
+			return fmt.Errorf("waiting for DNS record deletion (zone %s, record %s): %w", zoneCfg.ZoneName, recordNames[i], err)
 		}
 	}
 
-	// Delete the ExternalDNS CRD
-	if err := cl.Delete(ctx, dnsResource); err != nil {
-		return fmt.Errorf("cleaning up external dns CRD: %w", err)
+	// Delete DNS CRD resource
+	lgr.Info("deleting DNS resource", "name", dnsResource.GetName())
+	if err := client.IgnoreNotFound(cl.Delete(ctx, dnsResource)); err != nil {
+		lgr.Info("failed to delete DNS resource", "error", err, "name", dnsResource.GetName())
+		return fmt.Errorf("failed to delete DNS resource: %w", err)
+
 	}
+
+	// Wait a bit for resources to be deleted
+	time.Sleep(10 * time.Second)
 
 	return nil
 }
