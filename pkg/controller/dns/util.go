@@ -30,16 +30,16 @@ func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) m
 	identity := e.GetIdentity()
 
 	// Determine identity type
-	identityType := manifests.IdentityTypeWorkloadIdentity
+	var identityType manifests.IdentityType
 	var clientId string
 	var serviceAccount string
 
-	if identity.Type == v1alpha1.IdentityTypeManagedIdentity {
+	switch identity.Type {
+	case v1alpha1.IdentityTypeManagedIdentity:
 		identityType = manifests.IdentityTypeMSI
 		clientId = identity.ClientID
-		// For MSI, we generate a service account name based on the resource name
-		serviceAccount = ""
-	} else {
+	case v1alpha1.IdentityTypeWorkloadIdentity:
+		identityType = manifests.IdentityTypeWorkloadIdentity
 		serviceAccount = identity.ServiceAccount
 	}
 
