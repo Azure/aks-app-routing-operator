@@ -38,7 +38,7 @@ func buildInputDNSConfig(e ExternalDNSCRDConfiguration, config *config.Config) m
 	case v1alpha1.IdentityTypeManagedIdentity:
 		identityType = manifests.IdentityTypeMSI
 		clientId = identity.ClientID
-	case v1alpha1.IdentityTypeWorkloadIdentity:
+	default: // workloadIdentity is the default
 		identityType = manifests.IdentityTypeWorkloadIdentity
 		serviceAccount = identity.ServiceAccount
 	}
