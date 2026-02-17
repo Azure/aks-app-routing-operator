@@ -281,7 +281,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	// Deploy gateway resources for each zone in its respective namespace
 	clusterResources := make([]*manifests.GatewayClientServerResources, len(testConfig.zoneConfigs))
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix())
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d: %w", zoneCfg.ZoneIndex, err)
 		}
@@ -386,7 +386,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	// Deploy gateway resources for each zone in the same namespace
 	nsResources := make([]*manifests.GatewayClientServerResources, len(testConfig.zoneConfigs))
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, utils.GatewayNsSaName)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, utils.GatewayNsSaName, testConfig.zoneType.Prefix())
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 		}
@@ -437,6 +437,7 @@ func deployGatewayResourcesForZone(
 	zoneCfg gatewayZoneConfig,
 	namespace string,
 	serviceAccountName string,
+	zoneTypePrefix string,
 ) (*manifests.GatewayClientServerResources, error) {
 	lgr := logger.FromContext(ctx)
 
@@ -449,7 +450,7 @@ func deployGatewayResourcesForZone(
 	// Create Gateway API resources
 	resources := manifests.GatewayClientAndServer(
 		namespace,
-		fmt.Sprintf("zone%d-%s", zoneCfg.ZoneIndex, zoneCfg.ZoneName), // unique name per zone
+		fmt.Sprintf("%szone%d", zoneTypePrefix, zoneCfg.ZoneIndex), // unique name per zone
 		zoneCfg.Nameserver,
 		zoneCfg.KeyvaultCertURI,
 		host,

@@ -163,7 +163,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 		// Create gateway filter test resources
 		resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
 			Namespace:          nsName,
-			Name:               fmt.Sprintf("z%d-%s", zoneCfg.ZoneIndex, zoneCfg.ZoneName),
+			Name:               fmt.Sprintf("%sz%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
@@ -274,7 +274,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 		// Create route filter test resources
 		resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
 			Namespace:          nsName,
-			Name:               fmt.Sprintf("z%d-%s", zoneCfg.ZoneIndex, zoneCfg.ZoneName),
+			Name:               fmt.Sprintf("%sz%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
@@ -380,7 +380,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 		// Create gateway filter test resources
 		resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
 			Namespace:          utils.FilterNs,
-			Name:               fmt.Sprintf("ns-z%d-%s", zoneCfg.ZoneIndex, zoneCfg.ZoneName),
+			Name:               fmt.Sprintf("%sns-z%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
@@ -486,7 +486,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 		// Create route filter test resources
 		resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
 			Namespace:          utils.FilterNs,
-			Name:               fmt.Sprintf("ns-z%d-%s", zoneCfg.ZoneIndex, zoneCfg.ZoneName),
+			Name:               fmt.Sprintf("%sns-z%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
