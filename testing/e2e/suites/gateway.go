@@ -312,7 +312,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	lgr.Info("cluster-scoped externaldns test passed, cleaning up gateway resources")
 
 	// Cleanup cluster-scoped test resources
-	if err := cleanupMultiZoneResources(ctx, config, clusterResources, clusterExternalDns, testConfig, clusterHostPrefixes, clusterTestNamespaces[0].Name); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, clusterResources, clusterExternalDns, testConfig, clusterHostPrefixes); err != nil {
 		return fmt.Errorf("cleaning up cluster-scoped gateway resources: %w", err)
 	}
 
@@ -421,7 +421,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	lgr.Info("namespace-scoped externaldns test passed, cleaning up gateway resources")
 
 	// Cleanup namespace-scoped test resources
-	if err := cleanupMultiZoneResources(ctx, config, nsResources, externalDns, testConfig, namespaceHostPrefixes, nsName); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, nsResources, externalDns, testConfig, namespaceHostPrefixes); err != nil {
 		return fmt.Errorf("cleaning up namespace-scoped gateway resources: %w", err)
 	}
 
@@ -476,7 +476,6 @@ func cleanupMultiZoneResources(
 	dnsResource dns.ExternalDNSCRDConfiguration,
 	testConfig multiZoneGatewayTestConfig,
 	recordNames []string,
-	externalDnsNamespace string,
 ) error {
 	lgr := logger.FromContext(ctx)
 
@@ -504,7 +503,7 @@ func cleanupMultiZoneResources(
 	// Wait for DNS record deletion for each zone
 	for i, zoneCfg := range testConfig.zoneConfigs {
 		lgr.Info("waiting for DNS record deletion", "zone", zoneCfg.ZoneName, "record", recordNames[i])
-		if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, externalDnsNamespace, zoneCfg.ZoneName, recordNames[i], testConfig.zoneType); err != nil {
+		if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, dnsResource.GetResourceNamespace(), zoneCfg.ZoneName, recordNames[i], testConfig.zoneType); err != nil {
 			return fmt.Errorf("waiting for DNS record deletion (zone %s, record %s): %w", zoneCfg.ZoneName, recordNames[i], err)
 		}
 	}

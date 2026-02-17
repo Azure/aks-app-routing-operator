@@ -200,7 +200,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 	lgr.Info("clusterexternaldns gateway label selector test passed for all zones")
 
 	// Cleanup
-	if err := cleanupMultiZoneResources(ctx, config, allResources, clusterExternalDns, testConfig, labeledHostPrefixes, resourceNamespace); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, allResources, clusterExternalDns, testConfig, labeledHostPrefixes); err != nil {
 		return fmt.Errorf("cleaning up resources: %w", err)
 	}
 
@@ -312,7 +312,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 	lgr.Info("clusterexternaldns route label selector test passed for all zones")
 
 	// Cleanup
-	if err := cleanupMultiZoneResources(ctx, config, allResources, clusterExternalDns, testConfig, labeledHostPrefixes, resourceNamespace); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, allResources, clusterExternalDns, testConfig, labeledHostPrefixes); err != nil {
 		return fmt.Errorf("cleaning up resources: %w", err)
 	}
 
@@ -419,7 +419,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 	lgr.Info("externaldns gateway label selector test passed for all zones")
 
 	// Cleanup
-	if err := cleanupMultiZoneResources(ctx, config, allResources, externalDns, testConfig, labeledHostPrefixes, utils.FilterNs); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, allResources, externalDns, testConfig, labeledHostPrefixes); err != nil {
 		return fmt.Errorf("cleaning up resources: %w", err)
 	}
 
@@ -526,7 +526,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 	lgr.Info("externaldns route label selector test passed for all zones")
 
 	// Cleanup
-	if err := cleanupMultiZoneResources(ctx, config, allResources, externalDns, testConfig, labeledHostPrefixes, utils.FilterNs); err != nil {
+	if err := cleanupMultiZoneResources(ctx, config, allResources, externalDns, testConfig, labeledHostPrefixes); err != nil {
 		return fmt.Errorf("cleaning up resources: %w", err)
 	}
 
