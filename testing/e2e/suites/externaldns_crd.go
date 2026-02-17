@@ -667,14 +667,14 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 						expectedError: errors.New("serviceAccount is required when type is workloadIdentity"),
 					},
 					{
-						name: "no serviceaccount with default workloadIdentity type",
+						name: "valid workload identity with unspecified type but serviceAccount provided",
 						ed: &v1alpha1.ExternalDNS{
 							TypeMeta: metav1.TypeMeta{
 								APIVersion: v1alpha1.GroupVersion.String(),
 								Kind:       "ExternalDNS",
 							},
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      "no-sa",
+								Name:      "wi-unspecified-type",
 								Namespace: externalDNSTestNamespace,
 							},
 							Spec: v1alpha1.ExternalDNSSpec{
@@ -682,13 +682,14 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								TenantID:     to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
-									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",
 								},
 								ResourceTypes: []string{"ingress", "gateway"},
-								Identity:      v1alpha1.ExternalDNSIdentity{},
+								Identity: v1alpha1.ExternalDNSIdentity{
+									ServiceAccount: "test-sa",
+								},
 							},
 						},
-						expectedError: errors.New("serviceAccount is required when type is workloadIdentity"),
+						expectedError: nil,
 					},
 					{
 						name: "valid filters",

@@ -112,8 +112,8 @@ type ExternalDNSIdentity struct {
 	Type ExternalDNSIdentityType `json:"type,omitempty"`
 
 	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources.
-	// Required when type is "workloadIdentity". The ServiceAccount must exist in the same namespace as the ExternalDNS
-	// and must have the azure.workload.identity/client-id annotation.
+	// Required when type is "workloadIdentity". The ServiceAccount must exist in the namespace where the ExternalDNS resources
+	// will be deployed (for ClusterExternalDNS, this is the ResourceNamespace) and must have the azure.workload.identity/client-id annotation.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`

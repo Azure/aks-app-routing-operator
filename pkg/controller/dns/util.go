@@ -118,7 +118,5 @@ func verifyIdentity(ctx context.Context, k8sclient client.Client, obj ExternalDN
 		return err
 	}
 
-	// For managed identity, the clientID is validated by CRD schema validation
-	// No additional verification is needed at runtime
 	return nil
 }
