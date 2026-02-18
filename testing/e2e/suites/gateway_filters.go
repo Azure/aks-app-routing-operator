@@ -131,6 +131,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 				ServiceAccount: filterTestServiceAccount,
 			},
 			ResourceNamespace: filterTestNamespace,
@@ -222,6 +223,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 				ServiceAccount: filterTestServiceAccount,
 			},
 			ResourceNamespace: filterTestNamespace,
@@ -313,6 +315,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, gw
 			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 				ServiceAccount: filterTestServiceAccount,
 			},
 			Filters: &v1alpha1.ExternalDNSFilters{
@@ -404,6 +407,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, gwTe
 			DNSZoneResourceIDs: []string{gwTestConfig.zoneConfig.ZoneID},
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 				ServiceAccount: filterTestServiceAccount,
 			},
 			Filters: &v1alpha1.ExternalDNSFilters{
