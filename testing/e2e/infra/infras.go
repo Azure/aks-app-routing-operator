@@ -2,7 +2,6 @@ package infra
 
 import (
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/utils"
 	"github.com/google/uuid"
 )
 
@@ -34,7 +33,7 @@ var Infras = infras{
 		Location:            getLocation(),
 		Suffix:              uuid.New().String()[:16],
 		McOpts:              []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
-		FederatedNamespaces: utils.GenerateGatewayFederatedNamespaces(),
+		FederatedNamespaces: GenerateGatewayFederatedNamespaces(),
 	},
 	// TODO: add back when service principal cluster is supported
 	//{

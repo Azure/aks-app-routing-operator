@@ -6,7 +6,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/utils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
@@ -32,7 +31,7 @@ type infra struct {
 	ResourceGroup, Location string
 	McOpts                  []clients.McOpt
 	// FederatedNamespaces is a list of namespace/service account pairs to federate with the managed identity
-	FederatedNamespaces []utils.FederatedNamespace
+	FederatedNamespaces []FederatedNamespace
 	AuthType            AuthType
 	ServicePrincipal    *clients.ServicePrincipal
 }

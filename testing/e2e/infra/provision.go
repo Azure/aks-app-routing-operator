@@ -10,7 +10,6 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/clients"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
-	"github.com/Azure/aks-app-routing-operator/testing/e2e/utils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 )
@@ -162,7 +161,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 	}
 
 	// Create managed identity zones (public and private) for gateway tests
-	for idx := 0; idx < utils.NumGatewayZones; idx++ {
+	for idx := 0; idx < NumGatewayZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
 				z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("mi-zone-%d-%s", idx, i.Suffix))
@@ -187,7 +186,7 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		}(idx)
 	}
 
-	for idx := 0; idx < utils.NumGatewayZones; idx++ {
+	for idx := 0; idx < NumGatewayZones; idx++ {
 		func(idx int) {
 			resEg.Go(func() error {
 				pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-mi-zone-%d-%s", idx, i.Suffix))
