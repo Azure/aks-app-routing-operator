@@ -118,10 +118,6 @@ func (c *Config) Validate() error {
 		return errors.New("--default-domain-server-address, --default-domain-client-id, and --default-domain-zone-id are not allowed when --enable-default-domain is not set")
 	}
 
-	if c.EnableDefaultDomain && !c.EnabledWorkloadIdentity {
-		return errors.New("--enable-default-domain requires --enable-workload-identity to be enabled")
-	}
-
 	if c.EnableDefaultDomain && (c.DefaultDomainServerAddress == "" || c.DefaultDomainClientID == "" || c.DefaultDomainZoneID == "") {
 		return errors.New("--default-domain-server-address, --default-domain-client-id, and --default-domain-zone-id are all required when --enable-default-domain is set")
 	}
