@@ -297,7 +297,7 @@ var validateTestCases = []struct {
 		},
 	},
 	{
-		Name: "invalid-enable-default-domain-without-workload-identity",
+		Name: "valid-enable-default-domain-without-workload-identity",
 		Conf: &Config{
 			DefaultController:          Standard,
 			NS:                         "test-namespace",
@@ -317,7 +317,6 @@ var validateTestCases = []struct {
 			DefaultDomainClientID:      "test-default-domain-client-id",
 			DefaultDomainZoneID:        "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/example.com",
 		},
-		Error: "--enable-default-domain requires --enable-workload-identity to be enabled",
 	},
 	{
 		Name: "invalid-enable-default-domain-missing-server-address",

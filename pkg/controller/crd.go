@@ -77,11 +77,13 @@ func shouldLoadCRD(cfg *config.Config, filename string) bool {
 	case nginxIngresscontrollerCrdFilename:
 		return true
 
-	// namespaced ExternalDNS CRD not used yet
 	case externalDnsCrdFilename:
 		return cfg.EnabledWorkloadIdentity
+
+	// ClusterExternalDNS CRD is also needed when default domain is enabled because
+	// the default domain DNS reconciler creates a ClusterExternalDNS CR to manage DNS records
 	case clusterExternalDnsCrdFilename:
-		return cfg.EnabledWorkloadIdentity
+		return cfg.EnabledWorkloadIdentity || cfg.EnableDefaultDomain
 
 	case defaultDomainCertificateCrdFilename:
 		return cfg.EnableDefaultDomain
