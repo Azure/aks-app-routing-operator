@@ -2,7 +2,7 @@ FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.7 AS builder
 
 WORKDIR /go/src/github.com/Azure/aks-app-routing-operator
 ADD . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -a -ldflags '-extldflags "-static"' -o aks-app-routing-operator cmd/operator/main.go
+RUN CGO_ENABLED=0 GOEXPERIMENT=nosystemcrypto GOOS=linux GOARCH=amd64 go build -v -a -ldflags '-extldflags "-static"' -o aks-app-routing-operator cmd/operator/main.go
 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
