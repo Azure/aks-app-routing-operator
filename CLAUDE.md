@@ -14,6 +14,28 @@ The AKS Web Application Routing Operator is a Kubernetes operator that manages r
 - `make unit-vis` - Run unit tests and create visualization output
 - `make docker-build-dev` - Build the development Docker image for testing
 
+#### Running Unit Tests Locally (without Docker)
+
+Some test packages (e.g. `pkg/controller/dns/`) use controller-runtime's envtest and require Kubernetes API server binaries. Use `setup-envtest` to install them and set `KUBEBUILDER_ASSETS`:
+
+```bash
+# Install setup-envtest if not already installed
+go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+# Install envtest binaries and run tests
+setup-envtest use
+export KUBEBUILDER_ASSETS="$(setup-envtest use -p path)"
+go test ./pkg/controller/dns/ -v -count=1
+```
+
+If `setup-envtest use -p path` doesn't expand correctly in your shell, run `setup-envtest use` first to see the path, then set it directly:
+
+```bash
+KUBEBUILDER_ASSETS=<path from setup-envtest output> go test ./pkg/controller/dns/ -v -count=1
+```
+
+Packages that don't use envtest (e.g. `pkg/config/`, `pkg/controller/`, `pkg/manifests/`) can be tested directly with `go test`.
+
 ### Code Generation
 - `make crd` - Generate all CRD-related files (calls generate and manifests)
 - `make generate` - Generate DeepCopy, DeepCopyInto, and DeepCopyObject methods

@@ -35,10 +35,13 @@ func NewDefaultDomainDNSReconciler(
 }
 
 func defaultDomainObjects(conf *config.Config) []client.Object {
-	objs := []client.Object{
-		defaultDomainServiceAccount(conf),
-		defaultDomainClusterExternalDNS(conf),
+	var objs []client.Object
+
+	if conf.EnabledWorkloadIdentity {
+		objs = append(objs, defaultDomainServiceAccount(conf))
 	}
+
+	objs = append(objs, defaultDomainClusterExternalDNS(conf))
 
 	// Can safely assume the namespace exists if using kube-system.
 	// This will basically never happen but is a legacy thing for some tests and should
@@ -73,6 +76,19 @@ func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.Cl
 		resourceTypes = append(resourceTypes, "gateway")
 	}
 
+	var identity approutingv1alpha1.ExternalDNSIdentity
+	if conf.EnabledWorkloadIdentity {
+		identity = approutingv1alpha1.ExternalDNSIdentity{
+			Type:           approutingv1alpha1.IdentityTypeWorkloadIdentity,
+			ServiceAccount: defaultDomainServiceAccountName,
+		}
+	} else {
+		identity = approutingv1alpha1.ExternalDNSIdentity{
+			Type:     approutingv1alpha1.IdentityTypeManagedIdentity,
+			ClientID: conf.DefaultDomainClientID,
+		}
+	}
+
 	return &approutingv1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      defaultDomainDNSResourceName,
@@ -88,9 +104,7 @@ func defaultDomainClusterExternalDNS(conf *config.Config) *approutingv1alpha1.Cl
 			ResourceNamespace:  conf.NS,
 			DNSZoneResourceIDs: []string{conf.DefaultDomainZoneID},
 			ResourceTypes:      resourceTypes,
-			Identity: approutingv1alpha1.ExternalDNSIdentity{
-				ServiceAccount: defaultDomainServiceAccountName,
-			},
+			Identity:           identity,
 		},
 	}
 }
