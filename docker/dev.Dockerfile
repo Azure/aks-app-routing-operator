@@ -1,6 +1,6 @@
 # convenience dockerfile for unit tests
 # run make unit from root
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24.11
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.7
 
 WORKDIR /app-routing-operator
 
