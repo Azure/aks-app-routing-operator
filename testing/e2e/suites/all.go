@@ -21,6 +21,7 @@ func All(infra infra.Provisioned) tests.Ts {
 	t = append(t, clusterExternalDnsCrdTests(infra)...)
 	t = append(t, defaultBackendTests(infra)...)
 	t = append(t, workloadIdentityTests(infra)...)
+	t = append(t, managedIdentityTests(infra)...)
 	t = append(t, defaultDomainTests(infra)...)
 	t = append(t, gatewayTests(infra)...)
 	ret := make(tests.Ts, len(t))

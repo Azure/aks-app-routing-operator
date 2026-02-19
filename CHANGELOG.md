@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.18] - 2026-02-19
+
+### Added
+
+- msi for external dns crds for default domain - [link](https://github.com/Azure/aks-app-routing-operator/pull/552), [link2](https://github.com/Azure/aks-app-routing-operator/pull/548)
+
 ## [0.2.17] - 2026-02-05
+
 ### Changed
 - bumped ingress-nginx to v1.13.7 - [link](https://github.com/Azure/aks-app-routing-operator/pull/546)
 
