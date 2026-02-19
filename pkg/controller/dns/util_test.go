@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var mockConfigWithTenantId = mockDnsConfig{
@@ -29,6 +30,10 @@ var mockConfigWithTenantId = mockDnsConfig{
 		RouteAndIngressLabelSelector: to.Ptr("test=othertest"),
 	},
 	namespaced: true,
+	identity: v1alpha1.ExternalDNSIdentity{
+		Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+		ServiceAccount: "mock-service-account",
+	},
 }
 
 var mockConfigWithoutTenantId = mockDnsConfig{
@@ -42,6 +47,10 @@ var mockConfigWithoutTenantId = mockDnsConfig{
 		RouteAndIngressLabelSelector: to.Ptr("test=othertest"),
 	},
 	namespaced: true,
+	identity: v1alpha1.ExternalDNSIdentity{
+		Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+		ServiceAccount: "mock-service-account",
+	},
 }
 
 var conf = &config.Config{
@@ -208,4 +217,134 @@ func Test_deployExternalDNSResources(t *testing.T) {
 	err = k8sClient.Get(context.Background(), types.NamespacedName{Namespace: "mock-namespace", Name: "mock-resource-name-external-dns"}, deployment)
 	require.NoError(t, err)
 	require.Equal(t, deployment.OwnerReferences[0].Name, ownerRef.Name)
+}
+
+func Test_verifyIdentity(t *testing.T) {
+	testNamespace := "test-namespace"
+
+	for _, tc := range []struct {
+		name              string
+		config            mockDnsConfig
+		existingResources []corev1.ServiceAccount
+		expectError       bool
+		errorContains     string
+	}{
+		{
+			name: "workload identity with valid service account",
+			config: mockDnsConfig{
+				resourceNamespace: testNamespace,
+				identity: v1alpha1.ExternalDNSIdentity{
+					Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+					ServiceAccount: "valid-sa",
+				},
+			},
+			existingResources: []corev1.ServiceAccount{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "valid-sa",
+						Namespace: testNamespace,
+						Annotations: map[string]string{
+							util.WiSaClientIdAnnotation: "test-client-id",
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "workload identity with missing service account",
+			config: mockDnsConfig{
+				resourceNamespace: testNamespace,
+				identity: v1alpha1.ExternalDNSIdentity{
+					Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+					ServiceAccount: "missing-sa",
+				},
+			},
+			existingResources: []corev1.ServiceAccount{},
+			expectError:       true,
+			errorContains:     "not found",
+		},
+		{
+			name: "workload identity with service account missing annotation",
+			config: mockDnsConfig{
+				resourceNamespace: testNamespace,
+				identity: v1alpha1.ExternalDNSIdentity{
+					Type:           v1alpha1.IdentityTypeWorkloadIdentity,
+					ServiceAccount: "sa-no-annotation",
+				},
+			},
+			existingResources: []corev1.ServiceAccount{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sa-no-annotation",
+						Namespace: testNamespace,
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "does not contain WI annotation",
+		},
+		{
+			name: "managed identity does not verify service account",
+			config: mockDnsConfig{
+				resourceNamespace: testNamespace,
+				identity: v1alpha1.ExternalDNSIdentity{
+					Type:     v1alpha1.IdentityTypeManagedIdentity,
+					ClientID: "12345678-1234-1234-1234-123456789012",
+				},
+			},
+			existingResources: []corev1.ServiceAccount{},
+			expectError:       false,
+		},
+		{
+			name: "empty identity type defaults to workload identity behavior",
+			config: mockDnsConfig{
+				resourceNamespace: testNamespace,
+				identity: v1alpha1.ExternalDNSIdentity{
+					ServiceAccount: "valid-sa",
+				},
+			},
+			existingResources: []corev1.ServiceAccount{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "valid-sa",
+						Namespace: testNamespace,
+						Annotations: map[string]string{
+							util.WiSaClientIdAnnotation: "test-client-id",
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty identity type with missing service account returns error",
+			config: mockDnsConfig{
+				resourceNamespace: testNamespace,
+				identity: v1alpha1.ExternalDNSIdentity{
+					ServiceAccount: "nonexistent-sa",
+				},
+			},
+			existingResources: []corev1.ServiceAccount{},
+			expectError:       true,
+			errorContains:     "not found",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var objects []client.Object
+			for i := range tc.existingResources {
+				objects = append(objects, &tc.existingResources[i])
+			}
+			k8sClient := generateDefaultClientBuilder(t, objects).Build()
+
+			err := verifyIdentity(context.Background(), k8sClient, tc.config)
+
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

@@ -288,22 +288,20 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 
 	// Set up permissions for managed identity public zones
 	for _, z := range ret.ManagedIdentityZones {
-		func(z WithCert[Zone]) {
-			permEg.Go(func() error {
-				dns, err := z.Zone.GetDnsZone(ctx)
-				if err != nil {
-					return logger.Error(lgr, fmt.Errorf("getting managed identity zone dns: %w", err))
-				}
+		permEg.Go(func() error {
+			dns, err := z.Zone.GetDnsZone(ctx)
+			if err != nil {
+				return logger.Error(lgr, fmt.Errorf("getting managed identity zone dns: %w", err))
+			}
 
-				role := clients.DnsContributorRole
-				managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
-				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
-					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity zone: %w", role.Name, err))
-				}
+			role := clients.DnsContributorRole
+			managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+			if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
+				return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity zone: %w", role.Name, err))
+			}
 
-				return nil
-			})
-		}(z)
+			return nil
+		})
 	}
 
 	// Set up permissions for managed identity private zones

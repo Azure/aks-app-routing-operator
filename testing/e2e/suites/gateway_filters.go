@@ -125,6 +125,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: infra.FilterClusterSaName,
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			ResourceNamespace: resourceNamespace,
 			Filters: &v1alpha1.ExternalDNSFilters{
@@ -237,6 +238,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: infra.FilterClusterSaName,
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			ResourceNamespace: resourceNamespace,
 			Filters: &v1alpha1.ExternalDNSFilters{
@@ -347,6 +349,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: infra.FilterNsSaName,
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			Filters: &v1alpha1.ExternalDNSFilters{
 				GatewayLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),
@@ -454,6 +457,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
 				ServiceAccount: infra.FilterNsSaName,
+				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			Filters: &v1alpha1.ExternalDNSFilters{
 				RouteAndIngressLabelSelector: to.Ptr(filterLabelKey + "=" + filterLabelValue),

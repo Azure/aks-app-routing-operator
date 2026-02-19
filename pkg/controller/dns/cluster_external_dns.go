@@ -64,15 +64,15 @@ func (c *ClusterExternalDNSController) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, fmt.Errorf("getting ClusterExternalDNS object: %w", err)
 	}
 
-	// verify serviceaccount
-	if _, err = util.GetServiceAccountWorkloadIdentityClientId(ctx, c.client, obj.GetInputServiceAccount(), obj.GetResourceNamespace()); err != nil {
+	// verify identity configuration
+	if err = verifyIdentity(ctx, c.client, obj); err != nil {
 		var userErr util.UserError
 		if errors.As(err, &userErr) {
-			logger.Info("failed to verify service account due to user error, sending warning event: " + userErr.UserError())
-			c.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed serviceaccount verification: %s", userErr.UserError())
+			logger.Info("failed to verify identity due to user error, sending warning event: " + userErr.UserError())
+			c.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateOrCreateExternalDNSResources", "failed identity verification: %s", userErr.UserError())
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "failed to verify service account")
+		logger.Error(err, "failed to verify identity")
 		return ctrl.Result{}, err
 	}
 

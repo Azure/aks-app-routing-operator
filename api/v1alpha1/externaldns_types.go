@@ -88,14 +88,44 @@ type ExternalDNSSpec struct {
 	Filters *ExternalDNSFilters `json:"filters,omitempty"`
 }
 
+// ExternalDNSIdentityType is the type of identity that ExternalDNS will use to interface with Azure resources.
+// +kubebuilder:validation:Enum=workloadIdentity;managedIdentity
+type ExternalDNSIdentityType string
+
+const (
+	// IdentityTypeWorkloadIdentity uses Workload Identity (federated OIDC) for authentication.
+	// Requires a ServiceAccount with the azure.workload.identity/client-id annotation.
+	IdentityTypeWorkloadIdentity ExternalDNSIdentityType = "workloadIdentity"
+
+	// IdentityTypeManagedIdentity uses Azure Managed Service Identity (MSI) for authentication.
+	// Requires ClientID to be specified.
+	IdentityTypeManagedIdentity ExternalDNSIdentityType = "managedIdentity"
+)
+
 // ExternalDNSIdentity contains information about the identity that ExternalDNS will use to interface with Azure resources.
+// +kubebuilder:validation:XValidation:rule="self.type == 'workloadIdentity' || self.type == '' ? has(self.serviceAccount) && self.serviceAccount != '' : true",message="serviceAccount is required when type is workloadIdentity"
+// +kubebuilder:validation:XValidation:rule="self.type == 'managedIdentity' ? has(self.clientID) && self.clientID != '' : true",message="clientID is required when type is managedIdentity"
 type ExternalDNSIdentity struct {
+	// Type is the type of identity that ExternalDNS will use to interface with Azure resources.
+	// Supported values are "workloadIdentity" and "managedIdentity".
+	// +kubebuilder:default=workloadIdentity
+	Type ExternalDNSIdentityType `json:"type,omitempty"`
+
+	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources.
+	// Required when type is "workloadIdentity". The ServiceAccount must exist in the namespace where the ExternalDNS resources
+	// will be deployed (for ClusterExternalDNS, this is the ResourceNamespace) and must have the azure.workload.identity/client-id annotation.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][-a-z0-9\.]*[a-z0-9]$`
-	// +kubebuilder:validation:Required
-	// ServiceAccount is the name of the Kubernetes ServiceAccount that ExternalDNS will use to interface with Azure resources. It must be in the same namespace as the ExternalDNS.
-	ServiceAccount string `json:"serviceAccount"`
+	// +kubebuilder:validation:Optional
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+
+	// ClientID is the client ID of the Azure Managed Identity that ExternalDNS will use to interface with Azure resources.
+	// Required when type is "managedIdentity".
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Format:=uuid
+	// +kubebuilder:validation:Pattern=`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+	ClientID string `json:"clientID,omitempty"`
 }
 
 type ExternalDNSFilters struct {
@@ -172,3 +202,7 @@ func (e *ExternalDNS) GetFilters() *ExternalDNSFilters {
 	return e.Spec.Filters
 }
 func (e *ExternalDNS) GetNamespaced() bool { return true }
+
+func (e *ExternalDNS) GetIdentity() ExternalDNSIdentity {
+	return e.Spec.Identity
+}
