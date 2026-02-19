@@ -152,5 +152,126 @@ func managedIdentityTests(in infra.Provisioned) []test {
 				return nil
 			},
 		},
+		{
+			name: "ClusterExternalDNS MSI Ingress",
+			cfgs: builderFromInfra(in).
+				withOsm(in, false, true).
+				withVersions(manifests.OperatorVersionLatest).
+				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				build(),
+			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
+				lgr := logger.FromContext(ctx)
+				lgr.Info("starting test")
+
+				cl, err := client.New(config, client.Options{
+					Scheme: scheme,
+				})
+				if err != nil {
+					return fmt.Errorf("creating client: %w", err)
+				}
+
+				clusterMsiNic := manifests.NewNginxIngressController("cluster-msi", "cluster-msi.class")
+				if err := upsert(ctx, cl, clusterMsiNic); err != nil {
+					return fmt.Errorf("upserting nginx ingress controller: %w", err)
+				}
+
+				var service v1alpha1.ManagedObjectReference
+				lgr.Info("waiting for service associated with NIC to be ready")
+				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+					lgr.Info("checking if NIC service is ready")
+					var nic v1alpha1.NginxIngressController
+					if err := cl.Get(ctx, client.ObjectKeyFromObject(clusterMsiNic), &nic); err != nil {
+						return false, fmt.Errorf("get cluster-msi nic: %w", err)
+					}
+
+					if nic.Status.ManagedResourceRefs == nil {
+						return false, nil
+					}
+
+					for _, ref := range nic.Status.ManagedResourceRefs {
+						if ref.Kind == "Service" && !strings.HasSuffix(ref.Name, "-metrics") {
+							lgr.Info("found service")
+							service = ref
+							return true, nil
+						}
+					}
+
+					lgr.Info("service not found")
+					return false, nil
+				}); err != nil {
+					return fmt.Errorf("waiting for cluster MSI NIC to be ready: %w", err)
+				}
+
+				if err := clientServerTest(ctx, config, operator, singleNamespacer{namespace: "cluster-msi-ns"}, in, func(ingress *netv1.Ingress, service *corev1.Service, z zoner) error {
+					ns := ingress.GetNamespace()
+
+					clusterExternalDns := &v1alpha1.ClusterExternalDNS{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "msi",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterExternalDNS",
+							APIVersion: v1alpha1.GroupVersion.String(),
+						},
+						Spec: v1alpha1.ClusterExternalDNSSpec{
+							ResourceName:       "msi-cluster-external-dns",
+							DNSZoneResourceIDs: []string{in.ManagedIdentityZone.Zone.GetId()},
+							ResourceTypes:      []string{"ingress"},
+							Identity: v1alpha1.ExternalDNSIdentity{
+								Type:     v1alpha1.IdentityTypeManagedIdentity,
+								ClientID: in.ManagedIdentity.GetClientID(),
+							},
+							ResourceNamespace: ns,
+						},
+					}
+					if err := upsert(ctx, cl, clusterExternalDns); err != nil {
+						return fmt.Errorf("upserting cluster external dns: %w", err)
+					}
+
+					privateClusterExternalDns := &v1alpha1.ClusterExternalDNS{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "private-msi",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterExternalDNS",
+							APIVersion: v1alpha1.GroupVersion.String(),
+						},
+						Spec: v1alpha1.ClusterExternalDNSSpec{
+							ResourceName:       "msi-private-cluster-external-dns",
+							DNSZoneResourceIDs: []string{in.ManagedIdentityPrivateZone.Zone.GetId()},
+							ResourceTypes:      []string{"ingress"},
+							Identity: v1alpha1.ExternalDNSIdentity{
+								Type:     v1alpha1.IdentityTypeManagedIdentity,
+								ClientID: in.ManagedIdentity.GetClientID(),
+							},
+							ResourceNamespace: ns,
+						},
+					}
+					if err := upsert(ctx, cl, privateClusterExternalDns); err != nil {
+						return fmt.Errorf("upserting private cluster external dns: %w", err)
+					}
+
+					ingress.Spec.IngressClassName = util.ToPtr(clusterMsiNic.Spec.IngressClassName)
+					return nil
+				}, util.ToPtr(service.Name), func(ctx context.Context, c client.Client, namespacer namespacer, operator manifests.OperatorConfig, infra infra.Provisioned, serviceName *string) ([]zoner, error) {
+					zs, err := toZoners(ctx, cl, namespacer, infra.ManagedIdentityZone)
+					if err != nil {
+						return nil, fmt.Errorf("getting zoners: %w", err)
+					}
+
+					pzs, err := toPrivateZoners(ctx, cl, namespacer, infra.ManagedIdentityPrivateZone, in.Cluster.GetDnsServiceIp())
+					if err != nil {
+						return nil, fmt.Errorf("getting private zoners: %w", err)
+					}
+
+					return append(zs, pzs...), nil
+				}); err != nil {
+					return err
+				}
+
+				lgr.Info("finished testing")
+				return nil
+			},
+		},
 	}
 }
