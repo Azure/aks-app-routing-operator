@@ -30,7 +30,7 @@ func main() {
 		},
 	}}
 	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{},
 		DialContext:     dialer.DialContext,
 	}}
 

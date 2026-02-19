@@ -26,6 +26,10 @@ const (
 	TLSCertServiceAccountOption = "kubernetes.azure.com/tls-cert-service-account"
 )
 
+type ObjectsContainer interface {
+	Objects() []client.Object
+}
+
 // GatewayClientServerResources contains the Kubernetes resources needed for Gateway API e2e testing
 type GatewayClientServerResources struct {
 	Client       *appsv1.Deployment
@@ -37,7 +41,7 @@ type GatewayClientServerResources struct {
 }
 
 // Objects returns all Kubernetes objects in this resource set
-func (g GatewayClientServerResources) Objects() []client.Object {
+func (g *GatewayClientServerResources) Objects() []client.Object {
 	ret := []client.Object{}
 
 	if g.Server != nil {
@@ -71,19 +75,25 @@ func (g GatewayClientServerResources) Objects() []client.Object {
 //   - name: base name for resources (will be sanitized)
 //   - nameserver: DNS nameserver for the client to use for resolution
 //   - keyvaultURI: Azure Key Vault certificate URI for TLS
-//   - host: hostname for the Gateway listener and HTTPRoute
-//   - tlsHost: hostname for TLS certificate (can include wildcards)
+//   - tlsHost: hostname for DNS records + Gateway listeners
 //   - serviceAccountName: name of the ServiceAccount for workload identity (must be created separately)
 //   - gatewayClassName: the GatewayClass name to use (e.g., "istio")
-func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
+func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
 	name = nonAlphanumericRegex.ReplaceAllString(name, "")
+
+	// Gateway and listener names (needed for TLS secret name)
+	gatewayName := name + "-gateway"
+	listenerName := "https"
+
+	// The SPC controller creates a secret with this name pattern
+	tlsSecretName := "kv-gw-cert-" + gatewayName + "-" + listenerName
 
 	// Create client deployment using gateway-specific client (doesn't validate X-Forwarded-For)
 	clientDeployment := newGoDeployment(gatewayClientContents, namespace, name+"-gw-client")
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{
 			Name:  "URL",
-			Value: "https://" + host,
+			Value: "https://" + tlsHost,
 		},
 		{
 			Name:  "NAMESERVER",
@@ -92,6 +102,25 @@ func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsH
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+	}
+	// Mount the TLS certificate secret as a CA certificate
+	clientDeployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: "tls-certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsSecretName,
+				},
+			},
+		},
+	}
+	clientDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+		{
+			Name:      "tls-certs",
+			MountPath: "/etc/ssl/certs/ca-certificates.crt",
+			SubPath:   "tls.crt",
+			ReadOnly:  true,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
@@ -140,8 +169,6 @@ func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsH
 	}
 
 	// Create Gateway with TLS configuration
-	gatewayName := name + "-gateway"
-	listenerName := "https"
 	gateway := &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Gateway",
@@ -202,7 +229,7 @@ func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, host, tlsH
 					},
 				},
 			},
-			Hostnames: []gatewayv1.Hostname{gatewayv1.Hostname(host)},
+			Hostnames: []gatewayv1.Hostname{gatewayv1.Hostname(tlsHost)},
 			Rules: []gatewayv1.HTTPRouteRule{
 				{
 					Matches: []gatewayv1.HTTPRouteMatch{
@@ -251,7 +278,7 @@ type GatewayFilterTestResources struct {
 }
 
 // Objects returns all Kubernetes objects in this resource set
-func (g GatewayFilterTestResources) Objects() []client.Object {
+func (g *GatewayFilterTestResources) Objects() []client.Object {
 	ret := []client.Object{}
 
 	if g.Server != nil {
@@ -304,6 +331,13 @@ type GatewayLabelFilterTestConfig struct {
 func GatewayLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTestResources {
 	name := nonAlphanumericRegex.ReplaceAllString(cfg.Name, "")
 
+	// Gateway and listener names (needed for TLS secret name)
+	labeledGatewayName := name + "-labeled-gw"
+	labeledListenerName := "https"
+
+	// The SPC controller creates a secret with this name pattern for the labeled gateway
+	tlsSecretName := "kv-gw-cert-" + labeledGatewayName + "-" + labeledListenerName
+
 	// Create client deployment that connects to labeled host and verifies unlabeled is unreachable
 	clientDeployment := newGoDeployment(gatewayClientContents, cfg.Namespace, name+"-filter-client")
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
@@ -322,6 +356,25 @@ func GatewayLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilter
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+	}
+	// Mount the TLS certificate secret as a CA certificate
+	clientDeployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: "tls-certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsSecretName,
+				},
+			},
+		},
+	}
+	clientDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+		{
+			Name:      "tls-certs",
+			MountPath: "/etc/ssl/certs/ca-certificates.crt",
+			SubPath:   "tls.crt",
+			ReadOnly:  true,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
@@ -370,8 +423,6 @@ func GatewayLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilter
 	}
 
 	// Create labeled gateway (should be picked up by external-dns)
-	labeledGatewayName := name + "-labeled-gw"
-	labeledListenerName := "https"
 	labeledHostname := gatewayv1.Hostname(cfg.LabeledHost)
 	labeledGateway := &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{
@@ -567,6 +618,13 @@ func GatewayLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilter
 func RouteLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTestResources {
 	name := nonAlphanumericRegex.ReplaceAllString(cfg.Name, "")
 
+	// Gateway and listener names (needed for TLS secret name)
+	labeledGatewayName := name + "-labeled-route-gw"
+	labeledListenerName := "https"
+
+	// The SPC controller creates a secret with this name pattern for the labeled gateway
+	tlsSecretName := "kv-gw-cert-" + labeledGatewayName + "-" + labeledListenerName
+
 	// Create client deployment that connects to labeled route's host and verifies unlabeled is unreachable
 	clientDeployment := newGoDeployment(gatewayClientContents, cfg.Namespace, name+"-route-filter-client")
 	clientDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
@@ -585,6 +643,25 @@ func RouteLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTe
 		{
 			Name:      "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}},
+		},
+	}
+	// Mount the TLS certificate secret as a CA certificate
+	clientDeployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: "tls-certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: tlsSecretName,
+				},
+			},
+		},
+	}
+	clientDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+		{
+			Name:      "tls-certs",
+			MountPath: "/etc/ssl/certs/ca-certificates.crt",
+			SubPath:   "tls.crt",
+			ReadOnly:  true,
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
@@ -633,8 +710,6 @@ func RouteLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTe
 	}
 
 	// Create gateway for labeled route
-	labeledGatewayName := name + "-labeled-route-gw"
-	labeledListenerName := "https"
 	labeledHostname := gatewayv1.Hostname(cfg.LabeledHost)
 	labeledGateway := &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{

@@ -23,12 +23,6 @@ const (
 
 type infras []infra
 
-// FederatedNamespace represents a namespace and service account pair to federate with the managed identity
-type FederatedNamespace struct {
-	Namespace      string
-	ServiceAccount string
-}
-
 type infra struct {
 	Name   string
 	Suffix string
@@ -112,20 +106,20 @@ type WithCert[T any] struct {
 }
 
 type Provisioned struct {
-	Name                       string
-	Cluster                    cluster
-	ContainerRegistry          containerRegistry
-	ManagedIdentity            managedIdentity
-	ManagedIdentityZone        WithCert[Zone]
-	ManagedIdentityPrivateZone WithCert[PrivateZone]
-	Zones                      []WithCert[Zone]
-	PrivateZones               []WithCert[PrivateZone]
-	KeyVault                   keyVault
-	ResourceGroup              resourceGroup
-	SubscriptionId             string
-	TenantId                   string
-	E2eImage                   string
-	OperatorImage              string
+	Name                        string
+	Cluster                     cluster
+	ContainerRegistry           containerRegistry
+	ManagedIdentity             managedIdentity
+	ManagedIdentityZones        []WithCert[Zone]
+	ManagedIdentityPrivateZones []WithCert[PrivateZone]
+	Zones                       []WithCert[Zone]
+	PrivateZones                []WithCert[PrivateZone]
+	KeyVault                    keyVault
+	ResourceGroup               resourceGroup
+	SubscriptionId              string
+	TenantId                    string
+	E2eImage                    string
+	OperatorImage               string
 }
 
 type LoadableZone struct {
@@ -149,8 +143,8 @@ type LoadableProvisioned struct {
 	ManagedIdentity                                                                           azure.Resource
 	ManagedIdentityClientId                                                                   string
 	ManagedIdentityPrincipalId                                                                string
-	ManagedIdentityZone                                                                       withLoadableCert[LoadableZone]
-	ManagedIdentityPrivateZone                                                                withLoadableCert[azure.Resource]
+	ManagedIdentityZones                                                                      []withLoadableCert[LoadableZone]
+	ManagedIdentityPrivateZones                                                               []withLoadableCert[azure.Resource]
 	ContainerRegistry                                                                         azure.Resource
 	Zones                                                                                     []withLoadableCert[LoadableZone]
 	PrivateZones                                                                              []withLoadableCert[azure.Resource]

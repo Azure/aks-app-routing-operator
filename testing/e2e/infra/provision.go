@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -159,43 +160,70 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		}(idx)
 	}
 
-	resEg.Go(func() error {
-		z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, "mi-zone"+i.Suffix)
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating managed identity zone: %w", err))
-		}
+	// Create managed identity zones (public and private) for gateway tests
+	for idx := 0; idx < NumGatewayZones; idx++ {
+		func(idx int) {
+			resEg.Go(func() error {
+				z, err := clients.NewZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("mi-zone-%d-%s", idx, i.Suffix))
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating managed identity zone %d: %w", idx, err))
+				}
 
-		pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, "private-mi-zone"+i.Suffix)
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating private managed identity zone: %w", err))
-		}
+				<-kvDone
 
-		<-kvDone
+				// Include wildcard SAN since we use subdomain hostnames like zone0.{zoneName}
+				cert, err := ret.KeyVault.CreateCertificate(ctx, fmt.Sprintf("mi-zone-%d", idx), z.GetName(), []string{z.GetName(), "*." + z.GetName()})
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating managed identity zone %d certificate: %w", idx, err))
+				}
 
-		cert, err := ret.KeyVault.CreateCertificate(ctx, "mi-zone", z.GetName(), []string{z.GetName()})
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating managed identity zone certificate: %w", err))
-		}
+				ret.ManagedIdentityZones = append(ret.ManagedIdentityZones, WithCert[Zone]{
+					Zone: z,
+					Cert: cert,
+				})
+				return nil
+			})
+		}(idx)
+	}
 
-		privateCert, err := ret.KeyVault.CreateCertificate(ctx, "private-mi-zone", pz.GetName(), []string{pz.GetName()})
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating private managed identity zone certificate: %w", err))
-		}
+	for idx := 0; idx < NumGatewayZones; idx++ {
+		func(idx int) {
+			resEg.Go(func() error {
+				pz, err := clients.NewPrivateZone(ctx, subscriptionId, i.ResourceGroup, fmt.Sprintf("private-mi-zone-%d-%s", idx, i.Suffix))
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating private managed identity zone %d: %w", idx, err))
+				}
 
-		ret.ManagedIdentityZone = WithCert[Zone]{
-			Zone: z,
-			Cert: cert,
-		}
-		ret.ManagedIdentityPrivateZone = WithCert[PrivateZone]{
-			Zone: pz,
-			Cert: privateCert,
-		}
-		return nil
-	})
+				<-kvDone
+
+				// Include wildcard SAN since we use subdomain hostnames like zone0.{zoneName}
+				cert, err := ret.KeyVault.CreateCertificate(ctx, fmt.Sprintf("private-mi-zone-%d", idx), pz.GetName(), []string{pz.GetName(), "*." + pz.GetName()})
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating private managed identity zone %d certificate: %w", idx, err))
+				}
+
+				ret.ManagedIdentityPrivateZones = append(ret.ManagedIdentityPrivateZones, WithCert[PrivateZone]{
+					Zone: pz,
+					Cert: cert,
+				})
+				return nil
+			})
+		}(idx)
+	}
 
 	if err := resEg.Wait(); err != nil {
 		return Provisioned{}, logger.Error(lgr, err)
 	}
+
+	// Sort managed identity zone slices to ensure consistent ordering by zone name.
+	// Zones are created in parallel goroutines, so their append order is non-deterministic.
+	// Sorting ensures mi-zone-0 is at index 0, mi-zone-1 at index 1, etc.
+	sort.Slice(ret.ManagedIdentityZones, func(i, j int) bool {
+		return ret.ManagedIdentityZones[i].Zone.GetName() < ret.ManagedIdentityZones[j].Zone.GetName()
+	})
+	sort.Slice(ret.ManagedIdentityPrivateZones, func(i, j int) bool {
+		return ret.ManagedIdentityPrivateZones[i].Zone.GetName() < ret.ManagedIdentityPrivateZones[j].Zone.GetName()
+	})
 
 	// connect permissions
 	var permEg errgroup.Group
@@ -258,38 +286,51 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		}(z)
 	}
 
-	permEg.Go(func() error {
-		dns, err := ret.ManagedIdentityZone.Zone.GetDnsZone(ctx)
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("getting managed identity zone dns: %w", err))
-		}
+	// Set up permissions for managed identity public zones
+	for _, z := range ret.ManagedIdentityZones {
+		permEg.Go(func() error {
+			dns, err := z.Zone.GetDnsZone(ctx)
+			if err != nil {
+				return logger.Error(lgr, fmt.Errorf("getting managed identity zone dns: %w", err))
+			}
 
-		role := clients.DnsContributorRole
-		managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
-		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity zone: %w", role.Name, err))
-		}
+			role := clients.DnsContributorRole
+			managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+			if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *dns.ID, managedIdentityPrincipalId, role); err != nil {
+				return logger.Error(lgr, fmt.Errorf("creating %s role assignment for managed identity zone: %w", role.Name, err))
+			}
 
-		pdns, err := ret.ManagedIdentityPrivateZone.Zone.GetDnsZone(ctx)
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("getting private managed identity zone dns: %w", err))
-		}
+			return nil
+		})
+	}
 
-		privateRole := clients.PrivateDnsContributorRole
-		if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *pdns.ID, managedIdentityPrincipalId, privateRole); err != nil {
-			return logger.Error(lgr, fmt.Errorf("creating %s role assignment for private managed identity zone: %w", privateRole.Name, err))
-		}
+	// Set up permissions for managed identity private zones
+	for _, pz := range ret.ManagedIdentityPrivateZones {
+		func(pz WithCert[PrivateZone]) {
+			permEg.Go(func() error {
+				pdns, err := pz.Zone.GetDnsZone(ctx)
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("getting private managed identity zone dns: %w", err))
+				}
 
-		vnet, err := ret.Cluster.GetVnetId(ctx)
-		if err != nil {
-			return logger.Error(lgr, fmt.Errorf("getting vnet id: %w", err))
-		}
-		if err := ret.ManagedIdentityPrivateZone.Zone.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", ret.ManagedIdentityPrivateZone.Zone.GetName(), i.Suffix), vnet); err != nil {
-			return logger.Error(lgr, fmt.Errorf("linking vnet: %w", err))
-		}
+				privateRole := clients.PrivateDnsContributorRole
+				managedIdentityPrincipalId := ret.ManagedIdentity.GetPrincipalID()
+				if _, err := clients.NewRoleAssignment(ctx, subscriptionId, *pdns.ID, managedIdentityPrincipalId, privateRole); err != nil {
+					return logger.Error(lgr, fmt.Errorf("creating %s role assignment for private managed identity zone: %w", privateRole.Name, err))
+				}
 
-		return nil
-	})
+				vnet, err := ret.Cluster.GetVnetId(ctx)
+				if err != nil {
+					return logger.Error(lgr, fmt.Errorf("getting vnet id: %w", err))
+				}
+				if err := pz.Zone.LinkVnet(ctx, fmt.Sprintf("link-%s-%s", pz.Zone.GetName(), i.Suffix), vnet); err != nil {
+					return logger.Error(lgr, fmt.Errorf("linking vnet: %w", err))
+				}
+
+				return nil
+			})
+		}(pz)
+	}
 
 	permEg.Go(func() error {
 		role := clients.AcrPullRole
