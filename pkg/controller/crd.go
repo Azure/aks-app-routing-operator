@@ -75,7 +75,7 @@ func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
 func shouldLoadCRD(cfg *config.Config, filename string) bool {
 	switch filename {
 	case nginxIngresscontrollerCrdFilename:
-		return true
+		return !cfg.DisableIngressNginx
 
 	case externalDnsCrdFilename:
 		return cfg.EnabledWorkloadIdentity

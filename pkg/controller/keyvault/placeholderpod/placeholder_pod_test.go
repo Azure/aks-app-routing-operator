@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -424,6 +425,200 @@ func TestPlaceholderPodControllerReconcile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPlaceholderPodControllerSpcOwnerTypesWithDisableIngressNginx(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, secv1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	// Create an SPC owned by NginxIngressController
+	nicOwnedSPC := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nic-owned-spc",
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "NginxIngressController",
+					Name: "test-nic",
+				},
+			},
+		},
+	}
+
+	// Create an SPC owned by Ingress
+	ingressOwnedSPC := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ingress-owned-spc",
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "Ingress",
+					Name: "test-ingress",
+				},
+			},
+		},
+	}
+
+	// Create an SPC owned by Gateway
+	gatewayOwnedSPC := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gateway-owned-spc",
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "Gateway",
+					Name: "test-gateway",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		disableNginx    bool
+		enableGateway   bool
+		spc             *secv1.SecretProviderClass
+		expectOwnerFind bool // whether an owner type will match
+	}{
+		{
+			name:            "nginx enabled - nic-owned SPC finds owner",
+			disableNginx:    false,
+			spc:             nicOwnedSPC,
+			expectOwnerFind: true,
+		},
+		{
+			name:            "nginx disabled - nic-owned SPC finds no owner",
+			disableNginx:    true,
+			spc:             nicOwnedSPC,
+			expectOwnerFind: false,
+		},
+		{
+			name:            "nginx enabled - ingress-owned SPC finds owner",
+			disableNginx:    false,
+			spc:             ingressOwnedSPC,
+			expectOwnerFind: true,
+		},
+		{
+			name:            "nginx disabled - ingress-owned SPC finds no owner",
+			disableNginx:    true,
+			spc:             ingressOwnedSPC,
+			expectOwnerFind: false,
+		},
+		{
+			name:            "nginx disabled gateway enabled - gateway-owned SPC finds owner",
+			disableNginx:    true,
+			enableGateway:   true,
+			spc:             gatewayOwnedSPC,
+			expectOwnerFind: true,
+		},
+		{
+			name:            "nginx disabled gateway disabled - gateway-owned SPC finds no owner",
+			disableNginx:    true,
+			enableGateway:   false,
+			spc:             gatewayOwnedSPC,
+			expectOwnerFind: false,
+		},
+		{
+			name:            "nginx enabled gateway enabled - gateway-owned SPC finds owner",
+			disableNginx:    false,
+			enableGateway:   true,
+			spc:             gatewayOwnedSPC,
+			expectOwnerFind: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build spcOwnerTypes the same way NewPlaceholderPodController does
+			conf := &config.Config{
+				DisableIngressNginx: tt.disableNginx,
+				EnableGatewayTLS:    tt.enableGateway,
+				Registry:            testRegistry,
+			}
+
+			mockIngressManager := util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+				return true, nil
+			})
+
+			var spcOwnerTypes []spcOwnerType
+			if !conf.DisableIngressNginx {
+				spcOwnerTypes = append(spcOwnerTypes, nicSpcOwner, getIngressSpcOwner(mockIngressManager, conf))
+			}
+			if conf.EnableGatewayTLS {
+				spcOwnerTypes = append(spcOwnerTypes, gatewaySpcOwner)
+			}
+
+			// Check if any owner type matches the SPC
+			found := false
+			for _, o := range spcOwnerTypes {
+				if o.IsOwner(tt.spc) {
+					found = true
+					break
+				}
+			}
+
+			assert.Equal(t, tt.expectOwnerFind, found,
+				"expected owner find=%v for spc %s with disableNginx=%v enableGateway=%v",
+				tt.expectOwnerFind, tt.spc.Name, tt.disableNginx, tt.enableGateway)
+		})
+	}
+}
+
+func TestPlaceholderPodControllerReconcileWithNoOwnerTypes(t *testing.T) {
+	// When DisableIngressNginx is true and EnableGatewayTLS is false,
+	// the controller has no owner types and should skip reconciliation for any SPC
+	scheme := runtime.NewScheme()
+	require.NoError(t, secv1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	spc := &secv1.SecretProviderClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testSPCName,
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "NginxIngressController",
+					Name: "test-nic",
+				},
+			},
+		},
+	}
+
+	cl := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(spc).
+		Build()
+
+	// No owner types = simulates DisableIngressNginx=true, EnableGatewayTLS=false
+	controller := &PlaceholderPodController{
+		client:        cl,
+		events:        &record.FakeRecorder{},
+		config:        &config.Config{Registry: testRegistry},
+		spcOwnerTypes: nil,
+	}
+
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      testSPCName,
+			Namespace: testNamespace,
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	result, err := controller.Reconcile(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Verify no deployment was created
+	dep := &appsv1.Deployment{}
+	err = cl.Get(context.Background(), types.NamespacedName{
+		Name:      testSPCName,
+		Namespace: testNamespace,
+	}, dep)
+	require.Error(t, err, "expected no deployment to be created when no owner types match")
 }
 
 func TestGetCurrentDeployment(t *testing.T) {
