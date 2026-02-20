@@ -364,6 +364,24 @@ var validateTestCases = []struct {
 		Error: "--default-domain-server-address, --default-domain-client-id, and --default-domain-zone-id are not allowed when --enable-default-domain is not set",
 	},
 	{
+		Name: "valid-disable-ingress-nginx",
+		Conf: &Config{
+			DefaultController:        Standard,
+			NS:                       "test-namespace",
+			Registry:                 "test-registry",
+			MSIClientID:              "test-msi-client-id",
+			TenantID:                 "test-tenant-id",
+			Cloud:                    "test-cloud",
+			Location:                 "test-location",
+			ConcurrencyWatchdogThres: 101,
+			ConcurrencyWatchdogVotes: 2,
+			ClusterUid:               "cluster-uid",
+			OperatorDeployment:       "app-routing-operator",
+			CrdPath:                  validCrdPath,
+			DisableIngressNginx:      true,
+		},
+	},
+	{
 		Name: "valid-disable-default-domain-no-server-address",
 		Conf: &Config{
 			DefaultController:        Standard,

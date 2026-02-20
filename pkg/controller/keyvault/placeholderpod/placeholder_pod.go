@@ -49,7 +49,10 @@ func NewPlaceholderPodController(manager ctrl.Manager, conf *config.Config, ingr
 		return nil
 	}
 
-	spcOwnerTypes := []spcOwnerType{nicSpcOwner, getIngressSpcOwner(ingressManager, conf)}
+	var spcOwnerTypes []spcOwnerType
+	if !conf.DisableIngressNginx {
+		spcOwnerTypes = append(spcOwnerTypes, nicSpcOwner, getIngressSpcOwner(ingressManager, conf))
+	}
 	if conf.EnableGatewayTLS {
 		spcOwnerTypes = append(spcOwnerTypes, gatewaySpcOwner)
 	}

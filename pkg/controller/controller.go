@@ -170,10 +170,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error {
 	lgr.Info("setting up indexers")
 
-	lgr.Info("adding Nginx Ingress Controller IngressClass indexer")
-	if err := nginxingress.AddIngressClassNameIndex(mgr.GetFieldIndexer(), nicIngressClassIndex); err != nil {
-		lgr.Error(err, "adding Nginx Ingress Controller IngressClass indexer")
-		return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
+	if !conf.DisableIngressNginx {
+		lgr.Info("adding Nginx Ingress Controller IngressClass indexer")
+		if err := nginxingress.AddIngressClassNameIndex(mgr.GetFieldIndexer(), nicIngressClassIndex); err != nil {
+			lgr.Error(err, "adding Nginx Ingress Controller IngressClass indexer")
+			return fmt.Errorf("adding Nginx Ingress Controller IngressClass indexer: %w", err)
+		}
 	}
 
 	if conf.EnableGatewayTLS {
@@ -190,68 +192,72 @@ func setupIndexers(mgr ctrl.Manager, lgr logr.Logger, conf *config.Config) error
 func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl client.Client, store store.Store, healthCheckers *healthCheckers) error {
 	lgr.Info("setting up controllers")
 
-	lgr.Info("determining default IngressClass controller class")
-	defaultCc, err := nginxingress.GetDefaultIngressClassControllerClass(cl)
-	if err != nil {
-		return fmt.Errorf("determining default IngressClass controller class: %w", err)
-	}
-
 	lgr.Info("setting up ExternalDNS controller")
 	if err := dns.NewExternalDns(mgr, conf); err != nil {
 		return fmt.Errorf("setting up external dns controller: %w", err)
 	}
 
-	lgr.Info("setting up Nginx Ingress Controller reconciler")
-	if err := nginxingress.NewReconciler(conf, mgr, defaultCc); err != nil {
-		return fmt.Errorf("setting up nginx ingress controller reconciler: %w", err)
+	var ingressManager util.IngressManager
+	if !conf.DisableIngressNginx {
+		lgr.Info("determining default IngressClass controller class")
+		defaultCc, err := nginxingress.GetDefaultIngressClassControllerClass(cl)
+		if err != nil {
+			return fmt.Errorf("determining default IngressClass controller class: %w", err)
+		}
+
+		lgr.Info("setting up Nginx Ingress Controller reconciler")
+		if err := nginxingress.NewReconciler(conf, mgr, defaultCc); err != nil {
+			return fmt.Errorf("setting up nginx ingress controller reconciler: %w", err)
+		}
+
+		lgr.Info("setting up ingress cert config reconciler")
+		if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
+			return fmt.Errorf("setting up ingress cert config reconciler: %w", err)
+		}
+
+		defaultNic := nginxingress.GetDefaultNginxIngressController()
+		if err := service.NewNginxIngressReconciler(mgr, nginxingress.ToNginxIngressConfig(&defaultNic, defaultCc)); err != nil {
+			return fmt.Errorf("setting up nginx ingress reconciler: %w", err)
+		}
+
+		lgr.Info("setting up default Nginx Ingress Controller reconciler")
+		if err := nginxingress.NewDefaultReconciler(mgr, conf); err != nil {
+			return fmt.Errorf("setting up nginx ingress default controller reconciler: %w", err)
+		}
+
+		lgr.Info("setting up ingress concurrency watchdog")
+		if err := ingress.NewConcurrencyWatchdog(mgr, conf, ingress.GetListNginxWatchdogTargets(mgr.GetClient(), defaultCc)); err != nil {
+			return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
+		}
+
+		ingressManager = util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
+			return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
+		})
+		lgr.Info("setting up keyvault secret provider class reconciler")
+		if err := spc.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
+			return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
+		}
+		lgr.Info("setting up nginx keyvault secret provider class reconciler")
+		if err := spc.NewNginxSecretProviderClassReconciler(mgr, conf); err != nil {
+			return fmt.Errorf("setting up nginx secret provider class reconciler: %w", err)
+		}
+
+		ingressSourceSpecer := osm.NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
+			return nginxingress.IngressSource(context.Background(), mgr.GetClient(), conf, defaultCc, ing, nicIngressClassIndex)
+		})
+		lgr.Info("setting up ingress backend reconciler")
+		if err := osm.NewIngressBackendReconciler(mgr, conf, ingressSourceSpecer); err != nil {
+			return fmt.Errorf("setting up ingress backend reconciler: %w", err)
+		}
 	}
 
-	lgr.Info("setting up ingress cert config reconciler")
-	if err = osm.NewIngressCertConfigReconciler(mgr, conf); err != nil {
-		return fmt.Errorf("setting up ingress cert config reconciler: %w", err)
-	}
-
-	defaultNic := nginxingress.GetDefaultNginxIngressController()
-	if err := service.NewNginxIngressReconciler(mgr, nginxingress.ToNginxIngressConfig(&defaultNic, defaultCc)); err != nil {
-		return fmt.Errorf("setting up nginx ingress reconciler: %w", err)
-	}
-
-	lgr.Info("setting up default Nginx Ingress Controller reconciler")
-	if err := nginxingress.NewDefaultReconciler(mgr, conf); err != nil {
-		return fmt.Errorf("setting up nginx ingress default controller reconciler: %w", err)
-	}
-
-	lgr.Info("setting up ingress concurrency watchdog")
-	if err := ingress.NewConcurrencyWatchdog(mgr, conf, ingress.GetListNginxWatchdogTargets(mgr.GetClient(), defaultCc)); err != nil {
-		return fmt.Errorf("setting up ingress concurrency watchdog: %w", err)
-	}
-
-	ingressManager := util.NewIngressManagerFromFn(func(ing *netv1.Ingress) (bool, error) {
-		return nginxingress.IsIngressManaged(context.Background(), mgr.GetClient(), ing, nicIngressClassIndex)
-	})
-	lgr.Info("setting up keyvault secret provider class reconciler")
-	if err := spc.NewIngressSecretProviderClassReconciler(mgr, conf, ingressManager); err != nil {
-		return fmt.Errorf("setting up ingress secret provider class reconciler: %w", err)
-	}
-	lgr.Info("setting up nginx keyvault secret provider class reconciler")
-	if err := spc.NewNginxSecretProviderClassReconciler(mgr, conf); err != nil {
-		return fmt.Errorf("setting up nginx secret provider class reconciler: %w", err)
-	}
 	lgr.Info("setting up keyvault placeholder pod controller")
 	if err := placeholderpod.NewPlaceholderPodController(mgr, conf, ingressManager); err != nil {
 		return fmt.Errorf("setting up placeholder pod controller: %w", err)
 	}
 	lgr.Info("setting up keyvault event mirror")
-	if err = placeholderpod.NewEventMirror(mgr, conf); err != nil {
+	if err := placeholderpod.NewEventMirror(mgr, conf); err != nil {
 		return fmt.Errorf("setting up event mirror: %w", err)
-	}
-
-	ingressSourceSpecer := osm.NewIngressControllerSourceSpecerFromFn(func(ing *netv1.Ingress) (policyv1alpha1.IngressSourceSpec, bool, error) {
-		return nginxingress.IngressSource(context.Background(), mgr.GetClient(), conf, defaultCc, ing, nicIngressClassIndex)
-	})
-	lgr.Info("setting up ingress backend reconciler")
-	if err := osm.NewIngressBackendReconciler(mgr, conf, ingressSourceSpecer); err != nil {
-		return fmt.Errorf("setting up ingress backend reconciler: %w", err)
 	}
 
 	if conf.EnableGatewayTLS {
