@@ -47,6 +47,8 @@ var (
 	defaultDomainDisabled                  = &config.Config{EnableDefaultDomain: false, CrdPath: validCrdPath}
 	allFeaturesEnabled                     = &config.Config{EnabledWorkloadIdentity: true, EnableGatewayTLS: true, EnableDefaultDomain: true, CrdPath: validCrdPath}
 	allFeaturesDisabled                    = &config.Config{EnabledWorkloadIdentity: false, EnableDefaultDomain: false, CrdPath: validCrdPath}
+	ingressNginxDisabled                   = &config.Config{DisableIngressNginx: true, CrdPath: validCrdPath}
+	ingressNginxDisabledWorkloadIdentity   = &config.Config{DisableIngressNginx: true, EnabledWorkloadIdentity: true, CrdPath: validCrdPath}
 )
 
 func TestLoadCRDs(t *testing.T) {
@@ -99,6 +101,8 @@ func TestLoadCRDs(t *testing.T) {
 		{name: "default domain disabled", cfg: defaultDomainDisabled, expectedCRDNames: nginxCrds},
 		{name: "all features enabled", cfg: allFeaturesEnabled, expectedCRDNames: slices.Concat(nginxCrds, []string{clusterExternalDnsCrdName, externalDnsCrdName}, defaultDomainCertificates)},
 		{name: "all features disabled", cfg: allFeaturesDisabled, expectedCRDNames: nginxCrds},
+		{name: "ingress nginx disabled", cfg: ingressNginxDisabled, expectedCRDNames: nil},
+		{name: "ingress nginx disabled with workload identity", cfg: ingressNginxDisabledWorkloadIdentity, expectedCRDNames: []string{clusterExternalDnsCrdName, externalDnsCrdName}},
 	}
 
 	for _, tc := range cases {
@@ -155,6 +159,7 @@ func TestShouldLoadCRD(t *testing.T) {
 		{name: "cluster external dns crd with default domain enabled", cfg: defaultDomainEnabled, filename: clusterExternalDnsCrdFilename, expected: true},
 		{name: "nginx ingress controller crd with workload identity enabled", cfg: workloadIdentityEnabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
 		{name: "nginx ingress controller crd with workload identity disabled", cfg: workloadIdentityDisabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
+		{name: "nginx ingress controller crd with ingress nginx disabled", cfg: ingressNginxDisabled, filename: nginxIngresscontrollerCrdFilename, expected: false},
 		{name: "default domain certificate crd with default domain enabled", cfg: defaultDomainEnabled, filename: defaultDomainCertificateCrdFilename, expected: true},
 		{name: "default domain certificate crd with default domain disabled", cfg: defaultDomainDisabled, filename: defaultDomainCertificateCrdFilename, expected: false},
 		{name: "default domain certificate crd with all features enabled", cfg: allFeaturesEnabled, filename: defaultDomainCertificateCrdFilename, expected: true},
