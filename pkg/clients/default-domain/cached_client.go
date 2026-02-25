@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 )
@@ -35,16 +36,18 @@ type CachedClientOpts struct {
 
 // CachedClient is a client that caches TLS certificates with automatic refresh
 type CachedClient struct {
-	client           *Client
-	logger           logr.Logger
-	opts             CachedClientOpts
-	mu               sync.Mutex
-	cache            *TLSCertificate
-	cacheExp         time.Time
-	consecutiveFails int
-	healthy          bool
-	ctx              context.Context
-	cancel           context.CancelFunc
+	client               *Client
+	logger               logr.Logger
+	opts                 CachedClientOpts
+	mu                   sync.Mutex
+	cache                *TLSCertificate
+	cacheExp             time.Time
+	consecutiveFails     int
+	consecutiveNotFounds int
+	failingSince         time.Time // zero value means not in a failure state
+	healthy              bool
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // NewCachedClient creates a new cached client with automatic refresh
@@ -123,7 +126,14 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 			c.cache = cert
 			c.cacheExp = time.Now().Add(ttl)
 			c.consecutiveFails = 0
+			c.consecutiveNotFounds = 0
+			c.failingSince = time.Time{}
 			c.healthy = true
+
+			// Reset failure gauges
+			metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound).Set(0)
+			metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError).Set(0)
+			metrics.DefaultDomainCertUnavailableDurationSeconds.Set(0)
 
 			c.logger.Info("updated certificate cache",
 				"ttl", ttl,
@@ -135,8 +145,21 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 		if util.IsNotFound(err) {
 			// 404 is a valid state (cert not ready yet), don't mark as unhealthy
 			c.consecutiveFails = 0
+			c.consecutiveNotFounds++
 			c.healthy = true
-			c.logger.Info("certificate not found (404), service is reachable")
+
+			// Track the start of the failure streak
+			if c.failingSince.IsZero() {
+				c.failingSince = time.Now()
+			}
+
+			// Update failure metrics
+			metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound).Set(float64(c.consecutiveNotFounds))
+			metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError).Set(0)
+			metrics.DefaultDomainCertUnavailableDurationSeconds.Set(time.Since(c.failingSince).Seconds())
+
+			c.logger.Info("certificate not found (404), service is reachable",
+				"consecutiveNotFounds", c.consecutiveNotFounds)
 			return nil, err
 		}
 
@@ -147,6 +170,18 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 
 		// Update health on each failed attempt
 		c.consecutiveFails++
+		c.consecutiveNotFounds = 0
+
+		// Track the start of the failure streak
+		if c.failingSince.IsZero() {
+			c.failingSince = time.Now()
+		}
+
+		// Update failure metrics
+		metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError).Set(float64(c.consecutiveFails))
+		metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound).Set(0)
+		metrics.DefaultDomainCertUnavailableDurationSeconds.Set(time.Since(c.failingSince).Seconds())
+
 		if c.consecutiveFails >= maxRetries {
 			c.healthy = false
 			c.logger.Error(nil, "client marked unhealthy after consecutive failed attempts",
@@ -183,6 +218,10 @@ func (c *CachedClient) refreshLoop() {
 	for {
 		c.mu.Lock()
 		nextRefresh := c.cacheExp
+		// Keep the duration gauge fresh between fetch attempts
+		if !c.failingSince.IsZero() {
+			metrics.DefaultDomainCertUnavailableDurationSeconds.Set(time.Since(c.failingSince).Seconds())
+		}
 		c.mu.Unlock()
 
 		// If cache not set yet, use a default interval

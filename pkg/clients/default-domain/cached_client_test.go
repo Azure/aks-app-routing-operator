@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,8 @@ func TestNewCachedClient(t *testing.T) {
 	assert.NotNil(t, client.cancel)
 	assert.True(t, client.healthy)
 	assert.Equal(t, 0, client.consecutiveFails)
+	assert.Equal(t, 0, client.consecutiveNotFounds)
+	assert.True(t, client.failingSince.IsZero())
 	assert.Nil(t, client.cache)
 	assert.True(t, client.cacheExp.IsZero())
 
@@ -467,6 +470,8 @@ func TestCachedClient_HealthRecovery(t *testing.T) {
 	// Manually set client to unhealthy state
 	client.mu.Lock()
 	client.consecutiveFails = maxRetries
+	client.consecutiveNotFounds = 3
+	client.failingSince = time.Now().Add(-10 * time.Minute)
 	client.healthy = false
 	client.mu.Unlock()
 
@@ -483,6 +488,8 @@ func TestCachedClient_HealthRecovery(t *testing.T) {
 	require.NotNil(t, cert)
 	assert.True(t, client.IsHealthy(), "client should recover health after successful fetch")
 	assert.Equal(t, 0, client.consecutiveFails, "consecutive fails should reset")
+	assert.Equal(t, 0, client.consecutiveNotFounds, "consecutive not founds should reset")
+	assert.True(t, client.failingSince.IsZero(), "failingSince should reset")
 }
 
 // TestCachedClient_NilCertificateHandling verifies handling of nil certificate from server
@@ -629,7 +636,229 @@ func TestCachedClient_GetTLSCertificate_NotFound(t *testing.T) {
 	// Should remain healthy
 	assert.True(t, client.IsHealthy())
 	assert.Equal(t, 0, client.consecutiveFails)
+	assert.Equal(t, 1, client.consecutiveNotFounds)
+	assert.False(t, client.failingSince.IsZero(), "failingSince should be set after a not-found")
 
 	// Should not retry immediately
 	assert.Equal(t, 1, callCount)
+
+	// Verify the consecutive not-found gauge
+	var m dto.Metric
+	notFoundGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound)
+	err = notFoundGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(1), m.GetGauge().GetValue(), "not_found gauge should be 1")
+
+	// Verify the duration gauge is > 0
+	err = metrics.DefaultDomainCertUnavailableDurationSeconds.Write(&m)
+	require.NoError(t, err)
+	assert.Greater(t, m.GetGauge().GetValue(), float64(0), "duration gauge should be > 0")
+}
+
+// TestCachedClient_ConsecutiveNotFoundsMetrics verifies that consecutive 404s are tracked and reset on success
+func TestCachedClient_ConsecutiveNotFoundsMetrics(t *testing.T) {
+	callCount := 0
+	notFoundCount := 3 // return 404 for the first 3 calls, then succeed
+
+	expiresOn := time.Now().Add(24 * time.Hour)
+	expectedCert := &TLSCertificate{
+		Key:       []byte("test-key"),
+		Cert:      []byte("test-cert"),
+		ExpiresOn: &expiresOn,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount <= notFoundCount {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("not found"))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(expectedCert)
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts: Opts{ServerAddress: server.URL},
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	var m dto.Metric
+
+	// Make 3 calls that return 404
+	for i := 1; i <= notFoundCount; i++ {
+		_, err := client.GetTLSCertificate(context.Background())
+		require.Error(t, err)
+		assert.True(t, util.IsNotFound(err))
+		assert.Equal(t, i, client.consecutiveNotFounds, "consecutiveNotFounds should increment")
+		assert.Equal(t, 0, client.consecutiveFails, "consecutiveFails should stay 0 for 404s")
+
+		// Verify not_found gauge matches
+		notFoundGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound)
+		err = notFoundGauge.(prometheus.Metric).Write(&m)
+		require.NoError(t, err)
+		assert.Equal(t, float64(i), m.GetGauge().GetValue(), "not_found gauge should match consecutive count")
+
+		// Verify error gauge is 0
+		errorGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError)
+		err = errorGauge.(prometheus.Metric).Write(&m)
+		require.NoError(t, err)
+		assert.Equal(t, float64(0), m.GetGauge().GetValue(), "error gauge should be 0 during 404s")
+	}
+
+	// Verify duration gauge is > 0
+	err := metrics.DefaultDomainCertUnavailableDurationSeconds.Write(&m)
+	require.NoError(t, err)
+	assert.Greater(t, m.GetGauge().GetValue(), float64(0), "duration should be positive while failing")
+
+	// Now succeed — all gauges should reset
+	cert, err := client.GetTLSCertificate(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+	assert.Equal(t, 0, client.consecutiveNotFounds, "consecutiveNotFounds should reset on success")
+	assert.True(t, client.failingSince.IsZero(), "failingSince should reset on success")
+
+	// Verify both failure gauges are 0
+	notFoundGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound)
+	err = notFoundGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), m.GetGauge().GetValue(), "not_found gauge should be 0 after success")
+
+	errorGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError)
+	err = errorGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), m.GetGauge().GetValue(), "error gauge should be 0 after success")
+
+	// Verify duration gauge is 0
+	err = metrics.DefaultDomainCertUnavailableDurationSeconds.Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), m.GetGauge().GetValue(), "duration should be 0 after success")
+}
+
+// TestCachedClient_ConsecutiveErrorsMetrics verifies that consecutive non-404 errors are tracked
+func TestCachedClient_ConsecutiveErrorsMetrics(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal server error"))
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts: Opts{ServerAddress: server.URL},
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	_, err := client.GetTLSCertificate(context.Background())
+	require.Error(t, err)
+
+	var m dto.Metric
+
+	// Verify error gauge equals consecutiveFails (which equals maxRetries after exhausting retries)
+	errorGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError)
+	err = errorGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(maxRetries), m.GetGauge().GetValue(), "error gauge should equal maxRetries")
+
+	// Verify not_found gauge is 0
+	notFoundGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound)
+	err = notFoundGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), m.GetGauge().GetValue(), "not_found gauge should be 0 during errors")
+
+	// Verify duration gauge is > 0
+	err = metrics.DefaultDomainCertUnavailableDurationSeconds.Write(&m)
+	require.NoError(t, err)
+	assert.Greater(t, m.GetGauge().GetValue(), float64(0), "duration should be positive while failing")
+
+	// Verify failingSince is set
+	assert.False(t, client.failingSince.IsZero(), "failingSince should be set")
+}
+
+// TestCachedClient_MixedFailuresMetrics verifies that switching between 404s and errors resets the other gauge
+func TestCachedClient_MixedFailuresMetrics(t *testing.T) {
+	callCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount <= 2 {
+			// First 2 calls: 404
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("not found"))
+			return
+		}
+		// After that: 500
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal server error"))
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts: Opts{ServerAddress: server.URL},
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	var m dto.Metric
+
+	// First call: 404
+	_, err := client.GetTLSCertificate(context.Background())
+	require.Error(t, err)
+	assert.True(t, util.IsNotFound(err))
+
+	notFoundGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelNotFound)
+	err = notFoundGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(1), m.GetGauge().GetValue(), "not_found gauge should be 1 after first 404")
+
+	// Second call: 404
+	_, err = client.GetTLSCertificate(context.Background())
+	require.Error(t, err)
+	assert.True(t, util.IsNotFound(err))
+
+	err = notFoundGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(2), m.GetGauge().GetValue(), "not_found gauge should be 2 after second 404")
+
+	// Third call: 500 (retries will all be 500 too)
+	_, err = client.GetTLSCertificate(context.Background())
+	require.Error(t, err)
+	assert.False(t, util.IsNotFound(err))
+
+	// not_found gauge should be reset to 0
+	err = notFoundGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), m.GetGauge().GetValue(), "not_found gauge should reset when errors start")
+
+	// error gauge should reflect the consecutive errors
+	errorGauge := metrics.DefaultDomainConsecutiveFetchFailures.WithLabelValues(metrics.LabelError)
+	err = errorGauge.(prometheus.Metric).Write(&m)
+	require.NoError(t, err)
+	assert.Equal(t, float64(maxRetries), m.GetGauge().GetValue(), "error gauge should equal maxRetries")
+
+	// failingSince should still be set (from the initial 404 streak)
+	assert.False(t, client.failingSince.IsZero(), "failingSince should persist across failure types")
 }

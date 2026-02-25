@@ -29,6 +29,16 @@ var (
 		Name: "app_routing_default_domain_client_errors_total",
 		Help: "Total number of errors from the default domain service",
 	})
+
+	DefaultDomainConsecutiveFetchFailures = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "app_routing_default_domain_consecutive_fetch_failures",
+		Help: "Current count of consecutive fetch failures from the default domain service, by reason. Resets to 0 on successful cert fetch.",
+	}, []string{"reason"})
+
+	DefaultDomainCertUnavailableDurationSeconds = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "app_routing_default_domain_cert_unavailable_duration_seconds",
+		Help: "Duration in seconds since the last successful cert fetch. 0 when cert is available.",
+	})
 )
 
 const (
@@ -40,7 +50,7 @@ const (
 )
 
 func init() {
-	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal, DefaultDomainClientCallsTotal, DefaultDomainClientErrors)
+	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal, DefaultDomainClientCallsTotal, DefaultDomainClientErrors, DefaultDomainConsecutiveFetchFailures, DefaultDomainCertUnavailableDurationSeconds)
 }
 
 // HandleControllerReconcileMetrics is meant to be called within a defer for each controller.
