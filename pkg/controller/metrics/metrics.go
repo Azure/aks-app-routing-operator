@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"math"
+
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/prometheus/client_golang/prometheus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,7 +34,7 @@ var (
 
 	DefaultDomainCertExpirySeconds = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "app_routing_default_domain_cert_expiry_seconds",
-		Help: "Number of seconds until the default domain TLS certificate expires. Negative values mean the certificate has already expired. Value is unset (0) until a certificate is successfully fetched.",
+		Help: "Number of seconds until the default domain TLS certificate expires. Negative values mean the certificate has already expired. Value is NaN until a certificate is successfully fetched.",
 	})
 )
 
@@ -46,6 +48,7 @@ const (
 
 func init() {
 	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal, DefaultDomainClientCallsTotal, DefaultDomainClientErrors, DefaultDomainCertExpirySeconds)
+	DefaultDomainCertExpirySeconds.Set(math.NaN())
 }
 
 // HandleControllerReconcileMetrics is meant to be called within a defer for each controller.

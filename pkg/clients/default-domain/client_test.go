@@ -3,6 +3,7 @@ package defaultdomain
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -241,8 +242,8 @@ func TestClient_CertExpiryMetric_NilExpiresOn(t *testing.T) {
 		// ExpiresOn intentionally nil
 	}
 
-	// Set gauge to a known value so we can verify it doesn't change
-	metrics.DefaultDomainCertExpirySeconds.Set(12345)
+	// Set gauge to NaN so we can verify it doesn't change
+	metrics.DefaultDomainCertExpirySeconds.Set(math.NaN())
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -256,11 +257,11 @@ func TestClient_CertExpiryMetric_NilExpiresOn(t *testing.T) {
 	require.NotNil(t, cert)
 	assert.Nil(t, cert.ExpiresOn)
 
-	// Verify gauge was not changed
+	// Verify gauge was not changed (should still be NaN)
 	var m dto.Metric
 	err = metrics.DefaultDomainCertExpirySeconds.Write(&m)
 	require.NoError(t, err)
-	assert.Equal(t, float64(12345), m.GetGauge().GetValue(), "gauge should not change when ExpiresOn is nil")
+	assert.True(t, math.IsNaN(m.GetGauge().GetValue()), "gauge should remain NaN when ExpiresOn is nil")
 }
 
 // TestClient_CertExpiryMetric_UpdatesOnEachCall verifies the expiry gauge updates on each successful fetch
