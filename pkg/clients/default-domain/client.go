@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
+	"github.com/go-logr/logr"
 )
 
 // Opts contains configuration options for the client
@@ -20,13 +22,15 @@ type Opts struct {
 type Client struct {
 	opts       Opts
 	httpClient *http.Client
+	logger     logr.Logger
 }
 
 // NewClient creates a new default domain client
-func NewClient(opts Opts) *Client {
+func NewClient(opts Opts, logger logr.Logger) *Client {
 	return &Client{
 		opts:       opts,
 		httpClient: &http.Client{},
+		logger:     logger,
 	}
 }
 
@@ -63,6 +67,18 @@ func (c *Client) GetTLSCertificate(ctx context.Context) (*TLSCertificate, error)
 		metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelError).Inc()
 		metrics.DefaultDomainClientErrors.Inc()
 		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	// Update certificate expiry metric and log status
+	if cert.ExpiresOn != nil {
+		timeUntilExpiry := time.Until(*cert.ExpiresOn)
+		metrics.DefaultDomainCertExpirySeconds.Set(timeUntilExpiry.Seconds())
+		c.logger.Info("certificate expiry status",
+			"expiresOn", cert.ExpiresOn.UTC().Format(time.RFC3339),
+			"timeUntilExpiry", timeUntilExpiry.Truncate(time.Second).String(),
+		)
+	} else {
+		c.logger.Error(nil, "certificate ExpiresOn field is nil, unable to track expiry")
 	}
 
 	metrics.DefaultDomainClientCallsTotal.WithLabelValues(metrics.LabelSuccess).Inc()
