@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.19] - 2026-03-02
 
 ### Added
-- add flag to turn of ingress-nginx - [link](https://github.com/Azure/aks-app-routing-operator/pull/557)
+- add flag to turn off ingress-nginx - [link](https://github.com/Azure/aks-app-routing-operator/pull/557)
 
 ### Changed
 - bumped Go to 1.25.7 - [link](https://github.com/Azure/aks-app-routing-operator/pull/555)
