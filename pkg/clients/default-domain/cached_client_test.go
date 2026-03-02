@@ -633,3 +633,154 @@ func TestCachedClient_GetTLSCertificate_NotFound(t *testing.T) {
 	// Should not retry immediately
 	assert.Equal(t, 1, callCount)
 }
+
+// TestCachedClient_CertExpiryMetric_SetOnSuccess verifies the expiry gauge is set when ExpiresOn is provided
+func TestCachedClient_CertExpiryMetric_SetOnSuccess(t *testing.T) {
+	expiresOn := time.Now().Add(90 * 24 * time.Hour) // 90 days from now
+	expectedCert := &TLSCertificate{
+		Key:       []byte("test-key"),
+		Cert:      []byte("test-cert"),
+		ExpiresOn: &expiresOn,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(expectedCert)
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts: Opts{ServerAddress: server.URL},
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	cert, err := client.GetTLSCertificate(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+
+	// Verify the expiry gauge is set to approximately 90 days in seconds
+	var m dto.Metric
+	err = metrics.DefaultDomainCertExpirySeconds.Write(&m)
+	require.NoError(t, err)
+
+	gaugeValue := m.GetGauge().GetValue()
+	expectedSeconds := (90 * 24 * time.Hour).Seconds()
+	// Allow 60 seconds of tolerance for test execution time
+	assert.InDelta(t, expectedSeconds, gaugeValue, 60, "expiry gauge should be approximately 90 days in seconds")
+	assert.Greater(t, gaugeValue, float64(0), "expiry gauge should be positive for a future cert")
+}
+
+// TestCachedClient_CertExpiryMetric_ExpiredCert verifies the expiry gauge is negative for an already-expired cert
+func TestCachedClient_CertExpiryMetric_ExpiredCert(t *testing.T) {
+	expiresOn := time.Now().Add(-2 * 24 * time.Hour) // 2 days ago
+	expectedCert := &TLSCertificate{
+		Key:       []byte("test-key"),
+		Cert:      []byte("test-cert"),
+		ExpiresOn: &expiresOn,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(expectedCert)
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts: Opts{ServerAddress: server.URL},
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	cert, err := client.GetTLSCertificate(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+
+	// Verify the expiry gauge is negative for an expired cert
+	var m dto.Metric
+	err = metrics.DefaultDomainCertExpirySeconds.Write(&m)
+	require.NoError(t, err)
+
+	gaugeValue := m.GetGauge().GetValue()
+	assert.Less(t, gaugeValue, float64(0), "expiry gauge should be negative for an expired cert")
+
+	expectedSeconds := (-2 * 24 * time.Hour).Seconds()
+	assert.InDelta(t, expectedSeconds, gaugeValue, 60, "expiry gauge should be approximately -2 days in seconds")
+}
+
+// TestCachedClient_CertExpiryMetric_ResetOnRefresh verifies the expiry gauge updates on each successful fetch
+func TestCachedClient_CertExpiryMetric_ResetOnRefresh(t *testing.T) {
+	callCount := 0
+	expiresOn1 := time.Now().Add(30 * 24 * time.Hour) // 30 days
+	expiresOn2 := time.Now().Add(60 * 24 * time.Hour) // 60 days
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		cert := &TLSCertificate{
+			Key:  []byte("test-key"),
+			Cert: []byte("test-cert"),
+		}
+		if callCount == 1 {
+			cert.ExpiresOn = &expiresOn1
+		} else {
+			cert.ExpiresOn = &expiresOn2
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(cert)
+	}))
+	defer server.Close()
+
+	opts := CachedClientOpts{
+		Opts: Opts{ServerAddress: server.URL},
+	}
+
+	// Create client with canceled context to prevent background refresh
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := NewCachedClient(ctx, opts, logr.Discard())
+	defer client.Close()
+
+	// Wait for background goroutine to exit
+	time.Sleep(50 * time.Millisecond)
+
+	// First fetch: 30 days
+	_, err := client.GetTLSCertificate(context.Background())
+	require.NoError(t, err)
+
+	var m dto.Metric
+	err = metrics.DefaultDomainCertExpirySeconds.Write(&m)
+	require.NoError(t, err)
+	firstValue := m.GetGauge().GetValue()
+	assert.InDelta(t, (30 * 24 * time.Hour).Seconds(), firstValue, 60)
+
+	// Expire cache to force refetch
+	client.mu.Lock()
+	client.cacheExp = time.Now().Add(-1 * time.Second)
+	client.mu.Unlock()
+
+	// Second fetch: 60 days
+	_, err = client.GetTLSCertificate(context.Background())
+	require.NoError(t, err)
+
+	err = metrics.DefaultDomainCertExpirySeconds.Write(&m)
+	require.NoError(t, err)
+	secondValue := m.GetGauge().GetValue()
+	assert.InDelta(t, (60 * 24 * time.Hour).Seconds(), secondValue, 60)
+
+	// Second value should be larger than first
+	assert.Greater(t, secondValue, firstValue, "expiry gauge should update on each successful fetch")
+}

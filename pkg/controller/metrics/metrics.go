@@ -29,6 +29,11 @@ var (
 		Name: "app_routing_default_domain_client_errors_total",
 		Help: "Total number of errors from the default domain service",
 	})
+
+	DefaultDomainCertExpirySeconds = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "app_routing_default_domain_cert_expiry_seconds",
+		Help: "Number of seconds until the default domain TLS certificate expires. Negative values mean the certificate has already expired. Value is unset (0) until a certificate is successfully fetched.",
+	})
 )
 
 const (
@@ -40,7 +45,7 @@ const (
 )
 
 func init() {
-	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal, DefaultDomainClientCallsTotal, DefaultDomainClientErrors)
+	metrics.Registry.MustRegister(AppRoutingReconcileErrors, AppRoutingReconcileTotal, DefaultDomainClientCallsTotal, DefaultDomainClientErrors, DefaultDomainCertExpirySeconds)
 }
 
 // HandleControllerReconcileMetrics is meant to be called within a defer for each controller.

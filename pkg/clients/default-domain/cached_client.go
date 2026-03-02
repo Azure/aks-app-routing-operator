@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/aks-app-routing-operator/pkg/controller/metrics"
 	"github.com/Azure/aks-app-routing-operator/pkg/util"
 	"github.com/go-logr/logr"
 )
@@ -124,6 +125,19 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 			c.cacheExp = time.Now().Add(ttl)
 			c.consecutiveFails = 0
 			c.healthy = true
+
+			// Update certificate expiry metric from ExpiresOn field
+			if cert.ExpiresOn != nil {
+				timeUntilExpiry := time.Until(*cert.ExpiresOn)
+				metrics.DefaultDomainCertExpirySeconds.Set(timeUntilExpiry.Seconds())
+				c.logger.Info("certificate expiry status",
+					"expiresOn", cert.ExpiresOn.UTC().Format(time.RFC3339),
+					"timeUntilExpiry", timeUntilExpiry.Truncate(time.Second).String(),
+					"expiringSoon", timeUntilExpiry <= 10*24*time.Hour,
+				)
+			} else { // this isn't worth failing over but this really shouldn't happen and we need to know about it if it does
+				c.logger.Error(nil, "certificate ExpiresOn field is nil, unable to track expiry")
+			}
 
 			c.logger.Info("updated certificate cache",
 				"ttl", ttl,
