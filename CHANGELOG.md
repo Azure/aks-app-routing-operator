@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19] - 2026-03-02
+
+### Added
+- add flag to turn of ingress-nginx - [link](https://github.com/Azure/aks-app-routing-operator/pull/557)
+
+### Changed
+- bumped Go to 1.25.7 - [link](https://github.com/Azure/aks-app-routing-operator/pull/555)
+- bump otel go dependency - [link](https://github.com/Azure/aks-app-routing-operator/pull/560)
+
 ## [0.2.18] - 2026-02-19
 
 ### Added
