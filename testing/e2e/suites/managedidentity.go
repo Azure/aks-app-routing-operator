@@ -56,7 +56,7 @@ func managedIdentityTests(in infra.Provisioned) []test {
 
 				var service v1alpha1.ManagedObjectReference
 				lgr.Info("waiting for service associated with NIC to be ready")
-				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+				if err := wait.PollImmediate(1*time.Second, 3*time.Minute, func() (bool, error) {
 					lgr.Info("checking if NIC service is ready")
 					var nic v1alpha1.NginxIngressController
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(msiNic), &nic); err != nil {
@@ -177,7 +177,7 @@ func managedIdentityTests(in infra.Provisioned) []test {
 
 				var service v1alpha1.ManagedObjectReference
 				lgr.Info("waiting for service associated with NIC to be ready")
-				if err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+				if err := wait.PollImmediate(1*time.Second, 3*time.Minute, func() (bool, error) {
 					lgr.Info("checking if NIC service is ready")
 					var nic v1alpha1.NginxIngressController
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(clusterMsiNic), &nic); err != nil {
