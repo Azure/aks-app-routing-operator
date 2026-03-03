@@ -172,7 +172,7 @@ The operator integrates deeply with Azure services:
 ### Upgrade Go version
 
 To upgrade the Go version perform the following steps
-- Determine what the latest version of Go is 
+- Determine what the latest version of Go is
 - Upgrade the go.mod by changing the go directive to the new version of Go
 - Run `go mod tidy`
 - Upgrade the base dockerfiles to use the new Go image in ./docker directory
