@@ -52,7 +52,7 @@ func NewCachedClient(ctx context.Context, opts CachedClientOpts, logger logr.Log
 	childCtx, cancel := context.WithCancel(ctx)
 
 	c := &CachedClient{
-		client:  NewClient(opts.Opts),
+		client:  NewClient(opts.Opts, logger),
 		logger:  logger,
 		opts:    opts,
 		ctx:     childCtx,
