@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	secv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 )
 
@@ -1222,6 +1224,463 @@ func TestReconcileIngressManagedError(t *testing.T) {
 
 	// Verify no events were sent (non-user errors don't generate events)
 	require.Len(t, events.Events, 0, "expected no events to be recorded")
+}
+
+// TestReconcileIdempotentModifyOwnerSkipsUpdate verifies that when modifyOwner sets the
+// object to the same state it already has, the reconciler does NOT call client.Update.
+// This prevents the infinite reconciliation loop where client.Update always bumps
+// resourceVersion, which re-triggers the For() watch, causing endless re-reconciliation.
+func TestReconcileIdempotentModifyOwnerSkipsUpdate(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	// Create an Ingress that already has TLS configured — simulating the state
+	// after the first reconciliation has already run and set up TLS.
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		Spec: netv1.IngressSpec{
+			Rules: []netv1.IngressRule{
+				{Host: "example.com"},
+				{Host: "www.example.com"},
+			},
+			// TLS is already set to the correct value from a previous reconcile
+			TLS: []netv1.IngressTLS{
+				{
+					SecretName: "keyvault-test-ingress",
+					Hosts:      []string{"example.com", "www.example.com"},
+				},
+			},
+		},
+	}
+
+	updateCallCount := 0
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ingress).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCallCount++
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*netv1.Ingress]{
+		name:   controllername.New("test-idempotent-skip"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				opts := spcOpts{
+					action:    actionReconcile,
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
+					// modifyOwner sets TLS to the same value that's already on the Ingress
+					modifyOwner: func(obj client.Object) error {
+						return addTlsRef(obj, "keyvault-test-ingress")
+					},
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-ingress"}}
+
+	// Run reconcile multiple times to simulate what would happen in production
+	for i := 0; i < 5; i++ {
+		result, err := reconciler.Reconcile(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, ctrl.Result{}, result)
+	}
+
+	// The key assertion: client.Update should NEVER have been called because
+	// modifyOwner set TLS to the same value each time. Without the DeepEqual guard,
+	// this would have been called 5 times, and in production each call would bump
+	// resourceVersion and trigger another reconcile — an infinite loop.
+	assert.Equal(t, 0, updateCallCount, "client.Update should not be called when modifyOwner produces no change — this would cause an infinite reconciliation loop")
+
+	// Verify the Ingress TLS is still correctly set
+	updatedIngress := &netv1.Ingress{}
+	err := c.Get(ctx, req.NamespacedName, updatedIngress)
+	require.NoError(t, err)
+	require.Len(t, updatedIngress.Spec.TLS, 1)
+	assert.Equal(t, "keyvault-test-ingress", updatedIngress.Spec.TLS[0].SecretName)
+	assert.Equal(t, []string{"example.com", "www.example.com"}, updatedIngress.Spec.TLS[0].Hosts)
+}
+
+// TestReconcileModifyOwnerUpdatesWhenChanged verifies that when modifyOwner actually
+// changes the object (e.g., first reconcile, or TLS config changed), client.Update IS called.
+func TestReconcileModifyOwnerUpdatesWhenChanged(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	// Create an Ingress WITHOUT TLS — simulating the first reconcile
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		Spec: netv1.IngressSpec{
+			Rules: []netv1.IngressRule{
+				{Host: "example.com"},
+			},
+			// No TLS set yet — first reconcile should add it
+		},
+	}
+
+	updateCallCount := 0
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ingress).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCallCount++
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*netv1.Ingress]{
+		name:   controllername.New("test-modify-updates"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				opts := spcOpts{
+					action:    actionReconcile,
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
+					modifyOwner: func(obj client.Object) error {
+						return addTlsRef(obj, "keyvault-test-ingress")
+					},
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-ingress"}}
+
+	// First reconcile — TLS is not set yet, so modifyOwner changes the object
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+	assert.Equal(t, 1, updateCallCount, "client.Update should be called on first reconcile when TLS needs to be set")
+
+	// Verify TLS was set
+	updatedIngress := &netv1.Ingress{}
+	err = c.Get(ctx, req.NamespacedName, updatedIngress)
+	require.NoError(t, err)
+	require.Len(t, updatedIngress.Spec.TLS, 1)
+	assert.Equal(t, "keyvault-test-ingress", updatedIngress.Spec.TLS[0].SecretName)
+	assert.Equal(t, []string{"example.com"}, updatedIngress.Spec.TLS[0].Hosts)
+
+	// Second reconcile — TLS is already set to the correct value, no update needed
+	result, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+	assert.Equal(t, 1, updateCallCount, "client.Update should NOT be called on second reconcile when TLS is already correct — this is the infinite loop fix")
+}
+
+// TestReconcileNoInfiniteLoopSimulation runs multiple reconciliations in sequence
+// to prove that the reconciler converges after the first update and does not
+// keep calling client.Update on subsequent runs. This simulates the real-world
+// scenario where the ICM bug was triggered.
+func TestReconcileNoInfiniteLoopSimulation(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		Spec: netv1.IngressSpec{
+			Rules: []netv1.IngressRule{
+				{Host: "app.example.com"},
+				{Host: "api.example.com"},
+			},
+		},
+	}
+
+	updateCallCount := 0
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ingress).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCallCount++
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*netv1.Ingress]{
+		name:   controllername.New("test-no-loop"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				opts := spcOpts{
+					action:    actionReconcile,
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
+					modifyOwner: func(obj client.Object) error {
+						return addTlsRef(obj, "keyvault-test-ingress")
+					},
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-ingress"}}
+
+	// Simulate 100 consecutive reconciliations (like what happens in the infinite loop)
+	const numReconciles = 100
+	for i := 0; i < numReconciles; i++ {
+		result, err := reconciler.Reconcile(ctx, req)
+		require.NoError(t, err, "reconcile %d should not error", i)
+		require.Equal(t, ctrl.Result{}, result, "reconcile %d should return empty result", i)
+	}
+
+	// Without the fix, client.Update would be called 100 times (once per reconcile).
+	// With the fix, it should only be called ONCE — on the first reconcile when TLS
+	// is initially set. All subsequent reconciles see that TLS is already correct
+	// and skip the update.
+	assert.Equal(t, 1, updateCallCount,
+		"client.Update should be called exactly once across %d reconciliations — "+
+			"the first sets TLS, all subsequent should be no-ops. "+
+			"If this is >1, the infinite reconciliation loop bug is present.", numReconciles)
+
+	// Verify final state is correct
+	finalIngress := &netv1.Ingress{}
+	err := c.Get(ctx, req.NamespacedName, finalIngress)
+	require.NoError(t, err)
+	require.Len(t, finalIngress.Spec.TLS, 1)
+	assert.Equal(t, "keyvault-test-ingress", finalIngress.Spec.TLS[0].SecretName)
+	assert.Equal(t, []string{"app.example.com", "api.example.com"}, finalIngress.Spec.TLS[0].Hosts)
+}
+
+// TestReconcileModifyOwnerUpdatesOnHostChange verifies that when the Ingress hosts
+// change (e.g., user adds a new host), the update IS triggered because addTlsRef
+// produces a different TLS config.
+func TestReconcileModifyOwnerUpdatesOnHostChange(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	// Ingress already has TLS with one host
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		Spec: netv1.IngressSpec{
+			Rules: []netv1.IngressRule{
+				{Host: "example.com"},
+				{Host: "new-host.example.com"}, // new host added by user
+			},
+			// TLS was set with only the old host
+			TLS: []netv1.IngressTLS{
+				{
+					SecretName: "keyvault-test-ingress",
+					Hosts:      []string{"example.com"},
+				},
+			},
+		},
+	}
+
+	updateCallCount := 0
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ingress).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCallCount++
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*netv1.Ingress]{
+		name:   controllername.New("test-host-change"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				opts := spcOpts{
+					action:    actionReconcile,
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
+					modifyOwner: func(obj client.Object) error {
+						return addTlsRef(obj, "keyvault-test-ingress")
+					},
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-ingress"}}
+
+	// First reconcile — hosts changed, so TLS should be updated
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+	assert.Equal(t, 1, updateCallCount, "client.Update should be called when hosts change")
+
+	// Verify TLS was updated with new hosts
+	updatedIngress := &netv1.Ingress{}
+	err = c.Get(ctx, req.NamespacedName, updatedIngress)
+	require.NoError(t, err)
+	require.Len(t, updatedIngress.Spec.TLS, 1)
+	assert.Equal(t, []string{"example.com", "new-host.example.com"}, updatedIngress.Spec.TLS[0].Hosts)
+
+	// Second reconcile — now TLS matches, no update needed
+	result, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+	assert.Equal(t, 1, updateCallCount, "client.Update should NOT be called again after TLS hosts converge")
+}
+
+// TestReconcileModifyOwnerSkipsUpdateWithMultipleSpcOpts verifies the idempotency
+// check works correctly when there are multiple spcOpts and multiple modifyOwner
+// calls, all of which produce no changes because the object already has the
+// correct state.
+func TestReconcileModifyOwnerSkipsUpdateWithMultipleSpcOpts(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	// Deployment already has both annotations set from a previous reconcile
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      reconcileTestDeployment,
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+			Annotations: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+	}
+
+	updateCallCount := 0
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(deployment).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCallCount++
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*appsv1.Deployment]{
+		name:   controllername.New("test-multi-idempotent"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *appsv1.Deployment) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				// First modifyOwner sets key1=value1 (already present)
+				opts1 := spcOpts{
+					action:    actionReconcile,
+					name:      "test-spc-1",
+					namespace: reconcileTestNamespace,
+					modifyOwner: func(obj client.Object) error {
+						annotations := obj.GetAnnotations()
+						if annotations == nil {
+							annotations = map[string]string{}
+						}
+						annotations["key1"] = "value1"
+						obj.SetAnnotations(annotations)
+						return nil
+					},
+				}
+				if !yield(opts1, nil) {
+					return
+				}
+
+				// Second modifyOwner sets key2=value2 (already present)
+				opts2 := spcOpts{
+					action:    actionReconcile,
+					name:      "test-spc-2",
+					namespace: reconcileTestNamespace,
+					modifyOwner: func(obj client.Object) error {
+						annotations := obj.GetAnnotations()
+						if annotations == nil {
+							annotations = map[string]string{}
+						}
+						annotations["key2"] = "value2"
+						obj.SetAnnotations(annotations)
+						return nil
+					},
+				}
+				yield(opts2, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: reconcileTestDeployment}}
+
+	// Run reconcile — both modifyOwner calls produce no change
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, ctrl.Result{}, result)
+	assert.Equal(t, 0, updateCallCount, "client.Update should not be called when all modifyOwner calls produce no change")
 }
 
 // Test cleanup of SPC when deployment has top-level labels

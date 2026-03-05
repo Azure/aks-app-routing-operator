@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -102,6 +103,13 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	// Add logger to context so it can be used in downstream functions
 	ctx = logr.NewContext(ctx, logger)
 
+	// Save the original spec of the object before any modifications so we can
+	// check if modifyOwner actually changed anything. This prevents an infinite
+	// reconciliation loop: client.Update always bumps resourceVersion even when
+	// the content is identical, which re-triggers the For() watch, causing the
+	// reconciler to fire again endlessly.
+	originalObj := obj.DeepCopyObject()
+
 	objUpdated := false
 	for spcOpts, err := range s.toSpcOpts(ctx, s.client, obj) {
 		if err != nil {
@@ -150,17 +158,25 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 	}
 
 	if objUpdated {
-		logger.Info("updating owning object ")
-		if err := s.client.Update(ctx, obj); err != nil {
-			if apierrors.IsConflict(err) {
-				logger.Info("owning object was updated by another process, retrying")
-				return ctrl.Result{Requeue: true}, nil
-			}
+		// Only write the update if modifyOwner actually changed the object.
+		// client.Update always bumps resourceVersion regardless of whether
+		// content changed, which would re-trigger the For() watch and cause
+		// an infinite reconciliation loop.
+		if reflect.DeepEqual(originalObj, obj) {
+			logger.Info("owning object was not changed by modifyOwner, skipping update")
+		} else {
+			logger.Info("updating owning object")
+			if err := s.client.Update(ctx, obj); err != nil {
+				if apierrors.IsConflict(err) {
+					logger.Info("owning object was updated by another process, retrying")
+					return ctrl.Result{Requeue: true}, nil
+				}
 
-			err = fmt.Errorf("failed to update owning object: %w", err)
-			logger.Error(err, "failed to update owning object")
-			s.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateUpstreamCertRef", err.Error())
-			return ctrl.Result{}, err
+				err = fmt.Errorf("failed to update owning object: %w", err)
+				logger.Error(err, "failed to update owning object")
+				s.events.Eventf(obj, corev1.EventTypeWarning, "FailedUpdateUpstreamCertRef", err.Error())
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
