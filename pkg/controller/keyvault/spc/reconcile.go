@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"reflect"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
@@ -16,6 +15,7 @@ import (
 	kvcsi "github.com/Azure/secrets-store-csi-driver-provider-azure/pkg/provider/types"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -162,7 +162,7 @@ func (s *secretProviderClassReconciler[objectType]) Reconcile(ctx context.Contex
 		// client.Update always bumps resourceVersion regardless of whether
 		// content changed, which would re-trigger the For() watch and cause
 		// an infinite reconciliation loop.
-		if reflect.DeepEqual(originalObj, obj) {
+		if apiequality.Semantic.DeepEqual(originalObj, obj) {
 			logger.Info("owning object was not changed by modifyOwner, skipping update")
 		} else {
 			logger.Info("updating owning object")

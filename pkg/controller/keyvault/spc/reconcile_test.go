@@ -1683,6 +1683,100 @@ func TestReconcileModifyOwnerSkipsUpdateWithMultipleSpcOpts(t *testing.T) {
 	assert.Equal(t, 0, updateCallCount, "client.Update should not be called when all modifyOwner calls produce no change")
 }
 
+// TestReconcileIdempotencyWithNilVsEmptySlice verifies that the equivalence check
+// correctly treats nil slices and empty slices as equal. This is critical because:
+//   - addTlsRef creates Hosts as []string{} (empty slice, line 167 of ingress.go)
+//   - After a real Kubernetes API roundtrip, []string{} with omitempty becomes nil
+//   - reflect.DeepEqual treats nil != []string{}, which would cause an infinite loop
+//   - apiequality.Semantic.DeepEqual treats nil == []string{}, preventing the loop
+//
+// This test simulates what happens in production when an Ingress has no rules with
+// host values — addTlsRef produces Hosts: []string{}, but after the API roundtrip
+// the stored value comes back as Hosts: nil.
+func TestReconcileIdempotencyWithNilVsEmptySlice(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, secv1.AddToScheme(scheme))
+
+	// Simulate post-API-roundtrip state: Hosts is nil (because omitempty dropped
+	// the empty slice during JSON serialization, and deserialization produced nil)
+	ingress := &netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: reconcileTestNamespace,
+			UID:       reconcileTestUID,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		Spec: netv1.IngressSpec{
+			// No rules with hosts — just path-based routing
+			Rules: []netv1.IngressRule{
+				{Host: ""},
+			},
+			// After API roundtrip, Hosts is nil (was set as []string{} by addTlsRef,
+			// serialized with omitempty as absent, deserialized as nil)
+			TLS: []netv1.IngressTLS{
+				{SecretName: "keyvault-test-ingress", Hosts: nil},
+			},
+		},
+	}
+
+	updateCallCount := 0
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ingress).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCallCount++
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	events := record.NewFakeRecorder(10)
+	reconciler := &secretProviderClassReconciler[*netv1.Ingress]{
+		name:   controllername.New("test-nil-empty"),
+		client: c,
+		events: events,
+		config: &config.Config{},
+		toSpcOpts: func(_ context.Context, _ client.Client, _ *netv1.Ingress) iter.Seq2[spcOpts, error] {
+			return func(yield func(spcOpts, error) bool) {
+				opts := spcOpts{
+					action:    actionReconcile,
+					name:      reconcileTestSPC,
+					namespace: reconcileTestNamespace,
+					// addTlsRef will produce Hosts: []string{} (empty, not nil)
+					// because there are no rules with non-empty Host values
+					modifyOwner: func(obj client.Object) error {
+						return addTlsRef(obj, "keyvault-test-ingress")
+					},
+				}
+				yield(opts, nil)
+			}
+		},
+	}
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: reconcileTestNamespace, Name: "test-ingress"}}
+
+	// Reconcile: addTlsRef sets Hosts to []string{}, but stored value has Hosts: nil
+	// With reflect.DeepEqual this would be false (nil != []) and client.Update would be called.
+	// With apiequality.Semantic.DeepEqual this is true (nil == []) and update is skipped.
+	for i := 0; i < 5; i++ {
+		result, err := reconciler.Reconcile(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, ctrl.Result{}, result)
+	}
+
+	assert.Equal(t, 0, updateCallCount,
+		"client.Update should not be called when the only difference is nil vs empty slice — "+
+			"this edge case would cause an infinite loop with reflect.DeepEqual but is correctly "+
+			"handled by apiequality.Semantic.DeepEqual")
+}
+
 // Test cleanup of SPC when deployment has top-level labels
 func TestReconcileWithTopLevelLabels(t *testing.T) {
 	scheme := runtime.NewScheme()
