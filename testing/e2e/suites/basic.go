@@ -91,14 +91,25 @@ func (u uniqueNamespaceNamespacer) getNamespace(ctx context.Context, cl client.C
 		u.namespaces = make(map[string]*corev1.Namespace)
 	}
 
+	newNs := false
 	if val, ok := u.namespaces[key]; !ok || val == nil {
 		u.namespaces[key] = manifests.UncollisionedNs()
+		newNs = true
 	}
 	ns := u.namespaces[key]
 	nsMutex.Unlock()
 
 	if err := upsert(ctx, cl, ns); err != nil {
 		return nil, fmt.Errorf("upserting ns: %w", err)
+	}
+
+	// When a namespace is first created, Kubernetes asynchronously provisions the "default"
+	// ServiceAccount. If we create pods before it's ready, the API server rejects them with
+	// "serviceaccount default not found". Wait for it to be available.
+	if newNs {
+		if err := waitForDefaultSA(ctx, cl, ns.Name); err != nil {
+			return nil, fmt.Errorf("waiting for default service account in namespace %s: %w", ns.Name, err)
+		}
 	}
 
 	return ns, nil
