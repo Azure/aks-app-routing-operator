@@ -258,13 +258,21 @@ func defaultDomainTests(in infra.Provisioned) []test {
 				}
 
 				lgr.Info("Starting rotation polling")
+				// we need to bounce the default domain pods because normally rotation is picked up by a long polling interval.
+				// upon restart we hydrate the certificate immediately though.
+				// TODO: in the future we'll make this rotation polling interval configurable so we can speed this up in tests
+				// and not need a pod bounce
+				//
+				// Bounce pods once before polling (not on every iteration).
+				// Bouncing on every poll would kill pods before they can restart and reconcile.
+				if err := bounceDefaultDomainPods(ctx, lgr, cl); err != nil {
+					lgr.Info("failed to bounce pods, will retry", "error", err)
+				}
+				// Give pods time to restart before checking
+				time.Sleep(30 * time.Second)
+
 				// Retry waiting for certificate rotation with timeout
-				if err := wait.PollImmediate(20*time.Second, 3*time.Minute, func() (bool, error) {
-					// we need to bounce the default domain pods because normally rotation is picked up by a long polling interval.
-					// upon restart we hydrate the certificate immediately though.
-					// TODO: in the future we'll make this rotation polling interval configurable so we can speed this up in tests
-					// and not need a pod bounce
-					bounceDefaultDomainPods(ctx, lgr, cl)
+				if err := wait.PollImmediate(10*time.Second, 5*time.Minute, func() (bool, error) {
 
 					lgr.Info("Waiting for certificate rotation to complete")
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
