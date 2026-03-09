@@ -257,24 +257,46 @@ func defaultDomainTests(in infra.Provisioned) []test {
 					return fmt.Errorf("upserting DefaultDomainSecret: %w", err)
 				}
 
-				lgr.Info("Starting rotation polling")
-				// we need to bounce the default domain pods because normally rotation is picked up by a long polling interval.
-				// upon restart we hydrate the certificate immediately though.
-				// TODO: in the future we'll make this rotation polling interval configurable so we can speed this up in tests
-				// and not need a pod bounce
+				lgr.Info("Starting rotation sequence")
+				// The rotation sequence is order-sensitive due to the operator's CachedClient having a 6-hour TTL:
 				//
-				// Bounce pods once before polling (not on every iteration).
-				// Bouncing on every poll would kill pods before they can restart and reconcile.
-				if err := bounceDefaultDomainPods(ctx, lgr, cl); err != nil {
-					lgr.Info("failed to bounce pods, will retry", "error", err)
+				// 1. Update the DefaultDomainSecret with the new cert (already done above)
+				// 2. Wait for Kubernetes to propagate the secret volume to the server pod (~60-120s)
+				// 3. Bounce the server pods so they pick up the new cert from the mounted volume
+				// 4. Wait for the server pods to become ready and serve the new cert
+				// 5. THEN bounce the operator so its CachedClient fetches the new cert on startup
+				// 6. Wait for the operator to reconcile and update the target secret
+				//
+				// If the operator is bounced before the server is serving the new cert,
+				// the CachedClient will cache the OLD cert for 6 hours and rotation will never happen.
+
+				// Step 1: Wait for Kubernetes to propagate the secret volume update
+				lgr.Info("Waiting for secret volume propagation before bouncing server pods")
+				time.Sleep(90 * time.Second)
+
+				// Step 2: Bounce the server pods so they read the new cert from the mounted volume
+				lgr.Info("Bouncing Default Domain Server Pods")
+				if err := bounceDefaultDomainServerPods(ctx, lgr, cl); err != nil {
+					lgr.Info("failed to bounce server pods", "error", err)
 				}
-				// Give pods time to restart before checking
+
+				// Step 3: Wait for server pods to be ready and serving
+				lgr.Info("Waiting for server pods to restart and serve new cert")
+				time.Sleep(60 * time.Second)
+
+				// Step 4: Now bounce the operator so it fetches the new cert from the ready server
+				lgr.Info("Bouncing App Routing Operator")
+				if err := bounceOperatorPods(ctx, lgr, cl); err != nil {
+					lgr.Info("failed to bounce operator pods", "error", err)
+				}
+
+				// Step 5: Wait for operator to start up and reconcile
+				lgr.Info("Waiting for operator to restart and reconcile")
 				time.Sleep(30 * time.Second)
 
-				// Retry waiting for certificate rotation with timeout
+				// Step 6: Poll for the target secret to be updated with the new cert
 				if err := wait.PollImmediate(10*time.Second, 5*time.Minute, func() (bool, error) {
-
-					lgr.Info("Waiting for certificate rotation to complete")
+					lgr.Info("Checking if certificate rotation is complete")
 					if err := cl.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
 						return false, fmt.Errorf("getting Secret %s/%s: %w", secret.Namespace, secret.Name, err)
 					}
@@ -325,9 +347,8 @@ func defaultDomainTests(in infra.Provisioned) []test {
 	}
 }
 
-func bounceDefaultDomainPods(ctx context.Context, lgr *slog.Logger, cl client.Client) error {
-	// bounce the default domain server pods to pick up the new secret
-	lgr.Info("Bouncing Default Domain Server Pods")
+func bounceDefaultDomainServerPods(ctx context.Context, lgr *slog.Logger, cl client.Client) error {
+	lgr.Info("Deleting default domain server pods")
 	podList := &corev1.PodList{}
 	if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "default-domain-server"}); err != nil {
 		return fmt.Errorf("listing default domain server pods: %w", err)
@@ -337,18 +358,19 @@ func bounceDefaultDomainPods(ctx context.Context, lgr *slog.Logger, cl client.Cl
 			return fmt.Errorf("deleting default domain server pod: %w", err)
 		}
 	}
+	return nil
+}
 
-	// bounce the app routing operator to pick up the new secret
-	lgr.Info("Bouncing App Routing Operator")
-	podList = &corev1.PodList{}
+func bounceOperatorPods(ctx context.Context, lgr *slog.Logger, cl client.Client) error {
+	lgr.Info("Deleting app routing operator pods")
+	podList := &corev1.PodList{}
 	if err := cl.List(ctx, podList, client.InNamespace("kube-system"), client.MatchingLabels{"app": "app-routing-operator"}); err != nil {
-		return fmt.Errorf("listing default domain server pods: %w", err)
+		return fmt.Errorf("listing app routing operator pods: %w", err)
 	}
 	for _, pod := range podList.Items {
 		if err := cl.Delete(ctx, &pod); err != nil {
 			return fmt.Errorf("deleting operator pod: %w", err)
 		}
 	}
-
 	return nil
 }
