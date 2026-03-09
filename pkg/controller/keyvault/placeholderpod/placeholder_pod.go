@@ -206,13 +206,21 @@ func (p *PlaceholderPodController) buildDeploymentSpec(ctx context.Context, dep 
 		labels = old.Spec.Selector.MatchLabels
 	}
 
+	podTemplateLabels := make(map[string]string)
+	for k, v := range labels {
+		podTemplateLabels[k] = v
+	}
+	for k, v := range manifests.GetTopLevelLabels() {
+		podTemplateLabels[k] = v
+	}
+
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
 		RevisionHistoryLimit: util.Int32Ptr(2),
 		Selector:             &metav1.LabelSelector{MatchLabels: labels},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: labels,
+				Labels: podTemplateLabels,
 				Annotations: map[string]string{
 					"kubernetes.azure.com/observed-generation": strconv.FormatInt(spc.Generation, 10),
 					"kubernetes.azure.com/purpose":             "hold CSI mount to enable keyvault-to-k8s secret mirroring",
