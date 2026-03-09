@@ -10,7 +10,9 @@ import (
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -107,4 +109,25 @@ func getNginxLbServiceRef(nic *v1alpha1.NginxIngressController) (v1alpha1.Manage
 	}
 
 	return v1alpha1.ManagedObjectReference{}, errors.New("no load balancer service available")
+}
+
+// waitForDefaultSA waits for the "default" ServiceAccount to be created in the given namespace.
+// Kubernetes automatically creates this SA when a namespace is created, but there can be a brief
+// delay. Without waiting, pod creation can fail with "serviceaccount default not found".
+func waitForDefaultSA(ctx context.Context, c client.Client, namespace string) error {
+	lgr := logger.FromContext(ctx).With("namespace", namespace)
+	lgr.Info("waiting for default service account to be available")
+
+	return wait.PollImmediate(500*time.Millisecond, 1*time.Minute, func() (bool, error) {
+		sa := &corev1.ServiceAccount{}
+		err := c.Get(ctx, types.NamespacedName{Name: "default", Namespace: namespace}, sa)
+		if err == nil {
+			lgr.Info("default service account is available")
+			return true, nil
+		}
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("getting default service account: %w", err)
+	})
 }

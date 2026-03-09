@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -508,6 +510,33 @@ func (a *aks) runCommand(ctx context.Context, request armcontainerservice.RunCom
 	lgr.Info("starting to run command")
 	defer lgr.Info("finished running command")
 
+	const maxRetries = 3
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(attempt*5) * time.Second
+			lgr.Info(fmt.Sprintf("retrying run command after transient error (attempt %d/%d, waiting %s)", attempt+1, maxRetries, delay))
+			time.Sleep(delay)
+		}
+
+		err := a.runCommandOnce(ctx, lgr, request, opt)
+		if err == nil {
+			return nil
+		}
+
+		// non-zero exit code errors are not transient, return immediately
+		if errors.Is(err, nonZeroExitCode) {
+			return err
+		}
+
+		lastErr = err
+		lgr.Info(fmt.Sprintf("run command attempt %d/%d failed with transient error: %s", attempt+1, maxRetries, err))
+	}
+
+	return lastErr
+}
+
+func (a *aks) runCommandOnce(ctx context.Context, lgr *slog.Logger, request armcontainerservice.RunCommandRequest, opt runCommandOpts) error {
 	cred, err := getAzCred()
 	if err != nil {
 		return fmt.Errorf("getting az credentials: %w", err)
