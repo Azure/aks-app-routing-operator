@@ -177,6 +177,9 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 	}
 
 	ns, err := namespacer.getNamespace(ctx, c, infra.Zones[0].Zone.GetName())
+	if err != nil {
+		return fmt.Errorf("getting namespace: %w", err)
+	}
 	if err := upsert(ctx, c, ns); err != nil {
 		return fmt.Errorf("initial ns upsert: %w", err)
 	}
@@ -232,17 +235,17 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			lgr := logger.FromContext(ctx).With("zone", zone.GetName())
 			ctx := logger.WithContext(ctx, lgr)
 
-			ns, err = namespacer.getNamespace(ctx, c, zone.GetName())
+			zoneNs, err := namespacer.getNamespace(ctx, c, zone.GetName())
 			if err != nil {
 				return fmt.Errorf("getting namespace: %w", err)
 			}
 
-			lgr = lgr.With("namespace", ns.Name)
+			lgr = lgr.With("namespace", zoneNs.Name)
 			ctx = logger.WithContext(ctx, lgr)
 
 			zoneName := nonAlphaNumHyphenRegex.ReplaceAllString(zone.GetName()[:23], "-")
 			zoneName = trailingHyphenRegex.ReplaceAllString(zoneName, "")
-			zoneNamespace := ns.Name
+			zoneNamespace := zoneNs.Name
 			zoneKVUri := zone.GetCertId()
 			zoneHost := zone.GetHost()
 			tlsHost := zone.GetTlsHost()
@@ -250,29 +253,32 @@ var defaultBackendClientServerTest = func(ctx context.Context, config *rest.Conf
 			testingResources := manifests.ClientServerResources{}
 			upsertObjects := []client.Object{}
 
-			if (zoneKVUri == "" || zoneKVUri == "null") && nic.Spec.DefaultSSLCertificate == nil {
-				nic.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+			// deep copy nic to avoid concurrent writes to the same struct from multiple goroutines
+			nicCopy := nic.DeepCopy()
+
+			if (zoneKVUri == "" || zoneKVUri == "null") && nicCopy.Spec.DefaultSSLCertificate == nil {
+				nicCopy.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
 					Secret: &v1alpha1.Secret{
 						Name:      zoneName,
 						Namespace: zoneNamespace,
 					},
 				}
 			} else {
-				nic.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
+				nicCopy.Spec.DefaultSSLCertificate = &v1alpha1.DefaultSSLCertificate{
 					KeyVaultURI: &zoneKVUri,
 				}
 			}
 
-			if nic.Spec.CustomHTTPErrors != nil && len(nic.Spec.CustomHTTPErrors) > 1 {
+			if nicCopy.Spec.CustomHTTPErrors != nil && len(nicCopy.Spec.CustomHTTPErrors) > 1 {
 				testingResources = manifests.CustomErrorsClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, zoneHost, tlsHost, ingressClassName, serviceName)
-				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: testingResources.Service.Name, Namespace: testingResources.Service.Namespace}
+				nicCopy.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: testingResources.Service.Name, Namespace: testingResources.Service.Namespace}
 			} else {
 				testingResources = manifests.DefaultBackendClientAndServer(zoneNamespace, zoneName, zone.GetNameserver(), zoneKVUri, ingressClassName, zoneHost, tlsHost)
-				nic.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: "default-" + zoneName + "-service", Namespace: zoneNamespace}
+				nicCopy.Spec.DefaultBackendService = &v1alpha1.NICNamespacedName{Name: "default-" + zoneName + "-service", Namespace: zoneNamespace}
 			}
 
 			upsertObjects = append(upsertObjects, testingResources.Objects()...)
-			upsertObjects = append(upsertObjects, nic)
+			upsertObjects = append(upsertObjects, nicCopy)
 
 			for _, object := range upsertObjects {
 				if err := upsert(ctx, c, object); err != nil {

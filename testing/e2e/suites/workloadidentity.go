@@ -192,5 +192,9 @@ func (s singleNamespacer) getNamespace(ctx context.Context, cl client.Client, ke
 		return nil, fmt.Errorf("upserting namespace %s: %w", s.namespace, err)
 	}
 
+	if err := waitForDefaultSA(ctx, cl, ns.Name); err != nil {
+		return nil, fmt.Errorf("waiting for default service account in namespace %s: %w", ns.Name, err)
+	}
+
 	return ns, nil
 }
