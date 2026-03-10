@@ -129,6 +129,10 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              domain:
+                description: Domain is the domain name that the certificate is issued
+                  for (e.g. "*.1245.eastus.aksapp.io").
+                type: string
               expirationTime:
                 description: ExpirationTime is the time when the default domain certificate
                   will expire. The certificate will be autorenewed before this time.

@@ -90,7 +90,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	ctx = log.IntoContext(ctx, lgr)
 
 	lgr.Info("upserting Secret for DefaultDomainCertificate")
-	secret, err := d.generateSecret(ctx, defaultDomainCertificate)
+	secret, certInfo, err := d.generateSecret(ctx, defaultDomainCertificate)
 	if err != nil {
 		if util.IsNotFound(err) {
 			lgr.Info("Default domain certificate not found")
@@ -121,6 +121,9 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	}
 
 	// Update the status of the DefaultDomainCertificate
+	if certInfo != nil && len(certInfo.DNSNames) > 0 {
+		defaultDomainCertificate.Status.Domain = certInfo.DNSNames[0]
+	}
 	defaultDomainCertificate.SetCondition(metav1.Condition{
 		Type:    approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable,
 		Status:  metav1.ConditionTrue,
@@ -135,10 +138,10 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	return ctrl.Result{}, nil
 }
 
-func (d *defaultDomainCertControllerReconciler) generateSecret(ctx context.Context, defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, error) {
-	cert, key, err := d.getAndVerifyCertAndKeyFromClient(ctx)
+func (d *defaultDomainCertControllerReconciler) generateSecret(ctx context.Context, defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, *tls.CertificateInfo, error) {
+	cert, key, certInfo, err := d.getAndVerifyCertAndKeyFromClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("getting and verifying cert and key: %w", err)
+		return nil, nil, fmt.Errorf("getting and verifying cert and key: %w", err)
 	}
 
 	secret := &corev1.Secret{
@@ -161,26 +164,27 @@ func (d *defaultDomainCertControllerReconciler) generateSecret(ctx context.Conte
 	owner := manifests.GetOwnerRefs(defaultDomainCertificate, true)
 	secret.SetOwnerReferences(owner)
 
-	return secret, nil
+	return secret, certInfo, nil
 }
 
-func (d *defaultDomainCertControllerReconciler) getAndVerifyCertAndKeyFromClient(ctx context.Context) ([]byte, []byte, error) {
+func (d *defaultDomainCertControllerReconciler) getAndVerifyCertAndKeyFromClient(ctx context.Context) ([]byte, []byte, *tls.CertificateInfo, error) {
 	tlsCert, err := d.defaultDomainClient.GetTLSCertificate(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get TLS certificate from client: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to get TLS certificate from client: %w", err)
 	}
 
 	if tlsCert.Key == nil || len(tlsCert.Key) == 0 {
-		return nil, nil, fmt.Errorf("TLS certificate key is empty")
+		return nil, nil, nil, fmt.Errorf("TLS certificate key is empty")
 	}
 
 	if tlsCert.Cert == nil || len(tlsCert.Cert) == 0 {
-		return nil, nil, fmt.Errorf("TLS certificate cert is empty")
+		return nil, nil, nil, fmt.Errorf("TLS certificate cert is empty")
 	}
 
-	if _, err := tls.ParseTLSCertificate(tlsCert.Cert, tlsCert.Key); err != nil {
-		return nil, nil, fmt.Errorf("validating cert and key: %w", err)
+	certInfo, err := tls.ParseTLSCertificate(tlsCert.Cert, tlsCert.Key)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("validating cert and key: %w", err)
 	}
 
-	return tlsCert.Cert, tlsCert.Key, nil
+	return tlsCert.Cert, tlsCert.Key, certInfo, nil
 }
