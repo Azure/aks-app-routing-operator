@@ -247,6 +247,9 @@ func TestReconcile_SuccessfulReconciliation(t *testing.T) {
 	// Verify DefaultDomainCertificate status was updated
 	require.NoError(t, client.Get(ctx, types.NamespacedName{Name: ddc.Name, Namespace: ddc.Namespace}, ddc))
 	assert.Equal(t, metav1.ConditionTrue, ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable).Status)
+
+	// Verify Domain status field is populated from the certificate's DNS names
+	assert.Equal(t, "example.com", ddc.Status.Domain)
 }
 
 func TestReconcile_DefaultDomainCertificateNotFound(t *testing.T) {
@@ -646,10 +649,11 @@ func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
 	ddc.UID = "test-uid"
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, certInfo, err := reconciler.generateSecret(ctx, ddc)
 
 	require.NoError(t, err)
 	require.NotNil(t, secret)
+	require.NotNil(t, certInfo)
 
 	assert.Equal(t, testSecretName, secret.Name)
 	assert.Equal(t, testNamespace, secret.Namespace)
@@ -663,6 +667,10 @@ func TestGenerateSecret_SuccessfulSecretCreation(t *testing.T) {
 	assert.Equal(t, ddc.Name, secret.OwnerReferences[0].Name)
 	assert.Equal(t, ddc.UID, secret.OwnerReferences[0].UID)
 	assert.True(t, *secret.OwnerReferences[0].Controller)
+
+	// Verify certInfo contains the expected DNS names
+	assert.Contains(t, certInfo.DNSNames, "example.com")
+	assert.Contains(t, certInfo.DNSNames, "www.example.com")
 }
 
 func TestGenerateSecret_CertificateNotFoundInStore(t *testing.T) {
@@ -676,11 +684,12 @@ func TestGenerateSecret_CertificateNotFoundInStore(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, certInfo, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting and verifying cert and key")
 	assert.Nil(t, secret)
+	assert.Nil(t, certInfo)
 }
 
 func TestGenerateSecret_KeyNotFoundInStore(t *testing.T) {
@@ -694,11 +703,12 @@ func TestGenerateSecret_KeyNotFoundInStore(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, certInfo, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting and verifying cert and key")
 	assert.Nil(t, secret)
+	assert.Nil(t, certInfo)
 }
 
 func TestGenerateSecret_CertificateContentIsNil(t *testing.T) {
@@ -712,11 +722,12 @@ func TestGenerateSecret_CertificateContentIsNil(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, certInfo, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting and verifying cert and key")
 	assert.Nil(t, secret)
+	assert.Nil(t, certInfo)
 }
 
 func TestGenerateSecret_KeyContentIsNil(t *testing.T) {
@@ -730,11 +741,12 @@ func TestGenerateSecret_KeyContentIsNil(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, certInfo, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "getting and verifying cert and key")
 	require.Nil(t, secret)
+	assert.Nil(t, certInfo)
 }
 
 func TestGenerateSecret_EmptyNamespace(t *testing.T) {
@@ -747,7 +759,7 @@ func TestGenerateSecret_EmptyNamespace(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", "", testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, _, err := reconciler.generateSecret(ctx, ddc)
 
 	require.NoError(t, err)
 	require.NotNil(t, secret)
@@ -772,7 +784,7 @@ func TestGenerateSecret_ValidatesOwnerReferences(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, _, err := reconciler.generateSecret(ctx, ddc)
 
 	require.NoError(t, err)
 	require.NotNil(t, secret)
@@ -801,7 +813,7 @@ func TestGenerateSecret_LargeFileContent(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, _, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Contains(t, err.Error(), "getting and verifying cert and key: validating cert and key: failed to decode PEM certificate block")
 	require.Nil(t, secret)
@@ -819,7 +831,7 @@ func TestGenerateSecret_SpecialCharactersInContent(t *testing.T) {
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
 	ctx := context.Background()
-	secret, err := reconciler.generateSecret(ctx, ddc)
+	secret, _, err := reconciler.generateSecret(ctx, ddc)
 
 	require.Contains(t, err.Error(), "getting and verifying cert and key: validating cert and key: failed to decode PEM certificate block")
 	require.Nil(t, secret)
@@ -865,12 +877,15 @@ func TestGetAndVerifyCertAndKeySuccess(t *testing.T) {
 	reconciler := createTestReconciler(nil, mockClient)
 
 	ctx := context.Background()
-	certContent, keyContent, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
+	certContent, keyContent, certInfo, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, certContent)
 	require.NotNil(t, keyContent)
+	require.NotNil(t, certInfo)
 	assert.Equal(t, []byte(cert), certContent)
 	assert.Equal(t, []byte(key), keyContent)
+	assert.Contains(t, certInfo.DNSNames, "example.com")
+	assert.Contains(t, certInfo.DNSNames, "www.example.com")
 }
 
 func TestGetAndVerifyCertAndKeyNonCert(t *testing.T) {
@@ -881,7 +896,7 @@ func TestGetAndVerifyCertAndKeyNonCert(t *testing.T) {
 	reconciler := createTestReconciler(nil, mockClient)
 
 	ctx := context.Background()
-	_, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
+	_, _, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decode PEM certificate block")
 }
@@ -893,7 +908,7 @@ func TestGetAndVerifyCertAndKeyMissingKey(t *testing.T) {
 	reconciler := createTestReconciler(nil, mockClient)
 
 	ctx := context.Background()
-	_, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
+	_, _, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "TLS certificate key is empty")
 }
@@ -905,7 +920,7 @@ func TestGetAndVerifyCertAndKeyMissingCert(t *testing.T) {
 	reconciler := createTestReconciler(nil, mockClient)
 
 	ctx := context.Background()
-	_, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
+	_, _, _, err := reconciler.getAndVerifyCertAndKeyFromClient(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "TLS certificate cert is empty")
 }

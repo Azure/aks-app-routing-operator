@@ -31,6 +31,10 @@ type DefaultDomainCertificateTarget struct {
 
 // DefaultDomainCertificateStatus defines the observed state of DefaultDomainCertificate.
 type DefaultDomainCertificateStatus struct {
+	// Domain is the domain name that the certificate is issued for (e.g. "*.1245.eastus.aksapp.io").
+	// +optional
+	Domain string `json:"domain,omitempty"`
+
 	// ExpirationTime is the time when the default domain certificate will expire. The certificate will be autorenewed before this time.
 	ExpirationTime *metav1.Time `json:"expirationTime,omitempty"`
 
