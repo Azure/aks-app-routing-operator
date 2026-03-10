@@ -206,13 +206,7 @@ func (p *PlaceholderPodController) buildDeploymentSpec(ctx context.Context, dep 
 		labels = old.Spec.Selector.MatchLabels
 	}
 
-	podTemplateLabels := make(map[string]string)
-	for k, v := range labels {
-		podTemplateLabels[k] = v
-	}
-	for k, v := range manifests.GetTopLevelLabels() {
-		podTemplateLabels[k] = v
-	}
+	podTemplateLabels := util.MergeMaps(manifests.GetTopLevelLabels(), labels)
 
 	dep.Spec = appsv1.DeploymentSpec{
 		Replicas:             util.Int32Ptr(1),
