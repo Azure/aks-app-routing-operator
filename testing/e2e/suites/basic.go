@@ -91,10 +91,8 @@ func (u uniqueNamespaceNamespacer) getNamespace(ctx context.Context, cl client.C
 		u.namespaces = make(map[string]*corev1.Namespace)
 	}
 
-	newNs := false
 	if val, ok := u.namespaces[key]; !ok || val == nil {
 		u.namespaces[key] = manifests.UncollisionedNs()
-		newNs = true
 	}
 	ns := u.namespaces[key]
 	nsMutex.Unlock()
@@ -103,13 +101,14 @@ func (u uniqueNamespaceNamespacer) getNamespace(ctx context.Context, cl client.C
 		return nil, fmt.Errorf("upserting ns: %w", err)
 	}
 
-	// When a namespace is first created, Kubernetes asynchronously provisions the "default"
-	// ServiceAccount. If we create pods before it's ready, the API server rejects them with
-	// "serviceaccount default not found". Wait for it to be available.
-	if newNs {
-		if err := waitForDefaultSA(ctx, cl, ns.Name); err != nil {
-			return nil, fmt.Errorf("waiting for default service account in namespace %s: %w", ns.Name, err)
-		}
+	// Always wait for the "default" ServiceAccount after upserting a namespace.
+	// During cleanDeploy, namespaces are deleted from the cluster but the in-memory map
+	// still holds the old references. When the namespace is re-created, newNs is false
+	// because the map key already exists, but Kubernetes still needs to provision the
+	// "default" SA asynchronously. Without this wait, pods can fail with
+	// "serviceaccount default not found".
+	if err := waitForDefaultSA(ctx, cl, ns.Name); err != nil {
+		return nil, fmt.Errorf("waiting for default service account in namespace %s: %w", ns.Name, err)
 	}
 
 	return ns, nil
