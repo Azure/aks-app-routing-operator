@@ -363,6 +363,31 @@ func TestEventMirrorServiceOwnerIngressNotFound(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess), beforeReconcileCount)
 }
 
+func TestEventMirrorNonKeyVaultEvent(t *testing.T) {
+	ev := nonKeyVaultMountingErrorEventReason.DeepCopy()
+	ev.Name = "testevent"
+	ev.Namespace = "testns"
+
+	recorder := record.NewFakeRecorder(10)
+	c := fake.NewClientBuilder().WithObjects(ev).Build()
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ev.Namespace, Name: ev.Name}}
+
+	e := &EventMirror{client: c, events: recorder}
+
+	beforeErrCount := testutils.GetErrMetricCount(t, eventMirrorControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess)
+	_, err := e.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	// Nothing should have been published to the recorder
+	require.Empty(t, recorder.Events)
+	require.Equal(t, testutils.GetErrMetricCount(t, eventMirrorControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess), beforeReconcileCount)
+}
+
 func TestNewEventMirror(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
@@ -376,7 +401,13 @@ func TestNewPredicates(t *testing.T) {
 
 	predicates := e.newPredicates()
 
-	require.True(t, predicates.Create(event.CreateEvent{}))
+	// CreateFunc should pass through only keyvault mounting error events
+	require.True(t, predicates.Create(event.CreateEvent{Object: keyVaultMountingErrorEvent}))
+	require.True(t, predicates.Create(event.CreateEvent{Object: keyVaultMountRotationFailedEvent}))
+	require.False(t, predicates.Create(event.CreateEvent{Object: nonKeyVaultMountingErrorEventReason}))
+	require.False(t, predicates.Create(event.CreateEvent{Object: nonKeyVaultMountingErrorEventInvolvedObjectKind}))
+	require.False(t, predicates.Create(event.CreateEvent{}))
+
 	require.False(t, predicates.Update(event.UpdateEvent{}))
 	require.False(t, predicates.Delete(event.DeleteEvent{}))
 	require.False(t, predicates.Generic(event.GenericEvent{}))
