@@ -98,7 +98,7 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 
 	// Defensive check: the predicate should have already filtered this, but guard
 	// here too so a direct Reconcile call (e.g. in tests) can't bypass the filter.
-	if !isKeyVaultMountingError(event) {
+	if !isKeyVaultRelatedError(event) {
 		logger.Info("ignoring event, not keyvault mounting error")
 		return result, nil
 	}
@@ -174,7 +174,7 @@ func (e *EventMirror) newPredicates() predicate.Predicate {
 			if !ok {
 				return false
 			}
-			return isKeyVaultMountingError(ev)
+			return isKeyVaultRelatedError(ev)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			return false
@@ -188,7 +188,7 @@ func (e *EventMirror) newPredicates() predicate.Predicate {
 	}
 }
 
-func isKeyVaultMountingError(event *corev1.Event) bool {
+func isKeyVaultRelatedError(event *corev1.Event) bool {
 	if event == nil {
 		return false
 	}

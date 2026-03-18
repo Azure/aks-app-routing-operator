@@ -413,7 +413,7 @@ func TestNewPredicates(t *testing.T) {
 	require.False(t, predicates.Generic(event.GenericEvent{}))
 }
 
-func TestIsKeyVaultMountingError(t *testing.T) {
+func TestIsKeyVaultRelatedError(t *testing.T) {
 	cases := []struct {
 		name     string
 		event    *corev1.Event
@@ -463,7 +463,7 @@ func TestIsKeyVaultMountingError(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, isKeyVaultMountingError(tc.event))
+			assert.Equal(t, tc.expected, isKeyVaultRelatedError(tc.event))
 		})
 	}
 }
