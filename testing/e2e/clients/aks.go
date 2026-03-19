@@ -158,6 +158,54 @@ var AppRoutingIstioOpt = McOpt{
 	},
 }
 
+// armHTTPClient is an HTTP client with a longer timeout for ARM REST API calls.
+// ARM operations (especially PUT for cluster updates) can take a long time.
+var armHTTPClient = &http.Client{
+	Timeout: 10 * time.Minute,
+}
+
+// doWithRetry performs an HTTP request with retries for transient errors (timeouts, connection resets, 429s, 5xx).
+// It uses exponential backoff starting at initialBackoff and doubling each attempt up to maxRetries.
+func doWithRetry(ctx context.Context, lgr *slog.Logger, buildReq func() (*http.Request, error), maxRetries int, initialBackoff time.Duration) (*http.Response, error) {
+	backoff := initialBackoff
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			lgr.Info(fmt.Sprintf("retrying request (attempt %d/%d) after %s", attempt, maxRetries, backoff))
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("context cancelled during retry backoff: %w", ctx.Err())
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+		}
+
+		req, err := buildReq()
+		if err != nil {
+			return nil, fmt.Errorf("building request: %w", err)
+		}
+
+		resp, err := armHTTPClient.Do(req)
+		if err != nil {
+			lastErr = err
+			lgr.Info(fmt.Sprintf("request failed (attempt %d/%d): %v", attempt, maxRetries, err))
+			continue
+		}
+
+		// Retry on 429 (Too Many Requests) and 5xx server errors
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			lastErr = fmt.Errorf("retryable status %d: %s", resp.StatusCode, string(body))
+			lgr.Info(fmt.Sprintf("retryable status %d (attempt %d/%d)", resp.StatusCode, attempt, maxRetries))
+			continue
+		}
+
+		return resp, nil
+	}
+	return nil, fmt.Errorf("all %d retries exhausted: %w", maxRetries, lastErr)
+}
+
 // EnableAppRoutingIstio enables the approuting-istio GatewayClass on an existing AKS cluster
 // by doing a GET-modify-PUT via the raw ARM REST API with api-version=2026-01-02-preview.
 // A PUT (CreateOrUpdate) is required because the PATCH endpoint only accepts TagsObject.
@@ -187,13 +235,14 @@ func EnableAppRoutingIstio(ctx context.Context, subscriptionId, resourceGroup, c
 
 	// Step 1: GET the full cluster object
 	lgr.Info("fetching current cluster state")
-	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("creating GET request: %w", err)
-	}
-	getReq.Header.Set("Authorization", "Bearer "+token.Token)
-
-	getResp, err := http.DefaultClient.Do(getReq)
+	getResp, err := doWithRetry(ctx, lgr, func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		return req, nil
+	}, 3, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("sending GET request: %w", err)
 	}
@@ -237,14 +286,15 @@ func EnableAppRoutingIstio(ctx context.Context, subscriptionId, resourceGroup, c
 
 	lgr.Info(fmt.Sprintf("PUT URL: %s", url))
 
-	putReq, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return fmt.Errorf("creating PUT request: %w", err)
-	}
-	putReq.Header.Set("Authorization", "Bearer "+token.Token)
-	putReq.Header.Set("Content-Type", "application/json")
-
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := doWithRetry(ctx, lgr, func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		req.Header.Set("Content-Type", "application/json")
+		return req, nil
+	}, 3, 30*time.Second)
 	if err != nil {
 		return fmt.Errorf("sending PUT request: %w", err)
 	}
@@ -262,13 +312,14 @@ func EnableAppRoutingIstio(ctx context.Context, subscriptionId, resourceGroup, c
 	for {
 		time.Sleep(30 * time.Second)
 
-		pollReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			return fmt.Errorf("creating poll GET request: %w", err)
-		}
-		pollReq.Header.Set("Authorization", "Bearer "+token.Token)
-
-		pollResp, err := http.DefaultClient.Do(pollReq)
+		pollResp, err := doWithRetry(ctx, lgr, func() (*http.Request, error) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("Authorization", "Bearer "+token.Token)
+			return req, nil
+		}, 3, 10*time.Second)
 		if err != nil {
 			return fmt.Errorf("polling cluster state: %w", err)
 		}
