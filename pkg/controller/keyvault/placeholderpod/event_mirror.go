@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,17 +27,23 @@ import (
 var eventMirrorControllerName = controllername.New("keyvault", "event", "mirror")
 
 const (
-	involvedObjectKindField = "involvedObject.kind"
-	eventReasonFailedMount  = "FailedMount"
-	reasonField             = "reason"
-	eventKindPod            = "Pod"
+	involvedObjectKindField         = "involvedObject.kind"
+	eventReasonFailedMount          = "FailedMount"
+	eventReasonMountRotationFailed  = "MountRotationFailed"
+	eventReasonSecretRotationFailed = "SecretRotationFailed"
+	eventReasonFailedToCreateSecret = "FailedToCreateSecret"
+	eventKindPod                    = "Pod"
 )
 
-// EventMirrorSelector is a selector for Events that are relevant to the EventMirror controller
-var EventMirrorSelector = fields.AndSelectors(
-	fields.ParseSelectorOrDie(fmt.Sprintf("%s=%s", involvedObjectKindField, eventKindPod)),
-	fields.ParseSelectorOrDie(fmt.Sprintf("%s=%s", reasonField, eventReasonFailedMount)),
-)
+// keyVaultFailureReasons is the set of event reasons emitted by the secrets-store-csi-driver
+// and the kubelet that indicate a failure to pull or rotate secrets from Key Vault.
+var keyVaultFailureReasons = map[string]bool{
+	eventReasonFailedMount:          true,
+	eventReasonMountRotationFailed:  true,
+	eventReasonSecretRotationFailed: true,
+	eventReasonFailedToCreateSecret: true,
+}
+
 
 // EventMirror copies events published to pod resources by the Keyvault CSI driver into ingress events.
 // This allows users to easily determine why a certificate might be missing for a given ingress.
@@ -91,11 +96,21 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 	logger = logger.WithValues("generation", event.Generation)
 
-	// Filter to include only keyvault mounting errors
-	if !isKeyVaultMountingError(event) {
+	// Defensive check: the predicate should have already filtered this, but guard
+	// here too so a direct Reconcile call (e.g. in tests) can't bypass the filter.
+	if !isKeyVaultRelatedError(event) {
 		logger.Info("ignoring event, not keyvault mounting error")
 		return result, nil
 	}
+	logger.Info("keyvault secret failure event",
+		"reason", event.Reason,
+		"message", event.Message,
+		"involvedObject", event.InvolvedObject.Name,
+		"source", event.Source.Component,
+		"count", event.Count,
+		"firstTime", event.FirstTimestamp,
+		"lastTime", event.LastTimestamp,
+	)
 
 	// Get the owner (pod)
 	podName := event.InvolvedObject.Name
@@ -139,23 +154,27 @@ func (e *EventMirror) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Res
 		svc.Name = name
 		err = e.client.Get(ctx, client.ObjectKeyFromObject(svc), svc)
 		if err == nil {
-			logger.Info("publishing FailedMount warning event to service", "service", svc.Name, "namespace", svc.Namespace)
-			e.events.Event(svc, corev1.EventTypeWarning, "FailedMount", event.Message)
+			logger.Info("publishing keyvault failure warning event to service", "service", svc.Name, "namespace", svc.Namespace, "reason", event.Reason)
+			e.events.Event(svc, corev1.EventTypeWarning, event.Reason, event.Message)
 		}
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return result, fmt.Errorf("getting owner service: %w", err)
 		}
 	}
 
-	logger.Info("publishing FailedMount warning event to ingress", "ingress", ingress.Name, "namespace", ingress.Namespace)
-	e.events.Event(ingress, corev1.EventTypeWarning, "FailedMount", event.Message)
+	logger.Info("publishing keyvault failure warning event to ingress", "ingress", ingress.Name, "namespace", ingress.Namespace, "reason", event.Reason)
+	e.events.Event(ingress, corev1.EventTypeWarning, event.Reason, event.Message)
 	return result, nil
 }
 
 func (e *EventMirror) newPredicates() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return true
+			ev, ok := e.Object.(*corev1.Event)
+			if !ok {
+				return false
+			}
+			return isKeyVaultRelatedError(ev)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			return false
@@ -169,13 +188,13 @@ func (e *EventMirror) newPredicates() predicate.Predicate {
 	}
 }
 
-func isKeyVaultMountingError(event *corev1.Event) bool {
+func isKeyVaultRelatedError(event *corev1.Event) bool {
 	if event == nil {
 		return false
 	}
 
 	return event.InvolvedObject.Kind == eventKindPod &&
-		event.Reason == eventReasonFailedMount &&
+		keyVaultFailureReasons[event.Reason] &&
 		strings.HasPrefix(event.InvolvedObject.Name, "keyvault-") &&
 		strings.Contains(event.Message, "keyvault")
 }
