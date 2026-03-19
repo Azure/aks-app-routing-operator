@@ -5,10 +5,10 @@ package keyvault
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -40,6 +40,21 @@ var (
 		Reason:  "FailedMount",
 		Message: "test keyvault event",
 	}
+	keyVaultMountRotationFailedEvent = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.Reason = "MountRotationFailed"
+		return e
+	}()
+	keyVaultSecretRotationFailedEvent = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.Reason = "SecretRotationFailed"
+		return e
+	}()
+	keyVaultFailedToCreateSecretEvent = func() *corev1.Event {
+		e := keyVaultMountingErrorEvent.DeepCopy()
+		e.Reason = "FailedToCreateSecret"
+		return e
+	}()
 	nonKeyVaultMountingErrorEventInvolvedObjectKind = func() *corev1.Event {
 		e := keyVaultMountingErrorEvent.DeepCopy()
 		e.InvolvedObject.Kind = "Service"
@@ -185,6 +200,59 @@ func TestEventMirrorServiceOwnerHappyPath(t *testing.T) {
 	assert.Equal(t, "Warning FailedMount test keyvault event involvedObject{kind=Ingress,apiVersion=networking.k8s.io/v1}", <-recorder.Events)
 }
 
+// newReconcileEventTest is a helper that runs a single reconcile for an event with the given
+// reason and asserts it is mirrored to the owning ingress with that same reason.
+func newReconcileEventTest(t *testing.T, reason string) {
+	t.Helper()
+
+	owner1 := &netv1.Ingress{}
+	owner1.APIVersion = "networking.k8s.io/v1"
+	owner1.Kind = "Ingress"
+	owner1.Name = "owner1"
+	owner1.Namespace = "testns"
+
+	owner2 := &corev1.Pod{}
+	owner2.Name = "keyvault-owner2"
+	owner2.Namespace = owner1.Namespace
+	owner2.Annotations = map[string]string{"kubernetes.azure.com/ingress-owner": owner1.Name}
+
+	ev := &corev1.Event{}
+	ev.Name = "testevent"
+	ev.Namespace = owner1.Namespace
+	ev.Reason = reason
+	ev.Message = "test keyvault event"
+	ev.InvolvedObject.Namespace = owner2.Namespace
+	ev.InvolvedObject.Name = owner2.Name
+	ev.InvolvedObject.Kind = "Pod"
+	ev.InvolvedObject.APIVersion = "v1"
+
+	recorder := record.NewFakeRecorder(10)
+	recorder.IncludeObject = true
+	c := fake.NewClientBuilder().WithObjects(owner1, owner2, ev).Build()
+	require.NoError(t, secv1.AddToScheme(c.Scheme()))
+
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ev.Namespace, Name: ev.Name}}
+
+	e := &EventMirror{client: c, events: recorder}
+	_, err := e.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fmt.Sprintf("Warning %s test keyvault event involvedObject{kind=Ingress,apiVersion=networking.k8s.io/v1}", reason), <-recorder.Events)
+}
+
+func TestEventMirrorMountRotationFailed(t *testing.T) {
+	newReconcileEventTest(t, "MountRotationFailed")
+}
+
+func TestEventMirrorSecretRotationFailed(t *testing.T) {
+	newReconcileEventTest(t, "SecretRotationFailed")
+}
+
+func TestEventMirrorFailedToCreateSecret(t *testing.T) {
+	newReconcileEventTest(t, "FailedToCreateSecret")
+}
+
 func TestIgnoreNotFound(t *testing.T) {
 	c := fake.NewClientBuilder().WithObjects().Build()
 	ctx := context.Background()
@@ -295,6 +363,31 @@ func TestEventMirrorServiceOwnerIngressNotFound(t *testing.T) {
 	require.Greater(t, testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess), beforeReconcileCount)
 }
 
+func TestEventMirrorNonKeyVaultEvent(t *testing.T) {
+	ev := nonKeyVaultMountingErrorEventReason.DeepCopy()
+	ev.Name = "testevent"
+	ev.Namespace = "testns"
+
+	recorder := record.NewFakeRecorder(10)
+	c := fake.NewClientBuilder().WithObjects(ev).Build()
+
+	ctx := context.Background()
+	ctx = logr.NewContext(ctx, logr.Discard())
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ev.Namespace, Name: ev.Name}}
+
+	e := &EventMirror{client: c, events: recorder}
+
+	beforeErrCount := testutils.GetErrMetricCount(t, eventMirrorControllerName)
+	beforeReconcileCount := testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess)
+	_, err := e.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	// Nothing should have been published to the recorder
+	require.Empty(t, recorder.Events)
+	require.Equal(t, testutils.GetErrMetricCount(t, eventMirrorControllerName), beforeErrCount)
+	require.Greater(t, testutils.GetReconcileMetricCount(t, eventMirrorControllerName, metrics.LabelSuccess), beforeReconcileCount)
+}
+
 func TestNewEventMirror(t *testing.T) {
 	m, err := manager.New(restConfig, manager.Options{Metrics: metricsserver.Options{BindAddress: ":0"}})
 	require.NoError(t, err)
@@ -308,40 +401,61 @@ func TestNewPredicates(t *testing.T) {
 
 	predicates := e.newPredicates()
 
-	require.True(t, predicates.Create(event.CreateEvent{}))
+	// CreateFunc should pass through only keyvault mounting error events
+	require.True(t, predicates.Create(event.CreateEvent{Object: keyVaultMountingErrorEvent}))
+	require.True(t, predicates.Create(event.CreateEvent{Object: keyVaultMountRotationFailedEvent}))
+	require.False(t, predicates.Create(event.CreateEvent{Object: nonKeyVaultMountingErrorEventReason}))
+	require.False(t, predicates.Create(event.CreateEvent{Object: nonKeyVaultMountingErrorEventInvolvedObjectKind}))
+	require.False(t, predicates.Create(event.CreateEvent{}))
+
 	require.False(t, predicates.Update(event.UpdateEvent{}))
 	require.False(t, predicates.Delete(event.DeleteEvent{}))
 	require.False(t, predicates.Generic(event.GenericEvent{}))
 }
 
-func TestIsKeyVaultMountingError(t *testing.T) {
+func TestIsKeyVaultRelatedError(t *testing.T) {
 	cases := []struct {
 		name     string
 		event    *corev1.Event
 		expected bool
 	}{
 		{
-			name:     "keyvault mounting error",
+			name:     "FailedMount keyvault pod event",
 			event:    keyVaultMountingErrorEvent,
 			expected: true,
 		},
 		{
-			name:     "non-keyvault mounting error involved object kind",
+			name:     "MountRotationFailed keyvault pod event",
+			event:    keyVaultMountRotationFailedEvent,
+			expected: true,
+		},
+		{
+			name:     "SecretRotationFailed keyvault pod event",
+			event:    keyVaultSecretRotationFailedEvent,
+			expected: true,
+		},
+		{
+			name:     "FailedToCreateSecret keyvault pod event",
+			event:    keyVaultFailedToCreateSecretEvent,
+			expected: true,
+		},
+		{
+			name:     "non-pod involved object kind",
 			event:    nonKeyVaultMountingErrorEventInvolvedObjectKind,
 			expected: false,
 		},
 		{
-			name:     "non-keyvault mounting error involved object name",
+			name:     "non-keyvault pod name prefix",
 			event:    nonKeyVaultMountingErrorEventInvolvedObjectName,
 			expected: false,
 		},
 		{
-			name:     "non-keyvault mounting error reason",
+			name:     "unrecognised reason",
 			event:    nonKeyVaultMountingErrorEventReason,
 			expected: false,
 		},
 		{
-			name:     "non-keyvault mounting error message",
+			name:     "non-keyvault message",
 			event:    nonKeyVaultMountingErrorEventMessage,
 			expected: false,
 		},
@@ -349,62 +463,7 @@ func TestIsKeyVaultMountingError(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, isKeyVaultMountingError(tc.event))
-		})
-	}
-}
-
-func TestEventMirrorSelector(t *testing.T) {
-	cases := []struct {
-		name    string
-		event   *corev1.Event
-		matches bool
-	}{
-		{
-			name:    "keyvault mounting error",
-			event:   keyVaultMountingErrorEvent,
-			matches: true,
-		},
-		{
-			name:    "non-keyvault mounting error involved object kind",
-			event:   nonKeyVaultMountingErrorEventInvolvedObjectKind,
-			matches: false,
-		},
-		{
-			name:    "non-keyvault mounting error involved object name",
-			event:   nonKeyVaultMountingErrorEventInvolvedObjectName,
-			matches: true, // selector can't check prefix so this will match
-		},
-		{
-			name:    "non-keyvault mounting error reason",
-			event:   nonKeyVaultMountingErrorEventReason,
-			matches: false,
-		},
-		{
-			name:    "non-keyvault mounting error message",
-			event:   nonKeyVaultMountingErrorEventMessage,
-			matches: true, // selector can't check contain so this will match selector
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cl := fake.NewClientBuilder().
-				WithObjects(tc.event).
-				WithIndex(&corev1.Event{}, involvedObjectKindField, func(o client.Object) []string {
-					return []string{o.(*corev1.Event).InvolvedObject.Kind}
-				}).
-				WithIndex(&corev1.Event{}, reasonField, func(o client.Object) []string {
-					return []string{o.(*corev1.Event).Reason}
-				}).
-				Build()
-			events := &corev1.EventList{}
-			require.NoError(t, cl.List(context.Background(), events, client.MatchingFieldsSelector{Selector: EventMirrorSelector}), "listing with fields selector")
-			if tc.matches {
-				require.Len(t, events.Items, 1, "expected to find event")
-			} else {
-				require.Len(t, events.Items, 0, "expected not to find")
-			}
+			assert.Equal(t, tc.expected, isKeyVaultRelatedError(tc.event))
 		})
 	}
 }
