@@ -97,15 +97,12 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 	cacheOpts := cache.Options{}
 	if conf.DisableExpensiveCache {
 		clientOpts = &client.CacheOptions{
-			// we only interact with a small subset of pods
-			// but there's no good filter to only cache the pods we care about
-			// so we disable caching them for now.
-			DisableFor: []client.Object{&corev1.Pod{}},
-		}
-
-		cacheOpts.ByObject = map[client.Object]cache.ByObject{
-			&corev1.Event{}: {
-				Field: placeholderpod.EventMirrorSelector,
+			// we only interact with a small subset of pods and events,
+			// but there's no good filter to only cache the ones we care about,
+			// so we disable caching them entirely and fetch live from the API server.
+			DisableFor: []client.Object{
+				&corev1.Pod{},
+				&corev1.Event{},
 			},
 		}
 	}
