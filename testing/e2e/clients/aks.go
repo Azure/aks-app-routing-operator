@@ -5,8 +5,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/manifests"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
@@ -140,6 +144,169 @@ var ManagedGatewayOpt = McOpt{
 
 		return nil
 	},
+}
+
+// AppRoutingIstioOpt marks the cluster as using the approuting-istio GatewayClass.
+// The actual enablement is done post-creation via EnableAppRoutingIstio since the
+// SDK does not yet have the types for the 2026-01-02-preview API.
+// This is mutually exclusive with IstioServiceMeshOpt.
+var AppRoutingIstioOpt = McOpt{
+	Name: "approuting-istio",
+	fn: func(mc *armcontainerservice.ManagedCluster) error {
+		// No SDK struct mutation — the feature is enabled post-creation via raw REST API.
+		return nil
+	},
+}
+
+// EnableAppRoutingIstio enables the approuting-istio GatewayClass on an existing AKS cluster
+// by doing a GET-modify-PUT via the raw ARM REST API with api-version=2026-01-02-preview.
+// A PUT (CreateOrUpdate) is required because the PATCH endpoint only accepts TagsObject.
+// This is necessary because the published SDK does not yet include the GatewayAPIImplementations types.
+func EnableAppRoutingIstio(ctx context.Context, subscriptionId, resourceGroup, clusterName string) error {
+	lgr := logger.FromContext(ctx).With("name", clusterName, "resourceGroup", resourceGroup)
+	lgr.Info("enabling approuting-istio on cluster")
+	defer lgr.Info("finished enabling approuting-istio on cluster")
+
+	cred, err := getAzCred()
+	if err != nil {
+		return fmt.Errorf("getting az credentials: %w", err)
+	}
+
+	// Get a token for ARM
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	})
+	if err != nil {
+		return fmt.Errorf("getting ARM token: %w", err)
+	}
+
+	url := fmt.Sprintf(
+		"https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s?api-version=2026-01-02-preview",
+		subscriptionId, resourceGroup, clusterName,
+	)
+
+	// Step 1: GET the full cluster object
+	lgr.Info("fetching current cluster state")
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("creating GET request: %w", err)
+	}
+	getReq.Header.Set("Authorization", "Bearer "+token.Token)
+
+	getResp, err := http.DefaultClient.Do(getReq)
+	if err != nil {
+		return fmt.Errorf("sending GET request: %w", err)
+	}
+
+	var cluster map[string]any
+	if err := json.NewDecoder(getResp.Body).Decode(&cluster); err != nil {
+		getResp.Body.Close()
+		return fmt.Errorf("decoding GET response: %w", err)
+	}
+	getResp.Body.Close()
+
+	if getResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d getting cluster", getResp.StatusCode)
+	}
+
+	// Step 2: Merge in the webAppRouting configuration
+	props, _ := cluster["properties"].(map[string]any)
+	if props == nil {
+		return fmt.Errorf("cluster properties is nil")
+	}
+
+	ingressProfile, _ := props["ingressProfile"].(map[string]any)
+	if ingressProfile == nil {
+		ingressProfile = map[string]any{}
+		props["ingressProfile"] = ingressProfile
+	}
+
+	ingressProfile["webAppRouting"] = map[string]any{
+		"gatewayAPIImplementations": map[string]any{
+			"appRoutingIstio": map[string]any{
+				"mode": "Enabled",
+			},
+		},
+	}
+
+	// Step 3: PUT the modified cluster back
+	bodyBytes, err := json.Marshal(cluster)
+	if err != nil {
+		return fmt.Errorf("marshaling request body: %w", err)
+	}
+
+	lgr.Info(fmt.Sprintf("PUT URL: %s", url))
+
+	putReq, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return fmt.Errorf("creating PUT request: %w", err)
+	}
+	putReq.Header.Set("Authorization", "Bearer "+token.Token)
+	putReq.Header.Set("Content-Type", "application/json")
+
+	putResp, err := http.DefaultClient.Do(putReq)
+	if err != nil {
+		return fmt.Errorf("sending PUT request: %w", err)
+	}
+	defer putResp.Body.Close()
+
+	if putResp.StatusCode != http.StatusOK && putResp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(putResp.Body)
+		return fmt.Errorf("unexpected status %d enabling approuting-istio: %s", putResp.StatusCode, string(respBody))
+	}
+
+	lgr.Info(fmt.Sprintf("PUT response status: %d", putResp.StatusCode))
+
+	// Step 4: Poll for completion by waiting for provisioning state
+	lgr.Info("waiting for approuting-istio enablement to complete")
+	for {
+		time.Sleep(30 * time.Second)
+
+		pollReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("creating poll GET request: %w", err)
+		}
+		pollReq.Header.Set("Authorization", "Bearer "+token.Token)
+
+		pollResp, err := http.DefaultClient.Do(pollReq)
+		if err != nil {
+			return fmt.Errorf("polling cluster state: %w", err)
+		}
+
+		var result map[string]any
+		if err := json.NewDecoder(pollResp.Body).Decode(&result); err != nil {
+			pollResp.Body.Close()
+			return fmt.Errorf("decoding poll response: %w", err)
+		}
+		pollResp.Body.Close()
+
+		pollProps, _ := result["properties"].(map[string]any)
+		state, _ := pollProps["provisioningState"].(string)
+		lgr.Info(fmt.Sprintf("cluster provisioning state: %s", state))
+
+		if state == "Succeeded" {
+			// Verify the feature was actually enabled
+			ip, _ := pollProps["ingressProfile"].(map[string]any)
+			war, _ := ip["webAppRouting"].(map[string]any)
+			gwImpl, _ := war["gatewayAPIImplementations"].(map[string]any)
+			ariSection, _ := gwImpl["appRoutingIstio"].(map[string]any)
+			mode, _ := ariSection["mode"].(string)
+
+			ingressProfileRaw, _ := json.MarshalIndent(ip, "", "  ")
+			lgr.Info(fmt.Sprintf("ingressProfile from ARM response: %s", string(ingressProfileRaw)))
+
+			if mode != "Enabled" {
+				return fmt.Errorf("approuting-istio was not enabled correctly: expected mode \"Enabled\", got %q (ingressProfile: %s)", mode, string(ingressProfileRaw))
+			}
+			lgr.Info("verified approuting-istio is enabled")
+			break
+		}
+		if state == "Failed" || state == "Canceled" {
+			return fmt.Errorf("cluster provisioning failed with state: %s", state)
+		}
+	}
+
+	return nil
 }
 
 func LoadAks(id azure.Resource, dnsServiceIp, location, principalId, clientId, oidcUrl string, options map[string]struct{}) *aks {

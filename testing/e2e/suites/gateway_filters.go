@@ -168,7 +168,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
 			ServiceAccountName: infra.FilterClusterSaName,
-			GatewayClassName:   manifests.IstioGatewayClassName,
+			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
 		})
@@ -281,7 +281,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
 			ServiceAccountName: infra.FilterClusterSaName,
-			GatewayClassName:   manifests.IstioGatewayClassName,
+			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
 		})
@@ -389,7 +389,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
 			ServiceAccountName: infra.FilterNsSaName,
-			GatewayClassName:   manifests.IstioGatewayClassName,
+			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
 		})
@@ -497,7 +497,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
 			ServiceAccountName: infra.FilterNsSaName,
-			GatewayClassName:   manifests.IstioGatewayClassName,
+			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
 		})
