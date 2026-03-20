@@ -309,11 +309,13 @@ func EnableAppRoutingIstio(ctx context.Context, subscriptionId, resourceGroup, c
 
 	// Step 4: Poll for completion by waiting for provisioning state
 	lgr.Info("waiting for approuting-istio enablement to complete")
+	pollCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer cancel()
 	for {
 		time.Sleep(30 * time.Second)
 
-		pollResp, err := doWithRetry(ctx, lgr, func() (*http.Request, error) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		pollResp, err := doWithRetry(pollCtx, lgr, func() (*http.Request, error) {
+			req, err := http.NewRequestWithContext(pollCtx, http.MethodGet, url, nil)
 			if err != nil {
 				return nil, err
 			}
