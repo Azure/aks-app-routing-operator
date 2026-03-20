@@ -14,3 +14,6 @@ job-app-routing-operator-e2e.log
 
 # Mac files
 *.DS_Store
+
+# Claude
+./claude/scheduled_tasks.lock
