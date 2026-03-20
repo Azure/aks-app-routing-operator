@@ -35,7 +35,7 @@ type infra struct {
 	AuthType            AuthType
 	ServicePrincipal    *clients.ServicePrincipal
 	// PostCreate is an optional function called after the cluster is created.
-	// It can be used to enable features that require a separate API call (e.g., approuting-istio).
+	// It can be used to enable features via the REST API that aren't available in the SDK
 	PostCreate func(ctx context.Context, subscriptionId, resourceGroup, clusterName string) error
 }
 
