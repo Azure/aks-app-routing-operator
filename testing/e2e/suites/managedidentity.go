@@ -22,11 +22,15 @@ import (
 
 func managedIdentityTests(in infra.Provisioned) []test {
 	// Skip managed identity tests on gateway clusters - these tests create ExternalDNS
-	// resources targeting ManagedIdentityZone and ManagedIdentityPrivateZone. On Istio/gateway
-	// clusters, the gateway tests also manage those same zones, so two different controllers
+	// resources targeting ManagedIdentityZone and ManagedIdentityPrivateZone. On gateway
+	// clusters (both full-mesh Istio and meshless approuting-istio), the gateway tests
+	// also manage those same zones via CRD-based external-dns, so two different controllers
 	// would compete to manage DNS records for the same zone, causing flaky behavior.
 	opts := in.Cluster.GetOptions()
 	if _, hasIstio := opts[clients.IstioServiceMeshOpt.Name]; hasIstio {
+		return []test{}
+	}
+	if _, hasAppRoutingIstio := opts[clients.AppRoutingIstioOpt.Name]; hasAppRoutingIstio {
 		return []test{}
 	}
 

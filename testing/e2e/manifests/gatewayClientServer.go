@@ -19,6 +19,9 @@ const (
 	// IstioGatewayClassName is the GatewayClass name for Istio managed gateways
 	IstioGatewayClassName = "istio"
 
+	// AppRoutingIstioGatewayClassName is the GatewayClass name for App Routing meshless Istio gateways
+	AppRoutingIstioGatewayClassName = "approuting-istio"
+
 	// TLSCertKeyvaultURIOption is the TLS option key for specifying the KeyVault certificate URI
 	TLSCertKeyvaultURIOption = "kubernetes.azure.com/tls-cert-keyvault-uri"
 
