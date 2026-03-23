@@ -55,6 +55,8 @@ type multiZoneGatewayTestConfig struct {
 	zoneConfigs []gatewayZoneConfig
 	// zoneType indicates whether these are public or private zones
 	zoneType zoneType
+	// gatewayClassName is the GatewayClass name to use for Gateway resources (e.g., "istio" or "approuting-istio")
+	gatewayClassName string
 }
 
 // gatewayZoneConfig contains zone-specific configuration for gateway tests.
@@ -129,17 +131,29 @@ func getZoneIDs(configs []gatewayZoneConfig) []string {
 // - Multiple ExternalDNS (namespace-scoped) CRDs can share a zone (multi-tenant use case)
 // - ClusterExternalDNS claims exclusive ownership of a zone (no sharing allowed)
 
-// isGatewayCluster checks if the provisioned infrastructure has Gateway API and Istio enabled
-func isGatewayCluster(in infra.Provisioned) bool {
+// getGatewayClassName returns the GatewayClass name for the provisioned cluster,
+// or an empty string if the cluster does not support Gateway API tests.
+func getGatewayClassName(in infra.Provisioned) string {
 	opts := in.Cluster.GetOptions()
-	_, hasIstio := opts[clients.IstioServiceMeshOpt.Name]
 	_, hasGateway := opts[clients.ManagedGatewayOpt.Name]
-	return hasIstio && hasGateway
+	if !hasGateway {
+		return ""
+	}
+
+	if _, hasIstio := opts[clients.IstioServiceMeshOpt.Name]; hasIstio {
+		return manifests.IstioGatewayClassName
+	}
+	if _, hasAppRoutingIstio := opts[clients.AppRoutingIstioOpt.Name]; hasAppRoutingIstio {
+		return manifests.AppRoutingIstioGatewayClassName
+	}
+
+	return ""
 }
 
 func gatewayTests(in infra.Provisioned) []test {
-	// Only run gateway tests on clusters with Gateway API and Istio enabled
-	if !isGatewayCluster(in) {
+	// Only run gateway tests on clusters with a managed GatewayClass
+	gwClassName := getGatewayClassName(in)
+	if gwClassName == "" {
 		return []test{}
 	}
 
@@ -154,9 +168,10 @@ func gatewayTests(in infra.Provisioned) []test {
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				testConfig := multiZoneGatewayTestConfig{
-					clientId:    in.ManagedIdentity.GetClientID(),
-					zoneConfigs: buildPublicZoneConfigs(in),
-					zoneType:    zoneTypePublic,
+					clientId:         in.ManagedIdentity.GetClientID(),
+					zoneConfigs:      buildPublicZoneConfigs(in),
+					zoneType:         zoneTypePublic,
+					gatewayClassName: gwClassName,
 				}
 				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
 					return err
@@ -174,9 +189,10 @@ func gatewayTests(in infra.Provisioned) []test {
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				testConfig := multiZoneGatewayTestConfig{
-					clientId:    in.ManagedIdentity.GetClientID(),
-					zoneConfigs: buildPrivateZoneConfigs(in),
-					zoneType:    zoneTypePrivate,
+					clientId:         in.ManagedIdentity.GetClientID(),
+					zoneConfigs:      buildPrivateZoneConfigs(in),
+					zoneType:         zoneTypePrivate,
+					gatewayClassName: gwClassName,
 				}
 				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
 					return err
@@ -284,7 +300,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
 		clusterHostPrefixes[i] = recordName
 		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix(), tlsHost)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d: %w", zoneCfg.ZoneIndex, err)
 		}
@@ -394,7 +410,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
 		namespaceHostPrefixes[i] = recordName
 		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, infra.GatewayNsSaName, testConfig.zoneType.Prefix(), tlsHost)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, infra.GatewayNsSaName, testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 		}
@@ -443,9 +459,10 @@ func deployGatewayResourcesForZone(
 	serviceAccountName string,
 	zoneTypePrefix string,
 	tlsHost string,
+	gatewayClassName string,
 ) (*manifests.GatewayClientServerResources, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("deploying gateway resources", "host", tlsHost, "zone", zoneCfg.ZoneName, "namespace", namespace)
+	lgr.Info("deploying gateway resources", "host", tlsHost, "zone", zoneCfg.ZoneName, "namespace", namespace, "gatewayClass", gatewayClassName)
 	// Create Gateway API resources
 	resources := manifests.GatewayClientAndServer(
 		namespace,
@@ -454,7 +471,7 @@ func deployGatewayResourcesForZone(
 		zoneCfg.KeyvaultCertURI,
 		tlsHost,
 		serviceAccountName,
-		manifests.IstioGatewayClassName,
+		gatewayClassName,
 	)
 
 	// Deploy all resources
@@ -562,14 +579,15 @@ func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deployme
 		foundARecordDeletion := false
 		foundTXTRecordDeletion := false
 
-		// Check logs from each pod
-		for _, pod := range pods.Items {
-			req := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
+		// scanLogs checks a pod's logs for the expected deletion entries.
+		scanLogs := func(pod corev1.Pod, opts *corev1.PodLogOptions) {
+			req := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, opts)
 			logs, err := req.Stream(ctx)
 			if err != nil {
-				lgr.Info("failed to get pod logs", "pod", pod.Name, "error", err)
-				continue
+				// Previous container logs may not exist; that's fine.
+				return
 			}
+			defer logs.Close()
 
 			scanner := bufio.NewScanner(logs)
 			for scanner.Scan() {
@@ -581,7 +599,20 @@ func waitForDNSRecordDeletion(ctx context.Context, config *rest.Config, deployme
 					foundTXTRecordDeletion = true
 				}
 			}
-			logs.Close()
+		}
+
+		// First check current container logs from each pod.
+		for _, pod := range pods.Items {
+			scanLogs(pod, &corev1.PodLogOptions{})
+		}
+
+		// If we still haven't found both entries, check previous container logs
+		// as a fallback. When a pod restarts after external-dns logged the
+		// deletion, the entries will only exist in the previous container's logs.
+		if !foundARecordDeletion || !foundTXTRecordDeletion {
+			for _, pod := range pods.Items {
+				scanLogs(pod, &corev1.PodLogOptions{Previous: true})
+			}
 		}
 
 		if foundARecordDeletion && foundTXTRecordDeletion {

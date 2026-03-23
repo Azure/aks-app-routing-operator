@@ -85,6 +85,13 @@ func (i *infra) Provision(ctx context.Context, tenantId, subscriptionId, applica
 		if err != nil {
 			return logger.Error(lgr, fmt.Errorf("creating managed cluster: %w", err))
 		}
+
+		if i.PostCreate != nil {
+			if err := i.PostCreate(ctx, subscriptionId, i.ResourceGroup, "cluster"+i.Suffix); err != nil {
+				return logger.Error(lgr, fmt.Errorf("running post-create hook: %w", err))
+			}
+		}
+
 		return nil
 	})
 

@@ -35,6 +35,15 @@ var Infras = infras{
 		McOpts:              []clients.McOpt{clients.IstioServiceMeshOpt, clients.ManagedGatewayOpt},
 		FederatedNamespaces: GenerateGatewayFederatedNamespaces(),
 	},
+	{
+		Name:                "gateway-approuting-istio-cluster",
+		ResourceGroup:       uniqueResourceGroup(),
+		Location:            getLocation(),
+		Suffix:              uuid.New().String()[:16],
+		McOpts:              []clients.McOpt{clients.ManagedGatewayOpt, clients.AppRoutingIstioOpt},
+		FederatedNamespaces: GenerateGatewayFederatedNamespaces(),
+		PostCreate:          clients.EnableAppRoutingIstio,
+	},
 	// TODO: add back when service principal cluster is supported
 	//{
 	//	Name:                    "service principal cluster",

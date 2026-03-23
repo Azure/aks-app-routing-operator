@@ -34,6 +34,9 @@ type infra struct {
 	FederatedNamespaces []FederatedNamespace
 	AuthType            AuthType
 	ServicePrincipal    *clients.ServicePrincipal
+	// PostCreate is an optional function called after the cluster is created.
+	// It can be used to enable features via the REST API that aren't available in the SDK
+	PostCreate func(ctx context.Context, subscriptionId, resourceGroup, clusterName string) error
 }
 
 type Identifier interface {
