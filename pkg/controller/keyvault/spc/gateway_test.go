@@ -110,6 +110,62 @@ func TestGatewayToSpcOpts(t *testing.T) {
 			wantSpcOpts: nil,
 		},
 		{
+			name: "approuting-istio managed gateway without listeners",
+			conf: &config.Config{},
+			gateway: &gatewayv1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: appRoutingIstioGatewayClassName,
+				},
+			},
+			wantSpcOpts: nil,
+		},
+		{
+			name: "approuting-istio managed gateway with listener and valid TLS config",
+			conf: &config.Config{
+				TenantID: gwTestTenantID,
+				Cloud:    gwTestCloud,
+			},
+			gateway: &gatewayv1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gwTestGatewayName,
+					Namespace: gwTestNamespace,
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: appRoutingIstioGatewayClassName,
+					Listeners: []gatewayv1.Listener{
+						{
+							Name: "https",
+							TLS: &gatewayv1.GatewayTLSConfig{
+								Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+									certUriTLSOption: "https://test-vault.vault.azure.net/secrets/test-cert",
+									"kubernetes.azure.com/tls-cert-service-account": gwTestServiceAccount,
+								},
+							},
+						},
+					},
+				},
+			},
+			objects: []client.Object{validServiceAccount},
+			wantSpcOpts: []spcOpts{
+				{
+					action:           actionReconcile,
+					name:             "kv-gw-cert-test-gateway-https",
+					namespace:        gwTestNamespace,
+					clientId:         gwTestClientID,
+					tenantId:         gwTestTenantID,
+					vaultName:        gwTestVaultName,
+					certName:         gwTestCertName,
+					secretName:       "kv-gw-cert-test-gateway-https",
+					cloud:            gwTestCloud,
+					workloadIdentity: true,
+				},
+			},
+		},
+		{
 			name: "managed gateway with listener but no TLS",
 			conf: &config.Config{},
 			gateway: &gatewayv1.Gateway{
@@ -607,6 +663,15 @@ func TestIsManagedGateway(t *testing.T) {
 			gateway: &gatewayv1.Gateway{
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: istioGatewayClassName,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "approuting-istio managed gateway",
+			gateway: &gatewayv1.Gateway{
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: appRoutingIstioGatewayClassName,
 				},
 			},
 			want: true,

@@ -10,4 +10,7 @@ const (
 	IngressServiceAccountTLSAnnotation = util.ServiceAccountTLSOption
 )
 
-const istioGatewayClassName = "istio"
+const (
+	istioGatewayClassName           = "istio"
+	appRoutingIstioGatewayClassName = "approuting-istio"
+)
