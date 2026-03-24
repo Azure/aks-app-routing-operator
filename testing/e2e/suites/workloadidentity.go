@@ -22,9 +22,15 @@ import (
 
 func workloadIdentityTests(in infra.Provisioned) []test {
 	// Skip workload identity tests on gateway clusters - these tests are for Ingress
-	// and would conflict with gateway tests over ManagedIdentityZone ownership
+	// and would conflict with gateway tests over ManagedIdentityZone ownership.
+	// Both full-mesh (IstioServiceMeshOpt) and meshless (AppRoutingIstioOpt) gateway
+	// clusters use ManagedIdentityZones for their CRD-based external-dns, so running
+	// WI tests on either would cause DNS record thrashing on the same zone.
 	opts := in.Cluster.GetOptions()
 	if _, hasIstio := opts[clients.IstioServiceMeshOpt.Name]; hasIstio {
+		return []test{}
+	}
+	if _, hasAppRoutingIstio := opts[clients.AppRoutingIstioOpt.Name]; hasAppRoutingIstio {
 		return []test{}
 	}
 

@@ -128,13 +128,14 @@ func gatewayToSpcOpts(ctx context.Context, cl client.Client, conf *config.Config
 	}
 }
 
-// IsManagedGateway checks if the given Gateway is an Istio Gateway
+// IsManagedGateway checks if the given Gateway uses a managed GatewayClass
 func IsManagedGateway(gw *gatewayv1.Gateway) bool {
 	if gw == nil {
 		return false
 	}
 
-	return gw.Spec.GatewayClassName == istioGatewayClassName
+	name := gw.Spec.GatewayClassName
+	return name == istioGatewayClassName || name == appRoutingIstioGatewayClassName
 }
 
 // GetGatewayListenerSpcName returns a name for the SecretProviderClass that is unique to the Gateway and Listener
