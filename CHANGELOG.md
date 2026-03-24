@@ -5,14 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.20] - 2026-03-23
+## [0.2.20] - 2026-03-24
 
 ### Added
-- support for `approuting-istio` GatewayClass in SPC controller - [link](https://github.com/Azure/aks-app-routing-operator/pull/569)
+- support for `approuting-istio` GatewayClass in SPC controller - [link](https://github.com/Azure/aks-app-routing-operator/pull/571)
 - domain name status field - [link](https://github.com/Azure/aks-app-routing-operator/pull/568)
 - managed-by labels to placeholder pod template - [link](https://github.com/Azure/aks-app-routing-operator/pull/567)
 
 ### Changed
+- bumped Go to 1.25.8 for stdlib CVE fixes - [link](https://github.com/Azure/aks-app-routing-operator/pull/573)
+- CI workflows now read Go version from go.mod - [link](https://github.com/Azure/aks-app-routing-operator/pull/574)
 - widened SPC events and added logging - [link](https://github.com/Azure/aks-app-routing-operator/pull/569)
 
 ### Fixed
