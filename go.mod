@@ -1,6 +1,6 @@
 module github.com/Azure/aks-app-routing-operator
 
-go 1.25.7
+go 1.25.8
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0

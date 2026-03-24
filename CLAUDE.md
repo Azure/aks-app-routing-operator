@@ -177,4 +177,5 @@ To upgrade the Go version perform the following steps
 - Run `go mod tidy`
 - Upgrade the base dockerfiles to use the new Go image in ./docker directory
 - Run `make unit` to ensure unit tests all pass
-- Pin the `go-version` in **all** `actions/setup-go` steps in `.github/workflows/` to the exact new version (e.g. `go-version: '1.25.7'`). Do **not** use semver ranges like `~1.25` — the version must match `go.mod` exactly, otherwise CI will fail with `compile: version "X" does not match go tool version "Y"` when building with `-race`. The affected workflow files are: `unit.yaml`, `e2e.yaml`, and `provision-test.yaml`.
+
+Note: The CI workflow files (`unit.yaml`, `e2e.yaml`, `provision-test.yaml`) use `go-version-file: 'go.mod'` to read the Go version automatically, so no workflow changes are needed when bumping Go.
