@@ -27,6 +27,9 @@ var (
 	}
 	nginxVersionsAscending = []NginxIngressVersion{nginx1_13_7}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
+
+	nginxImagePath      = "/oss/kubernetes/ingress/nginx-ingress-controller:"
+	dalecNginxImagePath = "/oss/v2/ingress-nginx/controller:"
 )
 
 var nginxLabels = util.MergeMaps(
@@ -381,6 +384,21 @@ func newNginxIngressControllerPromService(conf *config.Config, ingressConfig *Ng
 	}
 }
 
+func nginxImage(conf *config.Config, ingressConfig *NginxIngressConfig) string {
+	imagePath := nginxImagePath
+	if conf.EnableDalecNginx {
+		imagePath = dalecNginxImagePath
+	}
+	return path.Join(conf.Registry, imagePath+ingressConfig.Version.tag)
+}
+
+func nginxRunAsUser(conf *config.Config) *int64 {
+	if conf.EnableDalecNginx {
+		return util.Int64Ptr(1000)
+	}
+	return util.Int64Ptr(101)
+}
+
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
 	ingressControllerDeploymentLabels := AddComponentLabel(GetTopLevelLabels(), IngressControllerComponentName)
 
@@ -467,7 +485,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withLivenessProbeMatchingReadinessNewFailureThresh(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+ingressConfig.Version.tag),
+						Image: nginxImage(conf, ingressConfig),
 						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: util.ToPtr(false),
@@ -476,7 +494,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 								Drop: []corev1.Capability{"ALL"},
 							},
 							RunAsNonRoot: util.ToPtr(true),
-							RunAsUser:    util.Int64Ptr(101),
+							RunAsUser:    nginxRunAsUser(conf),
 							SeccompProfile: &corev1.SeccompProfile{
 								Type: corev1.SeccompProfileTypeRuntimeDefault,
 							},
