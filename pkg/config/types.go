@@ -73,6 +73,7 @@ type Config struct {
 	ConcurrencyWatchdogVotes            int
 	DisableOSM                          bool
 	DisableIngressNginx                 bool
+	EnableDalecNginx                    bool
 	OperatorDeployment                  string
 	ClusterUid                          string
 	DnsSyncInterval                     time.Duration
