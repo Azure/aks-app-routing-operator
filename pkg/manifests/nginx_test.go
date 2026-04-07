@@ -612,6 +612,41 @@ func TestIngressControllerResources(t *testing.T) {
 	}
 }
 
+func TestIngressControllerResourcesDalec(t *testing.T) {
+	t.Parallel()
+
+	var unspecifiedNginxVersion *NginxIngressVersion = nil
+	nginxVersions := []*NginxIngressVersion{unspecifiedNginxVersion}
+	for _, version := range nginxVersionsAscending {
+		version := version // loop variable capture
+		nginxVersions = append(nginxVersions, &version)
+	}
+
+	for _, tc := range controllerTestCases {
+		tc := tc
+		t.Run(
+			tc.Name,
+			func(t *testing.T) {
+				// clone the config with EnableDalecNginx set
+				dalecConf := *tc.Conf
+				dalecConf.EnableDalecNginx = true
+
+				for _, version := range nginxVersions {
+					tc.IngConfig.Version = version
+					objs := GetNginxResources(&dalecConf, tc.IngConfig)
+
+					versionName := "default_version"
+					if version != nil {
+						versionName = version.name
+					}
+					fixture := path.Join("fixtures", "nginx", "dalec", versionName, tc.Name) + ".yaml"
+					AssertFixture(t, fixture, objs.Objects())
+					GatekeeperTest(t, fixture, nginxExceptions...)
+				}
+			})
+	}
+}
+
 func TestMapAdditions(t *testing.T) {
 	t.Parallel()
 
