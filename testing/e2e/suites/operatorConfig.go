@@ -76,7 +76,7 @@ type cfgBuilderWithZones struct {
 	cfgBuilderWithVersions
 	zones            []manifests.DnsZones
 	enableGatewayTLS bool
-	enableDalecNginx bool
+	dalecNginx       []bool
 }
 
 func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, private []manifests.DnsZoneCount) cfgBuilderWithZones {
@@ -100,6 +100,7 @@ func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, priva
 	return cfgBuilderWithZones{
 		cfgBuilderWithVersions: c,
 		zones:                  zones,
+		dalecNginx:             []bool{false, true},
 	}
 }
 
@@ -108,8 +109,11 @@ func (c cfgBuilderWithZones) withGatewayTLS(enabled bool) cfgBuilderWithZones {
 	return c
 }
 
-func (c cfgBuilderWithZones) withDalecNginx(enabled bool) cfgBuilderWithZones {
-	c.enableDalecNginx = enabled
+// withDalecNginx overrides which dalec configurations to test.
+// By default, tests run with both dalec disabled and enabled.
+// Pass explicit values to restrict, e.g. withDalecNginx(false) to skip dalec.
+func (c cfgBuilderWithZones) withDalecNginx(enabled ...bool) cfgBuilderWithZones {
+	c.dalecNginx = enabled
 	return c
 }
 
@@ -121,16 +125,18 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 	for _, osmEnabled := range c.osmEnabled {
 		for _, version := range c.versions {
 			for _, zones := range c.zones {
-				ret = append(ret, manifests.OperatorConfig{
-					Version:          version,
-					Location:         c.location,
-					TenantId:         c.tenantId,
-					Msi:              c.msi,
-					Zones:            zones,
-					DisableOsm:       !osmEnabled,
-					EnableGatewayTLS: c.enableGatewayTLS,
-					EnableDalecNginx: c.enableDalecNginx,
-				})
+				for _, dalec := range c.dalecNginx {
+					ret = append(ret, manifests.OperatorConfig{
+						Version:          version,
+						Location:         c.location,
+						TenantId:         c.tenantId,
+						Msi:              c.msi,
+						Zones:            zones,
+						DisableOsm:       !osmEnabled,
+						EnableGatewayTLS: c.enableGatewayTLS,
+						EnableDalecNginx: dalec,
+					})
+				}
 			}
 		}
 	}
