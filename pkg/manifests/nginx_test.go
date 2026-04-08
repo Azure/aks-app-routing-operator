@@ -627,13 +627,14 @@ func TestIngressControllerResourcesDalec(t *testing.T) {
 		t.Run(
 			tc.Name,
 			func(t *testing.T) {
-				// clone the config with EnableDalecNginx set
+				// clone both the config and ingress config to avoid races with the non-dalec test
 				dalecConf := *tc.Conf
 				dalecConf.EnableDalecNginx = true
+				dalecIngConfig := *tc.IngConfig
 
 				for _, version := range nginxVersions {
-					tc.IngConfig.Version = version
-					objs := GetNginxResources(&dalecConf, tc.IngConfig)
+					dalecIngConfig.Version = version
+					objs := GetNginxResources(&dalecConf, &dalecIngConfig)
 
 					versionName := "default_version"
 					if version != nil {
