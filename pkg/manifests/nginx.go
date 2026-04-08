@@ -409,13 +409,6 @@ func nginxRunAsUser(conf *config.Config) *int64 {
 	return util.Int64Ptr(101)
 }
 
-func nginxRunAsGroup(conf *config.Config) *int64 {
-	if conf.EnableDalecNginx {
-		return util.Int64Ptr(1000)
-	}
-	return util.Int64Ptr(82)
-}
-
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
 	ingressControllerDeploymentLabels := AddComponentLabel(GetTopLevelLabels(), IngressControllerComponentName)
 
@@ -512,7 +505,6 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							},
 							RunAsNonRoot: util.ToPtr(true),
 							RunAsUser:    nginxRunAsUser(conf),
-							RunAsGroup:   nginxRunAsGroup(conf),
 							SeccompProfile: &corev1.SeccompProfile{
 								Type: corev1.SeccompProfileTypeRuntimeDefault,
 							},
