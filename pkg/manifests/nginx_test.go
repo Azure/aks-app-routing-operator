@@ -617,7 +617,7 @@ func TestIngressControllerResourcesDalec(t *testing.T) {
 
 	var unspecifiedNginxVersion *NginxIngressVersion = nil
 	nginxVersions := []*NginxIngressVersion{unspecifiedNginxVersion}
-	for _, version := range nginxVersionsAscending {
+	for _, version := range dalecNginxVersionsAscending {
 		version := version // loop variable capture
 		nginxVersions = append(nginxVersions, &version)
 	}

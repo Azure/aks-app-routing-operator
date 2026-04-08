@@ -28,6 +28,13 @@ var (
 	nginxVersionsAscending = []NginxIngressVersion{nginx1_13_7}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
 
+	dalecNginx1_13_9 = NginxIngressVersion{
+		name: "v1.13.9",
+		tag:  "v1.13.9",
+	}
+	dalecNginxVersionsAscending = []NginxIngressVersion{dalecNginx1_13_9}
+	LatestDalecNginxVersion     = dalecNginxVersionsAscending[len(dalecNginxVersionsAscending)-1]
+
 	nginxImagePath      = "/oss/kubernetes/ingress/nginx-ingress-controller:"
 	dalecNginxImagePath = "/oss/v2/ingress-nginx/controller:"
 )
@@ -64,7 +71,11 @@ const internalLogFormat = `{"remote_addr":"$remote_addr","remote_user":"$remote_
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
 	if ingressConfig != nil && ingressConfig.Version == nil {
-		ingressConfig.Version = &LatestNginxVersion
+		if conf.EnableDalecNginx {
+			ingressConfig.Version = &LatestDalecNginxVersion
+		} else {
+			ingressConfig.Version = &LatestNginxVersion
+		}
 	}
 
 	res := &NginxResources{
@@ -385,11 +396,10 @@ func newNginxIngressControllerPromService(conf *config.Config, ingressConfig *Ng
 }
 
 func nginxImage(conf *config.Config, ingressConfig *NginxIngressConfig) string {
-	imagePath := nginxImagePath
 	if conf.EnableDalecNginx {
-		imagePath = dalecNginxImagePath
+		return path.Join(conf.Registry, dalecNginxImagePath+ingressConfig.Version.tag)
 	}
-	return path.Join(conf.Registry, imagePath+ingressConfig.Version.tag)
+	return path.Join(conf.Registry, nginxImagePath+ingressConfig.Version.tag)
 }
 
 func nginxRunAsUser(conf *config.Config) *int64 {
@@ -397,6 +407,13 @@ func nginxRunAsUser(conf *config.Config) *int64 {
 		return util.Int64Ptr(1000)
 	}
 	return util.Int64Ptr(101)
+}
+
+func nginxRunAsGroup(conf *config.Config) *int64 {
+	if conf.EnableDalecNginx {
+		return util.Int64Ptr(1000)
+	}
+	return util.Int64Ptr(82)
 }
 
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
@@ -495,6 +512,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 							},
 							RunAsNonRoot: util.ToPtr(true),
 							RunAsUser:    nginxRunAsUser(conf),
+							RunAsGroup:   nginxRunAsGroup(conf),
 							SeccompProfile: &corev1.SeccompProfile{
 								Type: corev1.SeccompProfileTypeRuntimeDefault,
 							},
