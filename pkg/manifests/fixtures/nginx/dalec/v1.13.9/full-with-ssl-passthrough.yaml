@@ -265,8 +265,7 @@ metadata:
 spec:
   externalTrafficPolicy: Local
   loadBalancerSourceRanges:
-  - 100.00.000.0/22
-  - 222.22.222.2/22
+  - 127.1.000.1
   ports:
   - name: http
     port: 80
@@ -374,6 +373,7 @@ spec:
         - --enable-annotation-validation=true
         - --shutdown-grace-period=15
         - --enable-metrics=true
+        - --enable-ssl-passthrough=true
         env:
         - name: POD_NAME
           valueFrom:
@@ -383,7 +383,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: test-registry/oss/v2/ingress-nginx/controller:v1.13.7
+        image: test-registry/oss/v2/ingress-nginx/controller:v1.13.9
         livenessProbe:
           failureThreshold: 6
           httpGet:
@@ -423,6 +423,7 @@ spec:
             - NET_BIND_SERVICE
             drop:
             - ALL
+          runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
           seccompProfile:

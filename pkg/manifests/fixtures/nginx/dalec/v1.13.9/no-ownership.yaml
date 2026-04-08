@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   creationTimestamp: null
+  labels:
+    openservicemesh.io/monitored-by: osm
   name: test-namespace
 spec: {}
 status: {}
@@ -323,6 +325,7 @@ spec:
     metadata:
       annotations:
         kubernetes.azure.com/set-kube-service-host-fqdn: "true"
+        openservicemesh.io/sidecar-injection: disabled
         prometheus.io/port: "10254"
         prometheus.io/scrape: "true"
       creationTimestamp: null
@@ -379,7 +382,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: test-registry/oss/v2/ingress-nginx/controller:v1.13.7
+        image: test-registry/oss/v2/ingress-nginx/controller:v1.13.9
         livenessProbe:
           failureThreshold: 6
           httpGet:
@@ -419,6 +422,7 @@ spec:
             - NET_BIND_SERVICE
             drop:
             - ALL
+          runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
           seccompProfile:
