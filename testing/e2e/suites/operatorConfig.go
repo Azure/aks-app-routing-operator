@@ -76,6 +76,7 @@ type cfgBuilderWithZones struct {
 	cfgBuilderWithVersions
 	zones            []manifests.DnsZones
 	enableGatewayTLS bool
+	enableDalecNginx bool
 }
 
 func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, private []manifests.DnsZoneCount) cfgBuilderWithZones {
@@ -107,6 +108,11 @@ func (c cfgBuilderWithZones) withGatewayTLS(enabled bool) cfgBuilderWithZones {
 	return c
 }
 
+func (c cfgBuilderWithZones) withDalecNginx(enabled bool) cfgBuilderWithZones {
+	c.enableDalecNginx = enabled
+	return c
+}
+
 type operatorCfgs []manifests.OperatorConfig
 
 func (c cfgBuilderWithZones) build() operatorCfgs {
@@ -123,6 +129,7 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 					Zones:            zones,
 					DisableOsm:       !osmEnabled,
 					EnableGatewayTLS: c.enableGatewayTLS,
+					EnableDalecNginx: c.enableDalecNginx,
 				})
 			}
 		}

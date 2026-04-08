@@ -195,6 +195,7 @@ type OperatorConfig struct {
 	Zones            DnsZones
 	DisableOsm       bool
 	EnableGatewayTLS bool
+	EnableDalecNginx bool
 }
 
 func (o *OperatorConfig) image(latestImage string) string {
@@ -267,6 +268,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.DisableOsm {
 		ret = append(ret, "--disable-osm")
+	}
+
+	if o.EnableDalecNginx {
+		ret = append(ret, "--enable-dalec-nginx")
 	}
 
 	return ret
