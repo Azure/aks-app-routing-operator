@@ -596,9 +596,11 @@ func TestIngressControllerResources(t *testing.T) {
 		t.Run(
 			tc.Name,
 			func(t *testing.T) {
+				// copy to avoid mutating shared controllerTestCases (prevents data races with parallel dalec test)
+				ingConfig := *tc.IngConfig
 				for _, version := range nginxVersions {
-					tc.IngConfig.Version = version
-					objs := GetNginxResources(tc.Conf, tc.IngConfig)
+					ingConfig.Version = version
+					objs := GetNginxResources(tc.Conf, &ingConfig)
 
 					versionName := "default_version"
 					if version != nil {

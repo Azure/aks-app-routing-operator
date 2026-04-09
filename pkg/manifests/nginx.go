@@ -71,11 +71,14 @@ const internalLogFormat = `{"remote_addr":"$remote_addr","remote_user":"$remote_
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
 	if ingressConfig != nil && ingressConfig.Version == nil {
+		// copy to avoid mutating the caller's struct (prevents data races)
+		cfgCopy := *ingressConfig
 		if conf.EnableDalecNginx {
-			ingressConfig.Version = &LatestDalecNginxVersion
+			cfgCopy.Version = &LatestDalecNginxVersion
 		} else {
-			ingressConfig.Version = &LatestNginxVersion
+			cfgCopy.Version = &LatestNginxVersion
 		}
+		ingressConfig = &cfgCopy
 	}
 
 	res := &NginxResources{
