@@ -146,6 +146,15 @@ var ManagedGatewayOpt = McOpt{
 	},
 }
 
+// DalecClusterOpt marks the cluster as a dalec-nginx testing cluster.
+// The AKS cluster itself is unchanged (dalec is a test-side concern); this opt
+// is detected by the operator-config builder to set dalecNginx=true and restrict
+// versions to OperatorVersionLatest only.
+var DalecClusterOpt = McOpt{
+	Name: "dalec nginx",
+	fn:   func(mc *armcontainerservice.ManagedCluster) error { return nil },
+}
+
 // AppRoutingIstioOpt marks the cluster as using the approuting-istio GatewayClass.
 // The actual enablement is done post-creation via EnableAppRoutingIstio since the
 // SDK does not yet have the types for the 2026-01-02-preview API.

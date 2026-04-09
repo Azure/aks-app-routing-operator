@@ -10,13 +10,16 @@ type cfgBuilder struct {
 	msi      string
 	tenantId string
 	location string
+	isDalec  bool
 }
 
 func builderFromInfra(infra infra.Provisioned) cfgBuilder {
+	_, isDalec := infra.Cluster.GetOptions()[clients.DalecClusterOpt.Name]
 	return cfgBuilder{
 		msi:      infra.Cluster.GetClientId(),
 		tenantId: infra.TenantId,
 		location: infra.Cluster.GetLocation(),
+		isDalec:  isDalec,
 	}
 }
 
@@ -76,7 +79,6 @@ type cfgBuilderWithZones struct {
 	cfgBuilderWithVersions
 	zones            []manifests.DnsZones
 	enableGatewayTLS bool
-	dalecNginx       []bool
 }
 
 func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, private []manifests.DnsZoneCount) cfgBuilderWithZones {
@@ -100,20 +102,11 @@ func (c cfgBuilderWithVersions) withZones(public []manifests.DnsZoneCount, priva
 	return cfgBuilderWithZones{
 		cfgBuilderWithVersions: c,
 		zones:                  zones,
-		dalecNginx:             []bool{false, true},
 	}
 }
 
 func (c cfgBuilderWithZones) withGatewayTLS(enabled bool) cfgBuilderWithZones {
 	c.enableGatewayTLS = enabled
-	return c
-}
-
-// withDalecNginx overrides which dalec configurations to test.
-// By default, tests run with both dalec disabled and enabled.
-// Pass explicit values to restrict, e.g. withDalecNginx(false) to skip dalec.
-func (c cfgBuilderWithZones) withDalecNginx(enabled ...bool) cfgBuilderWithZones {
-	c.dalecNginx = enabled
 	return c
 }
 
@@ -124,19 +117,24 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 
 	for _, osmEnabled := range c.osmEnabled {
 		for _, version := range c.versions {
+			// Dalec clusters only produce configs for versions that support dalec.
+			// SupportsDalec() is the single source of truth — when a new released
+			// version ships with dalec, update it there.
+			if c.isDalec && !version.SupportsDalec() {
+				continue
+			}
+
 			for _, zones := range c.zones {
-				for _, dalec := range c.dalecNginx {
-					ret = append(ret, manifests.OperatorConfig{
-						Version:          version,
-						Location:         c.location,
-						TenantId:         c.tenantId,
-						Msi:              c.msi,
-						Zones:            zones,
-						DisableOsm:       !osmEnabled,
-						EnableGatewayTLS: c.enableGatewayTLS,
-						EnableDalecNginx: dalec,
-					})
-				}
+				ret = append(ret, manifests.OperatorConfig{
+					Version:          version,
+					Location:         c.location,
+					TenantId:         c.tenantId,
+					Msi:              c.msi,
+					Zones:            zones,
+					DisableOsm:       !osmEnabled,
+					EnableGatewayTLS: c.enableGatewayTLS,
+					EnableDalecNginx: c.isDalec,
+				})
 			}
 		}
 	}

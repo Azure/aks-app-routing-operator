@@ -157,6 +157,12 @@ func (o OperatorVersion) String() string {
 	}
 }
 
+// SupportsDalec reports whether this operator version supports the --enable-dalec-nginx flag.
+// Update the threshold here when a new released version ships with dalec support.
+func (o OperatorVersion) SupportsDalec() bool {
+	return o >= OperatorVersionLatest
+}
+
 // DnsZoneCount is enum for the number of dns zones but shouldn't be used directly. Use the exported fields of this type instead.
 type DnsZoneCount uint
 
@@ -237,6 +243,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version >= OperatorVersionLatest {
 		enableGatewayArg = "--enable-gateway-tls"
+		enableDalecNginxArg = "--enable-dalec-nginx"
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
 		ret = append(ret, "--default-domain-server-address", fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", defaultDomainServerName, operatorNs, defaultDomainPort))
@@ -244,7 +251,6 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		// these two don't do anything yet in the e2e test but are needed so the operator can run
 		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
 		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
-		enableDalecNginxArg = "--enable-dalec-nginx"
 	}
 
 	if o.EnableGatewayTLS {
@@ -272,7 +278,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--disable-osm")
 	}
 
-	if o.EnableDalecNginx {
+	if o.EnableDalecNginx && enableDalecNginxArg != "" {
 		ret = append(ret, enableDalecNginxArg)
 	}
 
