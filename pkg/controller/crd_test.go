@@ -176,3 +176,129 @@ func TestShouldLoadCRD(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldRemoveCRD(t *testing.T) {
+	cases := []struct {
+		name     string
+		cfg      *config.Config
+		filename string
+		expected bool
+	}{
+		{name: "nginx crd with ingress nginx disabled", cfg: ingressNginxDisabled, filename: nginxIngresscontrollerCrdFilename, expected: true},
+		{name: "nginx crd with ingress nginx enabled", cfg: workloadIdentityEnabled, filename: nginxIngresscontrollerCrdFilename, expected: false},
+		{name: "external dns crd with ingress nginx disabled", cfg: ingressNginxDisabled, filename: externalDnsCrdFilename, expected: false},
+		{name: "unknown crd with ingress nginx disabled", cfg: ingressNginxDisabled, filename: "other.crd.yaml", expected: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, shouldRemoveCRD(tc.cfg, tc.filename), "expected correct crd removal behavior")
+		})
+	}
+}
+
+func TestRemoveCRD(t *testing.T) {
+	t.Run("crd exists and is deleted", func(t *testing.T) {
+		existingCrd := &apiextensionsv1.CustomResourceDefinition{}
+		existingCrd.Name = nginxCrdName
+		cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingCrd).Build()
+
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd.Name = nginxCrdName
+		require.NoError(t, removeCRD(cl, crd, logr.Discard()))
+
+		// verify it's gone
+		err := cl.Get(context.Background(), client.ObjectKeyFromObject(crd), crd)
+		require.Error(t, err, "expected crd to be deleted")
+	})
+
+	t.Run("crd does not exist", func(t *testing.T) {
+		cl := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd.Name = nginxCrdName
+		require.NoError(t, removeCRD(cl, crd, logr.Discard()))
+	})
+}
+
+func TestRemoveDisabledCRDs(t *testing.T) {
+	t.Run("nginx disabled removes pre-existing nginx crd", func(t *testing.T) {
+		existingCrd := &apiextensionsv1.CustomResourceDefinition{}
+		existingCrd.Name = nginxCrdName
+		cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingCrd).Build()
+
+		require.NoError(t, removeDisabledCRDs(cl, ingressNginxDisabled, logr.Discard()))
+
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd.Name = nginxCrdName
+		err := cl.Get(context.Background(), client.ObjectKeyFromObject(crd), crd)
+		require.Error(t, err, "expected nginx crd to be removed")
+	})
+
+	t.Run("nginx disabled with workload identity removes nginx only", func(t *testing.T) {
+		existingCrd := &apiextensionsv1.CustomResourceDefinition{}
+		existingCrd.Name = nginxCrdName
+		cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingCrd).Build()
+
+		require.NoError(t, removeDisabledCRDs(cl, ingressNginxDisabledWorkloadIdentity, logr.Discard()))
+
+		// nginx CRD should be removed
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd.Name = nginxCrdName
+		err := cl.Get(context.Background(), client.ObjectKeyFromObject(crd), crd)
+		require.Error(t, err, "expected nginx crd to be removed")
+	})
+
+	t.Run("nginx disabled but crd was never installed", func(t *testing.T) {
+		cl := fake.NewClientBuilder().WithScheme(scheme).Build()
+		require.NoError(t, removeDisabledCRDs(cl, ingressNginxDisabled, logr.Discard()))
+	})
+
+	t.Run("nil config", func(t *testing.T) {
+		cl := fake.NewClientBuilder().WithScheme(scheme).Build()
+		err := removeDisabledCRDs(cl, nil, logr.Discard())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "config cannot be nil")
+	})
+
+	t.Run("nginx enabled does not remove nginx crd", func(t *testing.T) {
+		existingCrd := &apiextensionsv1.CustomResourceDefinition{}
+		existingCrd.Name = nginxCrdName
+		cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingCrd).Build()
+
+		require.NoError(t, removeDisabledCRDs(cl, workloadIdentityEnabled, logr.Discard()))
+
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd.Name = nginxCrdName
+		require.NoError(t, cl.Get(context.Background(), client.ObjectKeyFromObject(crd), crd), "expected nginx crd to still exist")
+	})
+}
+
+func TestLoadCRDsAndRemoveDisabledCRDs(t *testing.T) {
+	t.Run("nginx disabled with workload identity removes nginx and installs dns crds", func(t *testing.T) {
+		existingCrd := &apiextensionsv1.CustomResourceDefinition{}
+		existingCrd.Name = nginxCrdName
+		cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingCrd).Build()
+
+		require.NoError(t, removeDisabledCRDs(cl, ingressNginxDisabledWorkloadIdentity, logr.Discard()))
+		require.NoError(t, loadCRDs(cl, ingressNginxDisabledWorkloadIdentity, logr.Discard()))
+
+		// nginx CRD should be removed
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd.Name = nginxCrdName
+		err := cl.Get(context.Background(), client.ObjectKeyFromObject(crd), crd)
+		require.Error(t, err, "expected nginx crd to be removed")
+
+		// dns CRDs should be installed
+		crds := &apiextensionsv1.CustomResourceDefinitionList{}
+		require.NoError(t, cl.List(context.Background(), crds))
+		seen := map[string]struct{}{}
+		for _, c := range crds.Items {
+			seen[c.Name] = struct{}{}
+		}
+		_, hasExtDns := seen[externalDnsCrdName]
+		_, hasClusterExtDns := seen[clusterExternalDnsCrdName]
+		require.True(t, hasExtDns, "expected external dns crd to be installed")
+		require.True(t, hasClusterExtDns, "expected cluster external dns crd to be installed")
+	})
+}
