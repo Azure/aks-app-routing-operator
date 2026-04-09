@@ -220,6 +220,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	}
 
 	enableGatewayArg := ""
+	enableDalecNginxArg := ""
 	ret := []string{
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
@@ -243,6 +244,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		// these two don't do anything yet in the e2e test but are needed so the operator can run
 		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
 		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
+		enableDalecNginxArg = "--enable-dalec-nginx"
 	}
 
 	if o.EnableGatewayTLS {
@@ -271,7 +273,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	}
 
 	if o.EnableDalecNginx {
-		ret = append(ret, "--enable-dalec-nginx")
+		ret = append(ret, enableDalecNginxArg)
 	}
 
 	return ret
