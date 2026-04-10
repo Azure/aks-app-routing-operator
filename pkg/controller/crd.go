@@ -131,6 +131,10 @@ func removeCRD(c client.Client, crd *apiextensionsv1.CustomResourceDefinition, l
 
 	log.Info("deleting crd", "name", crd.Name)
 	if err := c.Delete(context.Background(), crd); err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Info("crd already deleted, nothing to do", "name", crd.Name)
+			return nil
+		}
 		return fmt.Errorf("deleting crd %s: %w", crd.Name, err)
 	}
 
