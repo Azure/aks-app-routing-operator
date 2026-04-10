@@ -24,121 +24,93 @@ const (
 	defaultDomainCertificateCrdFilename = "approuting.kubernetes.azure.com_defaultdomaincertificates.yaml"
 )
 
-// loadCRDs loads the CRDs that should be active based on the current config into the cluster.
-func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
+// readAllCRDs reads and parses all CRD files from the configured directory, returning them keyed by filename.
+func readAllCRDs(cfg *config.Config, log logr.Logger) (map[string]*apiextensionsv1.CustomResourceDefinition, error) {
 	if cfg == nil {
-		return errors.New("config cannot be nil")
+		return nil, errors.New("config cannot be nil")
 	}
 
 	log = log.WithValues("crdPath", cfg.CrdPath)
-	log.Info("reading crd directory")
 	files, err := os.ReadDir(cfg.CrdPath)
 	if err != nil {
-		return fmt.Errorf("reading crd directory %s: %w", cfg.CrdPath, err)
+		return nil, fmt.Errorf("reading crd directory %s: %w", cfg.CrdPath, err)
 	}
 
-	log.Info("applying crds")
+	crds := make(map[string]*apiextensionsv1.CustomResourceDefinition)
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 
-		filename := file.Name()
+		path := filepath.Join(cfg.CrdPath, file.Name())
+		log := log.WithValues("path", path)
+		log.Info("reading crd file")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading crd file %s: %w", path, err)
+		}
+
+		crd := &apiextensionsv1.CustomResourceDefinition{}
+		log.Info("unmarshalling crd file")
+		if err := yaml.UnmarshalStrict(content, crd); err != nil {
+			return nil, fmt.Errorf("unmarshalling crd file %s: %w", path, err)
+		}
+		crds[file.Name()] = crd
+	}
+	return crds, nil
+}
+
+// loadCRDs loads the CRDs that should be active based on the current config into the cluster.
+func loadCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
+	crds, err := readAllCRDs(cfg, log)
+	if err != nil {
+		return err
+	}
+
+	for filename, crd := range crds {
 		if !shouldLoadCRD(cfg, filename) {
 			continue
 		}
-
-		crd, err := readCRDFile(cfg.CrdPath, filename)
-		if err != nil {
-			return err
-		}
-
 		log.Info("upserting crd", "name", crd.Name)
 		if err := util.Upsert(context.Background(), c, crd); err != nil {
 			return fmt.Errorf("upserting crd %s: %w", crd.Name, err)
 		}
 	}
-
-	log.Info("crds loaded")
 	return nil
 }
 
 // removeDisabledCRDs removes CRDs from the cluster that are no longer needed based on the current config.
 func removeDisabledCRDs(c client.Client, cfg *config.Config, log logr.Logger) error {
-	if cfg == nil {
-		return errors.New("config cannot be nil")
-	}
-
-	log = log.WithValues("crdPath", cfg.CrdPath)
-	log.Info("reading crd directory for cleanup")
-	files, err := os.ReadDir(cfg.CrdPath)
+	crds, err := readAllCRDs(cfg, log)
 	if err != nil {
-		return fmt.Errorf("reading crd directory %s: %w", cfg.CrdPath, err)
+		return err
 	}
 
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		filename := file.Name()
+	for filename, crd := range crds {
 		if !shouldRemoveCRD(cfg, filename) {
 			continue
 		}
-
-		crd, err := readCRDFile(cfg.CrdPath, filename)
-		if err != nil {
-			return err
-		}
-
 		if err := removeCRD(c, crd, log); err != nil {
 			return fmt.Errorf("removing crd %s: %w", crd.Name, err)
 		}
 	}
-
-	log.Info("disabled crds removed")
 	return nil
-}
-
-// readCRDFile reads and unmarshals a CRD YAML file from the given directory.
-func readCRDFile(crdPath, filename string) (*apiextensionsv1.CustomResourceDefinition, error) {
-	path := filepath.Join(crdPath, filename)
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading crd file %s: %w", path, err)
-	}
-
-	crd := &apiextensionsv1.CustomResourceDefinition{}
-	if err := yaml.UnmarshalStrict(content, crd); err != nil {
-		return nil, fmt.Errorf("unmarshalling crd file %s: %w", path, err)
-	}
-	return crd, nil
 }
 
 // removeCRD deletes a CRD from the cluster if it exists.
 // This is used to clean up CRDs that were previously installed but are no longer needed.
 func removeCRD(c client.Client, crd *apiextensionsv1.CustomResourceDefinition, log logr.Logger) error {
-
-	log.Info("checking if crd exists in cluster", "name", crd.Name)
-	err := c.Get(context.Background(), client.ObjectKeyFromObject(crd), crd)
-	if apierrors.IsNotFound(err) {
-		log.Info("crd not found, nothing to delete", "name", crd.Name)
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("checking if crd %s exists: %w", crd.Name, err)
-	}
-
-	log.Info("deleting crd", "name", crd.Name)
+	log = log.WithValues("name", crd.Name)
+	log.Info("deleting crd")
 	if err := c.Delete(context.Background(), crd); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("crd already deleted, nothing to do", "name", crd.Name)
+			log.Info("crd already deleted, nothing to do")
 			return nil
 		}
 		return fmt.Errorf("deleting crd %s: %w", crd.Name, err)
 	}
 
-	log.Info("crd deleted successfully", "name", crd.Name)
+	log.Info("crd deleted successfully")
 	return nil
 }
 
