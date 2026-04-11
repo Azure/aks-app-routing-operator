@@ -31,6 +31,7 @@ func readAllCRDs(cfg *config.Config, log logr.Logger) (map[string]*apiextensions
 	}
 
 	log = log.WithValues("crdPath", cfg.CrdPath)
+	log.Info("reading crd directory")
 	files, err := os.ReadDir(cfg.CrdPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading crd directory %s: %w", cfg.CrdPath, err)
