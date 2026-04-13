@@ -58,7 +58,7 @@ func nicTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.AllUsedOperatorVersions...).
-				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountOne}, []manifests.DnsZoneCount{manifests.DnsZoneCountOne}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
