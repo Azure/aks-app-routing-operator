@@ -187,9 +187,15 @@ func (t Ts) order(ctx context.Context) ordered {
 
 		// operatorVersionLatest should always be the last version in the sorted versions
 		if version == manifests.OperatorVersionLatest {
-			// need to add cleanDeploy tests for the latest version (this is the version we are testing)
+			// need to add cleanDeploy tests for the latest version (this is the version we are testing).
+			// Only include symmetric zone configs (public == private count) to reduce the matrix from 9
+			// to 3 configs. The full zone matrix is already covered in the upgrade strategy above;
+			// cleanDeploy tests fresh-install behavior which doesn't need every zone permutation.
 			new := make([]testsWithRunInfo, 0, len(testsForVersion))
 			for _, tests := range testsForVersion {
+				if tests.config.Zones.Public != tests.config.Zones.Private {
+					continue
+				}
 				new = append(new, testsWithRunInfo{
 					tests:                  tests.tests,
 					config:                 tests.config,
