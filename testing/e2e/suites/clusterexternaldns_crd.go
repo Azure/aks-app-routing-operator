@@ -499,7 +499,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("Required value, <nil>: Invalid value: null"),
+						expectedError: errors.New("spec.resourceTypes: Required value"),
 					},
 					{
 						name: "empty resourcetypes",
