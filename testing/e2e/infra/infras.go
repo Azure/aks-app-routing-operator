@@ -44,7 +44,6 @@ var Infras = infras{
 		FederatedNamespaces: GenerateGatewayFederatedNamespaces(),
 		PostCreate:          clients.EnableAppRoutingIstio,
 	},
-
 	// TODO: add back when service principal cluster is supported
 	//{
 	//	Name:                    "service principal cluster",
