@@ -243,7 +243,6 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.Version >= OperatorVersionLatest {
 		enableGatewayArg = "--enable-gateway-tls"
-		enableDalecNginxArg = "--enable-dalec-nginx"
 		ret = append(ret, "--enable-workload-identity")
 		ret = append(ret, "--enable-default-domain")
 		ret = append(ret, "--default-domain-server-address", fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", defaultDomainServerName, operatorNs, defaultDomainPort))
@@ -251,6 +250,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		// these two don't do anything yet in the e2e test but are needed so the operator can run
 		ret = append(ret, "--default-domain-client-id", "test-default-domain-client-id")
 		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
+	}
+
+	if o.Version.SupportsDalec() {
+		enableDalecNginxArg = "--enable-dalec-nginx"
 	}
 
 	if o.EnableGatewayTLS {
