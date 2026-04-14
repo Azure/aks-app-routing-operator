@@ -104,6 +104,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 			"privateZones", runStrategy.config.Zones.Private.String(),
 			"publicZones", runStrategy.config.Zones.Public.String(),
 			"disableOsm", runStrategy.config.DisableOsm,
+			"enableDalecNginx", runStrategy.config.EnableDalecNginx,
 		))
 		if err := deployOperator(ctx, config, runStrategy.operatorDeployStrategy, infra.OperatorImage, publicZones, privateZones, &runStrategy.config); err != nil {
 			return fmt.Errorf("deploying operator: %w", err)
