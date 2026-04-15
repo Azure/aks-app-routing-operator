@@ -1,8 +1,8 @@
 {
   "include": [
     {
-      "name": "0.2.5",
-      "operator": "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.5",
+      "name": "0.2.21",
+      "operator": "mcr.microsoft.com/aks/aks-app-routing-operator:0.2.21",
       "externaldns": "mcr.microsoft.com/oss/v2/kubernetes/external-dns:v0.15.0",
       "nginx": "mcr.microsoft.com/oss/kubernetes/ingress/nginx-ingress-controller:v1.11.5"
     }
