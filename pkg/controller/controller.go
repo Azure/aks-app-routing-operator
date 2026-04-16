@@ -146,6 +146,11 @@ func NewManagerForRestConfig(conf *config.Config, rc *rest.Config) (ctrl.Manager
 		return nil, fmt.Errorf("creating non-caching client: %w", err)
 	}
 
+	if err := removeDisabledCRDs(cl, conf, setupLog); err != nil {
+		setupLog.Error(err, "failed to remove disabled CRDs")
+		return nil, fmt.Errorf("removing disabled CRDs: %w", err)
+	}
+
 	if err := loadCRDs(cl, conf, setupLog); err != nil {
 		setupLog.Error(err, "failed to load CRDs")
 		return nil, fmt.Errorf("loading CRDs: %w", err)
