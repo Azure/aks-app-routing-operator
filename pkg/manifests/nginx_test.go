@@ -650,6 +650,76 @@ func TestIngressControllerResourcesDalec(t *testing.T) {
 	}
 }
 
+func TestNginxImage(t *testing.T) {
+	t.Parallel()
+
+	version := &NginxIngressVersion{name: "v1.0.0", tag: "v1.0.0"}
+
+	tests := []struct {
+		name     string
+		dalec    bool
+		expected string
+	}{
+		{
+			name:     "standard image path",
+			dalec:    false,
+			expected: "test-registry/oss/kubernetes/ingress/nginx-ingress-controller:v1.0.0",
+		},
+		{
+			name:     "dalec image path",
+			dalec:    true,
+			expected: "test-registry/oss/v2/ingress-nginx/controller:v1.0.0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := &config.Config{
+				Registry:         "test-registry",
+				EnableDalecNginx: tc.dalec,
+			}
+			ingConfig := &NginxIngressConfig{Version: version}
+
+			got := nginxImage(conf, ingConfig)
+			if got != tc.expected {
+				t.Errorf("nginxImage() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestNginxRunAsUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		dalec    bool
+		expected int64
+	}{
+		{
+			name:     "standard RunAsUser",
+			dalec:    false,
+			expected: 101,
+		},
+		{
+			name:     "dalec RunAsUser",
+			dalec:    true,
+			expected: 1000,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := &config.Config{EnableDalecNginx: tc.dalec}
+
+			got := nginxRunAsUser(conf)
+			if *got != tc.expected {
+				t.Errorf("nginxRunAsUser() = %d, want %d", *got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestMapAdditions(t *testing.T) {
 	t.Parallel()
 
