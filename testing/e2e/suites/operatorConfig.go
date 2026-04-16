@@ -123,6 +123,7 @@ func (c cfgBuilderWithZones) build() operatorCfgs {
 					Zones:            zones,
 					DisableOsm:       !osmEnabled,
 					EnableGatewayTLS: c.enableGatewayTLS,
+					EnableDalecNginx: version.SupportsDalec(),
 				})
 			}
 		}

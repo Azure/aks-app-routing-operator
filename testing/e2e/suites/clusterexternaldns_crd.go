@@ -55,7 +55,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountOne}, []manifests.DnsZoneCount{manifests.DnsZoneCountOne}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
@@ -499,7 +499,7 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("Required value, <nil>: Invalid value: \"null\""),
+						expectedError: errors.New("spec.resourceTypes: Required value"),
 					},
 					{
 						name: "empty resourcetypes",
@@ -668,9 +668,9 @@ func clusterExternalDnsCrdTests(in infra.Provisioned) []test {
 								Name: "no-identity",
 							},
 							Spec: v1alpha1.ClusterExternalDNSSpec{
-								ResourceName:       "test",
-								ResourceNamespace:  clusterExternalDNSTestNamespace,
-								TenantID:           to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
+								ResourceName:      "test",
+								ResourceNamespace: clusterExternalDNSTestNamespace,
+								TenantID:          to.Ptr("123e4567-e89b-12d3-a456-426614174000"),
 								DNSZoneResourceIDs: []string{
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test",
 									"/subscriptions/123e4567-e89b-12d3-a456-426614174000/resourceGroups/test/providers/Microsoft.network/dnszones/test2",

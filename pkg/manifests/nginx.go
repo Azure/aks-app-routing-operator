@@ -27,6 +27,16 @@ var (
 	}
 	nginxVersionsAscending = []NginxIngressVersion{nginx1_13_7}
 	LatestNginxVersion     = nginxVersionsAscending[len(nginxVersionsAscending)-1]
+
+	dalecNginx1_13_9 = NginxIngressVersion{
+		name: "v1.13.9",
+		tag:  "v1.13.9",
+	}
+	dalecNginxVersionsAscending = []NginxIngressVersion{dalecNginx1_13_9}
+	LatestDalecNginxVersion     = dalecNginxVersionsAscending[len(dalecNginxVersionsAscending)-1]
+
+	nginxImagePath      = "/oss/kubernetes/ingress/nginx-ingress-controller:"
+	dalecNginxImagePath = "/oss/v2/ingress-nginx/controller:"
 )
 
 var nginxLabels = util.MergeMaps(
@@ -61,7 +71,14 @@ const internalLogFormat = `{"remote_addr":"$remote_addr","remote_user":"$remote_
 
 func GetNginxResources(conf *config.Config, ingressConfig *NginxIngressConfig) *NginxResources {
 	if ingressConfig != nil && ingressConfig.Version == nil {
-		ingressConfig.Version = &LatestNginxVersion
+		// copy to avoid mutating the caller's struct (prevents data races)
+		cfgCopy := *ingressConfig
+		if conf.EnableDalecNginx {
+			cfgCopy.Version = &LatestDalecNginxVersion
+		} else {
+			cfgCopy.Version = &LatestNginxVersion
+		}
+		ingressConfig = &cfgCopy
 	}
 
 	res := &NginxResources{
@@ -381,6 +398,20 @@ func newNginxIngressControllerPromService(conf *config.Config, ingressConfig *Ng
 	}
 }
 
+func nginxImage(conf *config.Config, ingressConfig *NginxIngressConfig) string {
+	if conf.EnableDalecNginx {
+		return path.Join(conf.Registry, dalecNginxImagePath+ingressConfig.Version.tag)
+	}
+	return path.Join(conf.Registry, nginxImagePath+ingressConfig.Version.tag)
+}
+
+func nginxRunAsUser(conf *config.Config) *int64 {
+	if conf.EnableDalecNginx {
+		return util.Int64Ptr(1000)
+	}
+	return util.Int64Ptr(101)
+}
+
 func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *NginxIngressConfig) *appsv1.Deployment {
 	ingressControllerDeploymentLabels := AddComponentLabel(GetTopLevelLabels(), IngressControllerComponentName)
 
@@ -467,7 +498,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 					ServiceAccountName: ingressConfig.ResourceName,
 					Containers: []corev1.Container{*withPodRefEnvVars(withLivenessProbeMatchingReadinessNewFailureThresh(withTypicalReadinessProbe(10254, &corev1.Container{
 						Name:  "controller",
-						Image: path.Join(conf.Registry, "/oss/kubernetes/ingress/nginx-ingress-controller:"+ingressConfig.Version.tag),
+						Image: nginxImage(conf, ingressConfig),
 						Args:  deploymentArgs,
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: util.ToPtr(false),
@@ -476,7 +507,7 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 								Drop: []corev1.Capability{"ALL"},
 							},
 							RunAsNonRoot: util.ToPtr(true),
-							RunAsUser:    util.Int64Ptr(101),
+							RunAsUser:    nginxRunAsUser(conf),
 							SeccompProfile: &corev1.SeccompProfile{
 								Type: corev1.SeccompProfileTypeRuntimeDefault,
 							},

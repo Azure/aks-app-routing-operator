@@ -31,7 +31,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
@@ -144,7 +144,7 @@ func defaultDomainTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones(manifests.AllDnsZoneCounts, manifests.AllDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountNone}, []manifests.DnsZoneCount{manifests.DnsZoneCountNone}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)

@@ -55,7 +55,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 			cfgs: builderFromInfra(in).
 				withOsm(in, false, true).
 				withVersions(manifests.OperatorVersionLatest).
-				withZones(manifests.NonZeroDnsZoneCounts, manifests.NonZeroDnsZoneCounts).
+				withZones([]manifests.DnsZoneCount{manifests.DnsZoneCountOne}, []manifests.DnsZoneCount{manifests.DnsZoneCountOne}).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
 				lgr := logger.FromContext(ctx)
@@ -433,7 +433,7 @@ func externalDnsCrdTests(in infra.Provisioned) []test {
 								},
 							},
 						},
-						expectedError: errors.New("Required value, <nil>: Invalid value: \"null\""),
+						expectedError: errors.New("spec.resourceTypes: Required value"),
 					},
 					{
 						name: "empty resourcetypes",

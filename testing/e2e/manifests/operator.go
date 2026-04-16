@@ -157,6 +157,12 @@ func (o OperatorVersion) String() string {
 	}
 }
 
+// SupportsDalec reports whether this operator version supports the --enable-dalec-nginx flag.
+// Update the threshold here when a new released version ships with dalec support.
+func (o OperatorVersion) SupportsDalec() bool {
+	return o >= OperatorVersionLatest
+}
+
 // DnsZoneCount is enum for the number of dns zones but shouldn't be used directly. Use the exported fields of this type instead.
 type DnsZoneCount uint
 
@@ -195,6 +201,7 @@ type OperatorConfig struct {
 	Zones            DnsZones
 	DisableOsm       bool
 	EnableGatewayTLS bool
+	EnableDalecNginx bool
 }
 
 func (o *OperatorConfig) image(latestImage string) string {
@@ -219,6 +226,7 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 	}
 
 	enableGatewayArg := ""
+	enableDalecNginxArg := ""
 	ret := []string{
 		"--msi", o.Msi,
 		"--tenant-id", o.TenantId,
@@ -244,6 +252,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 		ret = append(ret, "--default-domain-zone-id", "/subscriptions/test-subscription/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test-domain.com")
 	}
 
+	if o.Version.SupportsDalec() {
+		enableDalecNginxArg = "--enable-dalec-nginx"
+	}
+
 	if o.EnableGatewayTLS {
 		ret = append(ret, enableGatewayArg)
 	}
@@ -267,6 +279,10 @@ func (o *OperatorConfig) args(publicZones, privateZones []string) []string {
 
 	if o.DisableOsm {
 		ret = append(ret, "--disable-osm")
+	}
+
+	if o.EnableDalecNginx && enableDalecNginxArg != "" {
+		ret = append(ret, enableDalecNginxArg)
 	}
 
 	return ret
