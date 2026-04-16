@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21] - 2026-04-16
+
+### Added
+- add `--enable-dalec-nginx` flag to toggle Dalec-built ingress-nginx images - [link](https://github.com/Azure/aks-app-routing-operator/pull/577)
+
+### Changed
+- remove disabled CRDs on operator startup to align cluster state with configuration - [link](https://github.com/Azure/aks-app-routing-operator/pull/579)
+
 ## [0.2.20] - 2026-03-24
 
 ### Added
