@@ -34,7 +34,7 @@ const (
 	txtWildcardReplacement  = "approutingwildcard"
 
 	// ExternalDNSVersion is the version of the external-dns image used
-	ExternalDNSVersion = "v0.20.0"
+	ExternalDNSVersion = "v0.21.0"
 )
 
 type IdentityType int
