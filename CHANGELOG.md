@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - bumped external dns to v0.21.0 - [link](https://github.com/Azure/aks-app-routing-operator/pull/585)
+- bumped go to 1.25.9 - [link](https://github.com/Azure/aks-app-routing-operator/pull/588)
 
 ## [0.2.21] - 2026-04-16
 
