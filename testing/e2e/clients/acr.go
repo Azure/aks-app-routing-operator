@@ -124,7 +124,7 @@ func (a *acr) BuildAndPush(ctx context.Context, imageName, dockerfilePath, docke
 			isRetryable := cantFindAcrRegex.Match(errLog.Bytes()) || throttledRegex.Match(errLog.Bytes()) || hostRegex.Match(errLog.Bytes()) || connResetRegex.Match(errLog.Bytes())
 			if !isRetryable {
 				lgr.Error("failed to build and push acr image: " + errLog.String())
-				return fmt.Errorf("running build and push command: %w", err)
+				return fmt.Errorf("running build and push command: %w\nstderr: %s", err, errLog.String())
 			}
 
 			if time.Since(start) > 3*time.Minute {
