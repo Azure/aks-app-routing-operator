@@ -36,10 +36,7 @@ type ObjectsContainer interface {
 }
 
 // GatewayClientServerResources contains the Kubernetes resources needed for Gateway API e2e testing.
-//
-// HTTPRoute is exposed as a typed field for backwards compatibility; new route kinds (GRPCRoute,
-// TLSRoute, ...) will live behind the Route field, so suite code that wants to be route-kind
-// agnostic should prefer Route() over HTTPRoute.
+// RouteObject is the route (HTTPRoute / GRPCRoute / TLSRoute) attached to Gateway.
 type GatewayClientServerResources struct {
 	Client       *appsv1.Deployment
 	Server       *appsv1.Deployment
@@ -50,7 +47,6 @@ type GatewayClientServerResources struct {
 }
 
 // Route returns the route object (HTTPRoute / GRPCRoute / TLSRoute) for this resource set.
-// Prefer this over the typed HTTPRoute field when writing route-kind-agnostic code.
 func (g *GatewayClientServerResources) Route() client.Object {
 	return g.RouteObject
 }
@@ -84,9 +80,8 @@ func (g *GatewayClientServerResources) Objects() []client.Object {
 	return ret
 }
 
-// gatewayClientServerArgs is the parameter bundle shared by GatewayClientAndServer and the
-// route-kind-aware variant. Keeping it grouped here avoids the long positional argument list
-// from creeping back as more kinds are added.
+// gatewayClientServerArgs bundles arguments for GatewayClientAndServerFor to avoid a long
+// positional argument list as more route kinds are added.
 type gatewayClientServerArgs struct {
 	Namespace          string
 	Name               string
@@ -97,9 +92,8 @@ type gatewayClientServerArgs struct {
 	GatewayClassName   string
 }
 
-// GatewayClientAndServer creates the resources needed for Gateway API e2e testing with TLS,
-// using HTTPRoute. Preserved for backwards compatibility — see GatewayClientAndServerFor for
-// the route-kind-agnostic entrypoint.
+// GatewayClientAndServer creates HTTPRoute-based gateway test resources. Wrapper around
+// GatewayClientAndServerFor for callers that don't need to pick a route kind.
 func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
 	return GatewayClientAndServerFor(HTTPRouteKind{}, gatewayClientServerArgs{
 		Namespace:          namespace,
@@ -112,44 +106,37 @@ func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, s
 	})
 }
 
-// GatewayClientAndServerFor builds the gateway+route+client+server resource set for a given
-// RouteKind. All callers in the suite go through this function (directly or via the wrappers).
+// GatewayClientAndServerFor builds the gateway+route+client+server resource set for the given
+// RouteKind. Listener protocol/TLS mode and the route object's GVK come from the kind.
 func GatewayClientAndServerFor(kind RouteKind, args gatewayClientServerArgs) GatewayClientServerResources {
 	name := nonAlphanumericRegex.ReplaceAllString(args.Name, "")
 
-	// Gateway and listener names (needed for TLS secret name)
 	gatewayName := name + "-gateway"
 	listenerName := "https"
 
-	// The SPC controller creates a secret with this name pattern
+	// SPC controller writes the cert into a secret with this name.
 	tlsSecretName := "kv-gw-cert-" + gatewayName + "-" + listenerName
 
 	clientDeployment := buildGatewayClient(args.Namespace, name+"-gw-client", args.TLSHost, args.Nameserver, "", tlsSecretName)
 
-	// Create server deployment
 	serverName := name + "-gw-server"
 	serverDeployment := newGoDeployment(serverContents, args.Namespace, serverName)
 
-	// Create service for the server
 	serviceName := name + "-gw-service"
 	service := buildBackendService(args.Namespace, serviceName, serverName)
 
-	// Create Gateway with the kind-specific listener
 	gateway := buildGateway(args.Namespace, gatewayName, args.GatewayClassName, kind.Listener(listenerName, args.TLSHost, args.KeyvaultURI, args.ServiceAccountName))
 
-	// Create the route via the kind
 	routeName := kind.RouteObjectName(name)
 	route := kind.Route(args.Namespace, routeName, gatewayName, listenerName, args.TLSHost, serviceName, gatewayBackendPort)
 
-	res := GatewayClientServerResources{
+	return GatewayClientServerResources{
 		Client:      clientDeployment,
 		Server:      serverDeployment,
 		Service:     service,
 		Gateway:     gateway,
 		RouteObject: route,
 	}
-
-	return res
 }
 
 // GatewayFilterTestResources contains resources for testing gateway/route label selectors
@@ -167,18 +154,12 @@ type GatewayFilterTestResources struct {
 
 // LabeledRouteObject returns the labeled route object (HTTPRoute / GRPCRoute / TLSRoute).
 func (g *GatewayFilterTestResources) LabeledRouteObject() client.Object {
-	if g.LabeledRouteObj != nil {
-		return g.LabeledRouteObj
-	}
-	return nil
+	return g.LabeledRouteObj
 }
 
 // UnlabeledRouteObject returns the unlabeled route object.
 func (g *GatewayFilterTestResources) UnlabeledRouteObject() client.Object {
-	if g.UnlabeledRouteObj != nil {
-		return g.UnlabeledRouteObj
-	}
-	return nil
+	return g.UnlabeledRouteObj
 }
 
 // Objects returns all Kubernetes objects in this resource set
@@ -230,15 +211,15 @@ type GatewayLabelFilterTestConfig struct {
 	FilterLabelValue   string
 }
 
-// GatewayLabelFilterResources creates resources for testing gateway label selectors using HTTPRoute.
+// GatewayLabelFilterResources creates HTTPRoute-based resources for testing gateway label
+// selectors. Wrapper around GatewayLabelFilterResourcesFor.
 func GatewayLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTestResources {
 	return GatewayLabelFilterResourcesFor(HTTPRouteKind{}, cfg)
 }
 
-// GatewayLabelFilterResourcesFor builds gateway label filter resources for a given RouteKind.
-// Two gateways are created (labeled vs unlabeled), each with a route of the given kind. The
-// labeled gateway carries the filter label so external-dns picks it up; the unlabeled one does
-// not. Both routes are themselves un-labeled — this exercises the *gateway* label selector path.
+// GatewayLabelFilterResourcesFor builds two gateways (labeled vs unlabeled) each with a route of
+// the given kind. Only the labeled gateway carries the filter label, exercising the *gateway*
+// label selector path; both routes are unlabeled.
 func GatewayLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConfig) GatewayFilterTestResources {
 	name := nonAlphanumericRegex.ReplaceAllString(cfg.Name, "")
 
@@ -276,17 +257,15 @@ func GatewayLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestCo
 	return res
 }
 
-// RouteLabelFilterResources creates resources for testing route label selectors using HTTPRoute.
-// Preserved for backwards compatibility — see RouteLabelFilterResourcesFor for the route-kind-agnostic
-// entrypoint.
+// RouteLabelFilterResources creates HTTPRoute-based resources for testing route label
+// selectors. Wrapper around RouteLabelFilterResourcesFor.
 func RouteLabelFilterResources(cfg GatewayLabelFilterTestConfig) GatewayFilterTestResources {
 	return RouteLabelFilterResourcesFor(HTTPRouteKind{}, cfg)
 }
 
-// RouteLabelFilterResourcesFor builds route label filter resources for a given RouteKind.
-// Two gateways are created (both un-labeled), each with a route of the given kind. The labeled
-// route carries the filter label so external-dns picks it up; the unlabeled route does not.
-// This exercises the *route* label selector path.
+// RouteLabelFilterResourcesFor builds two unlabeled gateways each with a route of the given
+// kind. Only the labeled route carries the filter label, exercising the *route* label selector
+// path.
 func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConfig) GatewayFilterTestResources {
 	name := nonAlphanumericRegex.ReplaceAllString(cfg.Name, "")
 
@@ -311,8 +290,8 @@ func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConf
 	labeledRouteObj := kind.Route(cfg.Namespace, name+"-labeled-httproute", labeledGatewayName, listenerName, cfg.LabeledHost, serviceName, gatewayBackendPort)
 	unlabeledRouteObj := kind.Route(cfg.Namespace, name+"-unlabeled-httproute", unlabeledGatewayName, listenerName, cfg.UnlabeledHost, serviceName, gatewayBackendPort)
 
-	// Apply the filter label to the labeled route's metadata. We do this generically via
-	// metav1.Object so the same code works for HTTPRoute, GRPCRoute, etc.
+	// Apply the filter label to the labeled route. Done generically via metav1.Object so the
+	// same code works for HTTPRoute, GRPCRoute, etc.
 	if metaObj, ok := labeledRouteObj.(metav1.Object); ok {
 		labels := metaObj.GetLabels()
 		if labels == nil {
@@ -335,14 +314,10 @@ func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConf
 	return res
 }
 
-// buildGatewayClient creates the gateway-test client Deployment. The client is a small Go HTTP
-// server on :8080 whose readiness probe is the implicit DNS+TLS+routing assertion: the probe
-// only goes Ready when the configured URL responds successfully (which requires DNS resolution,
-// TLS validation against the mounted KV cert, and end-to-end routing through the gateway).
-//
-// If unreachableURL is non-empty, the client also asserts that URL is *not* reachable (used by
-// filter tests). The cert mounted at /etc/ssl/certs/ca-certificates.crt is the cert SPC writes
-// for the labeled/primary gateway listener.
+// buildGatewayClient creates the gateway-test client Deployment. The client's readiness probe
+// only succeeds once URL responds, which implicitly asserts DNS resolution, TLS validation
+// against the mounted KV cert, and end-to-end routing through the gateway. If unreachableURL
+// is non-empty, the client also asserts that URL is *not* reachable (used by filter tests).
 func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSecretName string) *appsv1.Deployment {
 	deployment := newGoDeployment(gatewayClientContents, namespace, name)
 	env := []corev1.EnvVar{
@@ -392,9 +367,7 @@ func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSec
 	return deployment
 }
 
-// buildBackendService creates the backend Service the gateway routes traffic to. Port name is
-// "http" today; gRPC/TLS variants will introduce their own service builders if they need a
-// different port name (Istio uses appProtocol/port-name to pick the right L7 filter chain).
+// buildBackendService creates the backend Service the gateway routes traffic to.
 func buildBackendService(namespace, serviceName, serverDeploymentName string) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -421,8 +394,8 @@ func buildBackendService(namespace, serviceName, serverDeploymentName string) *c
 	}
 }
 
-// buildGateway creates a Gateway with a single listener provided by the caller (typically from a
-// RouteKind.Listener call so the protocol/TLS mode varies per kind).
+// buildGateway creates a Gateway with a single listener supplied by the caller (typically from
+// RouteKind.Listener so protocol/TLS mode varies per kind).
 func buildGateway(namespace, name, gatewayClassName string, listener gatewayv1.Listener) *gatewayv1.Gateway {
 	return &gatewayv1.Gateway{
 		TypeMeta: metav1.TypeMeta{

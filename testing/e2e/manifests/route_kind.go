@@ -7,33 +7,27 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-// RouteKind describes a Gateway API route type (HTTPRoute, GRPCRoute, TLSRoute, ...) and the
-// fixture variations needed to test it end-to-end (server, client, route object, listener).
-//
-// This abstraction exists so that the gateway e2e suite can test multiple route kinds with the
-// same surrounding scaffolding (Gateway, ExternalDNS, KV cert, namespaces) by just swapping in a
-// different RouteKind implementation. Today only HTTPRouteKind exists; GRPCRouteKind and
-// TLSRouteKind will plug in here without further refactoring.
+// RouteKind describes a Gateway API route type (HTTPRoute, GRPCRoute, TLSRoute, ...) so the
+// gateway e2e suite can exercise different route kinds with the same surrounding scaffolding
+// (Gateway, ExternalDNS, KV cert, namespaces). Today only HTTPRouteKind is implemented.
 type RouteKind interface {
-	// Name is a short, file-system-safe identifier (e.g. "http", "grpc", "tls"). Used by callers
-	// that want to derive per-kind namespace prefixes, CR names, hostnames, etc.
+	// Name is a short, file-system-safe identifier (e.g. "http", "grpc", "tls"), used to derive
+	// per-kind namespace prefixes, CR names, hostnames, etc.
 	Name() string
 
-	// RouteObjectName returns the name to use for the route object given a base name.
+	// RouteObjectName returns the route object name to use given a base name.
 	RouteObjectName(baseName string) string
 
-	// Listener returns the gateway listener spec for this kind. For terminate kinds (HTTP/GRPC)
-	// this is HTTPS/443 with TLS terminate; for passthrough kinds (TLS) it would be TLS/443
-	// passthrough.
+	// Listener returns the gateway listener spec for this kind. HTTP/GRPC use HTTPS/443 with
+	// TLS terminate; TLS uses TLS/443 passthrough.
 	Listener(listenerName, tlsHost, keyvaultURI, serviceAccountName string) gatewayv1.Listener
 
-	// Route builds the route object (HTTPRoute / GRPCRoute / TLSRoute) attaching to the named
-	// gateway+listener and forwarding to the named backend service.
+	// Route builds the route object attaching to the named gateway+listener and forwarding to
+	// the named backend service.
 	Route(namespace, name, gatewayName, listenerName, tlsHost, backendServiceName string, backendPort int32) client.Object
 }
 
-// HTTPRouteKind is the RouteKind implementation for HTTPRoute. Behavior matches the original
-// gateway test fixtures exactly.
+// HTTPRouteKind is the RouteKind implementation for HTTPRoute.
 type HTTPRouteKind struct{}
 
 var _ RouteKind = HTTPRouteKind{}
