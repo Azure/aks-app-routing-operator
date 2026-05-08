@@ -16,4 +16,4 @@ job-app-routing-operator-e2e.log
 *.DS_Store
 
 # Claude
-./claude/scheduled_tasks.lock
+./claude/scheduled_tasks.lock.claude/
