@@ -14,6 +14,12 @@ import (
 //go:embed embedded/gateway_client.golang
 var gatewayClientContents string
 
+//go:embed embedded/grpc_gateway_client.golang
+var grpcGatewayClientContents string
+
+//go:embed embedded/grpc_server.golang
+var grpcServerContents string
+
 const (
 	// IstioGatewayClassName is the GatewayClass name for Istio managed gateways
 	IstioGatewayClassName = "istio"
@@ -106,6 +112,20 @@ func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, s
 	})
 }
 
+// GatewayGrpcClientAndServer creates GRPCRoute-based gateway test resources: a real gRPC server
+// (grpc.health.v1) behind the gateway and a real gRPC client that asserts SERVING.
+func GatewayGrpcClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
+	return GatewayClientAndServerFor(GRPCRouteKind{}, gatewayClientServerArgs{
+		Namespace:          namespace,
+		Name:               name,
+		Nameserver:         nameserver,
+		KeyvaultURI:        keyvaultURI,
+		TLSHost:            tlsHost,
+		ServiceAccountName: serviceAccountName,
+		GatewayClassName:   gatewayClassName,
+	})
+}
+
 // GatewayClientAndServerFor builds the gateway+route+client+server resource set for the given
 // RouteKind. Listener protocol/TLS mode and the route object's GVK come from the kind.
 func GatewayClientAndServerFor(kind RouteKind, args gatewayClientServerArgs) GatewayClientServerResources {
@@ -117,13 +137,13 @@ func GatewayClientAndServerFor(kind RouteKind, args gatewayClientServerArgs) Gat
 	// SPC controller writes the cert into a secret with this name.
 	tlsSecretName := "kv-gw-cert-" + gatewayName + "-" + listenerName
 
-	clientDeployment := buildGatewayClient(args.Namespace, name+"-gw-client", args.TLSHost, args.Nameserver, "", tlsSecretName)
+	clientDeployment := buildGatewayClient(args.Namespace, name+"-gw-client", args.TLSHost, args.Nameserver, "", tlsSecretName, kind.ClientContents())
 
 	serverName := name + "-gw-server"
-	serverDeployment := newGoDeployment(serverContents, args.Namespace, serverName)
+	serverDeployment := newGoDeployment(kind.ServerContents(), args.Namespace, serverName)
 
 	serviceName := name + "-gw-service"
-	service := buildBackendService(args.Namespace, serviceName, serverName)
+	service := buildBackendService(args.Namespace, serviceName, serverName, kind.ServicePortName())
 
 	gateway := buildGateway(args.Namespace, gatewayName, args.GatewayClassName, kind.Listener(listenerName, args.TLSHost, args.KeyvaultURI, args.ServiceAccountName))
 
@@ -227,13 +247,13 @@ func GatewayLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestCo
 	listenerName := "https"
 	tlsSecretName := "kv-gw-cert-" + labeledGatewayName + "-" + listenerName
 
-	clientDeployment := buildGatewayClient(cfg.Namespace, name+"-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName)
+	clientDeployment := buildGatewayClient(cfg.Namespace, name+"-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName, kind.ClientContents())
 
 	serverName := name + "-filter-server"
-	serverDeployment := newGoDeployment(serverContents, cfg.Namespace, serverName)
+	serverDeployment := newGoDeployment(kind.ServerContents(), cfg.Namespace, serverName)
 
 	serviceName := name + "-filter-service"
-	service := buildBackendService(cfg.Namespace, serviceName, serverName)
+	service := buildBackendService(cfg.Namespace, serviceName, serverName, kind.ServicePortName())
 
 	// Labeled gateway gets the filter label; unlabeled gateway does not.
 	labeledGateway := buildGateway(cfg.Namespace, labeledGatewayName, cfg.GatewayClassName, kind.Listener(listenerName, cfg.LabeledHost, cfg.KeyvaultURI, cfg.ServiceAccountName))
@@ -273,13 +293,13 @@ func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConf
 	listenerName := "https"
 	tlsSecretName := "kv-gw-cert-" + labeledGatewayName + "-" + listenerName
 
-	clientDeployment := buildGatewayClient(cfg.Namespace, name+"-route-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName)
+	clientDeployment := buildGatewayClient(cfg.Namespace, name+"-route-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName, kind.ClientContents())
 
 	serverName := name + "-route-filter-server"
-	serverDeployment := newGoDeployment(serverContents, cfg.Namespace, serverName)
+	serverDeployment := newGoDeployment(kind.ServerContents(), cfg.Namespace, serverName)
 
 	serviceName := name + "-route-filter-service"
-	service := buildBackendService(cfg.Namespace, serviceName, serverName)
+	service := buildBackendService(cfg.Namespace, serviceName, serverName, kind.ServicePortName())
 
 	// Both gateways are un-labeled here; the *routes* carry the filter label.
 	labeledGateway := buildGateway(cfg.Namespace, labeledGatewayName, cfg.GatewayClassName, kind.Listener(listenerName, cfg.LabeledHost, cfg.KeyvaultURI, cfg.ServiceAccountName))
@@ -318,8 +338,8 @@ func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConf
 // only succeeds once URL responds, which implicitly asserts DNS resolution, TLS validation
 // against the mounted KV cert, and end-to-end routing through the gateway. If unreachableURL
 // is non-empty, the client also asserts that URL is *not* reachable (used by filter tests).
-func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSecretName string) *appsv1.Deployment {
-	deployment := newGoDeployment(gatewayClientContents, namespace, name)
+func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSecretName, contents string) *appsv1.Deployment {
+	deployment := newGoDeployment(contents, namespace, name)
 	env := []corev1.EnvVar{
 		{Name: "URL", Value: "https://" + url},
 	}
@@ -353,9 +373,11 @@ func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSec
 	deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
 		FailureThreshold:    1,
 		InitialDelaySeconds: 1,
-		PeriodSeconds:       1,
+		PeriodSeconds:       5,
 		SuccessThreshold:    1,
-		TimeoutSeconds:      5,
+		// 30s gives the gRPC client (which dials TLS with WithBlock and may also test an
+		// unreachable host) enough room without the kubelet canceling the request mid-flight.
+		TimeoutSeconds: 30,
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path:   "/",
@@ -367,8 +389,9 @@ func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSec
 	return deployment
 }
 
-// buildBackendService creates the backend Service the gateway routes traffic to.
-func buildBackendService(namespace, serviceName, serverDeploymentName string) *corev1.Service {
+// buildBackendService creates the backend Service the gateway routes traffic to. The port name
+// signals app protocol to Istio (e.g. "grpc" → HTTP/2 + gRPC, "http" → HTTP/1.1).
+func buildBackendService(namespace, serviceName, serverDeploymentName, portName string) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
@@ -383,7 +406,7 @@ func buildBackendService(namespace, serviceName, serverDeploymentName string) *c
 		},
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
-				Name:       "http",
+				Name:       portName,
 				Port:       gatewayBackendPort,
 				TargetPort: intstr.FromInt(int(gatewayBackendPort)),
 			}},

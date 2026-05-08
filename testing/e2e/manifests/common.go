@@ -96,7 +96,7 @@ func newGoDeployment(contents, namespace, name string) *appsv1.Deployment {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:    "container",
-						Image:   "mcr.microsoft.com/oss/go/microsoft/golang:1.23",
+						Image:   "mcr.microsoft.com/oss/go/microsoft/golang:1.25",
 						Command: command,
 					}},
 				},

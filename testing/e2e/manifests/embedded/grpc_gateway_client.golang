@@ -1,0 +1,120 @@
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
+)
+
+func makeDialer(nameserver string) func(ctx context.Context, addr string) (net.Conn, error) {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: time.Second}
+			ns := nameserver
+			if strings.HasSuffix(ns, ".") {
+				ns = ns[:len(ns)-1]
+			}
+			return d.DialContext(ctx, "tcp", ns+":53")
+		},
+	}
+	d := &net.Dialer{Resolver: resolver, Timeout: 10 * time.Second}
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		return d.DialContext(ctx, "tcp", addr)
+	}
+}
+
+func loadRoots() *x509.CertPool {
+	pool := x509.NewCertPool()
+	data, err := os.ReadFile("/etc/ssl/certs/ca-certificates.crt")
+	if err != nil {
+		log.Printf("warning: could not read mounted cert: %v", err)
+		return nil
+	}
+	if !pool.AppendCertsFromPEM(data) {
+		log.Printf("warning: no PEM certs found in mounted cert file")
+	}
+	return pool
+}
+
+func dialAndCheck(ctx context.Context, host string, dialer func(ctx context.Context, addr string) (net.Conn, error), roots *x509.CertPool) error {
+	creds := credentials.NewTLS(&tls.Config{ServerName: host, RootCAs: roots})
+	target := host + ":443"
+	conn, err := grpc.DialContext(ctx, target,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithContextDialer(dialer),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	hc := healthpb.NewHealthClient(conn)
+	resp, err := hc.Check(ctx, &healthpb.HealthCheckRequest{})
+	if err != nil {
+		return err
+	}
+	if resp.Status != healthpb.HealthCheckResponse_SERVING {
+		return status.Errorf(codes.Unavailable, "unexpected health status: %v", resp.Status)
+	}
+	return nil
+}
+
+func main() {
+	nameserver := os.Getenv("NAMESERVER")
+	urlHost := strings.TrimPrefix(os.Getenv("URL"), "https://")
+	urlHost = strings.TrimPrefix(urlHost, "http://")
+	urlHost = strings.TrimSuffix(urlHost, "/")
+	unreachable := os.Getenv("UNREACHABLE_URL")
+	unreachableHost := strings.TrimPrefix(unreachable, "https://")
+	unreachableHost = strings.TrimPrefix(unreachableHost, "http://")
+	unreachableHost = strings.TrimSuffix(unreachableHost, "/")
+
+	roots := loadRoots()
+	dialer := makeDialer(nameserver)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := dialAndCheck(ctx, urlHost, dialer, roots); err != nil {
+			log.Printf("grpc health check failed for %s: %v", urlHost, err)
+			w.WriteHeader(500)
+			return
+		}
+		log.Printf("grpc health check OK for %s", urlHost)
+
+		if unreachableHost != "" {
+			ctx2, cancel2 := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel2()
+			err := dialAndCheck(ctx2, unreachableHost, dialer, roots)
+			if err == nil {
+				log.Printf("ERROR: expected unreachable %s to fail, but it succeeded", unreachableHost)
+				w.WriteHeader(500)
+				return
+			}
+			// Accept either "no such host" (DNS lookup failed) or "context deadline exceeded"
+			// (grpc.WithBlock retries the dial past DNS NXDOMAIN until the deadline). Both
+			// indicate the host is correctly unreachable.
+			if !strings.Contains(err.Error(), "no such host") && !strings.Contains(err.Error(), "context deadline exceeded") {
+				log.Printf("ERROR: expected no such host or deadline exceeded for %s, got: %v", unreachableHost, err)
+				w.WriteHeader(500)
+				return
+			}
+			log.Printf("correctly failed to reach %s: %v", unreachableHost, err)
+		}
+		log.Printf("grpc gateway client health check passed")
+	})
+	panic(http.ListenAndServe(":8080", nil))
+}
