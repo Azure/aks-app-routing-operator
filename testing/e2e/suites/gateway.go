@@ -94,12 +94,6 @@ func (c multiZoneGatewayTestConfig) recordPrefix() string {
 	return "zone"
 }
 
-// dnsResourceTag returns a tag woven into ExternalDNS / ClusterExternalDNS resource names. Empty
-// today; kept as a hook for future per-test disambiguation.
-func (c multiZoneGatewayTestConfig) dnsResourceTag() string {
-	return ""
-}
-
 // buildGatewayResources builds the kind-appropriate gateway+route+client+server resource set.
 func (c multiZoneGatewayTestConfig) buildGatewayResources(namespace, name, nameserver, kvURI, tlsHost, sa, gwClass string) manifests.GatewayClientServerResources {
 	if c.routeKind != nil && c.routeKind.Name() == "grpc" {
@@ -343,14 +337,14 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	// Create single ClusterExternalDNS with all zone IDs
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "gw-cluster-dns",
+			Name: testConfig.zoneType.Prefix() + "gw-cluster-dns",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterExternalDNS",
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ClusterExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "gw-cluster",
+			ResourceName:       testConfig.zoneType.Prefix() + "gw-cluster",
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
@@ -370,7 +364,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		recordName := fmt.Sprintf("%s%d", testConfig.recordPrefix(), zoneCfg.ZoneIndex)
 		clusterHostPrefixes[i] = recordName
 		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix()+testConfig.dnsResourceTag(), tlsHost, testConfig.gatewayClassName)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d: %w", zoneCfg.ZoneIndex, err)
 		}
@@ -448,7 +442,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	// Create single namespace-scoped ExternalDNS with all zone IDs
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "gw-ns-dns",
+			Name:      testConfig.zoneType.Prefix() + "gw-ns-dns",
 			Namespace: nsName,
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -456,7 +450,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "gw-ns",
+			ResourceName:       testConfig.zoneType.Prefix() + "gw-ns",
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
@@ -475,7 +469,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		recordName := fmt.Sprintf("%s%d", testConfig.recordPrefix(), zoneCfg.ZoneIndex)
 		namespaceHostPrefixes[i] = recordName
 		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, nsName, testConfig.gwNsSa(), testConfig.zoneType.Prefix()+testConfig.dnsResourceTag(), tlsHost, testConfig.gatewayClassName)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, nsName, testConfig.gwNsSa(), testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 		}

@@ -149,14 +149,14 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 	// Create ONE ClusterExternalDNS with ALL zone IDs and gateway label selector
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "gw-label-filter",
+			Name: testConfig.zoneType.Prefix() + "gw-label-filter",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterExternalDNS",
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ClusterExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "gw-label-filter",
+			ResourceName:       testConfig.zoneType.Prefix() + "gw-label-filter",
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
@@ -262,14 +262,14 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 	// Create ONE ClusterExternalDNS with ALL zone IDs and route label selector
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "route-label-filter",
+			Name: testConfig.zoneType.Prefix() + "route-label-filter",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterExternalDNS",
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ClusterExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "route-label-filter",
+			ResourceName:       testConfig.zoneType.Prefix() + "route-label-filter",
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
@@ -372,7 +372,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 	// Create ONE ExternalDNS with ALL zone IDs and gateway label selector
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "ns-gw-label-filter",
+			Name:      testConfig.zoneType.Prefix() + "ns-gw-label-filter",
 			Namespace: testConfig.filterNs(),
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -380,7 +380,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "ns-gw-label-filter",
+			ResourceName:       testConfig.zoneType.Prefix() + "ns-gw-label-filter",
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
@@ -480,7 +480,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 	// Create ONE ExternalDNS with ALL zone IDs and route label selector
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "ns-route-label-filter",
+			Name:      testConfig.zoneType.Prefix() + "ns-route-label-filter",
 			Namespace: testConfig.filterNs(),
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -488,7 +488,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 			APIVersion: v1alpha1.GroupVersion.String(),
 		},
 		Spec: v1alpha1.ExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + testConfig.dnsResourceTag() + "ns-route-label-filter",
+			ResourceName:       testConfig.zoneType.Prefix() + "ns-route-label-filter",
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
