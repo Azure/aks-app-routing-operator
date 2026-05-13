@@ -24,35 +24,23 @@ const (
 	filterLabelValue = "enabled"
 )
 
-// filterClusterNs returns the per-zone cluster-scoped filter namespace for the configured route kind.
+// filterClusterNs returns the per-zone cluster-scoped filter namespace.
 func (c multiZoneGatewayTestConfig) filterClusterNs(zoneIndex int) string {
-	if c.routeKind != nil && c.routeKind.Name() == "grpc" {
-		return infra.GrpcFilterClusterNsName(zoneIndex)
-	}
 	return infra.FilterClusterNsName(zoneIndex)
 }
 
-// filterClusterSa returns the per-kind cluster-scoped filter service-account name.
+// filterClusterSa returns the cluster-scoped filter service-account name.
 func (c multiZoneGatewayTestConfig) filterClusterSa() string {
-	if c.routeKind != nil && c.routeKind.Name() == "grpc" {
-		return infra.GrpcFilterClusterSaName
-	}
 	return infra.FilterClusterSaName
 }
 
-// filterNs returns the per-kind namespace-scoped filter namespace.
+// filterNs returns the namespace-scoped filter namespace.
 func (c multiZoneGatewayTestConfig) filterNs() string {
-	if c.routeKind != nil && c.routeKind.Name() == "grpc" {
-		return infra.GrpcFilterNs
-	}
 	return infra.FilterNs
 }
 
-// filterNsSa returns the per-kind namespace-scoped filter service-account name.
+// filterNsSa returns the namespace-scoped filter service-account name.
 func (c multiZoneGatewayTestConfig) filterNsSa() string {
-	if c.routeKind != nil && c.routeKind.Name() == "grpc" {
-		return infra.GrpcFilterNsSaName
-	}
 	return infra.FilterNsSaName
 }
 
