@@ -140,7 +140,7 @@ spec:
                 operator: In
                 values:
                 - linux
-              - key: kubernetes.azure.com/hobovm
+              - key: kubernetes.azure.com/hostedvm
                 operator: NotIn
                 values:
                 - "true"
@@ -339,7 +339,7 @@ spec:
                 operator: In
                 values:
                 - linux
-              - key: kubernetes.azure.com/hobovm
+              - key: kubernetes.azure.com/hostedvm
                 operator: NotIn
                 values:
                 - "true"
@@ -566,7 +566,7 @@ spec:
                 operator: In
                 values:
                 - linux
-              - key: kubernetes.azure.com/hobovm
+              - key: kubernetes.azure.com/hostedvm
                 operator: NotIn
                 values:
                 - "true"
@@ -794,7 +794,7 @@ spec:
                 operator: In
                 values:
                 - linux
-              - key: kubernetes.azure.com/hobovm
+              - key: kubernetes.azure.com/hostedvm
                 operator: NotIn
                 values:
                 - "true"
