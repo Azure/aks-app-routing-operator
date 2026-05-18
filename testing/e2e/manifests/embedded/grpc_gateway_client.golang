@@ -52,11 +52,12 @@ func loadRoots() *x509.CertPool {
 
 func dialAndCheck(ctx context.Context, host string, dialer func(ctx context.Context, addr string) (net.Conn, error), roots *x509.CertPool) error {
 	creds := credentials.NewTLS(&tls.Config{ServerName: host, RootCAs: roots})
-	target := host + ":443"
-	// grpc.NewClient is the modern replacement for grpc.DialContext. It does not block on the
-	// initial connection — the runtime connects lazily on the first RPC, which means a DNS
-	// failure surfaces cleanly from Health/Check rather than getting masked by a WithBlock
-	// "context deadline exceeded".
+	// Use the passthrough resolver so grpc-go does NOT run its internal DNS resolver against
+	// net.DefaultResolver. With NewClient, WithContextDialer only handles the TCP connect step;
+	// without passthrough, grpc resolves the hostname itself via the system resolver and
+	// ignores our custom NAMESERVER-backed resolver, producing "zero addresses" for test zones
+	// that aren't in /etc/resolv.conf.
+	target := "passthrough:///" + host + ":443"
 	conn, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(dialer),
