@@ -116,7 +116,7 @@ subjects:
 ---
 apiVersion: v1
 data:
-  azure.json: '{"cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
+  azure.json: '{"aadClientId":"","cloud":"","location":"","resourceGroup":"test-resource-group-public","subscriptionId":"test-subscription-id","tenantId":"test-tenant-id","useWorkloadIdentityExtension":true}'
 kind: ConfigMap
 metadata:
   creationTimestamp: null
@@ -153,7 +153,7 @@ spec:
         app: crd-test-external-dns
         app.kubernetes.io/managed-by: aks-app-routing-operator
         azure.workload.identity/use: "true"
-        checksum/configmap: e363a30964578be3
+        checksum/configmap: 51d8d064bbbc401d
         kubernetes.azure.com/managedby: aks
     spec:
       affinity:

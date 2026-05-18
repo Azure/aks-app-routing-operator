@@ -560,8 +560,16 @@ func newExternalDNSConfigMap(conf *config.Config, externalDnsConfig *ExternalDns
 	}
 	jsMap[externalDnsConfig.identityType.externalDNSIdentityConfiguration()] = true
 
-	if externalDnsConfig.identityType == IdentityTypeMSI {
+	switch externalDnsConfig.identityType {
+	case IdentityTypeMSI:
 		jsMap["userAssignedIdentityID"] = externalDnsConfig.clientId
+	case IdentityTypeWorkloadIdentity:
+		// external-dns v0.21.0's azure provider passes cfg.ClientID (aadClientId) directly
+		// to azidentity.NewWorkloadIdentityCredential. Without it, the credential constructor
+		// falls back to the AZURE_CLIENT_ID env var injected by the AZWI webhook, which races
+		// pod admission and causes crashloops with "no client ID specified" on the first few
+		// restarts. Writing the client ID into azure.json removes the dependency on that race.
+		jsMap["aadClientId"] = externalDnsConfig.clientId
 	}
 
 	js, err := json.Marshal(&jsMap)
