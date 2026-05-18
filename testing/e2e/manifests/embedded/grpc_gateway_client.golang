@@ -56,7 +56,7 @@ func dialAndCheck(ctx context.Context, host string, dialer func(ctx context.Cont
 	// net.DefaultResolver. With NewClient, WithContextDialer only handles the TCP connect step;
 	// without passthrough, grpc resolves the hostname itself via the system resolver and
 	// ignores our custom NAMESERVER-backed resolver, producing "zero addresses" for test zones
-	// that aren't in /etc/resolv.conf.
+	// that are not in /etc/resolv.conf.
 	target := "passthrough:///" + host + ":443"
 	conn, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(creds),
