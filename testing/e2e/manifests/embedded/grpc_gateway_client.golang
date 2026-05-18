@@ -108,7 +108,7 @@ func main() {
 				w.WriteHeader(500)
 				return
 			}
-			// Prefer typed checks over substring matches on err.Error() so we don't silently
+			// Prefer typed checks over substring matches on err.Error() so we do not silently
 			// accept unexpected errors if the stdlib ever rewords its messages. DNS NXDOMAIN
 			// surfaces as *net.DNSError; if the resolver retries past our 10s budget, we get
 			// context.DeadlineExceeded.
