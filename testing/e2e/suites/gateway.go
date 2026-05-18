@@ -94,12 +94,17 @@ func (c multiZoneGatewayTestConfig) recordPrefix() string {
 	return "zone"
 }
 
-// buildGatewayResources builds the kind-appropriate gateway+route+client+server resource set.
+// buildGatewayResources builds the gateway+route+client+server resource set for c.routeKind.
 func (c multiZoneGatewayTestConfig) buildGatewayResources(namespace, name, nameserver, kvURI, tlsHost, sa, gwClass string) manifests.GatewayClientServerResources {
-	if c.routeKind != nil && c.routeKind.Name() == "grpc" {
-		return manifests.GatewayGrpcClientAndServer(namespace, name, nameserver, kvURI, tlsHost, sa, gwClass)
-	}
-	return manifests.GatewayClientAndServer(namespace, name, nameserver, kvURI, tlsHost, sa, gwClass)
+	return manifests.GatewayClientAndServerFor(c.routeKind, manifests.GatewayClientServerArgs{
+		Namespace:          namespace,
+		Name:               name,
+		Nameserver:         nameserver,
+		KeyvaultURI:        kvURI,
+		TLSHost:            tlsHost,
+		ServiceAccountName: sa,
+		GatewayClassName:   gwClass,
+	})
 }
 
 // gatewayZoneConfig contains zone-specific configuration for gateway tests.

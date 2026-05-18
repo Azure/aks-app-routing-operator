@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -52,10 +53,13 @@ func loadRoots() *x509.CertPool {
 func dialAndCheck(ctx context.Context, host string, dialer func(ctx context.Context, addr string) (net.Conn, error), roots *x509.CertPool) error {
 	creds := credentials.NewTLS(&tls.Config{ServerName: host, RootCAs: roots})
 	target := host + ":443"
-	conn, err := grpc.DialContext(ctx, target,
+	// grpc.NewClient is the modern replacement for grpc.DialContext. It does not block on the
+	// initial connection — the runtime connects lazily on the first RPC, which means a DNS
+	// failure surfaces cleanly from Health/Check rather than getting masked by a WithBlock
+	// "context deadline exceeded".
+	conn, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(dialer),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return err
@@ -104,10 +108,12 @@ func main() {
 				w.WriteHeader(500)
 				return
 			}
-			// Accept either "no such host" (DNS lookup failed) or "context deadline exceeded"
-			// (grpc.WithBlock retries the dial past DNS NXDOMAIN until the deadline). Both
-			// indicate the host is correctly unreachable.
-			if !strings.Contains(err.Error(), "no such host") && !strings.Contains(err.Error(), "context deadline exceeded") {
+			// Prefer typed checks over substring matches on err.Error() so we don't silently
+			// accept unexpected errors if the stdlib ever rewords its messages. DNS NXDOMAIN
+			// surfaces as *net.DNSError; if the resolver retries past our 10s budget, we get
+			// context.DeadlineExceeded.
+			var dnsErr *net.DNSError
+			if !errors.As(err, &dnsErr) && !errors.Is(err, context.DeadlineExceeded) {
 				log.Printf("ERROR: expected no such host or deadline exceeded for %s, got: %v", unreachableHost, err)
 				w.WriteHeader(500)
 				return

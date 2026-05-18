@@ -25,8 +25,27 @@ func (GRPCRouteKind) RouteObjectName(baseName string) string {
 }
 
 func (GRPCRouteKind) Listener(listenerName, tlsHost, keyvaultURI, serviceAccountName string) gatewayv1.Listener {
-	// Identical to HTTPRouteKind — both kinds ride HTTPS/443 with TLS terminate.
-	return HTTPRouteKind{}.Listener(listenerName, tlsHost, keyvaultURI, serviceAccountName)
+	// GRPC rides HTTPS/443 with TLS terminate at the gateway; Istio forwards plaintext gRPC
+	// (HTTP/2) to the backend. Kept independent of HTTPRouteKind.Listener so the two can diverge.
+	hostname := gatewayv1.Hostname(tlsHost)
+	return gatewayv1.Listener{
+		Name:     gatewayv1.SectionName(listenerName),
+		Hostname: &hostname,
+		Port:     gatewayv1.PortNumber(443),
+		Protocol: gatewayv1.HTTPSProtocolType,
+		TLS: &gatewayv1.GatewayTLSConfig{
+			Mode: to.Ptr(gatewayv1.TLSModeTerminate),
+			Options: map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue{
+				TLSCertKeyvaultURIOption:    gatewayv1.AnnotationValue(keyvaultURI),
+				TLSCertServiceAccountOption: gatewayv1.AnnotationValue(serviceAccountName),
+			},
+		},
+		AllowedRoutes: &gatewayv1.AllowedRoutes{
+			Namespaces: &gatewayv1.RouteNamespaces{
+				From: to.Ptr(gatewayv1.NamespacesFromSame),
+			},
+		},
+	}
 }
 
 func (GRPCRouteKind) Route(namespace, name, gatewayName, listenerName, tlsHost, backendServiceName string, backendPort int32) client.Object {

@@ -86,9 +86,9 @@ func (g *GatewayClientServerResources) Objects() []client.Object {
 	return ret
 }
 
-// gatewayClientServerArgs bundles arguments for GatewayClientAndServerFor to avoid a long
+// GatewayClientServerArgs bundles arguments for GatewayClientAndServerFor to avoid a long
 // positional argument list as more route kinds are added.
-type gatewayClientServerArgs struct {
+type GatewayClientServerArgs struct {
 	Namespace          string
 	Name               string
 	Nameserver         string
@@ -98,37 +98,9 @@ type gatewayClientServerArgs struct {
 	GatewayClassName   string
 }
 
-// GatewayClientAndServer creates HTTPRoute-based gateway test resources. Wrapper around
-// GatewayClientAndServerFor for callers that don't need to pick a route kind.
-func GatewayClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
-	return GatewayClientAndServerFor(HTTPRouteKind{}, gatewayClientServerArgs{
-		Namespace:          namespace,
-		Name:               name,
-		Nameserver:         nameserver,
-		KeyvaultURI:        keyvaultURI,
-		TLSHost:            tlsHost,
-		ServiceAccountName: serviceAccountName,
-		GatewayClassName:   gatewayClassName,
-	})
-}
-
-// GatewayGrpcClientAndServer creates GRPCRoute-based gateway test resources: a real gRPC server
-// (grpc.health.v1) behind the gateway and a real gRPC client that asserts SERVING.
-func GatewayGrpcClientAndServer(namespace, name, nameserver, keyvaultURI, tlsHost, serviceAccountName, gatewayClassName string) GatewayClientServerResources {
-	return GatewayClientAndServerFor(GRPCRouteKind{}, gatewayClientServerArgs{
-		Namespace:          namespace,
-		Name:               name,
-		Nameserver:         nameserver,
-		KeyvaultURI:        keyvaultURI,
-		TLSHost:            tlsHost,
-		ServiceAccountName: serviceAccountName,
-		GatewayClassName:   gatewayClassName,
-	})
-}
-
 // GatewayClientAndServerFor builds the gateway+route+client+server resource set for the given
 // RouteKind. Listener protocol/TLS mode and the route object's GVK come from the kind.
-func GatewayClientAndServerFor(kind RouteKind, args gatewayClientServerArgs) GatewayClientServerResources {
+func GatewayClientAndServerFor(kind RouteKind, args GatewayClientServerArgs) GatewayClientServerResources {
 	name := nonAlphanumericRegex.ReplaceAllString(args.Name, "")
 
 	gatewayName := name + "-gateway"
@@ -137,7 +109,7 @@ func GatewayClientAndServerFor(kind RouteKind, args gatewayClientServerArgs) Gat
 	// SPC controller writes the cert into a secret with this name.
 	tlsSecretName := "kv-gw-cert-" + gatewayName + "-" + listenerName
 
-	clientDeployment := buildGatewayClient(args.Namespace, name+"-gw-client", args.TLSHost, args.Nameserver, "", tlsSecretName, kind.ClientContents())
+	clientDeployment := buildGatewayClient(kind, args.Namespace, name+"-gw-client", args.TLSHost, args.Nameserver, "", tlsSecretName)
 
 	serverName := name + "-gw-server"
 	serverDeployment := newGoDeployment(kind.ServerContents(), args.Namespace, serverName)
@@ -247,7 +219,7 @@ func GatewayLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestCo
 	listenerName := "https"
 	tlsSecretName := "kv-gw-cert-" + labeledGatewayName + "-" + listenerName
 
-	clientDeployment := buildGatewayClient(cfg.Namespace, name+"-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName, kind.ClientContents())
+	clientDeployment := buildGatewayClient(kind, cfg.Namespace, name+"-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName)
 
 	serverName := name + "-filter-server"
 	serverDeployment := newGoDeployment(kind.ServerContents(), cfg.Namespace, serverName)
@@ -293,7 +265,7 @@ func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConf
 	listenerName := "https"
 	tlsSecretName := "kv-gw-cert-" + labeledGatewayName + "-" + listenerName
 
-	clientDeployment := buildGatewayClient(cfg.Namespace, name+"-route-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName, kind.ClientContents())
+	clientDeployment := buildGatewayClient(kind, cfg.Namespace, name+"-route-filter-client", cfg.LabeledHost, cfg.Nameserver, cfg.UnlabeledHost, tlsSecretName)
 
 	serverName := name + "-route-filter-server"
 	serverDeployment := newGoDeployment(kind.ServerContents(), cfg.Namespace, serverName)
@@ -338,8 +310,14 @@ func RouteLabelFilterResourcesFor(kind RouteKind, cfg GatewayLabelFilterTestConf
 // only succeeds once URL responds, which implicitly asserts DNS resolution, TLS validation
 // against the mounted KV cert, and end-to-end routing through the gateway. If unreachableURL
 // is non-empty, the client also asserts that URL is *not* reachable (used by filter tests).
-func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSecretName, contents string) *appsv1.Deployment {
-	deployment := newGoDeployment(contents, namespace, name)
+func buildGatewayClient(kind RouteKind, namespace, name, url, nameserver, unreachableURL, tlsSecretName string) *appsv1.Deployment {
+	deployment := newGoDeployment(kind.ClientContents(), namespace, name)
+	// gRPC client dials TLS with WithBlock and may also probe an unreachable host; give the
+	// readiness probe more headroom so the kubelet doesn't cancel mid-flight. HTTP is snappier.
+	probeTimeout := int32(5)
+	if _, ok := kind.(GRPCRouteKind); ok {
+		probeTimeout = 30
+	}
 	env := []corev1.EnvVar{
 		{Name: "URL", Value: "https://" + url},
 	}
@@ -375,9 +353,10 @@ func buildGatewayClient(namespace, name, url, nameserver, unreachableURL, tlsSec
 		InitialDelaySeconds: 1,
 		PeriodSeconds:       5,
 		SuccessThreshold:    1,
-		// 30s gives the gRPC client (which dials TLS with WithBlock and may also test an
-		// unreachable host) enough room without the kubelet canceling the request mid-flight.
-		TimeoutSeconds: 30,
+		// HTTP gets a snappy 5s timeout; gRPC bumps to 30s because the client dials TLS with
+		// WithBlock and may also probe an unreachable host, and we don't want the kubelet
+		// canceling the request mid-flight.
+		TimeoutSeconds: probeTimeout,
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path:   "/",
