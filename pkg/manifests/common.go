@@ -176,7 +176,7 @@ func WithPreferSystemNodes(spec *corev1.PodSpec) *corev1.PodSpec {
 				Values:   []string{"linux"},
 			},
 			{
-				Key:      "kubernetes.azure.com/hobovm",
+				Key:      "kubernetes.azure.com/hostedvm",
 				Operator: corev1.NodeSelectorOpNotIn,
 				Values: []string{
 					"true",
