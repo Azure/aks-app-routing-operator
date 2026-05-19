@@ -109,13 +109,12 @@ func main() {
 				w.WriteHeader(500)
 				return
 			}
-			// Prefer typed checks over substring matches on err.Error() so we do not silently
-			// accept unexpected errors if the stdlib ever rewords its messages. DNS NXDOMAIN
-			// surfaces as *net.DNSError; if the resolver retries past our 10s budget, we get
-			// context.DeadlineExceeded.
-			var dnsErr *net.DNSError
-			if !errors.As(err, &dnsErr) && !errors.Is(err, context.DeadlineExceeded) {
-				log.Printf("ERROR: expected no such host or deadline exceeded for %s, got: %v", unreachableHost, err)
+			// grpc-go wraps the underlying *net.DNSError in a *status.Error with
+			// codes.Unavailable, and errors.As does NOT unwrap through it. Check the grpc
+			// status code instead, plus context.DeadlineExceeded as a fallback if the
+			// resolver retries past our 10s budget.
+			if status.Code(err) != codes.Unavailable && !errors.Is(err, context.DeadlineExceeded) {
+				log.Printf("ERROR: expected Unavailable or deadline exceeded for %s, got: %v", unreachableHost, err)
 				w.WriteHeader(500)
 				return
 			}
