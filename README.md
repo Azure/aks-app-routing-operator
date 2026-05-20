@@ -8,6 +8,12 @@ A Kubernetes operator that manages resources related to AKS Application Routing 
 
 View the [docs](docs/) folder for more information.
 
+## How does it work ?
+
+To get started with understanding the design behind Application Routing, [watch this video on Youtube](https://www.youtube.com/watch?v=TOBGA-ztINM&list=PLpbcUe4chE79sB7Jg7B4z3HytqUUEwcNE&index=1).
+
+![Youtube video explaining how App Routing works](https://img.youtube.com/vi/TOBGA-ztINM/maxresdefault.jpg)
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
