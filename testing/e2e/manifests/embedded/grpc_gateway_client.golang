@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -24,10 +25,7 @@ func makeDialer(nameserver string) func(ctx context.Context, addr string) (net.C
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: time.Second}
-			ns := nameserver
-			if strings.HasSuffix(ns, ".") {
-				ns = ns[:len(ns)-1]
-			}
+			ns := strings.TrimSuffix(nameserver, ".")
 			return d.DialContext(ctx, "tcp", ns+":53")
 		},
 	}
@@ -37,17 +35,18 @@ func makeDialer(nameserver string) func(ctx context.Context, addr string) (net.C
 	}
 }
 
-func loadRoots() *x509.CertPool {
-	pool := x509.NewCertPool()
+// loadRoots reads the mounted KV cert as a RootCAs pool. Failures are fatal — falling back to
+// system roots would mask cert-mount bugs behind a passing probe.
+func loadRoots() (*x509.CertPool, error) {
 	data, err := os.ReadFile("/etc/ssl/certs/ca-certificates.crt")
 	if err != nil {
-		log.Printf("warning: could not read mounted cert: %v", err)
-		return nil
+		return nil, fmt.Errorf("reading mounted cert: %w", err)
 	}
+	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(data) {
-		log.Printf("warning: no PEM certs found in mounted cert file")
+		return nil, errors.New("no PEM certs found in mounted cert file")
 	}
-	return pool
+	return pool, nil
 }
 
 func dialAndCheck(ctx context.Context, host string, dialer func(ctx context.Context, addr string) (net.Conn, error), roots *x509.CertPool) error {
@@ -87,7 +86,10 @@ func main() {
 	unreachableHost = strings.TrimPrefix(unreachableHost, "http://")
 	unreachableHost = strings.TrimSuffix(unreachableHost, "/")
 
-	roots := loadRoots()
+	roots, err := loadRoots()
+	if err != nil {
+		log.Fatalf("loading mounted TLS roots: %s", err.Error())
+	}
 	dialer := makeDialer(nameserver)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
