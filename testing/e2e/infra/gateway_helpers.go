@@ -3,7 +3,11 @@ package infra
 import "fmt"
 
 const (
-	// NumGatewayZones is the number of managed identity zones to provision and test for gateway tests
+	// NumGatewayZones is the number of managed identity zones to provision for gateway tests.
+	// Capped at 3 to stay under Azure's 20-FIC-per-UAMI limit (each cluster-scoped namespace per
+	// zone × prefixes is one FIC). Route kinds (HTTPRoute, GRPCRoute, ...) run serially within a
+	// single top-level test entry per zone-type, so they share the same zones and namespaces
+	// without racing on external-dns ownership records.
 	NumGatewayZones = 3
 
 	// GatewayClusterNsPrefix is the prefix for cluster-scoped gateway test namespaces (one per zone)

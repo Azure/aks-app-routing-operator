@@ -1,0 +1,128 @@
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
+)
+
+func makeDialer(nameserver string) func(ctx context.Context, addr string) (net.Conn, error) {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: time.Second}
+			ns := strings.TrimSuffix(nameserver, ".")
+			return d.DialContext(ctx, "tcp", ns+":53")
+		},
+	}
+	d := &net.Dialer{Resolver: resolver, Timeout: 10 * time.Second}
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		return d.DialContext(ctx, "tcp", addr)
+	}
+}
+
+// loadRoots reads the mounted KV cert as a RootCAs pool. Failures are fatal — falling back to
+// system roots would mask cert-mount bugs behind a passing probe.
+func loadRoots() (*x509.CertPool, error) {
+	data, err := os.ReadFile("/etc/ssl/certs/ca-certificates.crt")
+	if err != nil {
+		return nil, fmt.Errorf("reading mounted cert: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(data) {
+		return nil, errors.New("no PEM certs found in mounted cert file")
+	}
+	return pool, nil
+}
+
+func dialAndCheck(ctx context.Context, host string, dialer func(ctx context.Context, addr string) (net.Conn, error), roots *x509.CertPool) error {
+	creds := credentials.NewTLS(&tls.Config{ServerName: host, RootCAs: roots})
+	// Use the passthrough resolver so grpc-go does NOT run its internal DNS resolver against
+	// net.DefaultResolver. With NewClient, WithContextDialer only handles the TCP connect step;
+	// without passthrough, grpc resolves the hostname itself via the system resolver and
+	// ignores our custom NAMESERVER-backed resolver, producing "zero addresses" for test zones
+	// that are not in /etc/resolv.conf.
+	target := "passthrough:///" + host + ":443"
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithContextDialer(dialer),
+	)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	hc := healthpb.NewHealthClient(conn)
+	resp, err := hc.Check(ctx, &healthpb.HealthCheckRequest{})
+	if err != nil {
+		return err
+	}
+	if resp.Status != healthpb.HealthCheckResponse_SERVING {
+		return status.Errorf(codes.Unavailable, "unexpected health status: %v", resp.Status)
+	}
+	return nil
+}
+
+func main() {
+	nameserver := os.Getenv("NAMESERVER")
+	urlHost := strings.TrimPrefix(os.Getenv("URL"), "https://")
+	urlHost = strings.TrimPrefix(urlHost, "http://")
+	urlHost = strings.TrimSuffix(urlHost, "/")
+	unreachable := os.Getenv("UNREACHABLE_URL")
+	unreachableHost := strings.TrimPrefix(unreachable, "https://")
+	unreachableHost = strings.TrimPrefix(unreachableHost, "http://")
+	unreachableHost = strings.TrimSuffix(unreachableHost, "/")
+
+	roots, err := loadRoots()
+	if err != nil {
+		log.Fatalf("loading mounted TLS roots: %s", err.Error())
+	}
+	dialer := makeDialer(nameserver)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := dialAndCheck(ctx, urlHost, dialer, roots); err != nil {
+			log.Printf("grpc health check failed for %s: %v", urlHost, err)
+			w.WriteHeader(500)
+			return
+		}
+		log.Printf("grpc health check OK for %s", urlHost)
+
+		if unreachableHost != "" {
+			ctx2, cancel2 := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel2()
+			err := dialAndCheck(ctx2, unreachableHost, dialer, roots)
+			if err == nil {
+				log.Printf("ERROR: expected unreachable %s to fail, but it succeeded", unreachableHost)
+				w.WriteHeader(500)
+				return
+			}
+			// grpc-go wraps the underlying *net.DNSError in a *status.Error with
+			// codes.Unavailable, and errors.As does NOT unwrap through it. Check the grpc
+			// status code instead, plus context.DeadlineExceeded as a fallback if the
+			// resolver retries past our 10s budget.
+			if status.Code(err) != codes.Unavailable && !errors.Is(err, context.DeadlineExceeded) {
+				log.Printf("ERROR: expected Unavailable or deadline exceeded for %s, got: %v", unreachableHost, err)
+				w.WriteHeader(500)
+				return
+			}
+			log.Printf("correctly failed to reach %s: %v", unreachableHost, err)
+		}
+		log.Printf("grpc gateway client health check passed")
+	})
+	panic(http.ListenAndServe(":8080", nil))
+}

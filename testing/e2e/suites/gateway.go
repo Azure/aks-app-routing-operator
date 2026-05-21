@@ -57,6 +57,54 @@ type multiZoneGatewayTestConfig struct {
 	zoneType zoneType
 	// gatewayClassName is the GatewayClass name to use for Gateway resources (e.g., "istio" or "approuting-istio")
 	gatewayClassName string
+	// routeKind selects HTTPRoute vs GRPCRoute. Route kinds run serially within a single
+	// top-level test entry, so they share the same namespaces / DNS record names without racing
+	// on external-dns ownership records. routeKind only affects which builder produces the
+	// gateway+route+client+server resource set.
+	routeKind manifests.RouteKind
+}
+
+// gwClusterNs returns the per-zone cluster-scoped gateway namespace.
+func (c multiZoneGatewayTestConfig) gwClusterNs(zoneIndex int) string {
+	return infra.GatewayClusterNsName(zoneIndex)
+}
+
+// gwClusterSa returns the cluster-scoped gateway service-account name.
+func (c multiZoneGatewayTestConfig) gwClusterSa() string {
+	return infra.GatewayClusterSaName
+}
+
+// gwNs returns the namespace-scoped gateway namespace for the configured zone type.
+func (c multiZoneGatewayTestConfig) gwNs() string {
+	if c.zoneType == zoneTypePublic {
+		return infra.GatewayNsPublic
+	}
+	return infra.GatewayNsPrivate
+}
+
+// gwNsSa returns the namespace-scoped gateway service-account name.
+func (c multiZoneGatewayTestConfig) gwNsSa() string {
+	return infra.GatewayNsSaName
+}
+
+// recordPrefix is the hostname prefix used to derive DNS record names. Shared across route
+// kinds since kinds run serially within a single top-level entry (cleanup waits for record
+// deletion before the next kind starts).
+func (c multiZoneGatewayTestConfig) recordPrefix() string {
+	return "zone"
+}
+
+// buildGatewayResources builds the gateway+route+client+server resource set for c.routeKind.
+func (c multiZoneGatewayTestConfig) buildGatewayResources(namespace, name, nameserver, kvURI, tlsHost, sa, gwClass string) manifests.GatewayClientServerResources {
+	return manifests.GatewayClientAndServerFor(c.routeKind, manifests.GatewayClientServerArgs{
+		Namespace:          namespace,
+		Name:               name,
+		Nameserver:         nameserver,
+		KeyvaultURI:        kvURI,
+		TLSHost:            tlsHost,
+		ServiceAccountName: sa,
+		GatewayClassName:   gwClass,
+	})
 }
 
 // gatewayZoneConfig contains zone-specific configuration for gateway tests.
@@ -116,6 +164,25 @@ func buildPrivateZoneConfigs(in infra.Provisioned) []gatewayZoneConfig {
 	return configs
 }
 
+// newMultiZoneGatewayTestConfig builds a multiZoneGatewayTestConfig for the given route kind and
+// zone type. All route kinds share the same zone set; they run serially within a single
+// top-level test entry so they can't race on external-dns ownership records.
+func newMultiZoneGatewayTestConfig(in infra.Provisioned, kind manifests.RouteKind, zt zoneType, gwClass string) multiZoneGatewayTestConfig {
+	var allConfigs []gatewayZoneConfig
+	if zt == zoneTypePublic {
+		allConfigs = buildPublicZoneConfigs(in)
+	} else {
+		allConfigs = buildPrivateZoneConfigs(in)
+	}
+	return multiZoneGatewayTestConfig{
+		clientId:         in.ManagedIdentity.GetClientID(),
+		zoneConfigs:      allConfigs,
+		zoneType:         zt,
+		gatewayClassName: gwClass,
+		routeKind:        kind,
+	}
+}
+
 // getZoneIDs extracts all zone IDs from a list of zone configs
 func getZoneIDs(configs []gatewayZoneConfig) []string {
 	ids := make([]string, len(configs))
@@ -157,6 +224,14 @@ func gatewayTests(in infra.Provisioned) []test {
 		return []test{}
 	}
 
+	// gatewayRouteKinds lists the Gateway API route kinds exercised by each top-level gateway
+	// test entry. Kinds run serially within an entry (sharing namespaces and DNS records). Add
+	// future kinds (e.g. TLSRoute) here.
+	gatewayRouteKinds := []manifests.RouteKind{
+		manifests.HTTPRouteKind{},
+		manifests.GRPCRouteKind{},
+	}
+
 	return []test{
 		{
 			name: "gateway with externaldns for public zones",
@@ -167,14 +242,11 @@ func gatewayTests(in infra.Provisioned) []test {
 				withGatewayTLS(true).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				testConfig := multiZoneGatewayTestConfig{
-					clientId:         in.ManagedIdentity.GetClientID(),
-					zoneConfigs:      buildPublicZoneConfigs(in),
-					zoneType:         zoneTypePublic,
-					gatewayClassName: gwClassName,
-				}
-				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
-					return err
+				for _, kind := range gatewayRouteKinds {
+					testConfig := newMultiZoneGatewayTestConfig(in, kind, zoneTypePublic, gwClassName)
+					if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
+						return fmt.Errorf("%s: %w", kind.Name(), err)
+					}
 				}
 				return nil
 			},
@@ -188,14 +260,11 @@ func gatewayTests(in infra.Provisioned) []test {
 				withGatewayTLS(true).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				testConfig := multiZoneGatewayTestConfig{
-					clientId:         in.ManagedIdentity.GetClientID(),
-					zoneConfigs:      buildPrivateZoneConfigs(in),
-					zoneType:         zoneTypePrivate,
-					gatewayClassName: gwClassName,
-				}
-				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
-					return err
+				for _, kind := range gatewayRouteKinds {
+					testConfig := newMultiZoneGatewayTestConfig(in, kind, zoneTypePrivate, gwClassName)
+					if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
+						return fmt.Errorf("%s: %w", kind.Name(), err)
+					}
 				}
 				return nil
 			},
@@ -226,7 +295,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	clusterTestServiceAccounts := make([]*corev1.ServiceAccount, len(testConfig.zoneConfigs))
 
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		nsName := infra.GatewayClusterNsName(zoneCfg.ZoneIndex)
+		nsName := testConfig.gwClusterNs(zoneCfg.ZoneIndex)
 
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -247,7 +316,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 
 		sa := &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      infra.GatewayClusterSaName,
+				Name:      testConfig.gwClusterSa(),
 				Namespace: nsName,
 				Annotations: map[string]string{
 					"azure.workload.identity/client-id": testConfig.clientId,
@@ -297,10 +366,10 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	clusterResources := make([]manifests.ObjectsContainer, len(testConfig.zoneConfigs))
 	clusterHostPrefixes := make([]string, len(testConfig.zoneConfigs)) // for DNS record verification during cleanup
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
+		recordName := fmt.Sprintf("%s%d", testConfig.recordPrefix(), zoneCfg.ZoneIndex)
 		clusterHostPrefixes[i] = recordName
 		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, clusterTestNamespaces[i].Name, clusterTestServiceAccounts[i].Name, testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d: %w", zoneCfg.ZoneIndex, err)
 		}
@@ -336,13 +405,8 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	// ========================================
 	lgr.Info("testing namespace-scoped externaldns with multiple zones")
 
-	// Determine namespace based on zone type
-	var nsName string
-	if testConfig.zoneType == zoneTypePublic {
-		nsName = infra.GatewayNsPublic
-	} else {
-		nsName = infra.GatewayNsPrivate
-	}
+	// Determine namespace based on zone type and route kind
+	nsName := testConfig.gwNs()
 
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -362,7 +426,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      infra.GatewayNsSaName,
+			Name:      testConfig.gwNsSa(),
 			Namespace: nsName,
 			Annotations: map[string]string{
 				"azure.workload.identity/client-id": testConfig.clientId,
@@ -395,7 +459,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
-				ServiceAccount: infra.GatewayNsSaName,
+				ServiceAccount: testConfig.gwNsSa(),
 			},
 		},
 	}
@@ -407,10 +471,10 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 	nsResources := make([]manifests.ObjectsContainer, len(testConfig.zoneConfigs))
 	namespaceHostPrefixes := make([]string, len(testConfig.zoneConfigs)) // for DNS record verification during cleanup
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		recordName := fmt.Sprintf("zone%d", zoneCfg.ZoneIndex)
+		recordName := fmt.Sprintf("%s%d", testConfig.recordPrefix(), zoneCfg.ZoneIndex)
 		namespaceHostPrefixes[i] = recordName
 		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, zoneCfg, nsName, infra.GatewayNsSaName, testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
+		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, nsName, testConfig.gwNsSa(), testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
 		if err != nil {
 			return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 		}
@@ -454,6 +518,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 func deployGatewayResourcesForZone(
 	ctx context.Context,
 	cl client.Client,
+	testConfig multiZoneGatewayTestConfig,
 	zoneCfg gatewayZoneConfig,
 	namespace string,
 	serviceAccountName string,
@@ -462,11 +527,10 @@ func deployGatewayResourcesForZone(
 	gatewayClassName string,
 ) (*manifests.GatewayClientServerResources, error) {
 	lgr := logger.FromContext(ctx)
-	lgr.Info("deploying gateway resources", "host", tlsHost, "zone", zoneCfg.ZoneName, "namespace", namespace, "gatewayClass", gatewayClassName)
-	// Create Gateway API resources
-	resources := manifests.GatewayClientAndServer(
+	lgr.Info("deploying gateway resources", "host", tlsHost, "zone", zoneCfg.ZoneName, "namespace", namespace, "gatewayClass", gatewayClassName, "kind", testConfig.routeKind.Name())
+	resources := testConfig.buildGatewayResources(
 		namespace,
-		fmt.Sprintf("%szone%d", zoneTypePrefix, zoneCfg.ZoneIndex), // unique name per zone
+		fmt.Sprintf("%s%s%d", zoneTypePrefix, testConfig.recordPrefix(), zoneCfg.ZoneIndex), // unique name per zone
 		zoneCfg.Nameserver,
 		zoneCfg.KeyvaultCertURI,
 		tlsHost,

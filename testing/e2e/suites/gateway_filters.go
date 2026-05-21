@@ -24,6 +24,42 @@ const (
 	filterLabelValue = "enabled"
 )
 
+// filterClusterNs returns the per-zone cluster-scoped filter namespace.
+func (c multiZoneGatewayTestConfig) filterClusterNs(zoneIndex int) string {
+	return infra.FilterClusterNsName(zoneIndex)
+}
+
+// filterClusterSa returns the cluster-scoped filter service-account name.
+func (c multiZoneGatewayTestConfig) filterClusterSa() string {
+	return infra.FilterClusterSaName
+}
+
+// filterNs returns the namespace-scoped filter namespace.
+func (c multiZoneGatewayTestConfig) filterNs() string {
+	return infra.FilterNs
+}
+
+// filterNsSa returns the namespace-scoped filter service-account name.
+func (c multiZoneGatewayTestConfig) filterNsSa() string {
+	return infra.FilterNsSaName
+}
+
+// gatewayLabelFilterResources builds the kind-appropriate gateway-label filter test resources.
+func (c multiZoneGatewayTestConfig) gatewayLabelFilterResources(cfg manifests.GatewayLabelFilterTestConfig) manifests.GatewayFilterTestResources {
+	if c.routeKind != nil {
+		return manifests.GatewayLabelFilterResourcesFor(c.routeKind, cfg)
+	}
+	return manifests.GatewayLabelFilterResources(cfg)
+}
+
+// routeLabelFilterResources builds the kind-appropriate route-label filter test resources.
+func (c multiZoneGatewayTestConfig) routeLabelFilterResources(cfg manifests.GatewayLabelFilterTestConfig) manifests.GatewayFilterTestResources {
+	if c.routeKind != nil {
+		return manifests.RouteLabelFilterResourcesFor(c.routeKind, cfg)
+	}
+	return manifests.RouteLabelFilterResources(cfg)
+}
+
 // runAllFilterTests runs all 4 filter tests sequentially within a single test
 // Each filter test validates filtering behavior across ALL zones
 func runAllFilterTests(ctx context.Context, config *rest.Config, testConfig multiZoneGatewayTestConfig) error {
@@ -47,7 +83,7 @@ func runAllFilterTests(ctx context.Context, config *rest.Config, testConfig mult
 	}
 
 	// Setup namespace-scoped filter namespace (shared by namespace-scoped ExternalDNS tests)
-	if err := setupNamespaceScopedFilterNamespace(ctx, cl, testConfig.clientId); err != nil {
+	if err := setupNamespaceScopedFilterNamespace(ctx, cl, testConfig); err != nil {
 		return fmt.Errorf("setting up namespace-scoped filter namespace: %w", err)
 	}
 
@@ -108,7 +144,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 	}
 
 	// Use first zone's namespace for the ClusterExternalDNS resource namespace
-	resourceNamespace := infra.FilterClusterNsName(0)
+	resourceNamespace := testConfig.filterClusterNs(testConfig.zoneConfigs[0].ZoneIndex)
 
 	// Create ONE ClusterExternalDNS with ALL zone IDs and gateway label selector
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
@@ -124,7 +160,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
-				ServiceAccount: infra.FilterClusterSaName,
+				ServiceAccount: testConfig.filterClusterSa(),
 				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			ResourceNamespace: resourceNamespace,
@@ -142,7 +178,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 	labeledHostPrefixes := make([]string, len(testConfig.zoneConfigs))
 
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		nsName := infra.FilterClusterNsName(zoneCfg.ZoneIndex)
+		nsName := testConfig.filterClusterNs(zoneCfg.ZoneIndex)
 
 		// Host prefixes include zone index to avoid collisions
 		labeledHostPrefix := fmt.Sprintf("gw-labeled-z%d", zoneCfg.ZoneIndex)
@@ -160,14 +196,14 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 			"zoneIndex", zoneCfg.ZoneIndex)
 
 		// Create gateway filter test resources
-		resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+		resources := testConfig.gatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
 			Namespace:          nsName,
 			Name:               fmt.Sprintf("%sz%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: infra.FilterClusterSaName,
+			ServiceAccountName: testConfig.filterClusterSa(),
 			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
@@ -221,7 +257,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 	}
 
 	// Use first zone's namespace for the ClusterExternalDNS resource namespace
-	resourceNamespace := infra.FilterClusterNsName(0)
+	resourceNamespace := testConfig.filterClusterNs(testConfig.zoneConfigs[0].ZoneIndex)
 
 	// Create ONE ClusterExternalDNS with ALL zone IDs and route label selector
 	clusterExternalDns := &v1alpha1.ClusterExternalDNS{
@@ -237,7 +273,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
-				ServiceAccount: infra.FilterClusterSaName,
+				ServiceAccount: testConfig.filterClusterSa(),
 				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			ResourceNamespace: resourceNamespace,
@@ -255,7 +291,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 	labeledHostPrefixes := make([]string, len(testConfig.zoneConfigs))
 
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		nsName := infra.FilterClusterNsName(zoneCfg.ZoneIndex)
+		nsName := testConfig.filterClusterNs(zoneCfg.ZoneIndex)
 
 		// Host prefixes include zone index to avoid collisions
 		labeledHostPrefix := fmt.Sprintf("route-labeled-z%d", zoneCfg.ZoneIndex)
@@ -273,14 +309,14 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 			"zoneIndex", zoneCfg.ZoneIndex)
 
 		// Create route filter test resources
-		resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+		resources := testConfig.routeLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
 			Namespace:          nsName,
 			Name:               fmt.Sprintf("%sz%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: infra.FilterClusterSaName,
+			ServiceAccountName: testConfig.filterClusterSa(),
 			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
@@ -337,7 +373,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testConfig.zoneType.Prefix() + "ns-gw-label-filter",
-			Namespace: infra.FilterNs,
+			Namespace: testConfig.filterNs(),
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ExternalDNS",
@@ -348,7 +384,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
-				ServiceAccount: infra.FilterNsSaName,
+				ServiceAccount: testConfig.filterNsSa(),
 				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			Filters: &v1alpha1.ExternalDNSFilters{
@@ -375,20 +411,20 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 		unlabeledHost := unlabeledHostPrefix + "." + strings.TrimRight(zoneCfg.ZoneName, ".")
 
 		lgr.Info("deploying gateway filter resources",
-			"namespace", infra.FilterNs,
+			"namespace", testConfig.filterNs(),
 			"labeledHost", labeledHost,
 			"unlabeledHost", unlabeledHost,
 			"zoneIndex", zoneCfg.ZoneIndex)
 
 		// Create gateway filter test resources
-		resources := manifests.GatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
-			Namespace:          infra.FilterNs,
+		resources := testConfig.gatewayLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+			Namespace:          testConfig.filterNs(),
 			Name:               fmt.Sprintf("%sns-z%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: infra.FilterNsSaName,
+			ServiceAccountName: testConfig.filterNsSa(),
 			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
@@ -445,7 +481,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 	externalDns := &v1alpha1.ExternalDNS{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testConfig.zoneType.Prefix() + "ns-route-label-filter",
-			Namespace: infra.FilterNs,
+			Namespace: testConfig.filterNs(),
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ExternalDNS",
@@ -456,7 +492,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
 			ResourceTypes:      []string{"gateway"},
 			Identity: v1alpha1.ExternalDNSIdentity{
-				ServiceAccount: infra.FilterNsSaName,
+				ServiceAccount: testConfig.filterNsSa(),
 				Type:           v1alpha1.IdentityTypeWorkloadIdentity,
 			},
 			Filters: &v1alpha1.ExternalDNSFilters{
@@ -483,20 +519,20 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 		unlabeledHost := unlabeledHostPrefix + "." + strings.TrimRight(zoneCfg.ZoneName, ".")
 
 		lgr.Info("deploying route filter resources",
-			"namespace", infra.FilterNs,
+			"namespace", testConfig.filterNs(),
 			"labeledHost", labeledHost,
 			"unlabeledHost", unlabeledHost,
 			"zoneIndex", zoneCfg.ZoneIndex)
 
 		// Create route filter test resources
-		resources := manifests.RouteLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
-			Namespace:          infra.FilterNs,
+		resources := testConfig.routeLabelFilterResources(manifests.GatewayLabelFilterTestConfig{
+			Namespace:          testConfig.filterNs(),
 			Name:               fmt.Sprintf("%sns-z%d", testConfig.zoneType.Prefix(), zoneCfg.ZoneIndex),
 			Nameserver:         zoneCfg.Nameserver,
 			KeyvaultURI:        zoneCfg.KeyvaultCertURI,
 			LabeledHost:        labeledHost,
 			UnlabeledHost:      unlabeledHost,
-			ServiceAccountName: infra.FilterNsSaName,
+			ServiceAccountName: testConfig.filterNsSa(),
 			GatewayClassName:   testConfig.gatewayClassName,
 			FilterLabelKey:     filterLabelKey,
 			FilterLabelValue:   filterLabelValue,
@@ -542,7 +578,7 @@ func setupClusterScopedFilterNamespaces(ctx context.Context, cl client.Client, t
 	lgr := logger.FromContext(ctx)
 
 	for _, zoneCfg := range testConfig.zoneConfigs {
-		nsName := infra.FilterClusterNsName(zoneCfg.ZoneIndex)
+		nsName := testConfig.filterClusterNs(zoneCfg.ZoneIndex)
 		lgr.Info("setting up cluster-scoped filter namespace", "namespace", nsName, "zoneIndex", zoneCfg.ZoneIndex)
 
 		// Create namespace
@@ -562,7 +598,7 @@ func setupClusterScopedFilterNamespaces(ctx context.Context, cl client.Client, t
 		// Create ServiceAccount with workload identity
 		sa := &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      infra.FilterClusterSaName,
+				Name:      testConfig.filterClusterSa(),
 				Namespace: nsName,
 				Annotations: map[string]string{
 					"azure.workload.identity/client-id": testConfig.clientId,
@@ -585,11 +621,11 @@ func setupClusterScopedFilterNamespaces(ctx context.Context, cl client.Client, t
 }
 
 // setupNamespaceScopedFilterNamespace creates the namespace and service account for namespace-scoped filter tests
-func setupNamespaceScopedFilterNamespace(ctx context.Context, cl client.Client, clientId string) error {
+func setupNamespaceScopedFilterNamespace(ctx context.Context, cl client.Client, testConfig multiZoneGatewayTestConfig) error {
 	// Create namespace
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: infra.FilterNs,
+			Name: testConfig.filterNs(),
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Namespace",
@@ -603,10 +639,10 @@ func setupNamespaceScopedFilterNamespace(ctx context.Context, cl client.Client, 
 	// Create ServiceAccount with workload identity
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      infra.FilterNsSaName,
-			Namespace: infra.FilterNs,
+			Name:      testConfig.filterNsSa(),
+			Namespace: testConfig.filterNs(),
 			Annotations: map[string]string{
-				"azure.workload.identity/client-id": clientId,
+				"azure.workload.identity/client-id": testConfig.clientId,
 			},
 			Labels: map[string]string{
 				"azure.workload.identity/use": "true",
