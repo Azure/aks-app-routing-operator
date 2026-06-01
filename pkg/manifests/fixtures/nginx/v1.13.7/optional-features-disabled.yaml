@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   creationTimestamp: null
+  labels:
+    dynatrace.com/inject: "false"
   name: test-namespace
 spec: {}
 status: {}

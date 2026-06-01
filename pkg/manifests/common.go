@@ -61,7 +61,10 @@ func Namespace(conf *config.Config, nsName string) *corev1.Namespace {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nsName,
 			// don't set top-level labels,namespace is not managed by operator
-			Labels:      map[string]string{},
+			Labels: map[string]string{
+				// opt the namespace out of Dynatrace OneAgent/monitoring injection
+				"dynatrace.com/inject": "false",
+			},
 			Annotations: map[string]string{},
 		},
 	}
