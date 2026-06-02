@@ -67,6 +67,27 @@ func TestNamespaceResources(t *testing.T) {
 	}
 }
 
+func TestNamespaceExcludesDynatrace(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		conf *config.Config
+	}{
+		{name: "osm enabled", conf: &config.Config{}},
+		{name: "osm disabled", conf: &config.Config{DisableOSM: true}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			ns := Namespace(c.conf, "app-routing-system")
+			require.Equal(t, "false", ns.Labels["dynatrace.com/inject"], "namespace must opt out of Dynatrace injection")
+		})
+	}
+}
+
 func TestHasTopLevelLabels(t *testing.T) {
 	t.Parallel()
 
