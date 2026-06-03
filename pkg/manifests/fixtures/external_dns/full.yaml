@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   creationTimestamp: null
   labels:
-    dynatrace.com/inject: "false"
     openservicemesh.io/monitored-by: osm
   name: test-namespace
 spec: {}
