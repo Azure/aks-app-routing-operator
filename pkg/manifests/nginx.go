@@ -429,10 +429,12 @@ func newNginxIngressControllerDeployment(conf *config.Config, ingressConfig *Ngi
 		podAnnotations["openservicemesh.io/sidecar-injection"] = "disabled"
 	}
 	if conf.EnableDalecNginx {
-		// opt the pod out of Dynatrace OneAgent injection; the namespace-level
-		// annotation is ignored by the Dynatrace operator, which only reads this
-		// annotation from the pod template.
+		// opt the pod out of Dynatrace injection; the namespace-level annotation
+		// is ignored by the Dynatrace operator, which only reads these from the
+		// pod template. dynatrace.com/inject is the master switch; the oneagent
+		// annotation additionally opts out of OneAgent code modules specifically.
 		podAnnotations["dynatrace.com/inject"] = "false"
+		podAnnotations["oneagent.dynatrace.com/inject"] = "false"
 	}
 
 	for k, v := range promAnnotations {
