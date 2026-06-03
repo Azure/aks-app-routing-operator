@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - exclude dynatrace from app-routing-system ns - [link](https://github.com/Azure/aks-app-routing-operator/pull/598)
+- bumped go to 1.25.10 - [link](https://github.com/Azure/aks-app-routing-operator/pull/600)
 
 ### Fixed
 - fix aks hobo label - [link](https://github.com/Azure/aks-app-routing-operator/pull/594)
