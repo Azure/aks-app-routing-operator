@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.24] - 2026-06-05
+
+### Changed
+- switch from attempting to exclude dynatrace from app-routing-system ns switch to explicitly disallowing on ingress-nginx pods - [link](https://github.com/Azure/aks-app-routing-operator/pull/602)
+
 ## [0.2.23] - 2026-06-01
 
 ### Changed
