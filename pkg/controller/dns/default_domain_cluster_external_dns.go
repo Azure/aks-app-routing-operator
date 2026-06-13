@@ -1,12 +1,18 @@
 package dns
 
 import (
+	"context"
+	"fmt"
+
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/common"
 	"github.com/Azure/aks-app-routing-operator/pkg/controller/controllername"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +26,38 @@ const (
 )
 
 var name = controllername.New("default", "domain", "dns")
+
+// CleanDefaultDomainDNS removes the resources created by the default domain DNS reconciler. It's used to tear down
+// the default-domain-dns-external-dns Deployment (and its other resources) when the default domain feature is
+// disabled. Deleting the default-domain-dns ClusterExternalDNS cascades to its owned Deployment via owner references,
+// so without this cleanup the Deployment is orphaned and crash-loops once its DNS zone and identity RBAC are gone.
+func CleanDefaultDomainDNS(ctx context.Context, c client.Client, conf *config.Config, lgr logr.Logger) error {
+	lgr = name.AddToLogger(lgr)
+
+	// Delete the ClusterExternalDNS first so Kubernetes garbage collection removes the owned Deployment/ConfigMap.
+	// We intentionally don't delete the namespace since it's shared with other app routing resources.
+	toDelete := []client.Object{
+		&approutingv1alpha1.ClusterExternalDNS{
+			ObjectMeta: metav1.ObjectMeta{Name: defaultDomainDNSResourceName, Namespace: conf.NS},
+		},
+		&corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{Name: defaultDomainServiceAccountName, Namespace: conf.NS},
+		},
+	}
+
+	for _, obj := range toDelete {
+		lgr := lgr.WithValues("name", obj.GetName(), "namespace", obj.GetNamespace())
+		lgr.Info("deleting disabled default domain dns resource")
+		if err := c.Delete(ctx, obj); err != nil {
+			if k8serrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+				continue
+			}
+			return fmt.Errorf("deleting default domain dns resource %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+		}
+	}
+
+	return nil
+}
 
 // NewDefaultDomainDNSReconciler creates a new reconciler for managing external DNS records for the default domain in the cluster.
 func NewDefaultDomainDNSReconciler(
