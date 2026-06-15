@@ -94,13 +94,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	if err != nil {
 		if util.IsNotFound(err) {
 			lgr.Info("Default domain certificate not found")
-			defaultDomainCertificate.SetCondition(metav1.Condition{
-				Type:    approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable,
-				Status:  metav1.ConditionFalse,
-				Reason:  "CertificateNotReady",
-				Message: "Certificate not ready yet, waiting for it to be issued",
-			})
-			if err := d.client.Status().Update(ctx, defaultDomainCertificate); err != nil {
+			if err := d.setUnavailable(ctx, defaultDomainCertificate, "CertificateNotReady", "Certificate not ready yet, waiting for it to be issued"); err != nil {
 				lgr.Error(err, "failed to update status for DefaultDomainCertificate")
 				return ctrl.Result{}, err
 			}
@@ -114,9 +108,36 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, err
 	}
 
+	// Refuse to adopt a Secret that App Routing doesn't manage. Overwriting a foreign
+	// Secret can destroy another controller's data, and if its immutable fields (e.g.
+	// type) differ from ours, Upsert fails on every reconcile and the
+	// DefaultDomainCertificate never reports a status. Surface the conflict instead.
+	existing := &corev1.Secret{}
+	switch getErr := d.client.Get(ctx, client.ObjectKeyFromObject(secret), existing); {
+	case getErr == nil && !manifests.HasTopLevelLabels(existing.Labels):
+		msg := fmt.Sprintf("Secret %s/%s already exists and is not managed by App Routing", secret.Namespace, secret.Name)
+		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "ConflictingSecretExists", msg)
+		lgr.Info("refusing to overwrite Secret not managed by App Routing")
+		if err := d.setUnavailable(ctx, defaultDomainCertificate, "ConflictingSecretExists", msg); err != nil {
+			lgr.Error(err, "failed to update status for DefaultDomainCertificate")
+			return ctrl.Result{}, err
+		}
+		// Requeue periodically: we don't receive watch events for a Secret we don't
+		// own, so we re-check in case the conflicting Secret is later removed.
+		return ctrl.Result{RequeueAfter: util.Jitter(30*time.Second, 0.25)}, nil
+	case getErr != nil && !apierrors.IsNotFound(getErr):
+		return ctrl.Result{}, fmt.Errorf("checking for existing Secret: %w", getErr)
+	}
+
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
-		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "ApplyingCertificateSecretFailed", "Failed to apply Secret for DefaultDomainCertificate: %s", err.Error())
+		msg := fmt.Sprintf("Failed to apply Secret %s/%s for DefaultDomainCertificate: %s", secret.Namespace, secret.Name, err.Error())
+		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "ApplyingCertificateSecretFailed", msg)
 		lgr.Error(err, "failed to upsert Secret for DefaultDomainCertificate")
+		// Best-effort: surface the failure on the resource so consumers (and
+		// `kubectl wait`) see why it isn't Available instead of timing out blindly.
+		if statusErr := d.setUnavailable(ctx, defaultDomainCertificate, "ApplyingCertificateSecretFailed", msg); statusErr != nil {
+			lgr.Error(statusErr, "failed to update status for DefaultDomainCertificate")
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -136,6 +157,18 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// setUnavailable marks the DefaultDomainCertificate's Available condition False with the
+// given reason and message so failures are visible on the resource rather than only in logs.
+func (d *defaultDomainCertControllerReconciler) setUnavailable(ctx context.Context, ddc *approutingv1alpha1.DefaultDomainCertificate, reason, message string) error {
+	ddc.SetCondition(metav1.Condition{
+		Type:    approutingv1alpha1.DefaultDomainCertificateConditionTypeAvailable,
+		Status:  metav1.ConditionFalse,
+		Reason:  reason,
+		Message: message,
+	})
+	return d.client.Status().Update(ctx, ddc)
 }
 
 func (d *defaultDomainCertControllerReconciler) generateSecret(ctx context.Context, defaultDomainCertificate *approutingv1alpha1.DefaultDomainCertificate) (*corev1.Secret, *tls.CertificateInfo, error) {
