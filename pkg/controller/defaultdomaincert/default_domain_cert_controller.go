@@ -89,23 +89,32 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 	lgr = lgr.WithValues("secretTarget", *defaultDomainCertificate.Spec.Target.Secret)
 	ctx = log.IntoContext(ctx, lgr)
 
-	lgr.Info("upserting Secret for DefaultDomainCertificate")
+	lgr.Info("generating Secret for DefaultDomainCertificate")
 	secret, certInfo, err := d.generateSecret(ctx, defaultDomainCertificate)
 	if err != nil {
 		if util.IsNotFound(err) {
-			lgr.Info("Default domain certificate not found")
+			lgr.Info("default domain certificate not available yet, requeuing to wait for it to be issued")
 			if err := d.setUnavailable(ctx, defaultDomainCertificate, "CertificateNotReady", "Certificate not ready yet, waiting for it to be issued"); err != nil {
 				lgr.Error(err, "failed to update status for DefaultDomainCertificate")
 				return ctrl.Result{}, err
 			}
 
 			// we use a Jitter here to avoid thundering herd issues if many DefaultDomainCertificates are waiting for certs
-			return ctrl.Result{RequeueAfter: util.Jitter(30*time.Second, 0.25)}, nil
+			requeueAfter := util.Jitter(30*time.Second, 0.25)
+			lgr.Info("requeuing DefaultDomainCertificate", "requeueAfter", requeueAfter.Truncate(time.Second).String())
+			return ctrl.Result{RequeueAfter: requeueAfter}, nil
 		}
 
 		err := fmt.Errorf("generating Secret for DefaultDomainCertificate: %w", err)
 		lgr.Error(err, "failed to generate Secret for DefaultDomainCertificate")
 		return ctrl.Result{}, err
+	}
+
+	if certInfo != nil {
+		lgr.Info("generated Secret from default domain certificate",
+			"certSubject", certInfo.Subject,
+			"certDNSNames", certInfo.DNSNames,
+			"certNotAfter", certInfo.NotAfter.UTC().Format(time.RFC3339))
 	}
 
 	// Refuse to adopt a Secret that App Routing doesn't manage. Overwriting a foreign
@@ -129,6 +138,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, fmt.Errorf("checking for existing Secret: %w", getErr)
 	}
 
+	lgr.Info("upserting Secret for DefaultDomainCertificate")
 	if err := util.Upsert(ctx, d.client, secret); err != nil {
 		msg := fmt.Sprintf("Failed to apply Secret %s/%s for DefaultDomainCertificate: %s", secret.Namespace, secret.Name, err.Error())
 		d.events.Eventf(defaultDomainCertificate, corev1.EventTypeWarning, "ApplyingCertificateSecretFailed", msg)
@@ -140,6 +150,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 		}
 		return ctrl.Result{}, err
 	}
+	lgr.Info("successfully upserted Secret for DefaultDomainCertificate")
 
 	// Update the status of the DefaultDomainCertificate
 	if certInfo != nil && len(certInfo.DNSNames) > 0 {
@@ -156,6 +167,7 @@ func (d *defaultDomainCertControllerReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, err
 	}
 
+	lgr.Info("DefaultDomainCertificate is Available", "domain", defaultDomainCertificate.Status.Domain)
 	return ctrl.Result{}, nil
 }
 
