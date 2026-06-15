@@ -443,14 +443,11 @@ func TestReconcile_FailedToUpsertSecret_RecordsEvent(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to patch secret")
 	assert.Equal(t, ctrl.Result{}, result)
 
-	// Verify that the warning event was recorded
+	// Verify that the specific warning event was recorded: it must name the
+	// ApplyingCertificateSecretFailed reason, the target Secret, and the underlying error.
 	select {
 	case event := <-fakeRecorder.Events:
-		assert.Contains(t, event, "Warning")
-		assert.Contains(t, event, "ApplyingCertificateSecretFailed")
-		assert.Contains(t, event, "Failed to apply Secret")
-		assert.Contains(t, event, "for DefaultDomainCertificate")
-		assert.Contains(t, event, "failed to patch secret")
+		assert.Equal(t, "Warning ApplyingCertificateSecretFailed Failed to apply Secret "+testNamespace+"/"+testSecretName+" for DefaultDomainCertificate: failed to patch secret", event)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected event was not recorded within timeout")
 	}
@@ -574,11 +571,11 @@ func TestReconcile_ConflictingUnmanagedSecret_Refused(t *testing.T) {
 	assert.Equal(t, metav1.ConditionFalse, cond.Status)
 	assert.Equal(t, "ConflictingSecretExists", cond.Reason)
 
-	// A warning event must be recorded.
+	// A specific warning event must be recorded naming the ConflictingSecretExists
+	// reason and the unmanaged Secret it refused to overwrite.
 	select {
 	case event := <-fakeRecorder.Events:
-		assert.Contains(t, event, "Warning")
-		assert.Contains(t, event, "ConflictingSecretExists")
+		assert.Equal(t, "Warning ConflictingSecretExists Secret "+testNamespace+"/"+testSecretName+" already exists and is not managed by App Routing", event)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected event was not recorded within timeout")
 	}
