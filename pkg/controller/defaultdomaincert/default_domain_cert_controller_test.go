@@ -443,13 +443,11 @@ func TestReconcile_FailedToUpsertSecret_RecordsEvent(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to patch secret")
 	assert.Equal(t, ctrl.Result{}, result)
 
-	// Verify that the warning event was recorded
+	// Verify that the specific warning event was recorded: it must name the
+	// ApplyingCertificateSecretFailed reason, the target Secret, and the underlying error.
 	select {
 	case event := <-fakeRecorder.Events:
-		assert.Contains(t, event, "Warning")
-		assert.Contains(t, event, "ApplyingCertificateSecretFailed")
-		assert.Contains(t, event, "Failed to apply Secret for DefaultDomainCertificate")
-		assert.Contains(t, event, "failed to patch secret")
+		assert.Equal(t, "Warning ApplyingCertificateSecretFailed Failed to apply Secret "+testNamespace+"/"+testSecretName+" for DefaultDomainCertificate: failed to patch secret", event)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected event was not recorded within timeout")
 	}
@@ -462,11 +460,12 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 
 	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
 
-	// Create an existing secret with different content
+	// Create an existing secret managed by App Routing with different content
 	existingSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testSecretName,
 			Namespace: testNamespace,
+			Labels:    manifests.GetTopLevelLabels(),
 		},
 		Type: corev1.SecretTypeTLS,
 		Data: map[string][]byte{
@@ -510,6 +509,108 @@ func TestReconcile_SecretAlreadyExists_UpdatesExistingSecret(t *testing.T) {
 	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
 	assert.Equal(t, []byte(cert), secret.Data["tls.crt"])
 	assert.Equal(t, []byte(key), secret.Data["tls.key"])
+}
+
+func TestReconcile_ConflictingUnmanagedSecret_Refused(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	// A pre-existing Secret NOT managed by App Routing (no top-level labels) and with a
+	// different, immutable type. The reconciler must refuse to overwrite it.
+	foreignSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testSecretName,
+			Namespace: testNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"someone-elses-key": []byte("do not touch"),
+		},
+	}
+
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ddc, foreignSecret).
+		WithStatusSubresource(ddc).
+		Build()
+
+	cert, key := generateTestCertificate(t)
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
+
+	fakeRecorder := &record.FakeRecorder{Events: make(chan string, 10)}
+	reconciler := &defaultDomainCertControllerReconciler{
+		client:              client,
+		events:              fakeRecorder,
+		conf:                &config.Config{},
+		defaultDomainClient: mockClient,
+	}
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "test-ddc", Namespace: testNamespace}}
+	ctx := context.Background()
+	result, err := reconciler.Reconcile(ctx, req)
+
+	// No error is returned: this is a surfaced conflict, not a controller failure. We
+	// requeue to re-check in case the conflicting Secret is later removed.
+	require.NoError(t, err)
+	assert.NotZero(t, result.RequeueAfter)
+
+	// The foreign Secret must be left untouched.
+	var secret corev1.Secret
+	require.NoError(t, client.Get(ctx, types.NamespacedName{Name: testSecretName, Namespace: testNamespace}, &secret))
+	assert.Equal(t, corev1.SecretTypeOpaque, secret.Type)
+	assert.Equal(t, []byte("do not touch"), secret.Data["someone-elses-key"])
+	assert.NotContains(t, secret.Data, "tls.crt")
+
+	// Status must report the conflict instead of silently timing out.
+	require.NoError(t, client.Get(ctx, types.NamespacedName{Name: ddc.Name, Namespace: ddc.Namespace}, ddc))
+	cond := ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, "ConflictingSecretExists", cond.Reason)
+
+	// A specific warning event must be recorded naming the ConflictingSecretExists
+	// reason and the unmanaged Secret it refused to overwrite.
+	select {
+	case event := <-fakeRecorder.Events:
+		assert.Equal(t, "Warning ConflictingSecretExists Secret "+testNamespace+"/"+testSecretName+" already exists and is not managed by App Routing", event)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected event was not recorded within timeout")
+	}
+}
+
+func TestReconcile_FailedToUpsertSecret_SetsUnavailableStatus(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, approutingv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	ddc := createTestDefaultDomainCertificate("test-ddc", testNamespace, testSecretName)
+
+	// Fail only the Secret apply (Patch). The status subresource update must still succeed
+	// so we can assert the failure is surfaced on the resource.
+	base := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ddc).WithStatusSubresource(ddc).Build()
+	errClient := &ErrorClient{Client: base, PatchError: errors.New("failed to patch secret")}
+
+	cert, key := generateTestCertificate(t)
+	mockClient := newMockDefaultDomainClient(cert, key, nil)
+	reconciler := createTestReconciler(errClient, mockClient)
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "test-ddc", Namespace: testNamespace}}
+	ctx := context.Background()
+	result, err := reconciler.Reconcile(ctx, req)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to patch secret")
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// The upsert failure must be reflected on the DefaultDomainCertificate status.
+	require.NoError(t, base.Get(ctx, types.NamespacedName{Name: ddc.Name, Namespace: ddc.Namespace}, ddc))
+	cond := ddc.GetCondition(v1alpha1.DefaultDomainCertificateConditionTypeAvailable)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, "ApplyingCertificateSecretFailed", cond.Reason)
 }
 
 func TestReconcile_StatusUpdateFails(t *testing.T) {
