@@ -1,15 +1,61 @@
 package dns
 
 import (
+	"context"
 	"testing"
 
 	approutingv1alpha1 "github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
 	"github.com/Azure/aks-app-routing-operator/pkg/manifests"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func TestCleanDefaultDomainDNS(t *testing.T) {
+	const ns = "app-routing-system"
+
+	cedns := &approutingv1alpha1.ClusterExternalDNS{
+		ObjectMeta: metav1.ObjectMeta{Name: defaultDomainDNSResourceName, Namespace: ns},
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: defaultDomainServiceAccountName, Namespace: ns},
+	}
+	// An unrelated resource in the same namespace that must be left untouched.
+	otherSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: "some-other-sa", Namespace: ns},
+	}
+
+	t.Run("deletes orphaned default domain dns resources", func(t *testing.T) {
+		c := generateDefaultClientBuilder(t, []client.Object{cedns, sa, otherSA}).Build()
+
+		err := CleanDefaultDomainDNS(context.Background(), c, &config.Config{NS: ns}, logr.Discard())
+		require.NoError(t, err)
+
+		// The ClusterExternalDNS and its service account should be gone.
+		gotCEDNS := &approutingv1alpha1.ClusterExternalDNS{}
+		err = c.Get(context.Background(), types.NamespacedName{Name: defaultDomainDNSResourceName, Namespace: ns}, gotCEDNS)
+		require.True(t, k8serrors.IsNotFound(err), "ClusterExternalDNS should be deleted, got err: %v", err)
+
+		gotSA := &corev1.ServiceAccount{}
+		err = c.Get(context.Background(), types.NamespacedName{Name: defaultDomainServiceAccountName, Namespace: ns}, gotSA)
+		require.True(t, k8serrors.IsNotFound(err), "default domain service account should be deleted, got err: %v", err)
+
+		// Unrelated resources must survive.
+		require.NoError(t, c.Get(context.Background(), types.NamespacedName{Name: "some-other-sa", Namespace: ns}, &corev1.ServiceAccount{}))
+	})
+
+	t.Run("is a no-op when resources are already absent", func(t *testing.T) {
+		c := generateDefaultClientBuilder(t, nil).Build()
+
+		err := CleanDefaultDomainDNS(context.Background(), c, &config.Config{NS: ns}, logr.Discard())
+		require.NoError(t, err)
+	})
+}
 
 func TestDefaultDomainServiceAccount(t *testing.T) {
 	testCases := []struct {
