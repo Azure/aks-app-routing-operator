@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
@@ -19,6 +21,7 @@ import (
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	api_meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -59,13 +62,14 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 	runTestFn := func(t test, ctx context.Context, operator manifests.OperatorConfig) *logger.LoggedError {
 		lgr := logger.FromContext(ctx).With("test", t.GetName())
 		ctx = logger.WithContext(ctx, lgr)
+		start := time.Now()
 		lgr.Info("starting to run test")
 
 		if err := t.Run(ctx, config, operator); err != nil {
 			return logger.Error(lgr, err)
 		}
 
-		lgr.Info("finished running test")
+		lgr.Info("finished running test", "elapsed", time.Since(start).String())
 		return nil
 	}
 
@@ -96,8 +100,14 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		}
 	}()
 
+	ordered = filterOrdered(ctx, ordered)
+	if len(ordered) == 0 {
+		return errors.New("no tests to run after applying e2e filters")
+	}
+
 	lgr.Info("starting to run tests")
 	for _, runStrategy := range ordered {
+		strategyStart := time.Now()
 		ctx := logger.WithContext(ctx, lgr.With(
 			"operatorVersion", runStrategy.config.Version.String(),
 			"operatorDeployStrategy", runStrategy.operatorDeployStrategy.string(),
@@ -108,6 +118,9 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		))
 		if err := deployOperator(ctx, config, runStrategy.operatorDeployStrategy, infra.OperatorImage, publicZones, privateZones, &runStrategy.config); err != nil {
 			return fmt.Errorf("deploying operator: %w", err)
+		}
+		if err := waitForDefaultNginxIngressController(ctx, config); err != nil {
+			return fmt.Errorf("waiting for default nginx ingress controller: %w", err)
 		}
 
 		var eg errgroup.Group
@@ -126,6 +139,7 @@ func (t Ts) Run(ctx context.Context, infra infra.Provisioned) error {
 		if err := eg.Wait(); err != nil {
 			return err
 		}
+		logger.FromContext(ctx).Info("finished run strategy", "elapsed", time.Since(strategyStart).String())
 	}
 
 	lgr.Info("successfully finished running tests")
@@ -211,6 +225,69 @@ func (t Ts) order(ctx context.Context) ordered {
 	return ret
 }
 
+func filterOrdered(ctx context.Context, in ordered) ordered {
+	lgr := logger.FromContext(ctx)
+	testFilter := strings.ToLower(os.Getenv("E2E_TEST_FILTER"))
+	versionFilter := strings.ToLower(os.Getenv("E2E_OPERATOR_VERSION"))
+	strategyFilter := strings.ToLower(os.Getenv("E2E_DEPLOY_STRATEGY"))
+	publicZonesFilter := strings.ToLower(os.Getenv("E2E_PUBLIC_ZONES"))
+	privateZonesFilter := strings.ToLower(os.Getenv("E2E_PRIVATE_ZONES"))
+
+	if testFilter == "" && versionFilter == "" && strategyFilter == "" && publicZonesFilter == "" && privateZonesFilter == "" {
+		return in
+	}
+
+	ret := make(ordered, 0, len(in))
+	for _, runStrategy := range in {
+		if versionFilter != "" && strings.ToLower(runStrategy.config.Version.String()) != versionFilter {
+			continue
+		}
+		if strategyFilter != "" && strings.ToLower(runStrategy.operatorDeployStrategy.string()) != strategyFilter {
+			continue
+		}
+		if publicZonesFilter != "" && strings.ToLower(runStrategy.config.Zones.Public.String()) != publicZonesFilter {
+			continue
+		}
+		if privateZonesFilter != "" && strings.ToLower(runStrategy.config.Zones.Private.String()) != privateZonesFilter {
+			continue
+		}
+
+		filteredTests := runStrategy.tests
+		if testFilter != "" {
+			filteredTests = nil
+			for _, t := range runStrategy.tests {
+				if strings.Contains(strings.ToLower(t.GetName()), testFilter) {
+					filteredTests = append(filteredTests, t)
+				}
+			}
+		}
+		if len(filteredTests) == 0 {
+			continue
+		}
+
+		runStrategy.tests = filteredTests
+		ret = append(ret, runStrategy)
+	}
+
+	lgr.Info("applied e2e filters",
+		"testFilter", testFilter,
+		"operatorVersion", versionFilter,
+		"deployStrategy", strategyFilter,
+		"publicZones", publicZonesFilter,
+		"privateZones", privateZonesFilter,
+		"runStrategies", len(ret),
+	)
+	return ret
+}
+
+func deleteIfKnown(ctx context.Context, cl client.Client, obj client.Object) error {
+	if err := cl.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) && !api_meta.IsNoMatchError(err) {
+		return err
+	}
+
+	return nil
+}
+
 func deployOperator(ctx context.Context, config *rest.Config, strategy operatorDeployStrategy, latestImage string, publicZones, privateZones []string, operatorCfg *manifests.OperatorConfig) error {
 	lgr := logger.FromContext(ctx)
 
@@ -240,7 +317,7 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 				continue
 			}
 
-			if err := cl.Delete(ctx, res); err != nil && !apierrors.IsNotFound(err) {
+			if err := deleteIfKnown(ctx, cl, res); err != nil {
 				return fmt.Errorf("deleting resource: %w", err)
 			}
 		}
@@ -339,6 +416,91 @@ func deployOperator(ctx context.Context, config *rest.Config, strategy operatorD
 	}
 
 	return nil
+}
+
+func waitForDefaultNginxIngressController(ctx context.Context, config *rest.Config) error {
+	lgr := logger.FromContext(ctx)
+	c, err := client.New(config, client.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("creating client: %w", err)
+	}
+
+	const (
+		defaultNICName     = "default"
+		appRoutingNS       = "app-routing-system"
+		defaultServiceName = "nginx"
+	)
+
+	lastReady := time.Time{}
+	lastIP := ""
+	return wait.PollImmediate(5*time.Second, 10*time.Minute, func() (bool, error) {
+		nic := &v1alpha1.NginxIngressController{}
+		if err := c.Get(ctx, client.ObjectKey{Name: defaultNICName}, nic); err != nil {
+			if apierrors.IsNotFound(err) {
+				lgr.Info("default nginx ingress controller not found yet")
+				lastReady = time.Time{}
+				lastIP = ""
+				return false, nil
+			}
+			return false, fmt.Errorf("getting default nginx ingress controller: %w", err)
+		}
+
+		available := false
+		for _, condition := range nic.Status.Conditions {
+			if condition.Type == v1alpha1.ConditionTypeAvailable && condition.Status == metav1.ConditionTrue {
+				available = true
+				break
+			}
+		}
+		if !available {
+			lgr.Info("default nginx ingress controller is not available yet")
+			lastReady = time.Time{}
+			lastIP = ""
+			return false, nil
+		}
+
+		svc := &corev1.Service{}
+		if err := c.Get(ctx, client.ObjectKey{Name: defaultServiceName, Namespace: appRoutingNS}, svc); err != nil {
+			if apierrors.IsNotFound(err) {
+				lgr.Info("default nginx load balancer service not found yet")
+				lastReady = time.Time{}
+				lastIP = ""
+				return false, nil
+			}
+			return false, fmt.Errorf("getting default nginx load balancer service: %w", err)
+		}
+		if len(svc.Status.LoadBalancer.Ingress) == 0 {
+			lgr.Info("default nginx load balancer service has no ingress yet")
+			lastReady = time.Time{}
+			lastIP = ""
+			return false, nil
+		}
+
+		ip := svc.Status.LoadBalancer.Ingress[0].IP
+		if ip == "" {
+			ip = svc.Status.LoadBalancer.Ingress[0].Hostname
+		}
+		if ip == "" {
+			lgr.Info("default nginx load balancer ingress is empty")
+			lastReady = time.Time{}
+			lastIP = ""
+			return false, nil
+		}
+
+		if ip != lastIP {
+			lgr.Info("default nginx load balancer ingress changed; waiting for it to remain stable", "ingress", ip)
+			lastIP = ip
+			lastReady = time.Now()
+			return false, nil
+		}
+		if time.Since(lastReady) < 30*time.Second {
+			lgr.Info("default nginx load balancer ingress is present; waiting for stability window", "ingress", ip)
+			return false, nil
+		}
+
+		lgr.Info("default nginx ingress controller is stable", "service", defaultServiceName, "namespace", appRoutingNS, "ingress", ip)
+		return true, nil
+	})
 }
 
 func keys[T comparable, V any](m map[T]V) []T {

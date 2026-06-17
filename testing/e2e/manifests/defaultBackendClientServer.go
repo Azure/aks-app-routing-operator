@@ -48,11 +48,11 @@ func DefaultBackendClientAndServer(namespace, name, nameserver, keyvaultURI, ing
 		},
 	}
 	clientDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
-		FailureThreshold:    1,
+		FailureThreshold:    6,
 		InitialDelaySeconds: 1,
-		PeriodSeconds:       1,
+		PeriodSeconds:       5,
 		SuccessThreshold:    1,
-		TimeoutSeconds:      5,
+		TimeoutSeconds:      15,
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path:   "/",
