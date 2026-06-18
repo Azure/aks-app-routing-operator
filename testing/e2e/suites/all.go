@@ -13,17 +13,27 @@ import (
 // All returns all test in all suites
 func All(infra infra.Provisioned) tests.Ts {
 	t := []test{}
-	t = append(t, basicSuite(infra)...)
-	t = append(t, osmSuite(infra)...)
-	t = append(t, promSuite(infra)...)
-	t = append(t, nicTests(infra)...)
-	t = append(t, externalDnsCrdTests(infra)...)
-	t = append(t, clusterExternalDnsCrdTests(infra)...)
-	t = append(t, defaultBackendTests(infra)...)
-	t = append(t, workloadIdentityTests(infra)...)
-	t = append(t, managedIdentityTests(infra)...)
-	t = append(t, defaultDomainTests(infra)...)
-	t = append(t, gatewayTests(infra)...)
+
+	// Managed Gateway clusters are dedicated shards for Gateway API coverage. Running the
+	// broad ingress/default-backend/NIC matrix on these shards duplicates coverage from
+	// basic/private/osm clusters and dominates runtime before the gateway tests even start.
+	// Keep gateway-capable clusters focused on the Gateway suite so they validate the
+	// managed GatewayClass behavior without repeating the full non-gateway matrix.
+	if getGatewayClassName(infra) != "" {
+		t = append(t, gatewayTests(infra)...)
+	} else {
+		t = append(t, basicSuite(infra)...)
+		t = append(t, osmSuite(infra)...)
+		t = append(t, promSuite(infra)...)
+		t = append(t, nicTests(infra)...)
+		t = append(t, externalDnsCrdTests(infra)...)
+		t = append(t, clusterExternalDnsCrdTests(infra)...)
+		t = append(t, defaultBackendTests(infra)...)
+		t = append(t, workloadIdentityTests(infra)...)
+		t = append(t, managedIdentityTests(infra)...)
+		t = append(t, defaultDomainTests(infra)...)
+	}
+
 	ret := make(tests.Ts, len(t))
 	for i, t := range t {
 		ret[i] = t
