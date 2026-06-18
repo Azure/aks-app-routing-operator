@@ -57,11 +57,13 @@ type multiZoneGatewayTestConfig struct {
 	zoneType zoneType
 	// gatewayClassName is the GatewayClass name to use for Gateway resources (e.g., "istio" or "approuting-istio")
 	gatewayClassName string
-	// routeKind selects HTTPRoute vs GRPCRoute. Route kinds run serially within a single
-	// top-level test entry, so they share the same namespaces / DNS record names without racing
-	// on external-dns ownership records. routeKind only affects which builder produces the
+	// routeKind selects HTTPRoute vs GRPCRoute. routeKind only affects which builder produces the
 	// gateway+route+client+server resource set.
 	routeKind manifests.RouteKind
+	// runNamespaceScoped toggles the namespace-scoped ExternalDNS portion of this test config.
+	runNamespaceScoped bool
+	// runFilterTests toggles the gateway and route label selector filter tests for this config.
+	runFilterTests bool
 }
 
 // gwClusterNs returns the per-zone cluster-scoped gateway namespace.
@@ -165,21 +167,49 @@ func buildPrivateZoneConfigs(in infra.Provisioned) []gatewayZoneConfig {
 }
 
 // newMultiZoneGatewayTestConfig builds a multiZoneGatewayTestConfig for the given route kind and
-// zone type. All route kinds share the same zone set; they run serially within a single
-// top-level test entry so they can't race on external-dns ownership records.
-func newMultiZoneGatewayTestConfig(in infra.Provisioned, kind manifests.RouteKind, zt zoneType, gwClass string) multiZoneGatewayTestConfig {
+// zone type. HTTPRoute configs run the full scope/filter matrix. Additional route kinds can use
+// the options to avoid repeating route-kind-independent ExternalDNS coverage.
+func newMultiZoneGatewayTestConfig(in infra.Provisioned, kind manifests.RouteKind, zt zoneType, gwClass string, opts ...gatewayTestConfigOption) multiZoneGatewayTestConfig {
 	var allConfigs []gatewayZoneConfig
 	if zt == zoneTypePublic {
 		allConfigs = buildPublicZoneConfigs(in)
 	} else {
 		allConfigs = buildPrivateZoneConfigs(in)
 	}
-	return multiZoneGatewayTestConfig{
-		clientId:         in.ManagedIdentity.GetClientID(),
-		zoneConfigs:      allConfigs,
-		zoneType:         zt,
-		gatewayClassName: gwClass,
-		routeKind:        kind,
+	cfg := multiZoneGatewayTestConfig{
+		clientId:           in.ManagedIdentity.GetClientID(),
+		zoneConfigs:        allConfigs,
+		zoneType:           zt,
+		gatewayClassName:   gwClass,
+		routeKind:          kind,
+		runNamespaceScoped: true,
+		runFilterTests:     true,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
+
+type gatewayTestConfigOption func(*multiZoneGatewayTestConfig)
+
+func withSingleGatewayZone() gatewayTestConfigOption {
+	return func(cfg *multiZoneGatewayTestConfig) {
+		if len(cfg.zoneConfigs) > 1 {
+			cfg.zoneConfigs = cfg.zoneConfigs[:1]
+		}
+	}
+}
+
+func withoutNamespaceScopedGatewayTest() gatewayTestConfigOption {
+	return func(cfg *multiZoneGatewayTestConfig) {
+		cfg.runNamespaceScoped = false
+	}
+}
+
+func withoutGatewayFilterTests() gatewayTestConfigOption {
+	return func(cfg *multiZoneGatewayTestConfig) {
+		cfg.runFilterTests = false
 	}
 }
 
@@ -224,14 +254,6 @@ func gatewayTests(in infra.Provisioned) []test {
 		return []test{}
 	}
 
-	// gatewayRouteKinds lists the Gateway API route kinds exercised by each top-level gateway
-	// test entry. Kinds run serially within an entry (sharing namespaces and DNS records). Add
-	// future kinds (e.g. TLSRoute) here.
-	gatewayRouteKinds := []manifests.RouteKind{
-		manifests.HTTPRouteKind{},
-		manifests.GRPCRouteKind{},
-	}
-
 	return []test{
 		{
 			name: "gateway with externaldns for public zones",
@@ -242,11 +264,24 @@ func gatewayTests(in infra.Provisioned) []test {
 				withGatewayTLS(true).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				for _, kind := range gatewayRouteKinds {
-					testConfig := newMultiZoneGatewayTestConfig(in, kind, zoneTypePublic, gwClassName)
-					if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
-						return fmt.Errorf("%s: %w", kind.Name(), err)
-					}
+				// HTTPRoute exercises the full public-zone ExternalDNS matrix: cluster-scoped
+				// and namespace-scoped resources, plus gateway/route label filters.
+				testConfig := newMultiZoneGatewayTestConfig(in, manifests.HTTPRouteKind{}, zoneTypePublic, gwClassName)
+				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
+					return fmt.Errorf("http: %w", err)
+				}
+
+				// GRPCRoute uses the same ExternalDNS source implementation as HTTPRoute once the
+				// route kind is selected. Keep a focused public cluster-scoped smoke test so we
+				// still validate gRPC listener/route/client behavior without repeating the
+				// namespace-scoped, private-zone, and label-filter permutations.
+				testConfig = newMultiZoneGatewayTestConfig(in, manifests.GRPCRouteKind{}, zoneTypePublic, gwClassName,
+					withSingleGatewayZone(),
+					withoutNamespaceScopedGatewayTest(),
+					withoutGatewayFilterTests(),
+				)
+				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
+					return fmt.Errorf("grpc smoke: %w", err)
 				}
 				return nil
 			},
@@ -260,11 +295,9 @@ func gatewayTests(in infra.Provisioned) []test {
 				withGatewayTLS(true).
 				build(),
 			run: func(ctx context.Context, config *rest.Config, operator manifests.OperatorConfig) error {
-				for _, kind := range gatewayRouteKinds {
-					testConfig := newMultiZoneGatewayTestConfig(in, kind, zoneTypePrivate, gwClassName)
-					if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
-						return fmt.Errorf("%s: %w", kind.Name(), err)
-					}
+				testConfig := newMultiZoneGatewayTestConfig(in, manifests.HTTPRouteKind{}, zoneTypePrivate, gwClassName)
+				if err := runMultiZoneGatewayTests(ctx, config, testConfig); err != nil {
+					return fmt.Errorf("http: %w", err)
 				}
 				return nil
 			},
@@ -400,115 +433,119 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		return fmt.Errorf("cleaning up cluster-scoped gateway resources: %w", err)
 	}
 
-	// ========================================
-	// Test 2: Namespace-scoped ExternalDNS (all zones in single namespace)
-	// ========================================
-	lgr.Info("testing namespace-scoped externaldns with multiple zones")
+	if testConfig.runNamespaceScoped {
+		// ========================================
+		// Test 2: Namespace-scoped ExternalDNS (all zones in single namespace)
+		// ========================================
+		lgr.Info("testing namespace-scoped externaldns with multiple zones")
 
-	// Determine namespace based on zone type and route kind
-	nsName := testConfig.gwNs()
+		// Determine namespace based on zone type and route kind
+		nsName := testConfig.gwNs()
 
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nsName,
-			Labels: map[string]string{
-				manifests.ManagedByKey: manifests.ManagedByVal,
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nsName,
+				Labels: map[string]string{
+					manifests.ManagedByKey: manifests.ManagedByVal,
+				},
 			},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Namespace",
-			APIVersion: "v1",
-		},
-	}
-	if err := upsert(ctx, cl, ns); err != nil {
-		return fmt.Errorf("upserting namespace %s: %w", nsName, err)
-	}
-
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testConfig.gwNsSa(),
-			Namespace: nsName,
-			Annotations: map[string]string{
-				"azure.workload.identity/client-id": testConfig.clientId,
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Namespace",
+				APIVersion: "v1",
 			},
-			Labels: map[string]string{
-				"azure.workload.identity/use": "true",
-			},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ServiceAccount",
-			APIVersion: "v1",
-		},
-	}
-	if err := upsert(ctx, cl, sa); err != nil {
-		return fmt.Errorf("creating service account in namespace %s: %w", nsName, err)
-	}
-
-	// Create single namespace-scoped ExternalDNS with all zone IDs
-	externalDns := &v1alpha1.ExternalDNS{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testConfig.zoneType.Prefix() + "gw-ns-dns",
-			Namespace: nsName,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ExternalDNS",
-			APIVersion: v1alpha1.GroupVersion.String(),
-		},
-		Spec: v1alpha1.ExternalDNSSpec{
-			ResourceName:       testConfig.zoneType.Prefix() + "gw-ns",
-			DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
-			ResourceTypes:      []string{"gateway"},
-			Identity: v1alpha1.ExternalDNSIdentity{
-				ServiceAccount: testConfig.gwNsSa(),
-			},
-		},
-	}
-	if err := upsert(ctx, cl, externalDns); err != nil {
-		return fmt.Errorf("upserting namespace-scoped external dns: %w", err)
-	}
-
-	// Deploy gateway resources for each zone in the same namespace
-	nsResources := make([]manifests.ObjectsContainer, len(testConfig.zoneConfigs))
-	namespaceHostPrefixes := make([]string, len(testConfig.zoneConfigs)) // for DNS record verification during cleanup
-	for i, zoneCfg := range testConfig.zoneConfigs {
-		recordName := fmt.Sprintf("%s%d", testConfig.recordPrefix(), zoneCfg.ZoneIndex)
-		namespaceHostPrefixes[i] = recordName
-		tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
-		resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, nsName, testConfig.gwNsSa(), testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
-		if err != nil {
-			return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 		}
-		nsResources[i] = resources
-	}
+		if err := upsert(ctx, cl, ns); err != nil {
+			return fmt.Errorf("upserting namespace %s: %w", nsName, err)
+		}
 
-	// Wait for all client deployments to be available in parallel
-	eg2, egCtx2 := errgroup.WithContext(ctx)
-	for i, resources := range nsResources {
-		eg2.Go(func() error {
-			castedResources := resources.(*manifests.GatewayClientServerResources)
-			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx2, cl, *castedResources.Client); err != nil {
-				return fmt.Errorf("waiting for client deployment (ns-scoped, zone %d): %w", i, err)
+		sa := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      testConfig.gwNsSa(),
+				Namespace: nsName,
+				Annotations: map[string]string{
+					"azure.workload.identity/client-id": testConfig.clientId,
+				},
+				Labels: map[string]string{
+					"azure.workload.identity/use": "true",
+				},
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ServiceAccount",
+				APIVersion: "v1",
+			},
+		}
+		if err := upsert(ctx, cl, sa); err != nil {
+			return fmt.Errorf("creating service account in namespace %s: %w", nsName, err)
+		}
+
+		// Create single namespace-scoped ExternalDNS with all zone IDs
+		externalDns := &v1alpha1.ExternalDNS{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      testConfig.zoneType.Prefix() + "gw-ns-dns",
+				Namespace: nsName,
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ExternalDNS",
+				APIVersion: v1alpha1.GroupVersion.String(),
+			},
+			Spec: v1alpha1.ExternalDNSSpec{
+				ResourceName:       testConfig.zoneType.Prefix() + "gw-ns",
+				DNSZoneResourceIDs: getZoneIDs(testConfig.zoneConfigs),
+				ResourceTypes:      []string{"gateway"},
+				Identity: v1alpha1.ExternalDNSIdentity{
+					ServiceAccount: testConfig.gwNsSa(),
+				},
+			},
+		}
+		if err := upsert(ctx, cl, externalDns); err != nil {
+			return fmt.Errorf("upserting namespace-scoped external dns: %w", err)
+		}
+
+		// Deploy gateway resources for each zone in the same namespace
+		nsResources := make([]manifests.ObjectsContainer, len(testConfig.zoneConfigs))
+		namespaceHostPrefixes := make([]string, len(testConfig.zoneConfigs)) // for DNS record verification during cleanup
+		for i, zoneCfg := range testConfig.zoneConfigs {
+			recordName := fmt.Sprintf("%s%d", testConfig.recordPrefix(), zoneCfg.ZoneIndex)
+			namespaceHostPrefixes[i] = recordName
+			tlsHost := fmt.Sprintf("%s.%s", recordName, strings.TrimSuffix(zoneCfg.ZoneName, "."))
+			resources, err := deployGatewayResourcesForZone(ctx, cl, testConfig, zoneCfg, nsName, testConfig.gwNsSa(), testConfig.zoneType.Prefix(), tlsHost, testConfig.gatewayClassName)
+			if err != nil {
+				return fmt.Errorf("deploying gateway resources for zone %d (ns-scoped): %w", zoneCfg.ZoneIndex, err)
 			}
-			return nil
-		})
-	}
-	if err := eg2.Wait(); err != nil {
-		return err
-	}
+			nsResources[i] = resources
+		}
 
-	lgr.Info("namespace-scoped externaldns test passed, cleaning up gateway resources")
+		// Wait for all client deployments to be available in parallel
+		eg2, egCtx2 := errgroup.WithContext(ctx)
+		for i, resources := range nsResources {
+			eg2.Go(func() error {
+				castedResources := resources.(*manifests.GatewayClientServerResources)
+				lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
+				if err := waitForAvailable(egCtx2, cl, *castedResources.Client); err != nil {
+					return fmt.Errorf("waiting for client deployment (ns-scoped, zone %d): %w", i, err)
+				}
+				return nil
+			})
+		}
+		if err := eg2.Wait(); err != nil {
+			return err
+		}
 
-	// Cleanup namespace-scoped test resources
-	if err := cleanupMultiZoneResources(ctx, config, nsResources, externalDns, testConfig, namespaceHostPrefixes); err != nil {
-		return fmt.Errorf("cleaning up namespace-scoped gateway resources: %w", err)
+		lgr.Info("namespace-scoped externaldns test passed, cleaning up gateway resources")
+
+		// Cleanup namespace-scoped test resources
+		if err := cleanupMultiZoneResources(ctx, config, nsResources, externalDns, testConfig, namespaceHostPrefixes); err != nil {
+			return fmt.Errorf("cleaning up namespace-scoped gateway resources: %w", err)
+		}
 	}
 
 	lgr.Info("finished multi-zone gateway with externaldns test")
 
 	// Run filter tests
-	if err := runAllFilterTests(ctx, config, testConfig); err != nil {
-		return fmt.Errorf("running filter tests: %w", err)
+	if testConfig.runFilterTests {
+		if err := runAllFilterTests(ctx, config, testConfig); err != nil {
+			return fmt.Errorf("running filter tests: %w", err)
+		}
 	}
 
 	return nil
@@ -580,12 +617,21 @@ func cleanupMultiZoneResources(
 		}
 	}
 
-	// Wait for DNS record deletion for each zone
+	// Wait for DNS record deletion for each zone in parallel. Each record wait can take up to
+	// three minutes; running them serially makes cleanup scale linearly with zone count.
+	eg, egCtx := errgroup.WithContext(ctx)
 	for i, zoneCfg := range testConfig.zoneConfigs {
-		lgr.Info("waiting for DNS record deletion", "zone", zoneCfg.ZoneName, "record", recordNames[i])
-		if err := waitForDNSRecordDeletion(ctx, config, externalDnsDeploymentName, dnsResource.GetResourceNamespace(), zoneCfg.ZoneName, recordNames[i], testConfig.zoneType); err != nil {
-			return fmt.Errorf("waiting for DNS record deletion (zone %s, record %s): %w", zoneCfg.ZoneName, recordNames[i], err)
-		}
+		i, zoneCfg := i, zoneCfg
+		eg.Go(func() error {
+			lgr.Info("waiting for DNS record deletion", "zone", zoneCfg.ZoneName, "record", recordNames[i])
+			if err := waitForDNSRecordDeletion(egCtx, config, externalDnsDeploymentName, dnsResource.GetResourceNamespace(), zoneCfg.ZoneName, recordNames[i], testConfig.zoneType); err != nil {
+				return fmt.Errorf("waiting for DNS record deletion (zone %s, record %s): %w", zoneCfg.ZoneName, recordNames[i], err)
+			}
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return err
 	}
 
 	// Delete DNS CRD resource
