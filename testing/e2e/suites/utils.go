@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -15,10 +16,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.Deployment) error {
+const (
+	unavailableDeploymentLogTailLines  int64 = 100
+	unavailableDeploymentLogLimitBytes int64 = 16 * 1024
+)
+
+func waitForAvailable(ctx context.Context, config *rest.Config, c client.Client, deployment appsv1.Deployment) error {
 	lgr := logger.FromContext(ctx).With("deployment", deployment.Name, "namespace", deployment.Namespace)
 	lgr.Info("waiting for deployment to be available")
 	start := time.Now()
@@ -37,7 +45,7 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 
 		// 20 minutes because it takes a decent amount of time for dns to "propagate", and up to 30 min for Azure RBAC to propagate for ExternalDNS to read the DNS zones
 		if time.Since(start) > 20*time.Minute {
-			summary, err := unavailableDeploymentSummary(ctx, c, d)
+			summary, err := unavailableDeploymentSummary(ctx, config, c, d)
 			if err != nil {
 				return fmt.Errorf("timed out waiting for deployment to be available; additionally failed to collect diagnostics: %w", err)
 			}
@@ -49,7 +57,7 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 	}
 }
 
-func unavailableDeploymentSummary(ctx context.Context, c client.Client, deployment *appsv1.Deployment) (string, error) {
+func unavailableDeploymentSummary(ctx context.Context, config *rest.Config, c client.Client, deployment *appsv1.Deployment) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "deployment %s/%s replicas=%d updated=%d ready=%d available=%d observedGeneration=%d generation=%d\n",
 		deployment.Namespace,
@@ -129,7 +137,58 @@ func unavailableDeploymentSummary(ctx context.Context, c client.Client, deployme
 		}
 	}
 
+	appendPodLogs(ctx, config, &b, deployment.Namespace, podList.Items)
+
 	return b.String(), nil
+}
+
+func appendPodLogs(ctx context.Context, config *rest.Config, b *strings.Builder, namespace string, pods []corev1.Pod) {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		fmt.Fprintf(b, "pod logs unavailable: creating clientset: %v\n", err)
+		return
+	}
+
+	for _, pod := range pods {
+		for _, container := range pod.Spec.Containers {
+			appendContainerLogs(ctx, clientset, b, namespace, pod.Name, container.Name, false)
+		}
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.RestartCount > 0 {
+				appendContainerLogs(ctx, clientset, b, namespace, pod.Name, containerStatus.Name, true)
+			}
+		}
+	}
+}
+
+func appendContainerLogs(ctx context.Context, clientset kubernetes.Interface, b *strings.Builder, namespace, podName, containerName string, previous bool) {
+	tailLines := unavailableDeploymentLogTailLines
+	limitBytes := unavailableDeploymentLogLimitBytes
+	opts := &corev1.PodLogOptions{
+		Container:  containerName,
+		Previous:   previous,
+		TailLines:  &tailLines,
+		LimitBytes: &limitBytes,
+	}
+
+	logs, err := clientset.CoreV1().Pods(namespace).GetLogs(podName, opts).Stream(ctx)
+	logKind := "current"
+	if previous {
+		logKind = "previous"
+	}
+	if err != nil {
+		fmt.Fprintf(b, "pod log %s/%s container=%s %s unavailable: %v\n", namespace, podName, containerName, logKind, err)
+		return
+	}
+	defer logs.Close()
+
+	contents, err := io.ReadAll(logs)
+	if err != nil {
+		fmt.Fprintf(b, "pod log %s/%s container=%s %s read failed: %v\n", namespace, podName, containerName, logKind, err)
+		return
+	}
+
+	fmt.Fprintf(b, "pod log %s/%s container=%s %s tailLines=%d limitBytes=%d:\n%s\n", namespace, podName, containerName, logKind, unavailableDeploymentLogTailLines, unavailableDeploymentLogLimitBytes, strings.TrimSpace(string(contents)))
 }
 
 func upsert(ctx context.Context, c client.Client, obj client.Object) error {
