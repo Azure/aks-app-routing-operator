@@ -448,7 +448,7 @@ apiVersion: v1
 data:
   allow-cross-namespace-resources: "true"
   allow-snippet-annotations: "true"
-  annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'
+  annotation-value-word-blocklist: load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},',include
   annotations-risk-level: Critical
   log-format-upstream: 'custom format with only request: "$request"'
 kind: ConfigMap

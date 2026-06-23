@@ -565,9 +565,10 @@ func newNginxIngressControllerConfigmap(conf *config.Config, ingressConfig *Ngin
 		Data: map[string]string{
 			// Can't use 'allow-snippet-annotations=false' to reduce injection risk, since we require snippet functionality for OSM routing.
 			// But we can still protect against leaked service account tokens.
+			// 'include' is blocked so snippets cannot load arbitrary files as NGINX configuration.
 			// See: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#annotation-value-word-blocklist
 			"allow-snippet-annotations":       "true",
-			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},'",
+			"annotation-value-word-blocklist": "load_module,lua_package,_by_lua,location,root,proxy_pass,serviceaccount,{,},',include",
 			// breaking change in v1.12+ so we need to explicitly set this. We should remove this in a future release
 			"allow-cross-namespace-resources": "true",
 			// breaking change in v1.12+, we need to explicitly set this so it's not a breaking change
