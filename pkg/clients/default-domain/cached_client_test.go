@@ -555,9 +555,9 @@ func TestCachedClient_CacheTTLJitter(t *testing.T) {
 
 	actualTTL := cacheExp.Sub(beforeFetch)
 
-	// TTL should be cacheTTL +/- jitter
-	minTTL := cacheTTL - time.Duration(float64(cacheTTL)*jitterRatio)
-	maxTTL := cacheTTL + time.Duration(float64(cacheTTL)*jitterRatio)
+	// TTL should be DefaultCacheTTL +/- jitter
+	minTTL := DefaultCacheTTL - time.Duration(float64(DefaultCacheTTL)*jitterRatio)
+	maxTTL := DefaultCacheTTL + time.Duration(float64(DefaultCacheTTL)*jitterRatio)
 
 	assert.Greater(t, actualTTL, minTTL-100*time.Millisecond, "TTL should include negative jitter")
 	assert.Less(t, actualTTL, maxTTL+100*time.Millisecond, "TTL should include positive jitter")

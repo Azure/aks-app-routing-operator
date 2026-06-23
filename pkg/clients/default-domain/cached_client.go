@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	// cacheTTL is the time-to-live for cached certificates (6 hours)
-	cacheTTL = 6 * time.Hour
-	// jitterRatio is the ratio of jitter to add to cache TTL (0.0833 = ~30 min for 6 hour TTL)
+	// DefaultCacheTTL is the default time-to-live for cached certificates.
+	DefaultCacheTTL = 15 * time.Minute
+	// jitterRatio is the ratio of jitter to add to cache TTL.
 	jitterRatio = 0.0833
 	// initialJitter is the maximum jitter for the initial fetch (5 minutes)
 	initialJitter = 5 * time.Minute
@@ -31,6 +31,7 @@ const (
 // CachedClientOpts contains configuration options for the cached client
 type CachedClientOpts struct {
 	Opts
+	CacheTTL time.Duration
 }
 
 // CachedClient is a client that caches TLS certificates with automatic refresh
@@ -50,6 +51,9 @@ type CachedClient struct {
 // NewCachedClient creates a new cached client with automatic refresh
 func NewCachedClient(ctx context.Context, opts CachedClientOpts, logger logr.Logger) *CachedClient {
 	childCtx, cancel := context.WithCancel(ctx)
+	if opts.CacheTTL <= 0 {
+		opts.CacheTTL = DefaultCacheTTL
+	}
 
 	c := &CachedClient{
 		client:  NewClient(opts.Opts, logger),
@@ -128,7 +132,7 @@ func (c *CachedClient) fetchWithRetryLocked(ctx context.Context) (*TLSCertificat
 
 		if err == nil {
 			// Success! Update cache and reset health tracking
-			ttl := util.Jitter(cacheTTL, jitterRatio)
+			ttl := util.Jitter(c.opts.CacheTTL, jitterRatio)
 			wasUnhealthy := !c.healthy
 			c.cache = cert
 			c.cacheExp = time.Now().Add(ttl)
@@ -205,7 +209,7 @@ func (c *CachedClient) refreshLoop() {
 
 		// If cache not set yet, use a default interval
 		if nextRefresh.IsZero() {
-			nextRefresh = time.Now().Add(cacheTTL)
+			nextRefresh = time.Now().Add(c.opts.CacheTTL)
 		}
 
 		waitDuration := time.Until(nextRefresh)
