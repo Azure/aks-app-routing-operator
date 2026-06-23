@@ -87,5 +87,6 @@ type Config struct {
 	DefaultDomainServerAddress string
 	DefaultDomainClientID      string
 	DefaultDomainZoneID        string
+	DefaultDomainCertCacheTTL  time.Duration
 	EnableDefaultDomainGateway bool
 }

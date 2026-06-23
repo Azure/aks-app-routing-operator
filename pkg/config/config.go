@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	defaultdomain "github.com/Azure/aks-app-routing-operator/pkg/clients/default-domain"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
@@ -59,6 +60,7 @@ func init() {
 	flag.StringVar(&Flags.DefaultDomainServerAddress, "default-domain-server-address", "", "address of the default domain server for the particular cluster app routing operator is deployed in")
 	flag.StringVar(&Flags.DefaultDomainClientID, "default-domain-client-id", "", "client ID of the managed identity with federated permissions to interact with the default domain DNS zone")
 	flag.StringVar(&Flags.DefaultDomainZoneID, "default-domain-zone-id", "", "resource ID of the DNS zone for the default domain")
+	flag.DurationVar(&Flags.DefaultDomainCertCacheTTL, "default-domain-cert-cache-ttl", defaultdomain.DefaultCacheTTL, "time-to-live for cached default domain certificates")
 	flag.BoolVar(&Flags.EnableDefaultDomainGateway, "enable-default-domain-gateway", false, "enable Gateway API resource type for default domain external DNS (defaults to off)")
 }
 
@@ -122,6 +124,13 @@ func (c *Config) Validate() error {
 
 	if c.EnableDefaultDomain && (c.DefaultDomainServerAddress == "" || c.DefaultDomainClientID == "" || c.DefaultDomainZoneID == "") {
 		return errors.New("--default-domain-server-address, --default-domain-client-id, and --default-domain-zone-id are all required when --enable-default-domain is set")
+	}
+
+	if c.DefaultDomainCertCacheTTL == 0 {
+		c.DefaultDomainCertCacheTTL = defaultdomain.DefaultCacheTTL
+	}
+	if c.DefaultDomainCertCacheTTL < 0 {
+		return errors.New("--default-domain-cert-cache-ttl must be a positive duration")
 	}
 
 	return nil

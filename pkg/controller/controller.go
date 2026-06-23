@@ -286,6 +286,7 @@ func setupControllers(mgr ctrl.Manager, conf *config.Config, lgr logr.Logger, cl
 				Opts: defaultdomain.Opts{
 					ServerAddress: conf.DefaultDomainServerAddress,
 				},
+				CacheTTL: conf.DefaultDomainCertCacheTTL,
 			},
 			mgr.GetLogger().WithName("default-domain-client"),
 		)
