@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -12,12 +13,20 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.Deployment) error {
+const (
+	unavailableDeploymentLogTailLines  int64 = 100
+	unavailableDeploymentLogLimitBytes int64 = 16 * 1024
+)
+
+func waitForAvailable(ctx context.Context, config *rest.Config, c client.Client, deployment appsv1.Deployment) error {
 	lgr := logger.FromContext(ctx).With("deployment", deployment.Name, "namespace", deployment.Namespace)
 	lgr.Info("waiting for deployment to be available")
 	start := time.Now()
@@ -36,12 +45,150 @@ func waitForAvailable(ctx context.Context, c client.Client, deployment appsv1.De
 
 		// 20 minutes because it takes a decent amount of time for dns to "propagate", and up to 30 min for Azure RBAC to propagate for ExternalDNS to read the DNS zones
 		if time.Since(start) > 20*time.Minute {
-			return fmt.Errorf("timed out waiting for deployment to be available")
+			summary, err := unavailableDeploymentSummary(ctx, config, c, d)
+			if err != nil {
+				return fmt.Errorf("timed out waiting for deployment to be available; additionally failed to collect diagnostics: %w", err)
+			}
+			return fmt.Errorf("timed out waiting for deployment to be available:\n%s", summary)
 		}
 
 		lgr.Info("deployment is not available yet, waiting 5 seconds for retry")
 		time.Sleep(5 * time.Second)
 	}
+}
+
+func unavailableDeploymentSummary(ctx context.Context, config *rest.Config, c client.Client, deployment *appsv1.Deployment) (string, error) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "deployment %s/%s replicas=%d updated=%d ready=%d available=%d observedGeneration=%d generation=%d\n",
+		deployment.Namespace,
+		deployment.Name,
+		deployment.Status.Replicas,
+		deployment.Status.UpdatedReplicas,
+		deployment.Status.ReadyReplicas,
+		deployment.Status.AvailableReplicas,
+		deployment.Status.ObservedGeneration,
+		deployment.Generation,
+	)
+	for _, condition := range deployment.Status.Conditions {
+		fmt.Fprintf(&b, "deployment condition type=%s status=%s reason=%s message=%q\n", condition.Type, condition.Status, condition.Reason, condition.Message)
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+	if err != nil {
+		return "", fmt.Errorf("building deployment selector: %w", err)
+	}
+
+	podList := &corev1.PodList{}
+	if err := c.List(ctx, podList, client.InNamespace(deployment.Namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return "", fmt.Errorf("listing pods for deployment: %w", err)
+	}
+
+	podNames := make(map[string]struct{}, len(podList.Items))
+	for _, pod := range podList.Items {
+		podNames[pod.Name] = struct{}{}
+		fmt.Fprintf(&b, "pod %s phase=%s reason=%s message=%q podIP=%s\n", pod.Name, pod.Status.Phase, pod.Status.Reason, pod.Status.Message, pod.Status.PodIP)
+		for _, condition := range pod.Status.Conditions {
+			fmt.Fprintf(&b, "  pod condition type=%s status=%s reason=%s message=%q\n", condition.Type, condition.Status, condition.Reason, condition.Message)
+		}
+		for _, container := range pod.Status.ContainerStatuses {
+			fmt.Fprintf(&b, "  container %s ready=%t restartCount=%d image=%s\n", container.Name, container.Ready, container.RestartCount, container.Image)
+			if container.State.Waiting != nil {
+				fmt.Fprintf(&b, "    waiting reason=%s message=%q\n", container.State.Waiting.Reason, container.State.Waiting.Message)
+			}
+			if container.State.Terminated != nil {
+				fmt.Fprintf(&b, "    terminated reason=%s exitCode=%d message=%q\n", container.State.Terminated.Reason, container.State.Terminated.ExitCode, container.State.Terminated.Message)
+			}
+			if container.LastTerminationState.Terminated != nil {
+				fmt.Fprintf(&b, "    last terminated reason=%s exitCode=%d message=%q\n", container.LastTerminationState.Terminated.Reason, container.LastTerminationState.Terminated.ExitCode, container.LastTerminationState.Terminated.Message)
+			}
+		}
+	}
+
+	eventList := &corev1.EventList{}
+	if err := c.List(ctx, eventList, client.InNamespace(deployment.Namespace)); err != nil {
+		return "", fmt.Errorf("listing namespace events: %w", err)
+	}
+
+	writtenEvents := 0
+	for _, event := range eventList.Items {
+		if event.InvolvedObject.Kind == "Deployment" && event.InvolvedObject.Name != deployment.Name {
+			continue
+		}
+		if event.InvolvedObject.Kind == "Pod" {
+			if _, ok := podNames[event.InvolvedObject.Name]; !ok {
+				continue
+			}
+		}
+		if event.InvolvedObject.Kind != "Deployment" && event.InvolvedObject.Kind != "Pod" {
+			continue
+		}
+		fmt.Fprintf(&b, "event kind=%s name=%s type=%s reason=%s message=%q count=%d last=%s\n",
+			event.InvolvedObject.Kind,
+			event.InvolvedObject.Name,
+			event.Type,
+			event.Reason,
+			event.Message,
+			event.Count,
+			event.LastTimestamp.String(),
+		)
+		writtenEvents++
+		if writtenEvents >= 20 {
+			break
+		}
+	}
+
+	appendPodLogs(ctx, config, &b, deployment.Namespace, podList.Items)
+
+	return b.String(), nil
+}
+
+func appendPodLogs(ctx context.Context, config *rest.Config, b *strings.Builder, namespace string, pods []corev1.Pod) {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		fmt.Fprintf(b, "pod logs unavailable: creating clientset: %v\n", err)
+		return
+	}
+
+	for _, pod := range pods {
+		for _, container := range pod.Spec.Containers {
+			appendContainerLogs(ctx, clientset, b, namespace, pod.Name, container.Name, false)
+		}
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.RestartCount > 0 {
+				appendContainerLogs(ctx, clientset, b, namespace, pod.Name, containerStatus.Name, true)
+			}
+		}
+	}
+}
+
+func appendContainerLogs(ctx context.Context, clientset kubernetes.Interface, b *strings.Builder, namespace, podName, containerName string, previous bool) {
+	tailLines := unavailableDeploymentLogTailLines
+	limitBytes := unavailableDeploymentLogLimitBytes
+	opts := &corev1.PodLogOptions{
+		Container:  containerName,
+		Previous:   previous,
+		TailLines:  &tailLines,
+		LimitBytes: &limitBytes,
+	}
+
+	logs, err := clientset.CoreV1().Pods(namespace).GetLogs(podName, opts).Stream(ctx)
+	logKind := "current"
+	if previous {
+		logKind = "previous"
+	}
+	if err != nil {
+		fmt.Fprintf(b, "pod log %s/%s container=%s %s unavailable: %v\n", namespace, podName, containerName, logKind, err)
+		return
+	}
+	defer logs.Close()
+
+	contents, err := io.ReadAll(logs)
+	if err != nil {
+		fmt.Fprintf(b, "pod log %s/%s container=%s %s read failed: %v\n", namespace, podName, containerName, logKind, err)
+		return
+	}
+
+	fmt.Fprintf(b, "pod log %s/%s container=%s %s tailLines=%d limitBytes=%d:\n%s\n", namespace, podName, containerName, logKind, unavailableDeploymentLogTailLines, unavailableDeploymentLogLimitBytes, strings.TrimSpace(string(contents)))
 }
 
 func upsert(ctx context.Context, c client.Client, obj client.Object) error {

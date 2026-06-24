@@ -314,7 +314,7 @@ func buildGatewayClient(kind RouteKind, namespace, name, url, nameserver, unreac
 	deployment := newGoDeployment(kind.ClientContents(), namespace, name)
 	// gRPC client dials TLS with WithBlock and may also probe an unreachable host; give the
 	// readiness probe more headroom so the kubelet doesn't cancel mid-flight. HTTP is snappier.
-	probeTimeout := int32(5)
+	probeTimeout := int32(15)
 	if _, ok := kind.(GRPCRouteKind); ok {
 		probeTimeout = 30
 	}
@@ -349,7 +349,7 @@ func buildGatewayClient(kind RouteKind, namespace, name, url, nameserver, unreac
 		},
 	}
 	deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
-		FailureThreshold:    1,
+		FailureThreshold:    6,
 		InitialDelaySeconds: 1,
 		PeriodSeconds:       5,
 		SuccessThreshold:    1,
