@@ -29,6 +29,15 @@ const (
 	zoneTypePrivate
 )
 
+const (
+	// aksIstioSystemNamespace is the namespace where the AKS Istio add-on runs its control plane.
+	aksIstioSystemNamespace = "aks-istio-system"
+	// istioRevLabel is the namespace/pod label that selects an AKS Istio add-on control plane
+	// revision for sidecar injection (e.g. "asm-1-24"). The upstream istio-injection=enabled label
+	// does NOT work for the add-on.
+	istioRevLabel = "istio.io/rev"
+)
+
 func (z zoneType) String() string {
 	switch z {
 	case zoneTypePrivate:
@@ -64,6 +73,9 @@ type multiZoneGatewayTestConfig struct {
 	runNamespaceScoped bool
 	// runFilterTests toggles the gateway and route label selector filter tests for this config.
 	runFilterTests bool
+	// istioRevision is the AKS Istio add-on revision (e.g. "asm-1-24") used to label test
+	// namespaces for sidecar injection. Empty on non-mesh (approuting-istio) clusters.
+	istioRevision string
 }
 
 // gwClusterNs returns the per-zone cluster-scoped gateway namespace.
@@ -94,6 +106,19 @@ func (c multiZoneGatewayTestConfig) gwNsSa() string {
 // deletion before the next kind starts).
 func (c multiZoneGatewayTestConfig) recordPrefix() string {
 	return "zone"
+}
+
+// nsLabels returns the labels for a gateway-test namespace. On the full-mesh cluster it includes
+// the Istio revision label so the add-on injects sidecars into the namespace's workloads; on
+// non-mesh clusters istioRevision is empty and only the managed-by label is applied.
+func (c multiZoneGatewayTestConfig) nsLabels() map[string]string {
+	labels := map[string]string{
+		manifests.ManagedByKey: manifests.ManagedByVal,
+	}
+	if c.istioRevision != "" {
+		labels[istioRevLabel] = c.istioRevision
+	}
+	return labels
 }
 
 // buildGatewayResources builds the gateway+route+client+server resource set for c.routeKind.
@@ -247,6 +272,32 @@ func getGatewayClassName(in infra.Provisioned) string {
 	return ""
 }
 
+// discoverIstioRevision returns the AKS Istio add-on control plane revision (e.g. "asm-1-24") by
+// reading the istiod deployment in the add-on's system namespace. The revision is taken from the
+// deployment's istio.io/rev label, falling back to parsing the "istiod-<revision>" deployment name.
+func discoverIstioRevision(ctx context.Context, config *rest.Config) (string, error) {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", fmt.Errorf("creating kubernetes clientset: %w", err)
+	}
+
+	deployments, err := clientset.AppsV1().Deployments(aksIstioSystemNamespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("listing deployments in %s: %w", aksIstioSystemNamespace, err)
+	}
+
+	for _, deploy := range deployments.Items {
+		if rev := deploy.Labels[istioRevLabel]; rev != "" {
+			return rev, nil
+		}
+		if rev, ok := strings.CutPrefix(deploy.Name, "istiod-"); ok && rev != "" {
+			return rev, nil
+		}
+	}
+
+	return "", fmt.Errorf("no istiod deployment found in %s; cannot determine Istio revision", aksIstioSystemNamespace)
+}
+
 func gatewayTests(in infra.Provisioned) []test {
 	// Only run gateway tests on clusters with a managed GatewayClass
 	gwClassName := getGatewayClassName(in)
@@ -318,6 +369,18 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		return fmt.Errorf("creating client: %w", err)
 	}
 
+	// On the full-mesh cluster (managed Istio add-on), discover the control plane revision so the
+	// test namespaces can be labeled for sidecar injection. The meshless approuting-istio cluster
+	// has no mesh control plane, so we skip discovery and leave istioRevision empty.
+	if testConfig.gatewayClassName == manifests.IstioGatewayClassName {
+		rev, err := discoverIstioRevision(ctx, config)
+		if err != nil {
+			return fmt.Errorf("discovering istio revision: %w", err)
+		}
+		testConfig.istioRevision = rev
+		lgr.Info("discovered istio add-on revision for sidecar injection", "revision", rev)
+	}
+
 	// ========================================
 	// Test 1: Cluster-scoped ExternalDNS (one namespace per zone)
 	// ========================================
@@ -332,10 +395,8 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: nsName,
-				Labels: map[string]string{
-					manifests.ManagedByKey: manifests.ManagedByVal,
-				},
+				Name:   nsName,
+				Labels: testConfig.nsLabels(),
 			},
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Namespace",
@@ -444,10 +505,8 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: nsName,
-				Labels: map[string]string{
-					manifests.ManagedByKey: manifests.ManagedByVal,
-				},
+				Name:   nsName,
+				Labels: testConfig.nsLabels(),
 			},
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Namespace",
