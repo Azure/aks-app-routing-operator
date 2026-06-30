@@ -584,7 +584,8 @@ func setupClusterScopedFilterNamespaces(ctx context.Context, cl client.Client, t
 		// Create namespace
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: nsName,
+				Name:   nsName,
+				Labels: testConfig.nsLabels(),
 			},
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Namespace",
@@ -625,7 +626,8 @@ func setupNamespaceScopedFilterNamespace(ctx context.Context, cl client.Client, 
 	// Create namespace
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testConfig.filterNs(),
+			Name:   testConfig.filterNs(),
+			Labels: testConfig.nsLabels(),
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Namespace",
