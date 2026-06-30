@@ -33,9 +33,9 @@ const (
 	// TLSCertServiceAccountOption is the TLS option key for specifying the ServiceAccount for workload identity
 	TLSCertServiceAccountOption = "kubernetes.azure.com/tls-cert-service-account"
 
-	// istioInjectAnnotation is the pod-level Istio annotation that opts a pod out of sidecar
-	// injection even when its namespace is labeled for injection.
-	istioInjectAnnotation = "sidecar.istio.io/inject"
+	// istioInjectLabel is the pod-level Istio label that opts a pod out of sidecar injection
+	// even when its namespace is labeled for injection.
+	istioInjectLabel = "sidecar.istio.io/inject"
 
 	// gatewayBackendPort is the port the test backend service exposes; the route forwards to it.
 	gatewayBackendPort int32 = 8080
@@ -318,8 +318,9 @@ func buildGatewayClient(kind RouteKind, namespace, name, url, nameserver, unreac
 	deployment := newGoDeployment(kind.ClientContents(), namespace, name)
 	// Keep the client out of the mesh: on the full-mesh cluster the namespace is labeled for Istio
 	// injection, but the client must stay sidecar-free since there's no egress gateway to decrypt its
-	// outbound TLS. The annotation is a no-op on non-mesh clusters.
-	deployment.Spec.Template.Annotations[istioInjectAnnotation] = "false"
+	// outbound TLS. The injection webhook's objectSelector matches this label and skips the pod; it's
+	// a no-op on non-mesh clusters.
+	deployment.Spec.Template.Labels[istioInjectLabel] = "false"
 	// gRPC client dials TLS with WithBlock and may also probe an unreachable host; give the
 	// readiness probe more headroom so the kubelet doesn't cancel mid-flight. HTTP is snappier.
 	probeTimeout := int32(5)
