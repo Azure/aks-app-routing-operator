@@ -30,7 +30,7 @@ var (
 
 	dalecNginx1_13_10 = NginxIngressVersion{
 		name: "v1.13.10",
-		tag:  "v1.13.10",
+		tag:  "v1.13.10-7",
 	}
 	dalecNginxVersionsAscending = []NginxIngressVersion{dalecNginx1_13_10}
 	LatestDalecNginxVersion     = dalecNginxVersionsAscending[len(dalecNginxVersionsAscending)-1]
