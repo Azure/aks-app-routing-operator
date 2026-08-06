@@ -477,7 +477,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 		eg.Go(func() error {
 			castedResources := resources.(*manifests.GatewayClientServerResources)
 			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx, cl, *castedResources.Client); err != nil {
+			if err := waitForAvailable(egCtx, config, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (zone %d): %w", i, err)
 			}
 			return nil
@@ -580,7 +580,7 @@ func runMultiZoneGatewayTests(ctx context.Context, config *rest.Config, testConf
 			eg2.Go(func() error {
 				castedResources := resources.(*manifests.GatewayClientServerResources)
 				lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-				if err := waitForAvailable(egCtx2, cl, *castedResources.Client); err != nil {
+				if err := waitForAvailable(egCtx2, config, cl, *castedResources.Client); err != nil {
 					return fmt.Errorf("waiting for client deployment (ns-scoped, zone %d): %w", i, err)
 				}
 				return nil

@@ -2,9 +2,13 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/testing/e2e/logger"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -95,19 +99,47 @@ func (m *managedIdentity) FederateServiceAccount(ctx context.Context, name, oidc
 		return fmt.Errorf("creating federated identity credentials client: %w", err)
 	}
 
-	_, err = client.CreateOrUpdate(ctx, m.resourceGroup, m.name, name, armmsi.FederatedIdentityCredential{
+	federatedCredential := armmsi.FederatedIdentityCredential{
 		Properties: &armmsi.FederatedIdentityCredentialProperties{
 			Issuer:    to.Ptr(oidcUrl),
 			Subject:   to.Ptr(fmt.Sprintf("system:serviceaccount:%s:%s", namespace, sa)),
 			Audiences: []*string{to.Ptr("api://AzureADTokenExchange")},
 		},
 		Name: to.Ptr(name),
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("creating federated identity credential: %w", err)
 	}
 
-	return nil
+	const maxAttempts = 6
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		_, err = client.CreateOrUpdate(ctx, m.resourceGroup, m.name, name, federatedCredential, nil)
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		if !isRetryableFederatedIdentityCredentialError(err) || attempt == maxAttempts {
+			break
+		}
+
+		backoff := time.Duration(attempt*attempt) * 10 * time.Second
+		lgr.Info(fmt.Sprintf("retrying federated identity credential creation after transient error (attempt %d/%d, waiting %s): %s", attempt, maxAttempts, backoff, err.Error()))
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while retrying federated identity credential creation: %w", ctx.Err())
+		case <-time.After(backoff):
+		}
+	}
+
+	return fmt.Errorf("creating federated identity credential: %w", lastErr)
+}
+
+func isRetryableFederatedIdentityCredentialError(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+
+	return respErr.StatusCode == http.StatusTooManyRequests || respErr.StatusCode >= http.StatusInternalServerError
 }
 
 // GetId returns the ID of the managed identity

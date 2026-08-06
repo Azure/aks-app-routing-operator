@@ -1,6 +1,8 @@
 package manifests
 
 import (
+	"os"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -79,6 +81,7 @@ func E2e(image, loadableProvisionedJson string) []client.Object {
 								Name:  "app-routing-operator-e2e",
 								Image: image,
 								Args:  []string{"test", "--infra-file", "/infrastructure/infra-config.json"},
+								Env:   e2eEnv(),
 								VolumeMounts: []corev1.VolumeMount{
 									{
 										Name:      "infra-volume",
@@ -107,6 +110,26 @@ func E2e(image, loadableProvisionedJson string) []client.Object {
 	// set the group kind and version for each object
 	for _, obj := range ret {
 		setGroupKindVersion(obj)
+	}
+
+	return ret
+}
+
+func e2eEnv() []corev1.EnvVar {
+	keys := []string{
+		"E2E_TEST_FILTER",
+		"E2E_OPERATOR_VERSION",
+		"E2E_DEPLOY_STRATEGY",
+		"E2E_PUBLIC_ZONES",
+		"E2E_PRIVATE_ZONES",
+		"E2E_SKIP_CLEANUP",
+	}
+
+	ret := make([]corev1.EnvVar, 0, len(keys))
+	for _, key := range keys {
+		if val := os.Getenv(key); val != "" {
+			ret = append(ret, corev1.EnvVar{Name: key, Value: val})
+		}
 	}
 
 	return ret

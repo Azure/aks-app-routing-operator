@@ -224,7 +224,7 @@ func runClusterExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Con
 		eg.Go(func() error {
 			castedResources := resources.(*manifests.GatewayFilterTestResources)
 			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx, cl, *castedResources.Client); err != nil {
+			if err := waitForAvailable(egCtx, config, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (zone %d): %w", i, err)
 			}
 			return nil
@@ -337,7 +337,7 @@ func runClusterExternalDNSRouteLabelTest(ctx context.Context, config *rest.Confi
 		eg.Go(func() error {
 			castedResources := resources.(*manifests.GatewayFilterTestResources)
 			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx, cl, *castedResources.Client); err != nil {
+			if err := waitForAvailable(egCtx, config, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (zone %d): %w", i, err)
 			}
 			return nil
@@ -445,7 +445,7 @@ func runExternalDNSGatewayLabelTest(ctx context.Context, config *rest.Config, te
 		eg.Go(func() error {
 			castedResources := resources.(*manifests.GatewayFilterTestResources)
 			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx, cl, *castedResources.Client); err != nil {
+			if err := waitForAvailable(egCtx, config, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (zone %d): %w", i, err)
 			}
 			return nil
@@ -553,7 +553,7 @@ func runExternalDNSRouteLabelTest(ctx context.Context, config *rest.Config, test
 		eg.Go(func() error {
 			castedResources := resources.(*manifests.GatewayFilterTestResources)
 			lgr.Info("waiting for client deployment to be available", "client", castedResources.Client.Name, "zoneIndex", i)
-			if err := waitForAvailable(egCtx, cl, *castedResources.Client); err != nil {
+			if err := waitForAvailable(egCtx, config, cl, *castedResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment (zone %d): %w", i, err)
 			}
 			return nil

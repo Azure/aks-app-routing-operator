@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -19,14 +20,9 @@ func main() {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: time.Second}
-			var ns string
-			if nameserver[:len(nameserver)-1] == "." {
-				ns = nameserver[:len(ns)-1] // remove trailing period added for some reason by azure dns
-			} else {
-				ns = nameserver // no need to remove trailing period if single entry coming from k8s vnet ns server
-			}
+			ns := strings.TrimSuffix(nameserver, ".")
 
-			return d.DialContext(ctx, "tcp", ns+":53")
+			return d.DialContext(ctx, "tcp", net.JoinHostPort(ns, "53"))
 		},
 	}}
 	client := &http.Client{Transport: &http.Transport{

@@ -56,6 +56,11 @@ var testCmd = &cobra.Command{
 			return logger.Error(lgr, fmt.Errorf("test failed: %w", err))
 		}
 
+		if os.Getenv("E2E_SKIP_CLEANUP") != "" {
+			lgr.Info("skipping provisioned infrastructure cleanup because E2E_SKIP_CLEANUP is set")
+			return nil
+		}
+
 		if err := provisionedInfra.Cleanup(ctx); err != nil {
 			lgr.Error(fmt.Sprintf("cleaning up provisioned infrastructure: %s", err.Error()))
 			// we purposefully don't return an error here, not worth marking the test as failed if cleanup fails.

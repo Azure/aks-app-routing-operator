@@ -48,7 +48,7 @@ func promSuite(in infra.Provisioned) []test {
 				lgr = lgr.With("client", resources.Client.Name)
 				ctx = logger.WithContext(ctx, lgr)
 				lgr.Info("waiting for prometheus client to be ready")
-				if err := waitForAvailable(ctx, c, *resources.Client); err != nil {
+				if err := waitForAvailable(ctx, config, c, *resources.Client); err != nil {
 					return fmt.Errorf("waiting for prometheus client to be ready: %w", err)
 				}
 

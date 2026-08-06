@@ -208,7 +208,7 @@ var clientServerTest = func(ctx context.Context, config *rest.Config, operator m
 			}
 
 			ctx = logger.WithContext(ctx, lgr.With("client", testingResources.Client.GetName(), "clientNamespace", testingResources.Client.GetNamespace()))
-			if err := waitForAvailable(ctx, c, *testingResources.Client); err != nil {
+			if err := waitForAvailable(ctx, config, c, *testingResources.Client); err != nil {
 				return fmt.Errorf("waiting for client deployment to be available: %w", err)
 			}
 
