@@ -54,7 +54,7 @@ jobs:
       run: grep -v -E -f .covignore unfiltered.coverage.out > coverage.out
 
     - name: Coveralls
-      uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b #v2.3.6
+      uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # v2.3.6
       with:
         flag-name: unit-test
         path-to-lcov: coverage.out
