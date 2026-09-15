@@ -147,6 +147,8 @@ var happyPathPublicDeployment = &appsv1.Deployment{
 							"--domain-filter=test2.com",
 							"--namespace=test-ns",
 							"--gateway-namespace=test-ns",
+							"--events",
+							"--min-event-sync-interval=30s",
 						},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",
@@ -339,6 +341,8 @@ var happyPathPrivateDeployment = &appsv1.Deployment{
 							"--domain-filter=test2.com",
 							"--namespace=test-ns",
 							"--gateway-namespace=test-ns",
+							"--events",
+							"--min-event-sync-interval=30s",
 						},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "azure-config",

@@ -153,6 +153,8 @@ spec:
         - --source=ingress
         - --domain-filter=test-one.com
         - --domain-filter=test-two.com
+        - --events
+        - --min-event-sync-interval=30s
         image: /oss/v2/kubernetes/external-dns:v0.21.0
         livenessProbe:
           failureThreshold: 3

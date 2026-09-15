@@ -198,6 +198,8 @@ spec:
         - --domain-filter=test-two.com
         - --namespace=test-namespace
         - --gateway-namespace=test-namespace
+        - --events
+        - --min-event-sync-interval=30s
         image: /oss/v2/kubernetes/external-dns:v0.21.0
         livenessProbe:
           failureThreshold: 3

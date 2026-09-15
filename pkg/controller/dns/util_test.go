@@ -153,6 +153,8 @@ func Test_generateManifestsConf(t *testing.T) {
 				"--domain-filter=test2.com",
 				"--namespace=mock-namespace",
 				"--gateway-namespace=mock-namespace",
+				"--events",
+				"--min-event-sync-interval=30s",
 			},
 				casted.Spec.Template.Spec.Containers[0].Args)
 		case *corev1.ConfigMap:
@@ -190,6 +192,8 @@ func Test_generateManifestsConf(t *testing.T) {
 				"--domain-filter=test2.com",
 				"--namespace=mock-namespace",
 				"--gateway-namespace=mock-namespace",
+				"--events",
+				"--min-event-sync-interval=30s",
 			}, casted.Spec.Template.Spec.Containers[0].Args)
 		case *corev1.ConfigMap:
 			require.Equal(t, casted.Data["azure.json"], `{"cloud":"","location":"","resourceGroup":"test-rg","subscriptionId":"12345678-1234-1234-1234-123456789012","tenantId":"12345678-1234-1234-1234-012987654321","useWorkloadIdentityExtension":true}`)

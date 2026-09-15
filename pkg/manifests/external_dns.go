@@ -10,6 +10,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Azure/aks-app-routing-operator/api/v1alpha1"
 	"github.com/Azure/aks-app-routing-operator/pkg/config"
@@ -32,6 +33,7 @@ const (
 	k8sNameKey              = "app.kubernetes.io/name"
 	externalDnsResourceName = "external-dns"
 	txtWildcardReplacement  = "approutingwildcard"
+	maxMinEventSyncInterval = 30 * time.Second
 
 	// ExternalDNSVersion is the version of the external-dns image used
 	ExternalDNSVersion = "v0.21.0"
@@ -629,6 +631,11 @@ func newExternalDNSDeployment(conf *config.Config, externalDnsConfig *ExternalDn
 	deploymentArgs = append(deploymentArgs, resourceTypeArgs...)
 	deploymentArgs = append(deploymentArgs, domainFilters...)
 	deploymentArgs = append(deploymentArgs, namespaceFilterArgs(externalDnsConfig)...)
+	minEventSyncInterval := min(conf.DnsSyncInterval, maxMinEventSyncInterval)
+	deploymentArgs = append(deploymentArgs,
+		"--events",
+		"--min-event-sync-interval="+minEventSyncInterval.String(),
+	)
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
