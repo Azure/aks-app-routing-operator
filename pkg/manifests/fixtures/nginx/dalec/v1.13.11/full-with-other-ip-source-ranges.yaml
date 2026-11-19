@@ -1,3 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: null
+  labels:
+    openservicemesh.io/monitored-by: osm
+  name: test-namespace
+spec: {}
+status: {}
+---
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
@@ -20,7 +30,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -114,7 +124,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 rules:
 - apiGroups:
   - ""
@@ -217,7 +227,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -229,7 +239,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -237,7 +247,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 ---
 apiVersion: v1
 kind: Service
@@ -251,11 +261,12 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 spec:
   externalTrafficPolicy: Local
   loadBalancerSourceRanges:
-  - 127.1.000.1
+  - 100.00.000.0/22
+  - 222.22.222.2/22
   ports:
   - name: http
     port: 80
@@ -282,7 +293,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx-metrics
-  namespace: kube-system
+  namespace: test-namespace
 spec:
   ports:
   - name: prometheus
@@ -304,7 +315,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 spec:
   revisionHistoryLimit: 2
   selector:
@@ -374,7 +385,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: test-registry/oss/v2/ingress-nginx/controller:v1.13.10-7
+        image: test-registry/oss/v2/ingress-nginx/controller:v1.13.11-9
         livenessProbe:
           failureThreshold: 6
           httpGet:
@@ -449,7 +460,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
@@ -461,7 +472,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 spec:
   maxReplicas: 100
   minReplicas: 2
@@ -484,7 +495,7 @@ metadata:
     app.kubernetes.io/name: nginx
     kubernetes.azure.com/managedby: aks
   name: nginx
-  namespace: kube-system
+  namespace: test-namespace
 spec:
   maxUnavailable: 1
   selector:
